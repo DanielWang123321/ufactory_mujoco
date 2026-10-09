@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+
+# IDE / Editor
+.trae/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# AI agent files
+AGENTS.md
+worklog.md
+
+# MuJoCo intermediate / log files
+mjmodel.xml
+MUJOCO_LOG.TXT
+
+# OS
+.DS_Store
+Thumbs.db
+
