@@ -3,8 +3,10 @@
 
 Usage:
     python examples/01_load_and_view.py
+    python examples/01_load_and_view.py --pose ready
 """
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -14,20 +16,60 @@ from src.viewer import launch  # noqa: E402
 
 import mujoco  # noqa: E402
 
-MODEL = Path(__file__).resolve().parent.parent / "models" / "xarm6" / "scene.xml"
+MODELS_ROOT = Path(__file__).resolve().parent.parent / "models"
+
+
+def resolve_model_path(model_arg: str) -> Path:
+    p = Path(model_arg)
+    if p.is_file():
+        return p
+    candidates = [
+        MODELS_ROOT / model_arg / "scene.xml",
+        MODELS_ROOT / model_arg / f"{model_arg}.xml",
+    ]
+    for c in candidates:
+        if c.is_file():
+            return c
+    available = [d.name for d in MODELS_ROOT.iterdir() if (d / "scene.xml").is_file()]
+    raise FileNotFoundError(
+        f"Model '{model_arg}' not found. Searched:\n"
+        f"  - {p}\n"
+        f"  - {candidates[0]}\n"
+        f"  - {candidates[1]}\n"
+        f"Available models with scene.xml: {available}"
+    )
 
 
 def main() -> None:
-    model = mujoco.MjModel.from_xml_path(str(MODEL))
+    parser = argparse.ArgumentParser(description="Inspect a robot scene in MuJoCo.")
+    parser.add_argument(
+        "--model",
+        default="xarm6",
+        help="Robot name (e.g. 'xarm6') or path to a scene/model XML (default: xarm6)",
+    )
+    parser.add_argument(
+        "--pose",
+        choices=["home", "ready"],
+        default="home",
+        help="initial keyframe (default: home)",
+    )
+    args = parser.parse_args()
+
+    model_path = resolve_model_path(args.model)
+    model = mujoco.MjModel.from_xml_path(str(model_path))
     data = mujoco.MjData(model)
-    mujoco.mj_resetDataKeyframe(model, data, 0)
+    key = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_KEY, args.pose)
+    if key >= 0:
+        mujoco.mj_resetDataKeyframe(model, data, key)
     mujoco.mj_forward(model, data)
 
-    print(f"model: {MODEL.name}  nq={model.nq} nu={model.nu} nbody={model.nbody}")
+    print(f"model: {model_path.name} ({args.model})  nq={model.nq} nu={model.nu} nbody={model.nbody}")
     print("joints:", [f"{model.joint(i).name} [{lo:+.3f},{hi:+.3f}]"
                       for i, (lo, hi) in zip(range(model.njnt), model.jnt_range)])
     print("keyframes:", [model.key(i).name for i in range(model.nkey)])
-    print("TCP home:", data.site(model.site("attachment_site").id).xpos)
+    site_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, "attachment_site")
+    if site_id >= 0:
+        print(f"TCP {args.pose}:", data.site(site_id).xpos)
     print("viewer controls: mouse orbit/pan, Tab panel, Space pause. Close window to exit.")
 
     launch(model, data)

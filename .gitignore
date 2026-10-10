@@ -11,7 +11,6 @@ build/
 venv/
 
 # IDE / Editor
-.trae/
 .vscode/
 .idea/
 *.swp
@@ -21,6 +20,7 @@ venv/
 # AI agent files
 AGENTS.md
 worklog.md
+roadmap.md
 
 # MuJoCo intermediate / log files
 mjmodel.xml

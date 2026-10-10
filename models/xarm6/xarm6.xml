@@ -1,29 +1,56 @@
 <mujoco model="xarm6">
-  <!-- UFACTORY xArm 6, converted from official xarm_description URDF (xArm-Developer/xarm_ros).
-       Inertial / kinematic data preserved from URDF; actuator params follow Menagerie xArm7 convention. -->
+  <!-- UFACTORY xArm 6 (1305 variant), high-fidelity multi-material visual meshes (OBJ)
+       with dedicated collision meshes (STL). Actuator parameters follow Menagerie conventions. -->
   <compiler angle="radian" autolimits="true" meshdir="assets"/>
 
   <option integrator="implicitfast"/>
 
   <asset>
-    <material name="white" rgba="1 1 1 1"/>
+    <!-- Materials: white shell, silver anodized joints/rings, black trim/rings, seal -->
+    <material name="white" rgba="0.95 0.95 0.95 1" specular="0.4" shininess="0.3"/>
+    <material name="silver" rgba="0.85 0.85 0.88 1" specular="0.9" shininess="0.8" reflectance="0.05"/>
+    <material name="black" rgba="0.25 0.25 0.25 1" specular="0.2" shininess="0.1"/>
+    <material name="seal" rgba="0.8 0.82 0.85 1" specular="0.3" shininess="0.2"/>
     <material name="gray" rgba="0.753 0.753 0.753 1"/>
 
-    <mesh name="link_base" file="xarm6/visual/link_base.stl"/>
-    <mesh name="link1" file="xarm6/visual/link1.stl"/>
-    <mesh name="link2" file="xarm6/visual/link2.stl"/>
-    <mesh name="link3" file="xarm6/visual/link3.stl"/>
-    <mesh name="link4" file="xarm6/visual/link4.stl"/>
-    <mesh name="link5" file="xarm6/visual/link5.stl"/>
-    <mesh name="link6" file="xarm6/visual/link6.stl"/>
+    <!-- High-fidelity visual OBJs (smooth normals, multi-material separation) -->
+    <mesh name="link_base_vis" file="xarm6/visual/link_base.obj"/>
+    <mesh name="link1_seal_vis" file="xarm6/visual/link1_seal.obj"/>
+    <mesh name="link1_white_vis" file="xarm6/visual/link1_white.obj"/>
+    <mesh name="link1_silver_vis" file="xarm6/visual/link1_silver.obj"/>
+    <mesh name="link2_white_vis" file="xarm6/visual/link2_white.obj"/>
+    <mesh name="link2_silver_vis" file="xarm6/visual/link2_silver.obj"/>
+    <mesh name="link3_white_vis" file="xarm6/visual/link3_white.obj"/>
+    <mesh name="link3_silver_vis" file="xarm6/visual/link3_silver.obj"/>
+    <mesh name="link4_white_vis" file="xarm6/visual/link4_white.obj"/>
+    <mesh name="link4_silver_vis" file="xarm6/visual/link4_silver.obj"/>
+    <mesh name="link5_white_vis" file="xarm6/visual/link5_white.obj"/>
+    <mesh name="link5_silver_vis" file="xarm6/visual/link5_silver.obj"/>
+    <mesh name="link6_white_vis" file="xarm6/visual/link6_white.obj"/>
+    <mesh name="link6_black_vis" file="xarm6/visual/link6_black.obj"/>
+    <mesh name="link6_silver_vis" file="xarm6/visual/link6_silver.obj"/>
+
+    <!-- Collision STLs -->
+    <mesh name="link_base_col" file="xarm6/collision/link_base.stl"/>
+    <mesh name="link1_col" file="xarm6/collision/link1.stl"/>
+    <mesh name="link2_col" file="xarm6/collision/link2.stl"/>
+    <mesh name="link3_col" file="xarm6/collision/link3.stl"/>
+    <mesh name="link4_col" file="xarm6/collision/link4.stl"/>
+    <mesh name="link5_col" file="xarm6/collision/link5.stl"/>
+    <mesh name="link6_col" file="xarm6/collision/link6.stl"/>
     <mesh name="end_tool" file="end_tool/collision/end_tool.stl"/>
   </asset>
 
   <default>
     <default class="xarm6">
-      <geom type="mesh" material="white"/>
       <joint axis="0 0 1" armature="0.1" range="-6.28319 6.28319" frictionloss="1"/>
       <general biastype="affine" ctrlrange="-6.28319 6.28319"/>
+      <default class="visual">
+        <geom type="mesh" contype="0" conaffinity="0" group="2"/>
+      </default>
+      <default class="collision">
+        <geom type="mesh" group="3"/>
+      </default>
       <default class="size1"><!-- shoulder joints, effort ±50 Nm -->
         <joint damping="10"/>
         <general gainprm="1500" biasprm="0 -1500 -150" forcerange="-50 50"/>
@@ -42,39 +69,53 @@
 
   <worldbody>
     <body name="link_base" childclass="xarm6">
-      <geom mesh="link_base"/>
+      <geom class="visual" mesh="link_base_vis" material="silver"/>
+      <geom class="collision" mesh="link_base_col"/>
       <body name="link1" pos="0 0 0.267">
         <inertial pos="0.00022 0.02951 -0.0124" quat="0.976139 -0.216079 -0.00387305 -0.0211673" mass="2.3814"
           diaginertia="0.00585697 0.00544434 0.00312315"/>
         <joint name="joint1" class="size1"/>
-        <geom mesh="link1"/>
+        <geom class="visual" mesh="link1_white_vis" material="white"/>
+        <geom class="visual" mesh="link1_silver_vis" material="silver"/>
+        <geom class="visual" mesh="link1_seal_vis" material="seal"/>
+        <geom class="collision" mesh="link1_col"/>
         <body name="link2" quat="0.707105 -0.707108 0 0">
           <inertial pos="0.03881 -0.22783 0.03496" quat="0.635305 0.753023 0.170976 -0.010531" mass="2.2675"
             diaginertia="0.0294477 0.0281783 0.00383449"/>
           <joint name="joint2" range="-2.059 2.0944" class="size1"/>
-          <geom mesh="link2"/>
+          <geom class="visual" mesh="link2_white_vis" material="white"/>
+          <geom class="visual" mesh="link2_silver_vis" material="silver"/>
+          <geom class="collision" mesh="link2_col"/>
           <body name="link3" pos="0.0535 -0.2845 0">
             <inertial pos="0.07041 0.11631 0.0107" quat="0.845838 0.425539 -0.293179 0.132369" mass="1.875"
               diaginertia="0.00714132 0.00699471 0.00196753"/>
             <joint name="joint3" range="-3.927 0.19198" class="size2"/>
-            <geom mesh="link3"/>
+            <geom class="visual" mesh="link3_white_vis" material="white"/>
+            <geom class="visual" mesh="link3_silver_vis" material="silver"/>
+            <geom class="collision" mesh="link3_col"/>
             <body name="link4" pos="0.0775 0.3425 0" quat="0.707105 -0.707108 0 0">
               <inertial pos="-0.00018 0.01798 -0.02291" quat="0.99929 -0.0369702 0.00179429 -0.00701173" mass="1.3192"
                 diaginertia="0.00489614 0.00447403 0.00132609"/>
               <joint name="joint4" class="size2"/>
-              <geom mesh="link4"/>
+              <geom class="visual" mesh="link4_white_vis" material="white"/>
+              <geom class="visual" mesh="link4_silver_vis" material="silver"/>
+              <geom class="collision" mesh="link4_col"/>
               <body name="link5" quat="0.707105 0.707108 0 0">
                 <inertial pos="0.0651 0.03096 0.00315" quat="-0.223008 0.771309 0.16027 0.574163" mass="1.33854"
                   diaginertia="0.00241824 0.00213367 0.00108731"/>
                 <joint name="joint5" range="-1.69297 3.14159" class="size2"/>
-                <geom mesh="link5"/>
+                <geom class="visual" mesh="link5_white_vis" material="white"/>
+                <geom class="visual" mesh="link5_silver_vis" material="silver"/>
+                <geom class="collision" mesh="link5_col"/>
                 <body name="link6" pos="0.076 0.097 0" quat="0.707105 -0.707108 0 0">
                   <inertial pos="0 -0.00677 -0.01098" quat="0.487612 0.512088 -0.512088 0.487612" mass="0.17"
                     diaginertia="0.000132176 9.3e-05 5.85236e-05"/>
                   <joint name="joint6" class="size3"/>
-                  <geom material="gray" mesh="link6" contype="0" conaffinity="0" group="1"/>
-                  <!-- flange collision geometry (official end_tool collision mesh), hidden group -->
-                  <geom name="flange_collision" material="gray" mesh="end_tool" group="3"/>
+                  <geom class="visual" mesh="link6_white_vis" material="white"/>
+                  <geom class="visual" mesh="link6_silver_vis" material="silver"/>
+                  <geom class="visual" mesh="link6_black_vis" material="black"/>
+                  <!-- flange collision geometry (official end_tool collision mesh), group 3 -->
+                  <geom name="flange_collision" class="collision" mesh="end_tool"/>
                   <!-- TCP: flange center, xArm tool frame -->
                   <site name="attachment_site" pos="0 0 0"/>
                 </body>
@@ -85,6 +126,15 @@
       </body>
     </body>
   </worldbody>
+
+  <contact>
+    <exclude body1="link_base" body2="link1"/>
+    <exclude body1="link1" body2="link2"/>
+    <exclude body1="link2" body2="link3"/>
+    <exclude body1="link3" body2="link4"/>
+    <exclude body1="link4" body2="link5"/>
+    <exclude body1="link5" body2="link6"/>
+  </contact>
 
   <actuator>
     <general name="act1" joint="joint1" class="size1"/>

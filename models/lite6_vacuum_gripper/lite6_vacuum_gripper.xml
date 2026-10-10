@@ -1,0 +1,33 @@
+<mujoco model="lite6_vacuum_gripper">
+  <!-- UFACTORY Lite6 Vacuum Suction Gripper, visual OBJ and collision STL. -->
+  <compiler angle="radian" autolimits="true" meshdir="assets"/>
+
+  <option integrator="implicitfast"/>
+
+  <asset>
+    <material name="white" rgba="0.95 0.95 0.95 1" specular="0.4" shininess="0.3"/>
+
+    <mesh name="vacuum_vis" file="lite6_vacuum_gripper/visual/vacuum_gripper.obj"/>
+    <mesh name="vacuum_col" file="lite6_vacuum_gripper/collision/vacuum_gripper_lite.stl"/>
+  </asset>
+
+  <default>
+    <default class="vg">
+      <default class="vg_visual">
+        <geom type="mesh" contype="0" conaffinity="0" group="2"/>
+      </default>
+      <default class="vg_collision">
+        <geom type="mesh" group="3"/>
+      </default>
+    </default>
+  </default>
+
+  <worldbody>
+    <body name="uflite_vacuum_gripper_link" childclass="vg">
+      <inertial pos="0 0 0.02" mass="0.18" diaginertia="0.0001 0.0001 0.00008"/>
+      <geom class="vg_visual" mesh="vacuum_vis" material="white"/>
+      <geom class="vg_collision" mesh="vacuum_col"/>
+      <site name="suction_site" pos="0 0 0.05" size="0.01" rgba="0 1 0 0.5"/>
+    </body>
+  </worldbody>
+</mujoco>

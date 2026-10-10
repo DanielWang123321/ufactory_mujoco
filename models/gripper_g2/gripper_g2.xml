@@ -1,0 +1,137 @@
+<mujoco model="gripper_g2">
+  <!-- UFACTORY Gripper G2, high-fidelity multi-material visual OBJs
+       with dedicated collision STLs and 4-bar linkage mechanism. -->
+  <compiler angle="radian" autolimits="true" meshdir="assets"/>
+
+  <option integrator="implicitfast"/>
+
+  <asset>
+    <material name="white" rgba="0.95 0.95 0.95 1" specular="0.4" shininess="0.3"/>
+    <material name="black" rgba="0.15 0.15 0.15 1" specular="0.2" shininess="0.1"/>
+
+    <!-- Visual OBJs -->
+    <mesh name="base_vis" file="gripper_g2/visual/base.obj"/>
+    <mesh name="left_outer_knuckle_vis" file="gripper_g2/visual/left_outer_knuckle.obj"/>
+    <mesh name="left_finger_vis" file="gripper_g2/visual/left_finger.obj"/>
+    <mesh name="left_inner_knuckle_vis" file="gripper_g2/visual/left_inner_knuckle.obj"/>
+    <mesh name="right_outer_knuckle_vis" file="gripper_g2/visual/right_outer_knuckle.obj"/>
+    <mesh name="right_finger_vis" file="gripper_g2/visual/right_finger.obj"/>
+    <mesh name="right_inner_knuckle_vis" file="gripper_g2/visual/right_inner_knuckle.obj"/>
+
+    <!-- Collision STLs -->
+    <mesh name="base_link_col" file="gripper_g2/collision/base_link.stl"/>
+    <mesh name="left_outer_knuckle_col" file="gripper_g2/collision/left_outer_knuckle.stl"/>
+    <mesh name="left_finger_col" file="gripper_g2/collision/left_finger.stl"/>
+    <mesh name="left_inner_knuckle_col" file="gripper_g2/collision/left_inner_knuckle.stl"/>
+    <mesh name="right_outer_knuckle_col" file="gripper_g2/collision/right_outer_knuckle.stl"/>
+    <mesh name="right_finger_col" file="gripper_g2/collision/right_finger.stl"/>
+    <mesh name="right_inner_knuckle_col" file="gripper_g2/collision/right_inner_knuckle.stl"/>
+  </asset>
+
+  <default>
+    <default class="g2">
+      <default class="g2_visual">
+        <geom type="mesh" contype="0" conaffinity="0" group="2"/>
+      </default>
+      <default class="g2_collision">
+        <geom type="mesh" group="3"/>
+      </default>
+      <default class="driver">
+        <joint range="0 0.85" armature="0.005" damping="0.1" solreflimit="0.005 1"/>
+      </default>
+      <default class="follower">
+        <joint range="0 0.85" solreflimit="0.005 1"/>
+      </default>
+      <default class="spring_link">
+        <joint range="0 0.85" stiffness="0.05" springref="2.62" damping="0.00125"/>
+      </default>
+    </default>
+  </default>
+
+  <worldbody>
+    <body name="xarm_gripper_base_link" childclass="g2">
+      <inertial pos="-0.000655 -0.00185 0.04803" quat="0.9974 -0.0718 -0.0062 0.0005"
+        mass="0.54156" diaginertia="0.000471 0.000332 0.000255"/>
+      <geom class="g2_visual" mesh="base_vis" material="white"/>
+      <geom class="g2_collision" mesh="base_link_col"/>
+
+      <!-- Left finger chain -->
+      <body name="left_outer_knuckle" pos="0 0.035 0.059098">
+        <inertial pos="0 0.02156 0.01518" quat="0.4779 0.8784 0 0" mass="0.03362"
+          diaginertia="1.91e-05 1.79e-05 1.90e-06"/>
+        <joint name="left_driver_joint" axis="1 0 0" class="driver"/>
+        <geom class="g2_visual" mesh="left_outer_knuckle_vis" material="black"/>
+        <geom class="g2_collision" mesh="left_outer_knuckle_col"/>
+        <body name="left_finger" pos="0 0.035465 0.042039">
+          <inertial pos="0 -0.0164 0.02926" quat="0.6976 0.1154 -0.1154 0.6976" mass="0.0483"
+            diaginertia="1.88e-05 1.75e-05 3.57e-06"/>
+          <joint name="left_finger_joint" axis="-1 0 0" class="follower"/>
+          <geom class="g2_visual" mesh="left_finger_vis" material="black"/>
+          <geom class="g2_collision" mesh="left_finger_col"/>
+        </body>
+      </body>
+      <body name="left_inner_knuckle" pos="0 0.02 0.074098">
+        <inertial pos="0 0.02205 0.02613" quat="0.6641 -0.2427 0.2427 0.6641" mass="0.02301"
+          diaginertia="8.34e-06 6.09e-06 2.76e-06"/>
+        <joint name="left_inner_knuckle_joint" axis="1 0 0" class="spring_link"/>
+        <geom class="g2_visual" mesh="left_inner_knuckle_vis" material="black"/>
+        <geom class="g2_collision" mesh="left_inner_knuckle_col"/>
+      </body>
+
+      <!-- Right finger chain -->
+      <body name="right_outer_knuckle" pos="0 -0.035 0.059098">
+        <inertial pos="0 -0.02156 0.01518" quat="0.8784 0.4779 0 0" mass="0.03362"
+          diaginertia="1.91e-05 1.79e-05 1.90e-06"/>
+        <joint name="right_driver_joint" axis="-1 0 0" class="driver"/>
+        <geom class="g2_visual" mesh="right_outer_knuckle_vis" material="black"/>
+        <geom class="g2_collision" mesh="right_outer_knuckle_col"/>
+        <body name="right_finger" pos="0 -0.035465 0.042039">
+          <inertial pos="0 0.0164 0.02926" quat="0.6976 -0.1154 0.1154 0.6976" mass="0.0483"
+            diaginertia="1.88e-05 1.75e-05 3.57e-06"/>
+          <joint name="right_finger_joint" axis="1 0 0" class="follower"/>
+          <geom class="g2_visual" mesh="right_finger_vis" material="black"/>
+          <geom class="g2_collision" mesh="right_finger_col"/>
+        </body>
+      </body>
+      <body name="right_inner_knuckle" pos="0 -0.02 0.074098">
+        <inertial pos="0 -0.02205 0.02613" quat="0.6641 0.2427 -0.2427 0.6641" mass="0.02301"
+          diaginertia="8.34e-06 6.09e-06 2.76e-06"/>
+        <joint name="right_inner_knuckle_joint" axis="-1 0 0" class="spring_link"/>
+        <geom class="g2_visual" mesh="right_inner_knuckle_vis" material="black"/>
+        <geom class="g2_collision" mesh="right_inner_knuckle_col"/>
+      </body>
+
+      <site name="link_tcp" pos="0 0 0.172"/>
+    </body>
+  </worldbody>
+
+  <contact>
+    <exclude body1="right_inner_knuckle" body2="right_outer_knuckle"/>
+    <exclude body1="right_inner_knuckle" body2="right_finger"/>
+    <exclude body1="left_inner_knuckle" body2="left_outer_knuckle"/>
+    <exclude body1="left_inner_knuckle" body2="left_finger"/>
+  </contact>
+
+  <tendon>
+    <fixed name="split">
+      <joint joint="right_driver_joint" coef="0.5"/>
+      <joint joint="left_driver_joint" coef="0.5"/>
+    </fixed>
+  </tendon>
+
+  <equality>
+    <connect anchor="0 0.015 0.015" body1="right_finger" body2="right_inner_knuckle" solref="0.005 1"/>
+    <connect anchor="0 -0.015 0.015" body1="left_finger" body2="left_inner_knuckle" solref="0.005 1"/>
+    <joint joint1="left_driver_joint" joint2="right_driver_joint" polycoef="0 1 0 0 0" solref="0.005 1"/>
+  </equality>
+
+  <actuator>
+    <general name="gripper_motor" tendon="split" forcerange="-50 50" ctrlrange="0 0.85" biastype="affine"
+      gainprm="100" biasprm="0 -100 -10"/>
+  </actuator>
+
+  <keyframe>
+    <key name="open" qpos="0 0 0 0 0 0" ctrl="0"/>
+    <key name="close" qpos="0.8 0.8 0.8 0.8 0.8 0.8" ctrl="0.8"/>
+  </keyframe>
+</mujoco>

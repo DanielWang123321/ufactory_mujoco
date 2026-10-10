@@ -1,0 +1,76 @@
+<mujoco model="lite6_gripper">
+  <!-- UFACTORY Lite6 Parallel Gripper, high-fidelity visual OBJs and collision STLs. -->
+  <compiler angle="radian" autolimits="true" meshdir="assets"/>
+
+  <option integrator="implicitfast"/>
+
+  <asset>
+    <material name="white" rgba="0.95 0.95 0.95 1" specular="0.4" shininess="0.3"/>
+    <material name="silver" rgba="0.85 0.85 0.88 1" specular="0.9" shininess="0.8" reflectance="0.05"/>
+    <material name="black" rgba="0.15 0.15 0.15 1" specular="0.2" shininess="0.1"/>
+
+    <mesh name="shell_vis" file="lite6_gripper/visual/shell.obj"/>
+    <mesh name="finger1_white_vis" file="lite6_gripper/visual/finger1_white.obj"/>
+    <mesh name="finger1_silver_vis" file="lite6_gripper/visual/finger1_silver.obj"/>
+    <mesh name="finger1_black_vis" file="lite6_gripper/visual/finger1_black.obj"/>
+    <mesh name="finger2_white_vis" file="lite6_gripper/visual/finger2_white.obj"/>
+    <mesh name="finger2_silver_vis" file="lite6_gripper/visual/finger2_silver.obj"/>
+    <mesh name="finger2_black_vis" file="lite6_gripper/visual/finger2_black.obj"/>
+
+    <mesh name="shell_col" file="lite6_gripper/collision/shell.stl"/>
+    <mesh name="finger1_col" file="lite6_gripper/collision/finger1.stl"/>
+    <mesh name="finger2_col" file="lite6_gripper/collision/finger2.stl"/>
+  </asset>
+
+  <default>
+    <default class="lg">
+      <default class="lg_visual">
+        <geom type="mesh" contype="0" conaffinity="0" group="2"/>
+      </default>
+      <default class="lg_collision">
+        <geom type="mesh" group="3"/>
+      </default>
+    </default>
+  </default>
+
+  <worldbody>
+    <body name="uflite_gripper_link" childclass="lg">
+      <inertial pos="0 0 0.04" mass="0.28" diaginertia="0.0002 0.0002 0.0001"/>
+      <geom class="lg_visual" mesh="shell_vis" material="white"/>
+      <geom class="lg_collision" mesh="shell_col"/>
+
+      <body name="uflite_finger1" pos="0 0 0.06">
+        <inertial pos="0 0.015 0.02" mass="0.02" diaginertia="5e-06 5e-06 2e-06"/>
+        <joint name="finger_joint1" type="slide" axis="0 1 0" range="0 0.0089" damping="1"/>
+        <geom class="lg_visual" mesh="finger1_white_vis" material="white"/>
+        <geom class="lg_visual" mesh="finger1_silver_vis" material="silver"/>
+        <geom class="lg_visual" mesh="finger1_black_vis" material="black"/>
+        <geom class="lg_collision" mesh="finger1_col"/>
+      </body>
+
+      <body name="uflite_finger2" pos="0 0 0.06">
+        <inertial pos="0 -0.015 0.02" mass="0.02" diaginertia="5e-06 5e-06 2e-06"/>
+        <joint name="finger_joint2" type="slide" axis="0 -1 0" range="0 0.0089" damping="1"/>
+        <geom class="lg_visual" mesh="finger2_white_vis" material="white"/>
+        <geom class="lg_visual" mesh="finger2_silver_vis" material="silver"/>
+        <geom class="lg_visual" mesh="finger2_black_vis" material="black"/>
+        <geom class="lg_collision" mesh="finger2_col"/>
+      </body>
+
+      <site name="link_tcp" pos="0 0 0.095"/>
+    </body>
+  </worldbody>
+
+  <equality>
+    <joint joint1="finger_joint2" joint2="finger_joint1" polycoef="0 1 0 0 0"/>
+  </equality>
+
+  <actuator>
+    <position name="finger_actuator" joint="finger_joint1" kp="200" kv="10" ctrlrange="0 0.0089"/>
+  </actuator>
+
+  <keyframe>
+    <key name="open" qpos="0 0" ctrl="0"/>
+    <key name="close" qpos="0.0089 0.0089" ctrl="0.0089"/>
+  </keyframe>
+</mujoco>
