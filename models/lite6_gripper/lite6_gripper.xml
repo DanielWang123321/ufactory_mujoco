@@ -35,12 +35,12 @@
 
   <worldbody>
     <body name="uflite_gripper_link" childclass="lg">
-      <inertial pos="0 0 0.04" mass="0.28" diaginertia="0.0002 0.0002 0.0001"/>
+      <inertial pos="0 0 0.03" mass="0.25" fullinertia="0.00047106 0.00033072 0.00025642 0.00000039292 0.0000026537 -0.000010975"/>
       <geom class="lg_visual" mesh="shell_vis" material="white"/>
       <geom class="lg_collision" mesh="shell_col"/>
 
-      <body name="uflite_finger1" pos="0 0 0.06">
-        <inertial pos="0 0.015 0.02" mass="0.02" diaginertia="5e-06 5e-06 2e-06"/>
+      <body name="uflite_finger1" pos="0 0 0.0543">
+        <inertial pos="0 0.01 0.0086" mass="0.0163" fullinertia="1.425e-06 1.63e-06 8.63e-07 0 0 -3.1e-07"/>
         <joint name="finger_joint1" type="slide" axis="0 1 0" range="0 0.0089" damping="1"/>
         <geom class="lg_visual" mesh="finger1_white_vis" material="white"/>
         <geom class="lg_visual" mesh="finger1_silver_vis" material="silver"/>
@@ -48,8 +48,8 @@
         <geom class="lg_collision" mesh="finger1_col"/>
       </body>
 
-      <body name="uflite_finger2" pos="0 0 0.06">
-        <inertial pos="0 -0.015 0.02" mass="0.02" diaginertia="5e-06 5e-06 2e-06"/>
+      <body name="uflite_finger2" pos="0 0 0.0543">
+        <inertial pos="0 -0.01 0.0086" mass="0.0163" fullinertia="1.425e-06 1.63e-06 8.63e-07 0 0 3.1e-07"/>
         <joint name="finger_joint2" type="slide" axis="0 -1 0" range="0 0.0089" damping="1"/>
         <geom class="lg_visual" mesh="finger2_white_vis" material="white"/>
         <geom class="lg_visual" mesh="finger2_silver_vis" material="silver"/>
@@ -57,7 +57,7 @@
         <geom class="lg_collision" mesh="finger2_col"/>
       </body>
 
-      <site name="link_tcp" pos="0 0 0.095"/>
+      <site name="link_tcp" pos="0 0 0.0836"/>
     </body>
   </worldbody>
 

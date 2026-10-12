@@ -66,17 +66,18 @@
       <default class="collision">
         <geom type="mesh" group="3"/>
       </default>
+      <!-- per-joint torque limits follow the official UFACTORY spec, set as forcerange on each actuator -->
       <default class="size1">
         <joint damping="10"/>
-        <general gainprm="1500" biasprm="0 -1500 -150" forcerange="-50 50"/>
+        <general gainprm="1500" biasprm="0 -1500 -150"/>
       </default>
       <default class="size2">
         <joint damping="5"/>
-        <general gainprm="1000" biasprm="0 -1000 -100" forcerange="-32 32"/>
+        <general gainprm="1000" biasprm="0 -1000 -100"/>
       </default>
       <default class="size3">
         <joint damping="2"/>
-        <general gainprm="800" biasprm="0 -800 -80" forcerange="-20 20"/>
+        <general gainprm="800" biasprm="0 -800 -80"/>
       </default>
       <default class="driver">
         <joint range="0 0.85" armature="0.005" damping="0.1" solreflimit="0.005 1"/>
@@ -216,32 +217,27 @@
     <exclude body1="left_inner_knuckle" body2="left_finger"/>
   </contact>
 
-  <tendon>
-    <fixed name="gripper_split">
-      <joint joint="right_driver_joint" coef="0.5"/>
-      <joint joint="left_driver_joint" coef="0.5"/>
-    </fixed>
-  </tendon>
-
   <equality>
-    <connect anchor="0 0.015 0.015" body1="right_finger" body2="right_inner_knuckle" solref="0.005 1"/>
-    <connect anchor="0 -0.015 0.015" body1="left_finger" body2="left_inner_knuckle" solref="0.005 1"/>
-    <joint joint1="left_driver_joint" joint2="right_driver_joint" polycoef="0 1 0 0 0" solref="0.005 1"/>
+    <joint joint1="left_driver_joint" joint2="left_finger_joint" polycoef="0 1 0 0 0"/>
+    <joint joint1="left_driver_joint" joint2="left_inner_knuckle_joint" polycoef="0 1 0 0 0"/>
+    <joint joint1="left_driver_joint" joint2="right_driver_joint" polycoef="0 1 0 0 0"/>
+    <joint joint1="left_driver_joint" joint2="right_finger_joint" polycoef="0 1 0 0 0"/>
+    <joint joint1="left_driver_joint" joint2="right_inner_knuckle_joint" polycoef="0 1 0 0 0"/>
   </equality>
 
   <actuator>
-    <general name="act1" joint="joint1" class="size1"/>
-    <general name="act2" joint="joint2" class="size1" ctrlrange="-2.059 2.0944"/>
-    <general name="act3" joint="joint3" class="size2" ctrlrange="-3.927 0.19198"/>
-    <general name="act4" joint="joint4" class="size2"/>
-    <general name="act5" joint="joint5" class="size2" ctrlrange="-1.69297 3.14159"/>
-    <general name="act6" joint="joint6" class="size3"/>
-    <general name="gripper" tendon="gripper_split" forcerange="-50 50" ctrlrange="0 0.85" biastype="affine"
-      gainprm="100" biasprm="0 -100 -10"/>
+    <general name="act1" joint="joint1" class="size1" forcerange="-179.4445 179.4445"/>
+    <general name="act2" joint="joint2" class="size1" ctrlrange="-2.059 2.0944" forcerange="-179.4445 179.4445"/>
+    <general name="act3" joint="joint3" class="size2" ctrlrange="-3.927 0.19198" forcerange="-92 92"/>
+    <general name="act4" joint="joint4" class="size2" forcerange="-81.558 81.558"/>
+    <general name="act5" joint="joint5" class="size2" ctrlrange="-1.69297 3.14159" forcerange="-30.6 30.6"/>
+    <general name="act6" joint="joint6" class="size3" forcerange="-30.6 30.6"/>
+    <position name="gripper" joint="left_driver_joint" kp="100" kv="10" forcerange="-50 50" ctrlrange="0 0.85"/>
   </actuator>
 
   <keyframe>
-    <key name="home" qpos="0 0 0 0 0 0 0 0 0 0 0 0" ctrl="0 0 0 0 0 0 0"/>
+    <!-- J2=-0.3 lifts the mounted gripper clear of the floor (all-zero home leaves the tool floor-grazing) -->
+    <key name="home" qpos="0 -0.3 0 0 0 0 0 0 0 0 0 0" ctrl="0 -0.3 0 0 0 0 0"/>
     <key name="ready" qpos="0 -0.8 -1.2 1.0 0.3 0 0 0 0 0 0 0" ctrl="0 -0.8 -1.2 1.0 0.3 0 0"/>
   </keyframe>
 </mujoco>

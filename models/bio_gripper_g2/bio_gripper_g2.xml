@@ -38,14 +38,14 @@
 
       <body name="bio_gripper_g2_left_finger" pos="0.059 0 0.027">
         <inertial pos="0.0218 -0.0276 0.0119" mass="0.012" diaginertia="3.7e-06 1.7e-05 1.8e-05"/>
-        <joint name="left_finger_joint" type="slide" axis="0 1 0" range="-0.0395 0" damping="1"/>
+        <joint name="left_finger_joint" type="slide" axis="0 1 0" range="-0.0395 0" damping="0.5"/>
         <geom class="bio_visual" mesh="left_finger_vis" material="silver"/>
         <geom class="bio_collision" mesh="left_finger_col"/>
       </body>
 
       <body name="bio_gripper_g2_right_finger" pos="0.059 0 0.027">
         <inertial pos="0.0204 0.0276 0.0103" mass="0.012" diaginertia="4.1e-06 1.6e-05 1.6e-05"/>
-        <joint name="right_finger_joint" type="slide" axis="0 1 0" range="0 0.0395" damping="1"/>
+        <joint name="right_finger_joint" type="slide" axis="0 1 0" range="0 0.0395" damping="0.5"/>
         <geom class="bio_visual" mesh="right_finger_vis" material="silver"/>
         <geom class="bio_collision" mesh="right_finger_col"/>
       </body>
@@ -59,7 +59,7 @@
   </equality>
 
   <actuator>
-    <position name="finger_actuator" joint="left_finger_joint" kp="100" kv="10" ctrlrange="-0.0395 0"/>
+    <position name="finger_actuator" joint="left_finger_joint" kp="500" kv="5" ctrlrange="-0.0395 0"/>
   </actuator>
 
   <keyframe>

@@ -13,6 +13,13 @@ def configure_backend() -> None:
             os.environ.setdefault("PYGLFW_LIBRARY_VARIANT", "x11")
 
 
+def configure_low_power_rendering(model) -> None:
+    """Skip shadow/reflection passes without changing meshes or physics."""
+    model.light_castshadow[:] = False
+    model.mat_reflectance[:] = 0.0
+    model.vis.quality.shadowsize = 1024
+
+
 def _prepare_viewer():
     import glfw
     import mujoco.viewer

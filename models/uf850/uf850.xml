@@ -43,17 +43,18 @@
       <default class="collision">
         <geom type="mesh" group="3"/>
       </default>
-      <default class="size1"><!-- base / shoulder: effort ±200 Nm -->
+      <!-- per-joint torque limits follow the official UFACTORY spec, set as forcerange on each actuator -->
+      <default class="size1"><!-- base / shoulder -->
         <joint damping="15"/>
-        <general gainprm="3000" biasprm="0 -3000 -300" forcerange="-200 200"/>
+        <general gainprm="3000" biasprm="0 -3000 -300"/>
       </default>
-      <default class="size2"><!-- elbow / forearm: effort ±90 / ±68 Nm -->
+      <default class="size2"><!-- elbow / forearm -->
         <joint damping="6"/>
-        <general gainprm="1500" biasprm="0 -1500 -150" forcerange="-90 90"/>
+        <general gainprm="1500" biasprm="0 -1500 -150"/>
       </default>
-      <default class="size3"><!-- wrist / flange: effort ±19 Nm -->
+      <default class="size3"><!-- wrist / flange -->
         <joint damping="3"/>
-        <general gainprm="800" biasprm="0 -800 -80" forcerange="-19 19"/>
+        <general gainprm="800" biasprm="0 -800 -80"/>
       </default>
       <site size="0.001" rgba="1 0 0 1" group="4"/>
     </default>
@@ -123,12 +124,12 @@
   </contact>
 
   <actuator>
-    <general name="act1" joint="joint1" class="size1"/>
-    <general name="act2" joint="joint2" class="size1" ctrlrange="-2.30383 2.30383"/>
-    <general name="act3" joint="joint3" class="size2" ctrlrange="-4.2237 0.061087"/>
-    <general name="act4" joint="joint4" class="size2" forcerange="-68 68"/>
-    <general name="act5" joint="joint5" class="size3" ctrlrange="-2.1642 2.1642"/>
-    <general name="act6" joint="joint6" class="size3"/>
+    <general name="act1" joint="joint1" class="size1" forcerange="-382.5 382.5"/>
+    <general name="act2" joint="joint2" class="size1" ctrlrange="-2.30383 2.30383" forcerange="-382.5 382.5"/>
+    <general name="act3" joint="joint3" class="size2" ctrlrange="-4.2237 0.061087" forcerange="-243.525 243.525"/>
+    <general name="act4" joint="joint4" class="size2" forcerange="-117.3 117.3"/>
+    <general name="act5" joint="joint5" class="size3" ctrlrange="-2.1642 2.1642" forcerange="-38.25 38.25"/>
+    <general name="act6" joint="joint6" class="size3" forcerange="-38.25 38.25"/>
   </actuator>
 
   <keyframe>

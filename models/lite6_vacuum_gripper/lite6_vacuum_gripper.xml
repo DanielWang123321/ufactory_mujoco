@@ -24,10 +24,10 @@
 
   <worldbody>
     <body name="uflite_vacuum_gripper_link" childclass="vg">
-      <inertial pos="0 0 0.02" mass="0.18" diaginertia="0.0001 0.0001 0.00008"/>
+      <inertial pos="0 0 0.03" mass="0.14" fullinertia="0.00047106 0.00033072 0.00025642 0.00000039292 0.0000026537 -0.000010975"/>
       <geom class="vg_visual" mesh="vacuum_vis" material="white"/>
       <geom class="vg_collision" mesh="vacuum_col"/>
-      <site name="suction_site" pos="0 0 0.05" size="0.01" rgba="0 1 0 0.5"/>
+      <site name="suction_site" pos="0 0 0.061" size="0.01" rgba="0 1 0 0.5"/>
     </body>
   </worldbody>
 </mujoco>

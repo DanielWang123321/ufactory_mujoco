@@ -106,6 +106,14 @@ def classify_material(color: list[float] | tuple[float, ...], metal: float) -> s
     return "white"
 
 
+# Upstream GLB primitives stored in an inconsistent local frame (known
+# ufactory_genesis data bug; their own URDFs avoid these GLB parts and use the
+# STLs instead). Skip them so they don't pollute the merged material OBJs.
+_SKIP_PRIMITIVES: dict[str, set[int]] = {
+    "finger1.glb": {4},  # white fingertip pad, wrong frame (spans y +/-24 mm)
+}
+
+
 def get_target_specs(ref_root: Path, out_root: Path) -> dict[str, dict[str, Path]]:
     """Return dictionary of source/destination paths for each robot arm and accessory."""
     return {
@@ -219,8 +227,12 @@ def convert_single_target(
             str(glb_path), True, 1.0, True, gs.surfaces.Default()
         )
 
+        skip = _SKIP_PRIMITIVES.get(glb_path.name, set())
         categories: dict[str, list[trimesh.Trimesh]] = {}
         for i, m in enumerate(parsed):
+            if i in skip:
+                print(f"    skipping primitive {i} ({glb_path.name}): inconsistent frame")
+                continue
             mat_idx = meshes_raw[i]["primitives"][0].get("material", 0)
             pbr = materials[mat_idx].get("pbrMetallicRoughness", {}) if mat_idx < len(materials) else {}
             color = pbr.get("baseColorFactor", [1.0, 1.0, 1.0, 1.0])

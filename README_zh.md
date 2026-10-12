@@ -23,23 +23,31 @@ pip install -r requirements.txt
 
 ### 运行示例
 
+> 📖 **完整可视化指令指南**：按产品型号（Lite 6、xArm 5/6/7、UF850）与组件状态（静态/可动）分类的启动控制指令矩阵，请查阅 **[docs/visual_command_guide.md](docs/visual_command_guide.md)**。
+
 ```bash
-# 交互式查看器：载入模型并预览（默认 xarm6，支持任意机械臂、夹爪或组合模型）
+# 交互式查看器：载入模型并预览（支持所有机械臂、配件及组合）
 python examples/01_load_and_view.py
-python examples/01_load_and_view.py --model xarm7 --pose ready
-python examples/01_load_and_view.py --model uf850
-python examples/01_load_and_view.py --model lite6
-python examples/01_load_and_view.py --model gripper_g2
+python examples/01_load_and_view.py --model lite6 --pose ready
 python examples/01_load_and_view.py --model xarm6_with_gripper --pose ready
 
-# 关节空间轨迹控制（五次多项式插值）
-python examples/02_joint_control.py            # GUI 窗口模式
-python examples/02_joint_control.py --headless  # 无窗口模式（输出到位精度指标）
+# 关节空间轨迹控制（支持通过 --model 指定任意机械臂）
+python examples/02_joint_control.py --model lite6
+python examples/02_joint_control.py --model xarm6
+python examples/02_joint_control.py --model xarm6 --speed 120
 
 # 笛卡尔空间 IK 跟踪控制：直线 + 圆弧轨迹
-python examples/03_cartesian_ik.py             # GUI 窗口模式
-python examples/03_cartesian_ik.py --headless   # 无窗口模式（输出轨迹跟踪精度）
+python examples/03_cartesian_ik.py
+
+# 夹爪运动控制（支持 Gripper G2, Bio Gripper G2, Lite 6 Gripper 独立及组合）
+python examples/04_gripper_control.py --model lite6_with_gripper
+python examples/04_gripper_control.py --model xarm6_with_gripper
+python examples/04_gripper_control.py --model bio_gripper_g2
 ```
+
+关节示例中，裸臂 `xarm6` 默认运行 `ufactory_genesis` 动力学验证的 20 个姿态（两组往返），峰值目标速度为 90°/s；其他型号保留原动作预设。`--speed` 调节速度，`--motion demo --duration 2.5` 复现原示例。复用姿态不代表已经完成 MuJoCo 力矩验证。
+
+示例默认关闭阴影与反射，以降低高精度网格的 GPU 绘制开销；`--render-quality full` 恢复效果。`--sync-hz 30` 控制查看器状态同步频率，绘制线程仍独立运行；物理步长保持 2 ms。`--headless` 完全关闭查看器，MuJoCo 物理在 CPU 上运行。
 
 ### 运行测试套件
 
@@ -62,33 +70,13 @@ src/                    核心控制与仿真库
   robot_interface.py    机械臂抽象基类（支持仿真与真机接口对齐）
   ik.py                 阻尼最小二乘法（DLS）笛卡尔 IK 解算器
   viewer.py             GLFW/X11 交互查看器生命周期封装
-examples/               可执行示例（模型预览、关节控制、笛卡尔IK）
+examples/               可执行示例（模型预览、关节控制、笛卡尔IK、夹爪控制）
 scripts/                模型与资产转换工具
   convert_glb_to_obj.py 批量 GLB -> OBJ 转换器（支持 Draco 解压与绕序自愈）
   build_all_mjcf.py     全系列 MJCF 模型与场景 XML 自动化生成工具
   build_model.py        官方 URDF -> MJCF 草稿生成工具
 tests/                  测试套件（查看器生命周期、全资产加载校验、绕序自愈回归）
 ```
-
-## 资产转换工具说明
-
-若需重新转换或更新来自 [ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis) 的资产：
-
-```bash
-# 一键转换全部机械臂与配件
-/opt/conda_envs/py313/bin/python scripts/convert_glb_to_obj.py --target all
-
-# 或转换指定机械臂/夹爪
-/opt/conda_envs/py313/bin/python scripts/convert_glb_to_obj.py --target xarm7
-/opt/conda_envs/py313/bin/python scripts/convert_glb_to_obj.py --target gripper_g2
-```
-
-转换器全自动处理：
-- Google Draco 压缩网格解码；
-- glTF Y-up 到 MuJoCo Z-up 坐标系对齐；
-- 基于材质属性的自动化子网格分类与合并；
-- 三角面绕序自愈与朝外判定（`orient_mesh_outward`），彻底避免 MuJoCo 默认背面剔除下的破面现象；
-- 完整保留平滑法线与硬边特征。
 
 ## 模型规范
 

@@ -23,12 +23,15 @@ ALL_MODELS = [
     "lite6_gripper",
     "lite6_vacuum_gripper",
     "xarm6_with_gripper",
+    "xarm6_with_bio_gripper",
+    "lite6_with_gripper",
+    "lite6_with_vacuum_gripper",
 ]
 
 
 class AllModelsLoadingTest(unittest.TestCase):
     def test_all_models_exist(self):
-        """Ensure all 10 model directories contain scene.xml and their primary XML."""
+        """Ensure all model directories contain scene.xml and their primary XML."""
         for name in ALL_MODELS:
             model_dir = MODELS_ROOT / name
             self.assertTrue(model_dir.is_dir(), f"Model directory {name} does not exist")
@@ -82,6 +85,25 @@ class AllModelsLoadingTest(unittest.TestCase):
                     for _ in range(20):
                         mujoco.mj_step(m, d)
                     self.assertFalse(np.isnan(d.qpos).any(), f"NaN in qpos at keyframe {key_name}")
+
+    def test_lite6_studio_factory_ready_pose(self):
+        """Lite 6 ready matches Studio joint angles and the 200 mm flange pose."""
+        expected_q = np.deg2rad([0, 9.9, 31.8, 0, 21.9, 0])
+        for name in ("lite6", "lite6_with_gripper", "lite6_with_vacuum_gripper"):
+            with self.subTest(model=name):
+                m = mujoco.MjModel.from_xml_path(str(MODELS_ROOT / name / "scene.xml"))
+                d = mujoco.MjData(m)
+                ready_id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_KEY, "ready")
+                self.assertGreaterEqual(ready_id, 0)
+                mujoco.mj_resetDataKeyframe(m, d, ready_id)
+                mujoco.mj_forward(m, d)
+                np.testing.assert_allclose(d.qpos[:6], expected_q, atol=1e-10)
+                np.testing.assert_allclose(d.ctrl[:6], expected_q, atol=1e-10)
+                # Tool TCP offsets differ; the shared flange pose is the Studio reference.
+                np.testing.assert_allclose(d.body("link6").xpos, [0.2, 0, 0.2], atol=0.001)
+                np.testing.assert_allclose(
+                    d.body("link6").xmat.reshape(3, 3), np.diag([1, -1, -1]), atol=1e-5,
+                )
 
 
 if __name__ == "__main__":

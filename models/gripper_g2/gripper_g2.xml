@@ -112,22 +112,16 @@
     <exclude body1="left_inner_knuckle" body2="left_finger"/>
   </contact>
 
-  <tendon>
-    <fixed name="split">
-      <joint joint="right_driver_joint" coef="0.5"/>
-      <joint joint="left_driver_joint" coef="0.5"/>
-    </fixed>
-  </tendon>
-
   <equality>
-    <connect anchor="0 0.015 0.015" body1="right_finger" body2="right_inner_knuckle" solref="0.005 1"/>
-    <connect anchor="0 -0.015 0.015" body1="left_finger" body2="left_inner_knuckle" solref="0.005 1"/>
-    <joint joint1="left_driver_joint" joint2="right_driver_joint" polycoef="0 1 0 0 0" solref="0.005 1"/>
+    <joint joint1="left_driver_joint" joint2="left_finger_joint" polycoef="0 1 0 0 0"/>
+    <joint joint1="left_driver_joint" joint2="left_inner_knuckle_joint" polycoef="0 1 0 0 0"/>
+    <joint joint1="left_driver_joint" joint2="right_driver_joint" polycoef="0 1 0 0 0"/>
+    <joint joint1="left_driver_joint" joint2="right_finger_joint" polycoef="0 1 0 0 0"/>
+    <joint joint1="left_driver_joint" joint2="right_inner_knuckle_joint" polycoef="0 1 0 0 0"/>
   </equality>
 
   <actuator>
-    <general name="gripper_motor" tendon="split" forcerange="-50 50" ctrlrange="0 0.85" biastype="affine"
-      gainprm="100" biasprm="0 -100 -10"/>
+    <position name="gripper_motor" joint="left_driver_joint" kp="100" kv="10" forcerange="-50 50" ctrlrange="0 0.85"/>
   </actuator>
 
   <keyframe>
