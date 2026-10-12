@@ -9,6 +9,7 @@ MuJoCo simulation suite for UFACTORY robots — featuring high-fidelity visual a
 - **High-Fidelity Visuals**: Smooth-normal, multi-material OBJ visual meshes (PBR white shell, silver metal joints, black accents) with dedicated collision STLs.
 - **Full Asset Ecosystem**: High-precision assets for all UFACTORY robot arms (xArm 5, xArm 6, xArm 7, UF850, Lite6) and accessories (Gripper G2, Bio Gripper G2, Lite6 Gripper, Lite6 Vacuum Gripper) converted from [ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis).
 - **Control & Kinematics**: Quintic polynomial joint interpolation, gravity-compensated feedforward, and damped least-squares (DLS) Cartesian IK.
+- **Rigid-Body Dynamics**: Mass matrix, gravity/Coriolis terms, inverse/forward dynamics, and trajectory feedforward torques (`src/dynamics.py`), with TCP payload injection and real-robot cross-validation scripts.
 - **Robust Viewer**: Passive viewer with real-time sync, graceful exit handling, and Linux Wayland/X11 compatibility.
 
 ## Quick Start
@@ -59,6 +60,30 @@ python -m unittest discover -s tests -v
 /opt/conda_envs/py313/bin/python -m unittest discover -s tests -p 'test_convert_glb_to_obj.py' -v
 ```
 
+## Dynamics
+
+`src/dynamics.py` provides standard rigid-body dynamics on any arm MJCF:
+
+```python
+from src.dynamics import ArmDynamics
+
+dyn = ArmDynamics("models/xarm6/xarm6.xml", payload=(3.0, [0, 0, 0.021]))  # 3 kg, CoM 21 mm (flange frame)
+M = dyn.mass_matrix(q)                     # dense M(q)
+g = dyn.gravity(q)                         # g(q)
+c = dyn.coriolis(q, qd)                    # C(q,qd)qd
+tau = dyn.inverse_dynamics(q, qd, qdd)     # actuator torque, exact inverse of forward_dynamics
+qdd = dyn.forward_dynamics(q, qd, tau)
+tau_ff = dyn.feedforward_traj(q_traj, dt)  # torques along a joint trajectory
+```
+
+Cross-validate against a real xArm 6 (xarm-python-sdk, payload read from `tcp_load`):
+
+```bash
+python scripts/compare_dynamics_xarm6.py                     # record sweeps + replay ID comparison
+python scripts/compare_dynamics_xarm6.py --replay build/dynamics/run_xxx.csv  # offline replay
+python scripts/compare_torque_xarm6.py --no-move             # static holding-torque comparison
+```
+
 ## Project Structure
 
 ```
@@ -69,12 +94,15 @@ src/                    Core library
   sim_robot.py          SimRobot: physics stepping, joint/TCP control, viewer sync
   robot_interface.py    Abstract base class (sim / real robot interface)
   ik.py                 Damped least-squares (DLS) Cartesian IK solver
+  dynamics.py           Mass matrix, gravity/Coriolis, inverse/forward dynamics, payload injection
   viewer.py             GLFW/X11 passive viewer lifecycle wrapper
 examples/               Runnable examples (load_and_view, joint_control, cartesian_ik, gripper_control)
 scripts/                Asset and model tooling
   convert_glb_to_obj.py Batch GLB -> OBJ converter with winding repair & Draco support
   build_all_mjcf.py     Generate standalone MJCF models and scene XMLs for all targets
   build_model.py        URDF to MJCF draft generator
+  compare_dynamics_xarm6.py  Real-robot dynamic recording + inverse-dynamics replay
+  compare_torque_xarm6.py    Static holding-torque comparison (real vs MuJoCo)
 tests/                  Unit tests (viewer lifecycle, asset validation, converter regression)
 ```
 

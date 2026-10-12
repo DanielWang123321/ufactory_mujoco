@@ -8,7 +8,8 @@
 
 - **高精细视觉质感**：具备平滑法线与材质分色（烤漆白外壳、阳极氧化铝转轴、黑色部件及密封环）的高精度 OBJ 视觉网格，配合物理专用的 STL 碰撞网格。
 - **全系列资产支持**：包含从 [ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis) 官方解构转换的全部机械臂（xArm 5、xArm 6、xArm 7、UF850、Lite6）及末端配件（Gripper G2、Bio Gripper G2、Lite6 Gripper、Lite6 Vacuum Gripper）。
-- **运动控制与动力学**：支持五次多项式关节插值平滑规划、重力补偿前馈控制、以及阻尼最小二乘法（DLS）笛卡尔逆运动学解算。
+- **运动控制与运动学**：支持五次多项式关节插值平滑规划、重力补偿前馈控制、以及阻尼最小二乘法（DLS）笛卡尔逆运动学解算。
+- **刚体动力学模块**：质量矩阵、重力/科氏力项、逆/正动力学及轨迹前馈力矩计算（`src/dynamics.py`），支持 TCP 负载注入与真机交叉比对脚本。
 - **稳定可靠的查看器**：集成实时时钟同步、异常安全退出保护，针对 Linux Wayland / X11 进行了深度适配。
 
 ## 快速上手
@@ -59,6 +60,30 @@ python -m unittest discover -s tests -v
 /opt/conda_envs/py313/bin/python -m unittest discover -s tests -p 'test_convert_glb_to_obj.py' -v
 ```
 
+## 动力学模块
+
+`src/dynamics.py` 在任意机械臂 MJCF 上提供标准刚体动力学计算：
+
+```python
+from src.dynamics import ArmDynamics
+
+dyn = ArmDynamics("models/xarm6/xarm6.xml", payload=(3.0, [0, 0, 0.021]))  # 3 kg，质心 21 mm（法兰系）
+M = dyn.mass_matrix(q)                     # 稠密质量矩阵 M(q)
+g = dyn.gravity(q)                         # 重力项 g(q)
+c = dyn.coriolis(q, qd)                    # 速度项 C(q,qd)qd
+tau = dyn.inverse_dynamics(q, qd, qdd)     # 执行器力矩，与 forward_dynamics 严格互逆
+qdd = dyn.forward_dynamics(q, qd, tau)
+tau_ff = dyn.feedforward_traj(q_traj, dt)  # 关节轨迹前馈力矩
+```
+
+基于 xarm-python-sdk 与真机 xArm 6 交叉验证（负载自动从 `tcp_load` 读取）：
+
+```bash
+python scripts/compare_dynamics_xarm6.py                     # 真机运动记录 + 逆动力学回放比对
+python scripts/compare_dynamics_xarm6.py --replay build/dynamics/run_xxx.csv  # 离线回放
+python scripts/compare_torque_xarm6.py --no-move             # 静态保持力矩比对
+```
+
 ## 项目结构
 
 ```
@@ -69,12 +94,15 @@ src/                    核心控制与仿真库
   sim_robot.py          SimRobot：物理步进、关节/TCP控制、渲染同步
   robot_interface.py    机械臂抽象基类（支持仿真与真机接口对齐）
   ik.py                 阻尼最小二乘法（DLS）笛卡尔 IK 解算器
+  dynamics.py           质量矩阵、重力/科氏力、逆/正动力学、负载注入
   viewer.py             GLFW/X11 交互查看器生命周期封装
 examples/               可执行示例（模型预览、关节控制、笛卡尔IK、夹爪控制）
 scripts/                模型与资产转换工具
   convert_glb_to_obj.py 批量 GLB -> OBJ 转换器（支持 Draco 解压与绕序自愈）
   build_all_mjcf.py     全系列 MJCF 模型与场景 XML 自动化生成工具
   build_model.py        官方 URDF -> MJCF 草稿生成工具
+  compare_dynamics_xarm6.py  真机动态记录与逆动力学回放比对
+  compare_torque_xarm6.py    静态保持力矩比对（真机 vs MuJoCo）
 tests/                  测试套件（查看器生命周期、全资产加载校验、绕序自愈回归）
 ```
 

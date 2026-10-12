@@ -11,21 +11,21 @@ Protocol:
 5. Print a per-joint comparison plus an FK cross-check of the TCP position.
 """
 import argparse
+import sys
 import time
 from pathlib import Path
 
-import mujoco
 import numpy as np
-from xarm.wrapper import XArmAPI
+import mujoco
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from src.dynamics import ArmDynamics  # noqa: E402
 
 IP = "192.168.1.60"
 READY = [0, -0.8, -1.2, 1.0, 0.3, 0]
 ROOT = Path(__file__).resolve().parent.parent
 MODEL = ROOT / "models" / "xarm6" / "xarm6.xml"
-
-PAYLOAD_XML = '<body name="tcp_payload" pos="{x} {y} {z}">\n' \
-    '                    <inertial pos="0 0 0" mass="{m}" diaginertia="0.001 0.001 0.001"/>\n' \
-    '                  </body>'
 
 
 def record(arm, label):
@@ -45,6 +45,8 @@ def record(arm, label):
 
 
 def main():
+    from xarm.wrapper import XArmAPI
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--no-move", action="store_true",
                         help="only record the current pose (skip the move to READY)")
@@ -80,15 +82,9 @@ def main():
         arm.disconnect()
 
     # --- MuJoCo model with identical TCP payload ---
-    import os
-    os.chdir(MODEL.parent)  # from_xml_string resolves mesh paths against CWD
-    xml = MODEL.read_text()
     m, com = load[0], load[1]
-    payload = PAYLOAD_XML.format(x=com[0] / 1000, y=com[1] / 1000, z=com[2] / 1000, m=m)
-    anchor = '<site name="attachment_site" pos="0 0 0"/>'
-    assert anchor in xml, "attachment_site not found"
-    xml = xml.replace(anchor, anchor + "\n                  " + payload)
-    model = mujoco.MjModel.from_xml_string(xml)
+    payload = (m, [c / 1000 for c in com])
+    model = ArmDynamics(MODEL, payload=payload).model
     data = mujoco.MjData(model)
     site_id = model.site("attachment_site").id
     print(f"\nMuJoCo model: nq={model.nq}, payload {m} kg @ {[c / 1000 for c in com]} m (flange frame)")
