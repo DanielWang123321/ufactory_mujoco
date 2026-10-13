@@ -7,7 +7,7 @@ Pure-computation module, independent of the viewer and the real robot:
     g = dyn.gravity(q)                    # gravity term g(q)
     c = dyn.coriolis(q, qd)               # velocity-product term C(q,qd)qd
     tau = dyn.inverse_dynamics(q, qd, qdd)  # RNE inverse dynamics
-    qdd = dyn.forward_dynamics(q, qd, tau)  # M^-1 (tau - bias)
+    qdd = dyn.forward_dynamics(q, qd, tau)  # fixed gripper for arm-only torque
     tau_ff = dyn.feedforward_traj(q_traj, dt)  # torques along a trajectory
 
 Conventions match the standard manipulator equation
@@ -17,25 +17,22 @@ where inverse_dynamics / forward_dynamics return the *actuator* torque
 effort). Dry friction (frictionloss) is excluded from both — xArms
 compensate friction in firmware — which keeps forward_dynamics the exact
 inverse of inverse_dynamics. The individual terms gravity()/coriolis() are
-pure RNE terms. Use a pure arm model (e.g. xarm6.xml, or a payload-augmented
-one via `attach_payload`); combined arm+gripper models work for the arm
-slice but inverse dynamics ignores equality constraints.
+pure RNE terms. Arm-only velocity and acceleration inputs pad gripper DOFs
+with zeros; a full position vector selects the gripper opening. Arm-only
+torque inputs solve the arm mass-matrix block with gripper acceleration
+fixed at zero. Full torque inputs solve all DOFs. The `full` flag controls
+only the output dimensions. These calculations exclude equality-constraint
+forces, including gripper closed-loop reactions.
 
 Not thread-safe: each ArmDynamics owns one MjData and mutates it on every
 call (same eval_data isolation pattern as SimRobot — keep it off the
 render thread).
 """
 
-import os
-import re
 from pathlib import Path
 
 import mujoco
 import numpy as np
-
-_PAYLOAD_XML = ('<body name="tcp_payload" pos="{x} {y} {z}">\n'
-                '<inertial pos="0 0 0" mass="{m}" diaginertia="0.001 0.001 0.001"/>\n'
-                '</body>')
 
 _GRIPPER_ACTUATOR_NAMES = ("gripper", "gripper_motor", "finger_actuator")
 
@@ -44,23 +41,39 @@ def attach_payload(model_path: str | Path, mass: float, com,
                    site: str = "attachment_site") -> mujoco.MjModel:
     """Load an MJCF arm model with a point-mass payload at the named site.
 
-    mass in kg, com in meters expressed in the site (flange) frame — the same
-    quantities reported by xarm tcp_load ([kg, [x, y, z] in mm]).
+    mass is finite and nonnegative (kg); com contains three finite coordinates
+    in meters relative to the specified site's origin and axes. Convert xArm
+    tcp_load COM from mm before calling. A zero mass returns the base model.
+    The payload has zero rotational inertia about its own COM.
     """
-    model_path = Path(model_path)
-    xml = model_path.read_text()
-    site_el = re.search(r'<site name="%s"[^>]*/>' % re.escape(site), xml)
-    if site_el is None:
+    mass = float(mass)
+    if not np.isfinite(mass) or mass < 0:
+        raise ValueError("payload mass must be finite and nonnegative (kg)")
+    com = np.asarray(com, dtype=float)
+    if com.shape != (3,) or not np.all(np.isfinite(com)):
+        raise ValueError("payload COM must contain three finite coordinates (m)")
+
+    spec = mujoco.MjSpec.from_file(str(Path(model_path).resolve()))
+    site_spec = spec.site(site)
+    if site_spec is None:
         raise ValueError(f'site "{site}" not found in {model_path}')
-    payload = _PAYLOAD_XML.format(x=com[0], y=com[1], z=com[2], m=mass)
-    xml = xml[:site_el.end()] + "\n" + payload + xml[site_el.end():]
-    # from_xml_string resolves relative mesh paths against the CWD; save/restore
-    cwd = os.getcwd()
-    os.chdir(model_path.parent)
-    try:
-        return mujoco.MjModel.from_xml_string(xml)
-    finally:
-        os.chdir(cwd)
+    if mass == 0:
+        return spec.compile()
+
+    # Compilation resolves frames and alternative orientation attributes, but
+    # also edits the spec. Probe a copy, retaining the site's original parent
+    # even when the source enables static-body fusion.
+    probe = spec.copy()
+    probe.compiler.fusestatic = False
+    base = probe.compile()
+    site_id = mujoco.mj_name2id(base, mujoco.mjtObj.mjOBJ_SITE, site)
+    rotation = np.empty(9)
+    mujoco.mju_quat2Mat(rotation, base.site_quat[site_id])
+    position = base.site_pos[site_id] + rotation.reshape(3, 3) @ com
+    site_spec.parent.add_body(name="tcp_payload", pos=position, mass=mass,
+                              ipos=[0, 0, 0], inertia=[0, 0, 0],
+                              explicitinertial=True)
+    return spec.compile()
 
 
 def _detect_arm_nv(model: mujoco.MjModel) -> int:
@@ -75,7 +88,7 @@ def _detect_arm_nv(model: mujoco.MjModel) -> int:
 
 
 class ArmDynamics:
-    """Standard rigid-body dynamics on a pure MuJoCo arm model."""
+    """Rigid-body dynamics for arms, optionally with a fixed-opening gripper."""
 
     def __init__(self, model: str | Path | mujoco.MjModel,
                  payload: tuple[float, list] | None = None,
@@ -97,9 +110,11 @@ class ArmDynamics:
     def _full(self, v: np.ndarray, n: int) -> np.ndarray:
         """Pad an arm-only vector to full length (gripper DOFs zero)."""
         v = np.asarray(v, dtype=float)
-        if v.shape[0] == n:
+        if v.ndim != 1:
+            raise ValueError("expected a one-dimensional joint vector")
+        if v.size == n:
             return v
-        if v.shape[0] == self.n_arm:
+        if v.size == self.n_arm:
             out = np.zeros(n)
             out[:self.n_arm] = v
             return out
@@ -150,7 +165,7 @@ class ArmDynamics:
 
     # -- inverse / forward dynamics -------------------------------------------
     def _passive(self, q, qd) -> np.ndarray:
-        """qfrc_passive at (q, qd) (damping + frictionloss; state-dependent)."""
+        """qfrc_passive at (q, qd), including damping but not frictionloss."""
         self._set(q, qd)
         mujoco.mj_forward(self.model, self.data)
         return self.data.qfrc_passive.copy()
@@ -161,34 +176,52 @@ class ArmDynamics:
         i.e. the torque the motors must generate; viscous damping assists
         (passive is subtracted). Dry friction (frictionloss) is excluded —
         xArms compensate friction in firmware, and excluding it keeps
-        forward_dynamics the exact inverse."""
+        forward_dynamics the exact inverse. Nonzero gripper acceleration
+        requires full=True so the necessary gripper torques are returned."""
+        qdd = self._full(qdd, self.nv)
+        if not full and np.any(qdd[self.n_arm:] != 0):
+            raise ValueError("nonzero gripper acceleration requires full=True")
         M = self.mass_matrix(q, full=True)
         bias = self._bias(q, self._full(qd, self.nv))
         passive = self._passive(q, self._full(qd, self.nv))
-        tau = M @ self._full(qdd, self.nv) + bias - passive
+        tau = M @ qdd + bias - passive
         return self._slice(tau, self.n_arm, full)
 
     def forward_dynamics(self, q, qd, tau, full: bool = False) -> np.ndarray:
-        """qdd = M(q)^-1 (tau + qfrc_passive - C(q,qd)qd - g(q)); exact
-        inverse of inverse_dynamics."""
+        """Solve M qdd = tau - bias + passive.
+
+        Arm-only tau holds gripper acceleration at zero and solves M_aa.
+        Full tau solves the whole rigid-body system without constraint forces.
+        full controls the returned dimensions, not which system is solved.
+        """
+        tau = np.asarray(tau, dtype=float)
+        self._full(tau, self.nv)  # validate shape before evaluating the model
         M = self.mass_matrix(q, full=True)
         bias = self._bias(q, self._full(qd, self.nv))
         passive = self._passive(q, self._full(qd, self.nv))
-        qdd = np.linalg.solve(M, self._full(tau, self.nv) - bias + passive)
+        if tau.size == self.nv:
+            qdd = np.linalg.solve(M, tau - bias + passive)
+        else:
+            qdd = np.zeros(self.nv)
+            n = self.n_arm
+            qdd[:n] = np.linalg.solve(M[:n, :n], tau - bias[:n] + passive[:n])
         return self._slice(qdd, self.n_arm, full)
 
     def feedforward_traj(self, q_traj, dt: float, full: bool = False) -> np.ndarray:
         """Inverse-dynamics torques along a joint trajectory.
 
-        q_traj: (N, n_arm) arm joint angles; velocities/accelerations are
-        obtained by second-order central differences of q_traj.
-        Returns (N, n_arm) torque rows matching the trajectory length.
+        q_traj: (N, n_arm) or (N, nq) positions; velocities/accelerations are
+        obtained by second-order central differences. Constant columns have
+        exactly zero derivatives. Moving grippers with nonzero acceleration
+        require full=True. Returns (N, n_arm), or (N, nv) when full=True.
         """
         q = np.asarray(q_traj, dtype=float)
         if q.ndim != 2 or q.shape[1] not in (self.n_arm, self.model.nq):
             raise ValueError(f"q_traj must be (N, {self.n_arm}) or (N, {self.model.nq})")
         qd = np.gradient(q, dt, axis=0, edge_order=2)
         qdd = np.gradient(qd, dt, axis=0, edge_order=2)
+        stationary = np.all(q == q[0], axis=0)
+        qd[:, stationary] = qdd[:, stationary] = 0.0
         tau = np.empty((len(q), self.nv if full else self.n_arm))
         for i in range(len(q)):
             tau[i] = self.inverse_dynamics(q[i], qd[i], qdd[i], full=full)

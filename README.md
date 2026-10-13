@@ -44,6 +44,14 @@ python examples/03_cartesian_ik.py
 python examples/04_gripper_control.py --model lite6_with_gripper
 python examples/04_gripper_control.py --model xarm6_with_gripper
 python examples/04_gripper_control.py --model bio_gripper_g2
+
+# Cube pick-and-place (xArm 6 + Gripper G2, replicates ufactory_genesis pick_place)
+python examples/05_pick_place.py
+python examples/05_pick_place.py --headless     # prints place_error_mm / home_drift_mm, exits non-zero on failure
+
+# Trajectory planning: PTP quintic, multi-waypoint spline, Cartesian line, dynamics feedforward
+python examples/06_trajectory_planning.py
+python examples/06_trajectory_planning.py --headless
 ```
 
 Bare `xarm6` defaults to the 20 `ufactory_genesis` dynamics validation poses (two round trips), with a peak target speed of 90 degrees/s. Other models retain their demo presets. Adjust `--speed`, or use `--motion demo --duration 2.5` for the original example. Reusing poses does not establish MuJoCo torque validation.
@@ -67,7 +75,7 @@ python -m unittest discover -s tests -v
 ```python
 from src.dynamics import ArmDynamics
 
-dyn = ArmDynamics("models/xarm6/xarm6.xml", payload=(3.0, [0, 0, 0.021]))  # 3 kg, CoM 21 mm (flange frame)
+dyn = ArmDynamics("models/xarm6/xarm6.xml", payload=(3.0, [0, 0, 0.021]))  # 3 kg, CoM in site-frame meters
 M = dyn.mass_matrix(q)                     # dense M(q)
 g = dyn.gravity(q)                         # g(q)
 c = dyn.coriolis(q, qd)                    # C(q,qd)qd
@@ -76,13 +84,18 @@ qdd = dyn.forward_dynamics(q, qd, tau)
 tau_ff = dyn.feedforward_traj(q_traj, dt)  # torques along a joint trajectory
 ```
 
+Payload COM is relative to the specified site (`attachment_site` by default), including its position and orientation. Payloads are point masses with zero inertia about their own COM; zero mass adds no body. For combined models, arm-only velocity/acceleration inputs keep the gripper stationary; use full positions to select its opening. Arm-only torques solve the arm mass-matrix block with gripper acceleration fixed at zero; full torques solve all DOFs. `full=True` returns all DOFs and is required for inverse dynamics with nonzero gripper acceleration. Equality-constraint forces are excluded.
+
 Cross-validate against a real xArm 6 (xarm-python-sdk, payload read from `tcp_load`):
 
 ```bash
 python scripts/compare_dynamics_xarm6.py                     # record sweeps + replay ID comparison
-python scripts/compare_dynamics_xarm6.py --replay build/dynamics/run_xxx.csv  # offline replay
+python scripts/compare_dynamics_xarm6.py --replay build/dynamics/run_xxx.csv  # payload from .meta.json
+python scripts/compare_dynamics_xarm6.py --replay build/dynamics/run_20261012_172940.csv --payload 3 0 0 21
 python scripts/compare_torque_xarm6.py --no-move             # static holding-torque comparison
 ```
+
+Recording preserves the CSV columns and saves a same-stem `.meta.json` (version 1, `payload.mass_kg`, `payload.com_m`, `payload.frame="attachment_site"`). Replay prefers explicit `--payload M X Y Z` (kg and flange COM mm), then metadata (COM meters). Legacy CSVs without metadata require `--payload`; use `--payload 0 0 0 0` for no load.
 
 ## Project Structure
 

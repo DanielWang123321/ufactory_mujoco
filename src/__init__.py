@@ -5,5 +5,20 @@ configure_backend()
 
 from .robot_interface import RobotInterface
 from .sim_robot import SimRobot
+from .trajectory import (
+    JointTrajectory,
+    plan_cartesian_line,
+    plan_joint_waypoints,
+    plan_ptp_lspb,
+    plan_ptp_quintic,
+)
 
-__all__ = ["RobotInterface", "SimRobot"]
+__all__ = [
+    "RobotInterface",
+    "SimRobot",
+    "JointTrajectory",
+    "plan_ptp_quintic",
+    "plan_ptp_lspb",
+    "plan_joint_waypoints",
+    "plan_cartesian_line",
+]

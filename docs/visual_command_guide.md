@@ -123,6 +123,10 @@
   ```bash
   python examples/04_gripper_control.py --model xarm6_with_gripper
   ```
+- **xArm 6 + Gripper G2 (方块抓放任务)**：
+  ```bash
+  python examples/05_pick_place.py
+  ```
 - **xArm 6 + Gripper G2 (关节轨迹运动)**：
   ```bash
   python examples/02_joint_control.py --model xarm6_with_gripper
@@ -187,8 +191,9 @@
 | :--- | :--- | :--- | :--- |
 | `--model <name>` | 所有示例 | 指定模型名称或自定义 xml 路径 | `--model xarm6_with_gripper` |
 | `--pose <home\|ready>` | `01_load_and_view.py` | 指定初始加载关键帧姿态 | `--pose ready` |
-| `--headless` | `02`, `03`, `04` | 无头模式（不启动视窗，纯终端输出精度指标） | `--headless` |
+| `--headless` | `02`, `03`, `04`, `05` | 无头模式（不启动视窗，纯终端输出精度指标） | `--headless` |
 | `--cycles <N>` | `04_gripper_control.py` | 夹爪开闭测试循环次数（默认 3） | `--cycles 5` |
+| `--cycles <N>` | `05_pick_place.py` | 抓放循环次数（默认 1，第二次起从当前方块位置抓取） | `--cycles 2` |
 
 ---
 

@@ -11,6 +11,7 @@ import numpy as np
 
 from .ik import solve_ik, solve_ik_trajectory
 from .robot_interface import RobotInterface
+from .trajectory import JointTrajectory, plan_cartesian_line, plan_ptp_quintic
 from .viewer import PassiveViewer, configure_low_power_rendering
 
 _MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "xarm6" / "scene.xml"
@@ -170,6 +171,7 @@ class SimRobot(RobotInterface):
 
     def move_tcp(self, pos: np.ndarray, quat: np.ndarray, duration: float,
                  wait: bool = True, *, steps: int = 50) -> None:
+        """Move along a straight Cartesian path with shortest-path rotation."""
         pos0, quat0 = self.get_tcp_pose()
         s = np.linspace(0.0, 1.0, steps + 1)[1:]
         waypoints = pos0 + s[:, None] * (np.asarray(pos) - pos0)
@@ -177,14 +179,15 @@ class SimRobot(RobotInterface):
         if quat is not None:
             quat_goal = np.asarray(quat, dtype=float)
             q0_conj = np.array([quat0[0], -quat0[1], -quat0[2], -quat0[3]])
-            q_err = np.empty(4)
-            mujoco.mju_mulQuat(q_err, quat_goal, q0_conj)  # goal * conj(start)
-            vel_full = np.empty(3)
-            mujoco.mju_quat2Vel(vel_full, q_err, 1.0)
+            # The integrator right-multiplies a tool-frame rotation increment.
+            q_delta_local = np.empty(4)
+            mujoco.mju_mulQuat(q_delta_local, q0_conj, quat_goal)  # conj(start) * goal
+            rotvec_local = np.empty(3)
+            mujoco.mju_quat2Vel(rotvec_local, q_delta_local, 1.0)
             quat_traj = np.empty((steps, 4))
             for i in range(steps):
                 quat_traj[i] = quat0
-                mujoco.mju_quatIntegrate(quat_traj[i], vel_full, s[i])
+                mujoco.mju_quatIntegrate(quat_traj[i], rotvec_local, s[i])
         # solve IK per waypoint on the isolated eval_data (viewer thread never
         # touches it), then track the joint path with quintic segments.
         # Use full qpos as q_start so IK preserves gripper state.
@@ -199,6 +202,51 @@ class SimRobot(RobotInterface):
             self.move_joints(q[:self._n_arm_qpos], seg, wait=False)
         if wait:
             self.settle(0.3)
+
+    def execute_trajectory(self, traj: JointTrajectory, wait: bool = True) -> None:
+        """Execute a time-parameterized JointTrajectory.
+
+        Interpolates control targets at simulation timestep resolution model.opt.timestep.
+        """
+        if traj.n_steps == 0:
+            return
+
+        dt_sim = self.model.opt.timestep
+        t_start = float(traj.times[0])
+        t_end = float(traj.times[-1])
+        cur_t = t_start
+
+        while cur_t <= t_end + 0.5 * dt_sim:
+            q_target, _, _ = traj.sample(cur_t)
+            self.data.ctrl[:self._n_arm_actuators] = q_target[:self._n_arm_actuators]
+            self._step()
+            if self._viewer is not None and not self._viewer.is_running():
+                return
+            cur_t += dt_sim
+
+        # Ensure exact final configuration
+        self.data.ctrl[:self._n_arm_actuators] = traj.q[-1, :self._n_arm_actuators]
+        if wait:
+            self.settle(0.3)
+
+    def plan_joint_trajectory(self, q_goal: np.ndarray, max_vel: float | np.ndarray = 1.57,
+                              max_acc: float | np.ndarray = 4.0,
+                              duration: float | None = None) -> JointTrajectory:
+        """Plan a time-parameterized quintic joint trajectory from current state to q_goal."""
+        q0 = self.get_joint_positions()
+        return plan_ptp_quintic(q0, q_goal, max_vel=max_vel, max_acc=max_acc,
+                                duration=duration, dt=self.model.opt.timestep)
+
+    def plan_cartesian_trajectory(self, pos: np.ndarray, quat: np.ndarray | None = None,
+                                  max_lin_vel: float = 0.20, max_lin_acc: float = 1.0,
+                                  site_name: str | None = None) -> tuple[JointTrajectory, bool]:
+        """Plan a Cartesian straight-line trajectory from current TCP pose to (pos, quat)."""
+        site = site_name if site_name is not None else self.model.site(self._site).name
+        p0, quat0 = self.get_tcp_pose()
+        return plan_cartesian_line(p0, quat0, pos, quat, self.model, site_name=site,
+                                   max_lin_vel=max_lin_vel, max_lin_acc=max_lin_acc,
+                                   q_init=self.data.qpos.copy(), dt=self.model.opt.timestep,
+                                   eval_data=self.eval_data)
 
     def ik_trajectory(self, waypoints_pos: np.ndarray, quat: np.ndarray | None,
                       pos_tol: float = 5e-5) -> tuple[np.ndarray, bool]:

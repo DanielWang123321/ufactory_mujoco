@@ -130,26 +130,26 @@
 
                   <!-- Mounted Bio Gripper G2 -->
                   <body name="bio_gripper_g2_base_link" pos="0.027018 -0.000715 -0.000692" quat="0.999994 0 0 -0.003531">
-                    <inertial pos="0.0162 0 0.0239" mass="0.388" diaginertia="0.00088 0.00018 0.00095"/>
+                    <inertial pos="0.016179 -2.3911E-05 0.023897" mass="0.38837" fullinertia="0.00088398 0.00018256 0.00094673 4.8665E-08 5.6276E-06 4.0828E-08"/>
                     <geom class="visual" mesh="bio_base_white_vis" material="white"/>
                     <geom class="visual" mesh="bio_base_silver_vis" material="silver"/>
-                    <geom class="collision" mesh="bio_base_col"/>
+                    <geom class="collision" mesh="bio_base_col" pos="-0.022475 -0.000830 -0.004696"/>
 
                     <body name="bio_gripper_g2_left_finger" pos="0.059 0 0.027">
-                      <inertial pos="0.0218 -0.0276 0.0119" mass="0.012" diaginertia="3.7e-06 1.7e-05 1.8e-05"/>
+                      <inertial pos="0.021846 -0.0276 0.011911" mass="0.012105" fullinertia="3.7322E-06 1.744E-05 1.7775E-05 4.1705E-06 -4.0142E-06 1.2237E-06"/>
                       <joint name="left_finger_joint" class="bio_slide" range="-0.0395 0"/>
                       <geom class="visual" mesh="bio_left_finger_vis" material="silver"/>
-                      <geom class="collision" mesh="bio_left_finger_col"/>
+                      <geom class="collision" mesh="bio_left_finger_col" pos="-0.012870 -0.011316 -0.002219"/>
                     </body>
 
                     <body name="bio_gripper_g2_right_finger" pos="0.059 0 0.027">
-                      <inertial pos="0.0204 0.0276 0.0103" mass="0.012" diaginertia="4.1e-06 1.6e-05 1.6e-05"/>
+                      <inertial pos="0.02037 0.027565 0.010274" mass="0.012068" fullinertia="4.1413E-06 1.6115E-05 1.6032E-05 -3.9682E-06 -4.5734E-06 -1.6711E-06"/>
                       <joint name="right_finger_joint" class="bio_slide" range="0 0.0395"/>
                       <geom class="visual" mesh="bio_right_finger_vis" material="silver"/>
-                      <geom class="collision" mesh="bio_right_finger_col"/>
+                      <geom class="collision" mesh="bio_right_finger_col" pos="-0.013790 0.011745 -0.001039"/>
                     </body>
 
-                    <site name="attachment_site" pos="0.101 0 0.027"/>
+                    <site name="attachment_site" pos="0.135 0 0.055"/>
                   </body>
                 </body>
               </body>

@@ -10,9 +10,15 @@ xarm-python-sdk) can replace the MuJoCo simulation later:
 Examples program exclusively against RobotInterface.
 """
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from .trajectory import JointTrajectory
 
 
 class RobotInterface(ABC):
@@ -39,6 +45,10 @@ class RobotInterface(ABC):
     def move_tcp(self, pos: np.ndarray, quat: np.ndarray, duration: float,
                  wait: bool = True) -> None:
         """Move TCP to pose (pos (3,), quat wxyz (4,)) using IK, interpolated."""
+
+    @abstractmethod
+    def execute_trajectory(self, traj: JointTrajectory, wait: bool = True) -> None:
+        """Execute a pre-planned joint trajectory (JointTrajectory)."""
 
     # -- gripper control ----------------------------------------------------
     @property

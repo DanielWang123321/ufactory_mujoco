@@ -44,6 +44,14 @@ python examples/03_cartesian_ik.py
 python examples/04_gripper_control.py --model lite6_with_gripper
 python examples/04_gripper_control.py --model xarm6_with_gripper
 python examples/04_gripper_control.py --model bio_gripper_g2
+
+# 方块抓放（xArm 6 + Gripper G2，复刻 ufactory_genesis pick_place）
+python examples/05_pick_place.py
+python examples/05_pick_place.py --headless     # 输出 place_error_mm / home_drift_mm，失败时退出码非零
+
+# 轨迹规划：点到点五次、多路点样条平滑、笛卡尔直线与动力学前馈
+python examples/06_trajectory_planning.py
+python examples/06_trajectory_planning.py --headless
 ```
 
 关节示例中，裸臂 `xarm6` 默认运行 `ufactory_genesis` 动力学验证的 20 个姿态（两组往返），峰值目标速度为 90°/s；其他型号保留原动作预设。`--speed` 调节速度，`--motion demo --duration 2.5` 复现原示例。复用姿态不代表已经完成 MuJoCo 力矩验证。
@@ -67,7 +75,7 @@ python -m unittest discover -s tests -v
 ```python
 from src.dynamics import ArmDynamics
 
-dyn = ArmDynamics("models/xarm6/xarm6.xml", payload=(3.0, [0, 0, 0.021]))  # 3 kg，质心 21 mm（法兰系）
+dyn = ArmDynamics("models/xarm6/xarm6.xml", payload=(3.0, [0, 0, 0.021]))  # 3 kg，COM 为 site 系米制坐标
 M = dyn.mass_matrix(q)                     # 稠密质量矩阵 M(q)
 g = dyn.gravity(q)                         # 重力项 g(q)
 c = dyn.coriolis(q, qd)                    # 速度项 C(q,qd)qd
@@ -76,13 +84,18 @@ qdd = dyn.forward_dynamics(q, qd, tau)
 tau_ff = dyn.feedforward_traj(q_traj, dt)  # 关节轨迹前馈力矩
 ```
 
+负载 COM 相对指定 site（默认 `attachment_site`）的原点与坐标轴表达，注入时计入 site 的平移和旋转。负载采用自身转动惯量为零的点质量；零质量不添加 body。组合模型的机械臂速度/加速度输入默认将夹爪项补零，完整位置向量可指定开度。仅输入机械臂力矩时求解机械臂质量矩阵块、夹爪加速度固定为零；完整力矩输入求解全部自由度。`full=True` 返回全部自由度，逆动力学要求非零夹爪加速度时必须启用。不计入闭环等式约束力。
+
 基于 xarm-python-sdk 与真机 xArm 6 交叉验证（负载自动从 `tcp_load` 读取）：
 
 ```bash
 python scripts/compare_dynamics_xarm6.py                     # 真机运动记录 + 逆动力学回放比对
-python scripts/compare_dynamics_xarm6.py --replay build/dynamics/run_xxx.csv  # 离线回放
+python scripts/compare_dynamics_xarm6.py --replay build/dynamics/run_xxx.csv  # 从 .meta.json 恢复负载
+python scripts/compare_dynamics_xarm6.py --replay build/dynamics/run_20261012_172940.csv --payload 3 0 0 21
 python scripts/compare_torque_xarm6.py --no-move             # 静态保持力矩比对
 ```
+
+记录保留 CSV 列格式，并保存同名 `.meta.json`（版本 1，字段 `payload.mass_kg`、`payload.com_m`、`payload.frame="attachment_site"`）。回放优先采用显式 `--payload M X Y Z`（kg + 法兰系 COM mm），其次采用元数据（COM 单位 m）。无元数据的旧 CSV 必须指定 `--payload`；零负载使用 `--payload 0 0 0 0`。
 
 ## 项目结构
 

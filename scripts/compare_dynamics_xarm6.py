@@ -4,7 +4,8 @@
 Two phases:
 
 1. RECORD (needs the real robot): read tcp_load, execute a few slow joint-space
-   sweeps while sampling (q, qd, tau_est) from the xarm SDK, and save a CSV.
+   sweeps while sampling (q, qd, tau_est) from the xarm SDK, and save a CSV
+   plus a same-stem .meta.json containing the effective payload.
 2. REPLAY (offline): smooth the recorded trajectory, differentiate to qdd,
    run MuJoCo inverse dynamics with the same payload, and report per-joint
    RMSE / max / correlation of real vs simulated torque — for full inverse
@@ -14,10 +15,16 @@ Usage:
     python scripts/compare_dynamics_xarm6.py                      # record + replay
     python scripts/compare_dynamics_xarm6.py --no-move            # static only
     python scripts/compare_dynamics_xarm6.py --replay build/dynamics/run_xxx.csv
-    python scripts/compare_dynamics_xarm6.py --payload 3 0 0 21   # mm, flange frame
+    python scripts/compare_dynamics_xarm6.py --payload 3 0 0 21   # kg + flange COM mm
+    # Legacy CSV without metadata requires an explicit payload:
+    python scripts/compare_dynamics_xarm6.py --replay build/dynamics/run_20261012_172940.csv --payload 3 0 0 21
+
+Replay uses --payload first, otherwise the .meta.json; there is no default
+payload. Metadata COM is in meters in the attachment_site (flange) frame.
 """
 import argparse
 import csv
+import json
 import sys
 import threading
 import time
@@ -33,6 +40,10 @@ IP = "192.168.1.60"
 ROOT = Path(__file__).resolve().parent.parent
 MODEL = ROOT / "models" / "xarm6" / "xarm6.xml"
 OUT_DIR = ROOT / "build" / "dynamics"
+META_VERSION = 1
+PAYLOAD_FRAME = "attachment_site"
+CSV_HEADER = (["t"] + [f"q{j}" for j in range(6)]
+              + [f"qd{j}" for j in range(6)] + [f"tau{j}" for j in range(6)])
 
 # Joint sweeps: slow enough that qdd from smoothed finite differences stays
 # meaningful, large enough that gravity and velocity terms vary.
@@ -43,6 +54,58 @@ SEGMENTS = [
 ]
 SPEED = 0.5    # rad/s, conservative for a 3 kg payload
 ACC = 2.0      # rad/s^2
+
+
+def _payload_values(mass, com):
+    """Validate a payload in kg and site-frame meters."""
+    mass = float(mass)
+    com = np.asarray(com, dtype=float)
+    if not np.isfinite(mass) or mass < 0:
+        raise ValueError("payload mass must be finite and nonnegative (kg)")
+    if com.shape != (3,) or not np.all(np.isfinite(com)):
+        raise ValueError("payload COM must contain three finite coordinates (m)")
+    return mass, com.tolist()
+
+
+def save_recording(csv_path, rows, payload):
+    """Save the existing CSV columns and a versioned payload sidecar."""
+    mass, com = _payload_values(*payload)
+    csv_path = Path(csv_path)
+    meta_path = csv_path.with_suffix(".meta.json")
+    metadata = {"version": META_VERSION,
+                "payload": {"mass_kg": mass, "com_m": com, "frame": PAYLOAD_FRAME}}
+    with csv_path.open("w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(CSV_HEADER)
+        w.writerows(rows)
+    meta_path.write_text(json.dumps(metadata, indent=2, allow_nan=False) + "\n",
+                         encoding="utf-8")
+    return meta_path
+
+
+def load_payload(csv_path, explicit=None):
+    """Resolve CLI payload (kg, mm), then recorded metadata (kg, m)."""
+    if explicit is not None:
+        return _payload_values(explicit[0], np.asarray(explicit[1:]) / 1000.0)
+    meta_path = Path(csv_path).with_suffix(".meta.json")
+    if not meta_path.is_file():
+        raise ValueError(f"missing payload metadata {meta_path}; "
+                         "legacy CSV requires --payload M X Y Z (kg and COM mm)")
+    try:
+        metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+        if not isinstance(metadata, dict) or type(metadata.get("version")) is not int \
+                or metadata["version"] != META_VERSION:
+            raise ValueError(f"expected metadata version {META_VERSION}")
+        payload = metadata["payload"]
+        if not isinstance(payload, dict) or payload.get("frame") != PAYLOAD_FRAME:
+            raise ValueError(f"payload frame must be {PAYLOAD_FRAME}")
+        mass, com = payload["mass_kg"], payload["com_m"]
+        if type(mass) not in (int, float) or not isinstance(com, list) \
+                or any(type(c) not in (int, float) for c in com):
+            raise ValueError("mass_kg and com_m must be numeric")
+        return _payload_values(mass, com)
+    except (OSError, ValueError, KeyError, TypeError, OverflowError) as exc:
+        raise ValueError(f"invalid payload metadata {meta_path}: {exc}") from exc
 
 
 def sample(arm):
@@ -159,29 +222,37 @@ def replay(rows, payload, label=""):
     return summary
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--ip", default=IP)
     parser.add_argument("--no-move", action="store_true", help="skip dynamic sweeps")
-    parser.add_argument("--replay", metavar="CSV", help="replay a previously recorded CSV")
+    parser.add_argument("--replay", metavar="CSV",
+                        help="offline replay; use --payload or the same-stem .meta.json")
     parser.add_argument("--payload", type=float, nargs=4, metavar=("M", "X", "Y", "Z"),
-                        help="payload kg + CoM mm in flange frame (default: read from robot)")
-    args = parser.parse_args()
+                        help="payload kg + CoM mm in attachment_site/flange frame; "
+                             "overrides metadata on replay, tcp_load when recording")
+    args = parser.parse_args(argv)
 
     if args.replay:
+        try:
+            payload = load_payload(args.replay, args.payload)
+        except ValueError as exc:
+            parser.error(str(exc))
         rows = np.loadtxt(args.replay, delimiter=",", skiprows=1)
-        payload = tuple(args.payload[:1] + [np.asarray(args.payload[1:]) / 1000.0]) \
-            if args.payload else (3.0, [0.0, 0.0, 0.021])
         replay(rows, payload, label=Path(args.replay).stem)
         return
 
+    try:
+        explicit_payload = load_payload("", args.payload) if args.payload is not None else None
+    except ValueError as exc:
+        parser.error(str(exc))
     from xarm.wrapper import XArmAPI
     arm = XArmAPI(args.ip, is_radian=True)
     try:
         load = arm.tcp_load
-        payload = (args.payload[0], list(np.asarray(args.payload[1:]) / 1000.0)) \
-            if args.payload else (load[0], [c / 1000.0 for c in load[1]])
+        payload = explicit_payload if explicit_payload is not None \
+            else _payload_values(load[0], np.asarray(load[1]) / 1000.0)
         print(f"robot tcp_load = {load} -> payload {payload[0]} kg @ {payload[1]} m")
         code_e, (err, warn) = arm.get_err_warn_code()
         if err:
@@ -207,12 +278,8 @@ def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     stamp = time.strftime("%Y%m%d_%H%M%S")
     csv_path = OUT_DIR / f"run_{stamp}.csv"
-    with csv_path.open("w", newline="") as f:
-        w = csv.writer(f)
-        w.writerow(["t"] + [f"q{j}" for j in range(6)]
-                   + [f"qd{j}" for j in range(6)] + [f"tau{j}" for j in range(6)])
-        w.writerows(rows)
-    print(f"\nsaved {csv_path}")
+    meta_path = save_recording(csv_path, rows, payload)
+    print(f"\nsaved {csv_path} and {meta_path}")
     replay(rows, payload, label=csv_path.stem)
 
 

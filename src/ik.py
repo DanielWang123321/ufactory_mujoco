@@ -35,11 +35,19 @@ def solve_ik(model: mujoco.MjModel, data: mujoco.MjData, site_name: str,
     """
     site_id = model.site(site_name).id
     q = data.qpos.copy() if q_init is None else q_init.astype(float).copy()
-    lo, hi = model.jnt_range[:, 0], model.jnt_range[:, 1]
+    tol_vec = np.array([pos_tol] * 3 + ([rot_tol] * 3 if target_quat is not None else []))
 
     jacp = np.zeros((3, model.nv))
     jacr = np.zeros((3, model.nv))
 
+    def _clamp_hinge_slide(qvec: np.ndarray) -> None:
+        # jnt_type is an int array; compare as ints (enum tuple `in` fails on numpy scalars)
+        for j in range(model.njnt):
+            if int(model.jnt_type[j]) in (int(mujoco.mjtJoint.mjJNT_HINGE), int(mujoco.mjtJoint.mjJNT_SLIDE)):
+                adr = model.jnt_qposadr[j]
+                qvec[adr] = np.clip(qvec[adr], model.jnt_range[j, 0], model.jnt_range[j, 1])
+
+    step = 0.5
     for _ in range(max_iter):
         data.qpos[:] = q
         mujoco.mj_forward(model, data)  # FK (kinematics only needed, but forward is fine)
@@ -51,11 +59,11 @@ def solve_ik(model: mujoco.MjModel, data: mujoco.MjData, site_name: str,
             mujoco.mju_mat2Quat(quat, data.site_xmat[site_id])
             rot_err = _quat_error(quat, target_quat)
             err = np.concatenate([pos_err, rot_err])
-            tol = np.array([pos_tol] * 3 + [rot_tol] * 3)
-            if np.all(np.abs(err) < tol):
+            if np.all(np.abs(err) < tol_vec):
                 break
         elif np.linalg.norm(pos_err) < pos_tol:
             break
+        err_scaled = err / tol_vec
 
         mujoco.mj_jacSite(model, data, jacp, jacr, site_id)
         J = jacp if target_quat is None else np.vstack([jacp, jacr])
@@ -66,21 +74,51 @@ def solve_ik(model: mujoco.MjModel, data: mujoco.MjData, site_name: str,
         if nullspace_ref is not None:
             dq += (np.eye(model.nv) - J.T @ np.linalg.solve(JJt, J)) @ (nullspace_ref - q) * 0.05
 
-        step = 0.5
-        q += step * dq
-        np.clip(q, lo, hi, out=q)
+        # Backtracking line search: a fixed large step oscillates around the
+        # tolerance boundary without converging, so accept a trial only when
+        # the total tolerance violation strictly decreases. Within-tolerance
+        # fluctuations (e.g. rotation while polishing position) must not
+        # reject an otherwise improving step.
+        def _violation(scaled_err: np.ndarray) -> float:
+            return float(np.sum(np.maximum(np.abs(scaled_err) - 1.0, 0.0)))
+
+        v_cur = _violation(err_scaled)
+        accepted = False
+        for _ in range(8):
+            q_trial = q.copy()
+            mujoco.mj_integratePos(model, q_trial, dq, step)
+            _clamp_hinge_slide(q_trial)
+            data.qpos[:] = q_trial
+            mujoco.mj_forward(model, data)
+            pos_trial = target_pos - data.site_xpos[site_id]
+            if target_quat is not None:
+                quat_trial = np.empty(4)
+                mujoco.mju_mat2Quat(quat_trial, data.site_xmat[site_id])
+                err_trial = np.concatenate([pos_trial, _quat_error(quat_trial, target_quat)])
+            else:
+                err_trial = pos_trial
+            if _violation(err_trial / tol_vec) < v_cur:
+                q = q_trial
+                accepted = True
+                break
+            step *= 0.5
+        if not accepted:
+            break  # cannot improve: singular or local minimum
+        step = min(step * 1.5, 0.5)
 
     data.qpos[:] = q
     mujoco.mj_forward(model, data)
-    pos_err = np.linalg.norm(target_pos - data.site_xpos[site_id])
+    pos_err_vec = target_pos - data.site_xpos[site_id]
+    converged = bool(np.all(np.abs(pos_err_vec) < pos_tol))  # per-component, like the loop
+    pos_err = float(np.linalg.norm(pos_err_vec))
     if target_quat is not None:
         quat = np.empty(4)
         mujoco.mju_mat2Quat(quat, data.site_xmat[site_id])
-        rot_err = np.linalg.norm(_quat_error(quat, target_quat))
-        converged = pos_err < pos_tol and rot_err < rot_tol
+        rot_err_vec = _quat_error(quat, target_quat)
+        converged = converged and bool(np.all(np.abs(rot_err_vec) < rot_tol))
+        rot_err = float(np.linalg.norm(rot_err_vec))
     else:
         rot_err = 0.0
-        converged = pos_err < pos_tol
     return q.copy(), converged
 
 
@@ -88,8 +126,8 @@ def solve_ik_trajectory(model: mujoco.MjModel, data: mujoco.MjData, site_name: s
                         waypoints_pos: np.ndarray, quat: np.ndarray | None,
                         q_start: np.ndarray, *,
                         pos_tol: float = 2e-4, **kwargs) -> tuple[np.ndarray, bool]:
-    """Sequential IK along Cartesian waypoints. Returns (q_traj (N,6), all_converged)."""
-    qs = np.empty((len(waypoints_pos), model.nv))
+    """Sequential IK along Cartesian waypoints. Returns (q_traj (N,nq), all_converged)."""
+    qs = np.empty((len(waypoints_pos), model.nq))
     ok = True
     q = q_start.astype(float).copy()
     quat_arr = None if quat is None else np.asarray(quat, dtype=float)
