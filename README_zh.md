@@ -8,7 +8,7 @@
 
 - **高精细视觉质感**：具备平滑法线与材质分色（烤漆白外壳、阳极氧化铝转轴、黑色部件及密封环）的高精度 OBJ 视觉网格，配合物理专用的 STL 碰撞网格。
 - **全系列资产支持**：包含从 [ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis) 官方解构转换的全部机械臂（xArm 5、xArm 6、xArm 7、UF850、Lite6）及末端配件（Gripper G2、Bio Gripper G2、Lite6 Gripper、Lite6 Vacuum Gripper）。
-- **运动控制与运动学**：支持五次多项式关节插值平滑规划、重力补偿前馈控制、以及阻尼最小二乘法（DLS）笛卡尔逆运动学解算。
+- **运动控制与运动学**：支持五次多项式关节插值平滑规划、重力补偿前馈控制、以及阻尼最小二乘法（DLS）笛卡尔逆运动学解算；提供任意 site 正运动学、TCP 雅可比、速度级逆解与可操作度/奇异性指标（`src/kinematics.py`）。
 - **刚体动力学模块**：质量矩阵、重力/科氏力项、逆/正动力学及轨迹前馈力矩计算（`src/dynamics.py`），支持 TCP 负载注入与真机交叉比对脚本。
 - **强化学习示例**：xArm 6 TCP 位置到达 Gymnasium 环境（`src/rl/reach_env.py`）、PPO 训练管线（`scripts/train_reach_rl.py`）与训练策略回放示例。
 - **稳定可靠的查看器**：集成实时时钟同步、异常安全退出保护，针对 Linux Wayland / X11 进行了深度适配。
@@ -133,6 +133,7 @@ src/                    核心控制与仿真库
   sim_robot.py          SimRobot：物理步进、关节/TCP控制、渲染同步
   robot_interface.py    机械臂抽象基类（支持仿真与真机接口对齐）
   ik.py                 阻尼最小二乘法（DLS）笛卡尔 IK 解算器
+  kinematics.py         FK、TCP 雅可比、速度级 DLS 逆解、可操作度/奇异性指标
   trajectory.py         JointTrajectory 数据模型、PTP 五次/LSPB、样条多路点、笛卡尔直线
   dynamics.py           质量矩阵、重力/科氏力、逆/正动力学、负载注入
   rl/reach_env.py       Gymnasium TCP 到达环境（xArm 6，PPO 训练目标）

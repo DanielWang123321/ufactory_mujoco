@@ -8,7 +8,7 @@ MuJoCo simulation suite for UFACTORY robots — featuring high-fidelity visual a
 
 - **High-Fidelity Visuals**: Smooth-normal, multi-material OBJ visual meshes (PBR white shell, silver metal joints, black accents) with dedicated collision STLs.
 - **Full Asset Ecosystem**: High-precision assets for all UFACTORY robot arms (xArm 5, xArm 6, xArm 7, UF850, Lite6) and accessories (Gripper G2, Bio Gripper G2, Lite6 Gripper, Lite6 Vacuum Gripper) converted from [ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis).
-- **Control & Kinematics**: Quintic polynomial joint interpolation, gravity-compensated feedforward, and damped least-squares (DLS) Cartesian IK.
+- **Control & Kinematics**: Quintic polynomial joint interpolation, gravity-compensated feedforward, and damped least-squares (DLS) Cartesian IK; plus per-site FK, TCP Jacobian, velocity-level IK, and manipulability/singularity metrics (`src/kinematics.py`).
 - **Rigid-Body Dynamics**: Mass matrix, gravity/Coriolis terms, inverse/forward dynamics, and trajectory feedforward torques (`src/dynamics.py`), with TCP payload injection and real-robot cross-validation scripts.
 - **Reinforcement Learning**: Gymnasium TCP-reaching environment for xArm 6 (`src/rl/reach_env.py`), PPO training pipeline (`scripts/train_reach_rl.py`) and trained-policy rollout example.
 - **Robust Viewer**: Passive viewer with real-time sync, graceful exit handling, and Linux Wayland/X11 compatibility.
@@ -145,6 +145,7 @@ src/                    Core library
   sim_robot.py          SimRobot: physics stepping, joint/TCP control, viewer sync
   robot_interface.py    Abstract base class (sim / real robot interface)
   ik.py                 Damped least-squares (DLS) Cartesian IK solver
+  kinematics.py         FK, TCP Jacobian, velocity-level DLS IK, manipulability/singularity metrics
   trajectory.py         JointTrajectory data model, PTP quintic/LSPB, spline waypoints, Cartesian line
   dynamics.py           Mass matrix, gravity/Coriolis, inverse/forward dynamics, payload injection
   rl/reach_env.py       Gymnasium TCP-reaching environment (xArm 6, PPO training target)

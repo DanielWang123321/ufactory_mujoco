@@ -6,20 +6,12 @@ Position + orientation error, joint-limit clamping, joint velocity damping.
 import mujoco
 import numpy as np
 
+from .kinematics import quat_error as _quat_error
+
 _POS_TOL = 1e-4      # m
 _ROT_TOL = 1e-3      # rad
 _MAX_ITER = 100
 _DAMPING = 1e-3
-
-
-def _quat_error(quat_cur: np.ndarray, quat_target: np.ndarray) -> np.ndarray:
-    """Orientation error as world-frame rotation vector: e = target * conj(cur)."""
-    q_conj = np.array([quat_cur[0], -quat_cur[1], -quat_cur[2], -quat_cur[3]])
-    q_err = np.empty(4)
-    mujoco.mju_mulQuat(q_err, quat_target, q_conj)
-    rot = np.empty(3)
-    mujoco.mju_quat2Vel(rot, q_err, 1.0)
-    return rot
 
 
 def solve_ik(model: mujoco.MjModel, data: mujoco.MjData, site_name: str,

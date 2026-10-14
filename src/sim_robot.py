@@ -10,6 +10,7 @@ import mujoco
 import numpy as np
 
 from .ik import solve_ik, solve_ik_trajectory
+from .kinematics import manipulability, pose_jacobian, solve_joint_velocity
 from .robot_interface import RobotInterface
 from .trajectory import JointTrajectory, plan_cartesian_line, plan_ptp_quintic
 from .viewer import PassiveViewer, configure_low_power_rendering
@@ -281,6 +282,25 @@ class SimRobot(RobotInterface):
             mujoco.mj_forward(self.model, self.eval_data)
             out[i] = self.eval_data.site_xpos[self._site]
         return out
+
+    def tcp_jacobian(self, q: np.ndarray | None = None) -> np.ndarray:
+        """(6, nv) world-frame TCP Jacobian on eval_data; site twist = J @ qd."""
+        return pose_jacobian(self.model, self.eval_data,
+                             self.model.site(self._site).name, q)
+
+    def solve_tcp_velocity(self, twist: np.ndarray, q: np.ndarray | None = None, *,
+                           damping: float = 1e-3) -> np.ndarray:
+        """Velocity-level IK: joint velocity for desired TCP twist [v; omega] (world)."""
+        return solve_joint_velocity(self.model, self.eval_data,
+                                    self.model.site(self._site).name, twist, q,
+                                    damping=damping)
+
+    def tcp_manipulability(self, q: np.ndarray | None = None, *,
+                           include_rotation: bool = True) -> float:
+        """Yoshikawa manipulability of the TCP; near 0 at singularities."""
+        return manipulability(self.model, self.eval_data,
+                              self.model.site(self._site).name, q,
+                              include_rotation=include_rotation)
 
     # -- gripper control ---------------------------------------------------
     @property
