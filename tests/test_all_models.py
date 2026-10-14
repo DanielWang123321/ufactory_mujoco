@@ -41,12 +41,16 @@ class AllModelsLoadingTest(unittest.TestCase):
             self.assertTrue(primary_xml.is_file(), f"{name}/{name}.xml not found")
         # task scene for the pick-and-place example (xarm6_with_gripper only)
         self.assertTrue((MODELS_ROOT / "xarm6_with_gripper" / "scene_pick_place.xml").is_file())
+        # task scene for the RL reaching example (xarm6 only)
+        self.assertTrue((MODELS_ROOT / "xarm6" / "scene_reach.xml").is_file())
 
     def test_all_models_load_and_step(self):
         """Load both primary XML and scene XML into MuJoCo and simulate 100 physics steps."""
         for name in ALL_MODELS:
             model_dir = MODELS_ROOT / name
             xmls = [model_dir / f"{name}.xml", model_dir / "scene.xml"]
+            if name == "xarm6":
+                xmls.append(model_dir / "scene_reach.xml")
             if name == "xarm6_with_gripper":
                 xmls.append(model_dir / "scene_pick_place.xml")
             for xml_file in xmls:

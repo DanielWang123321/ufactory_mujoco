@@ -1,0 +1,6 @@
+# RL training dependencies (roadmap 0.0.5) -- core deps are in requirements.txt.
+# Training runs on the py313 conda environment (py314 has no torch / gymnasium /
+# stable-baselines3 wheels yet); the env itself only needs mujoco + numpy and
+# degrades gracefully when gymnasium is absent.
+gymnasium>=1.0
+stable-baselines3>=2.4

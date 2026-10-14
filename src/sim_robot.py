@@ -90,6 +90,14 @@ class SimRobot(RobotInterface):
         # --- Initialise state ---
         self._viewer = None
         mujoco.mj_resetDataKeyframe(self.model, self.data, 0)  # home
+        # MuJoCo < 3.15 pads incomplete keyframe qpos vectors with zeros while
+        # >= 3.15 pads with qpos0, which would drop free-joint scene props
+        # (e.g. the pick-place cube) to the world origin. Keyframes define the
+        # robot pose; floating props always keep their authored qpos0 pose.
+        for j in range(self.model.njnt):
+            if int(self.model.jnt_type[j]) == int(mujoco.mjtJoint.mjJNT_FREE):
+                adr = self.model.jnt_qposadr[j]
+                self.data.qpos[adr:adr + 7] = self.model.qpos0[adr:adr + 7]
         self.data.ctrl[:self._n_arm_actuators] = self.data.qpos[:self._n_arm_qpos]
         mujoco.mj_forward(self.model, self.data)
         if viewer:

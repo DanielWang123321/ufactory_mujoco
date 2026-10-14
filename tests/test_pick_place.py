@@ -32,6 +32,16 @@ class PickPlaceSceneTest(unittest.TestCase):
         self.assertEqual(m.geom_conaffinity[marker_id], 0)
         np.testing.assert_allclose(m.geom_pos[marker_id], [0.30, 0.30, 0.015], atol=1e-12)
 
+    def test_simrobot_init_keeps_cube_at_authored_pose(self):
+        """Keyframe state init must not drop the free-joint cube to the origin
+        (MuJoCo < 3.15 pads partial keyframe qpos vectors with zeros)."""
+        from src import SimRobot
+
+        with SimRobot(SCENE, viewer=False) as robot:
+            cube_id = mujoco.mj_name2id(robot.model, mujoco.mjtObj.mjOBJ_BODY, "cube")
+            np.testing.assert_allclose(robot.data.body(cube_id).xpos,
+                                       [0.30, 0.0, 0.015], atol=1e-9)
+
     def test_resolve_scene(self):
         self.assertEqual(pick_place.resolve_scene("xarm6_with_gripper"), SCENE)
         self.assertEqual(pick_place.resolve_scene(str(SCENE)), SCENE)
