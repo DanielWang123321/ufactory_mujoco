@@ -54,6 +54,14 @@ python examples/simulation/05_pick_place.py --headless     # prints place_error_
 python examples/simulation/06_trajectory_planning.py
 python examples/simulation/06_trajectory_planning.py --headless
 
+# Kinematics toolkit: FK/Jacobian cross-checks, velocity-level IK, singularity metrics
+python examples/simulation/07_kinematics.py
+python examples/simulation/07_kinematics.py --headless
+
+# Dynamics toolkit: mass matrix, gravity/Coriolis, ID/FD round trip, payload, feedforward
+python examples/simulation/08_dynamics.py
+python examples/simulation/08_dynamics.py --headless
+
 # Obstacle avoidance: RRT-Connect around pillar + board (xArm 6 task scene)
 python examples/simulation/09_obstacle_avoidance.py
 python examples/simulation/09_obstacle_avoidance.py --headless

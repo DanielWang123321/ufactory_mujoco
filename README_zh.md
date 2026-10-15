@@ -54,6 +54,14 @@ python examples/simulation/05_pick_place.py --headless     # 输出 place_error_
 python examples/simulation/06_trajectory_planning.py
 python examples/simulation/06_trajectory_planning.py --headless
 
+# 运动学工具链：FK/雅可比对照、速度级逆解、奇异性指标
+python examples/simulation/07_kinematics.py
+python examples/simulation/07_kinematics.py --headless
+
+# 动力学工具链：质量矩阵、重力/科氏、正逆动力学往返、负载、前馈包络
+python examples/simulation/08_dynamics.py
+python examples/simulation/08_dynamics.py --headless
+
 # 避障轨迹规划：RRT-Connect 绕立柱 + 横板（xArm 6 任务场景）
 python examples/simulation/09_obstacle_avoidance.py
 python examples/simulation/09_obstacle_avoidance.py --headless

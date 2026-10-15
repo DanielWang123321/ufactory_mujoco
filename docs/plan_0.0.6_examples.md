@@ -2,7 +2,7 @@
 
 版本：v1.0（2026-10-14）｜对应 [roadmap.md](../roadmap.md) 0.0.6
 
-> 进度：M0（`40a234d`）、M1（`286e80f`）、M2（`b18ab14`）、M3（2026-10-14 完成）；M4 待开始。
+> 进度：M0（`40a234d`）、M1（`286e80f`）、M2（`b18ab14`）、M3（`68f7315`）、M4（2026-10-14 完成）；0.0.6 全部完成。
 
 ## 1. 目标与范围
 
@@ -126,11 +126,19 @@ def shortcut_path(checker, waypoints, *, iterations=200, seed=None) -> np.ndarra
 | 与并行任务（kinematics）冲突 | M0 前置先提交；重组避开其改动文件（`sim_robot.py` 已含双方内容，不再改动） |
 | 示例互引（02/04→01）随迁移失效 | `resolve_model_path` 提取至 `src/model_paths.py`，示例间零依赖 |
 
-## 9. 交付物清单
+## 9. 交付物清单（2026-10-14 全部完成）
 
-- [ ] `examples/simulation/`（01–09）与 `examples/rl/01_reach.py`（迁移 + 3 个新增示例）
-- [ ] `src/model_paths.py`、`src/collision.py`、`src/path_planning.py`
-- [ ] `models/xarm6/scene_obstacles.xml`
-- [ ] `tests/test_collision.py`、`tests/test_path_planning.py`
-- [ ] README/README_zh（命令、结构、迁移表）、`docs/visual_command_guide.md` 命令更新
-- [ ] roadmap 0.0.6 勾选、worklog 记录
+- [x] `examples/simulation/`（01–09）与 `examples/rl/01_reach.py`（迁移 + 3 个新增示例）
+- [x] `src/model_paths.py`、`src/collision.py`、`src/path_planning.py`
+- [x] `models/xarm6/scene_obstacles.xml`
+- [x] `tests/test_collision.py`、`tests/test_path_planning.py`（另有 `test_obstacle_avoidance.py`、`test_topic_examples.py`）
+- [x] README/README_zh（命令、结构、迁移表）、`docs/visual_command_guide.md` 命令更新
+- [x] roadmap 0.0.6 勾选、worklog 记录
+
+## 10. 验收结果（2026-10-14）
+
+- **M1 重组**（`286e80f`）：双环境全量通过、全示例冒烟、grep 无旧路径残留。
+- **M2 规划模块**（`b18ab14`）：23 项新测试全过；种子可复现、直线快速通道、迭代上限显式报错、shortcut 长度/航点数不增。
+- **M3 避障场景/示例**（`68f7315`）：直线必碰对照（3/21 采样穿透 9.9 mm），规划 16→3 航点、最小间隙 7.5 mm，执行到位 **0.00241 rad**、穿透 **0.000 mm**。
+- **M4 主题示例**：07 运动学（FK 误差 0、雅可比对照 2.2e-10、速度级逆解残差 1.5e-7、全零位形 cond 1.16e23 / 可操作度 1.6e-25 vs 通用位形 7.1e-3）；08 动力学（M 对称正定、科氏静止为零、正逆往返 4e-15、3 kg 负载 J2/J3 **−5.46/−21.10 Nm 与真机实测一致**、前馈峰值为力矩上限 23.3%）。
+- **回归**：py313 全套 152 项全过（0 skip）、py314 全套 152 项 OK（13 skip）；`git diff --check` 干净；01–09/rl 全部示例无头冒烟通过。

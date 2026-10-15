@@ -95,6 +95,16 @@
   # 矩形末端轨迹跟踪
   python examples/simulation/03_cartesian_ik.py
   ```
+- **运动学工具链（FK / 雅可比 / 速度级逆解 / 奇异性指标）**：
+  ```bash
+  python examples/simulation/07_kinematics.py
+  python examples/simulation/07_kinematics.py --headless
+  ```
+- **动力学工具链（质量矩阵 / 正逆动力学 / 负载 / 前馈包络）**：
+  ```bash
+  python examples/simulation/08_dynamics.py
+  python examples/simulation/08_dynamics.py --headless
+  ```
 - **避障轨迹规划任务（立柱 + 横板场景）**：
   ```bash
   python examples/simulation/09_obstacle_avoidance.py
