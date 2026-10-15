@@ -1,5 +1,6 @@
-"""Unit tests for the xArm 6 TCP reaching RL environment (roadmap 0.0.5).
+"""Unit tests for the TCP reaching RL environment (roadmap 0.0.5, 0.0.7).
 
+Covers the full UFACTORY lineup (lite6 / xarm5 / xarm6 / xarm7 / uf850).
 Gymnasium / stable-baselines3 specifics are skipped when those packages are
 absent (e.g. the py314 project default), mirroring the trimesh skip pattern.
 """
@@ -12,7 +13,7 @@ import mujoco
 import numpy as np
 
 from src.ik import solve_ik
-from src.rl import XArm6ReachEnv
+from src.rl import ROBOT_PROFILES, ReachEnv, XArm6ReachEnv
 
 ROOT = Path(__file__).resolve().parent.parent
 _HAS_GYM = importlib.util.find_spec("gymnasium") is not None
@@ -208,6 +209,137 @@ class ReachEnvTrainingSmokeTests(unittest.TestCase):
             self.assertEqual(np.asarray(action).shape[-1], 6)
         finally:
             vec_env.close()
+
+
+# ---------------------------------------------------------------------------
+# 0.0.7: multi-robot coverage (docs/plan_0.0.7_rl.md §6)
+
+ALL_ROBOTS = ("lite6", "xarm5", "xarm6", "xarm7", "uf850")
+
+
+class ReachEnvMultiRobotTests(unittest.TestCase):
+    """Contract tests parameterized over the full UFACTORY lineup."""
+
+    def test_spaces_match_joint_count(self):
+        for robot in ALL_ROBOTS:
+            env = ReachEnv(robot=robot)
+            try:
+                n = ROBOT_PROFILES[robot].n_joints
+                self.assertEqual(env.n_joints, n, robot)
+                self.assertEqual(env.observation_space.shape, (3 + 3 * n,), robot)
+                self.assertEqual(env.action_space.shape, (n,), robot)
+            finally:
+                env.close()
+
+    def test_reset_and_step_contract(self):
+        for robot in ALL_ROBOTS:
+            env = ReachEnv(robot=robot)
+            try:
+                n = env.n_joints
+                obs, info = env.reset(seed=3)
+                self.assertEqual(obs.shape, (3 + 3 * n,), robot)
+                self.assertIn("target", info)
+                self.assertGreater(info["dist"], 0.0, robot)
+                obs, reward, term, trunc, info = env.step(np.zeros(n))
+                self.assertEqual(obs.shape, (3 + 3 * n,), robot)
+                self.assertTrue(np.all(np.isfinite(obs)), robot)
+                self.assertIsInstance(reward, float)
+            finally:
+                env.close()
+
+    def test_ik_greedy_teacher_reaches_target_on_every_robot(self):
+        """The IK-greedy teacher must reach the target on all five arms."""
+        for robot in ALL_ROBOTS:
+            env = ReachEnv(robot=robot, q0_noise=0.0, max_steps=300)
+            try:
+                env.reset(seed=11)
+                done, success = False, False
+                while not done:
+                    _, _, term, trunc, info = env.step(_greedy_action(env))
+                    success = bool(info["success"])
+                    done = term or trunc
+                self.assertTrue(success, f"{robot}: greedy teacher failed, "
+                                f"final dist {info['dist']:.4f} m")
+            finally:
+                env.close()
+
+    def test_lite6_actuator_order_fallback(self):
+        """lite6 ships unnamed actuators: ids must resolve by model order."""
+        env = ReachEnv(robot="lite6")
+        try:
+            np.testing.assert_array_equal(env._act_ids, np.arange(6))
+        finally:
+            env.close()
+
+    def test_named_actuators_resolve_by_name(self):
+        for robot in ("xarm5", "xarm6", "xarm7", "uf850"):
+            env = ReachEnv(robot=robot)
+            try:
+                expected = [mujoco.mj_name2id(
+                    env.model, mujoco.mjtObj.mjOBJ_ACTUATOR, f"act{i + 1}")
+                    for i in range(env.n_joints)]
+                np.testing.assert_array_equal(env._act_ids, expected)
+            finally:
+                env.close()
+
+    def test_unknown_robot_rejected(self):
+        with self.assertRaises(ValueError):
+            ReachEnv(robot="ur5")
+
+
+class SceneReachAssetTests(unittest.TestCase):
+    def test_scene_reach_assets_load(self):
+        for robot in ALL_ROBOTS:
+            path = ROOT / "models" / robot / "scene_reach.xml"
+            model = mujoco.MjModel.from_xml_path(str(path))
+            n = ROBOT_PROFILES[robot].n_joints
+            self.assertEqual(model.nu, n, robot)
+            self.assertGreaterEqual(
+                mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE,
+                                  "attachment_site"), 0, robot)
+            body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY,
+                                        "target_mocap")
+            self.assertGreaterEqual(body_id, 0, robot)
+            self.assertGreaterEqual(int(model.body("target_mocap").mocapid[0]), 0, robot)
+
+
+class RobotProfileCalibrationTests(unittest.TestCase):
+    """Anti-rot: frozen ROBOT_PROFILES must stay valid for each scene."""
+
+    def test_target_box_covered_by_radial_band(self):
+        for robot in ALL_ROBOTS:
+            p = ROBOT_PROFILES[robot]
+            low = np.array(p.target_low)
+            high = np.array(p.target_high)
+            shoulder = np.array(p.shoulder)
+            r_min = float(np.linalg.norm(shoulder - np.clip(shoulder, low, high)))
+            corners = np.array([[x, y, z]
+                                for x in (low[0], high[0])
+                                for y in (low[1], high[1])
+                                for z in (low[2], high[2])])
+            r_max = float(np.max(np.linalg.norm(corners - shoulder, axis=1)))
+            self.assertLessEqual(p.reach_min, r_min + 1e-9, robot)
+            self.assertGreaterEqual(p.reach_max, r_max - 1e-9, robot)
+
+    def test_target_box_ik_reachability(self):
+        """>= 90% of uniform box samples pass the env's reachability IK."""
+        rng = np.random.default_rng(7)
+        for robot in ALL_ROBOTS:
+            p = ROBOT_PROFILES[robot]
+            model = mujoco.MjModel.from_xml_path(
+                str(ROOT / "models" / robot / "scene_reach.xml"))
+            data = mujoco.MjData(model)
+            low = np.array(p.target_low)
+            high = np.array(p.target_high)
+            targets = rng.uniform(low, high, size=(50, 3))
+            ok = 0
+            for t in targets:
+                data.qpos[:] = 0.0
+                _, converged = solve_ik(model, data, "attachment_site", t, None,
+                                        q_init=np.zeros(model.nq),
+                                        pos_tol=2e-3, max_iter=80)
+                ok += int(bool(converged))
+            self.assertGreaterEqual(ok / len(targets), 0.9, robot)
 
 
 if __name__ == "__main__":

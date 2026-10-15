@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""RL example 01: TCP reaching with a trained PPO policy (roadmap 0.0.5).
+"""RL example 01: TCP reaching with a trained PPO policy (roadmap 0.0.5, 0.0.7).
 
 Loads the policy trained by scripts/train_reach_rl.py and rolls out episodes
-in the XArm6ReachEnv task: the TCP chases a randomly sampled target point.
+in the ReachEnv task: the TCP chases a randomly sampled target point.
+Supports lite6 / xarm5 / xarm6 / xarm7 / uf850 (--model).
 Use --random for the untrained baseline (works without stable-baselines3).
 
 Usage:
-    python examples/rl/01_reach.py                      # GUI, 10 episodes
+    python examples/rl/01_reach.py                      # xArm 6, GUI, 10 episodes
+    python examples/rl/01_reach.py --model lite6        # another arm
     python examples/rl/01_reach.py --headless           # metrics only
-    python examples/rl/01_reach.py --policy build/rl/ppo_reach.zip --episodes 20
+    python examples/rl/01_reach.py --policy build/rl/xarm6/ppo_reach.zip --episodes 20
     python examples/rl/01_reach.py --random             # untrained baseline
     python examples/rl/01_reach.py --target 0.35 0.15 0.25   # fixed target
 """
@@ -22,16 +24,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import numpy as np  # noqa: E402
 
-from src.rl import XArm6ReachEnv  # noqa: E402
+from src.rl import ROBOT_PROFILES, ReachEnv  # noqa: E402
 
-DEFAULT_POLICY = Path(__file__).resolve().parent.parent.parent / "build" / "rl" / "ppo_reach.zip"
+_BUILD = Path(__file__).resolve().parent.parent.parent / "build" / "rl"
 
 
 def make_policy(args):
     """Return (policy_fn, description). policy_fn(obs) -> action."""
     if args.random:
         rng = np.random.default_rng(args.seed)
-        return (lambda obs: rng.uniform(-1.0, 1.0, 6)), "random baseline"
+        return ((lambda obs: rng.uniform(-1.0, 1.0, ROBOT_PROFILES[args.model].n_joints)),
+                "random baseline")
     try:
         from stable_baselines3 import PPO
     except ImportError:
@@ -40,13 +43,14 @@ def make_policy(args):
     policy_path = Path(args.policy)
     if not policy_path.is_file():
         sys.exit(f"policy not found: {policy_path} -- "
-                 "train first with scripts/train_reach_rl.py or use --random")
+                 f"train first with scripts/train_reach_rl.py --model {args.model} "
+                 "or use --random")
     model = PPO.load(str(policy_path), device=args.device)
     return (lambda obs: model.predict(obs, deterministic=True)[0]), \
         f"PPO policy {policy_path}"
 
 
-def run_episodes(env: XArm6ReachEnv, policy_fn, episodes: int, seed: int,
+def run_episodes(env: ReachEnv, policy_fn, episodes: int, seed: int,
                  pace: bool, options: dict | None = None) -> list[dict]:
     period = env._decimation * float(env.model.opt.timestep)
     results = []
@@ -75,7 +79,10 @@ def run_episodes(env: XArm6ReachEnv, policy_fn, episodes: int, seed: int,
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="RL TCP reaching with a trained PPO policy.")
-    ap.add_argument("--policy", default=str(DEFAULT_POLICY), help="path to ppo_reach.zip")
+    ap.add_argument("--model", default="xarm6", choices=sorted(ROBOT_PROFILES),
+                    help="robot model (default: xarm6)")
+    ap.add_argument("--policy", default=None,
+                    help="path to ppo_reach.zip (default: build/rl/<model>/ppo_reach.zip)")
     ap.add_argument("--episodes", type=int, default=10, help="evaluation episodes (default: 10)")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--device", default="cpu", help="torch device (default: cpu)")
@@ -86,11 +93,13 @@ def main() -> None:
     ap.add_argument("--min-success-rate", type=float, default=0.7,
                     help="PASS threshold over the episodes (default: 0.7)")
     args = ap.parse_args()
+    if args.policy is None:
+        args.policy = str(_BUILD / args.model / "ppo_reach.zip")
 
     policy_fn, description = make_policy(args)
     options = {"target": np.asarray(args.target)} if args.target is not None else None
-    env = XArm6ReachEnv(render_mode=None if args.headless else "human")
-    print(f"Reaching with {description} ({args.episodes} episodes)")
+    env = ReachEnv(robot=args.model, render_mode=None if args.headless else "human")
+    print(f"Reaching on {args.model} with {description} ({args.episodes} episodes)")
     try:
         results = run_episodes(env, policy_fn, args.episodes, args.seed,
                                pace=not args.headless, options=options)

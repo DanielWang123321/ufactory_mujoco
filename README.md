@@ -10,7 +10,7 @@ MuJoCo simulation suite for UFACTORY robots — featuring high-fidelity visual a
 - **Full Asset Ecosystem**: High-precision assets for all UFACTORY robot arms (xArm 5, xArm 6, xArm 7, UF850, Lite6) and accessories (Gripper G2, Bio Gripper G2, Lite6 Gripper, Lite6 Vacuum Gripper) converted from [ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis).
 - **Control & Kinematics**: Quintic polynomial joint interpolation, gravity-compensated feedforward, and damped least-squares (DLS) Cartesian IK; plus per-site FK, TCP Jacobian, velocity-level IK, and manipulability/singularity metrics (`src/kinematics.py`).
 - **Rigid-Body Dynamics**: Mass matrix, gravity/Coriolis terms, inverse/forward dynamics, and trajectory feedforward torques (`src/dynamics.py`), with TCP payload injection and real-robot cross-validation scripts.
-- **Reinforcement Learning**: Gymnasium TCP-reaching environment for xArm 6 (`src/rl/reach_env.py`), PPO training pipeline (`scripts/train_reach_rl.py`) and trained-policy rollout example.
+- **Reinforcement Learning**: Gymnasium TCP-reaching environment covering all five arms (lite6, xarm5, xarm6, xarm7, uf850; `src/rl/reach_env.py` with calibrated per-robot workspace profiles), PPO training pipeline (`scripts/train_reach_rl.py --model`) and trained-policy rollout example.
 - **Robust Viewer**: Passive viewer with real-time sync, graceful exit handling, and Linux Wayland/X11 compatibility.
 
 ## Quick Start
@@ -67,7 +67,8 @@ python examples/simulation/09_obstacle_avoidance.py
 python examples/simulation/09_obstacle_avoidance.py --headless
 
 # RL TCP reaching: roll out a trained PPO policy (train with scripts/train_reach_rl.py)
-python examples/rl/01_reach.py
+python examples/rl/01_reach.py                     # xArm 6 by default
+python examples/rl/01_reach.py --model lite6       # lite6 / xarm5 / xarm7 / uf850
 python examples/rl/01_reach.py --headless     # prints success_rate / final TCP error, exits non-zero on failure
 python examples/rl/01_reach.py --random       # untrained baseline (works without stable-baselines3)
 ```
@@ -124,30 +125,46 @@ Recording preserves the CSV columns and saves a same-stem `.meta.json` (version 
 
 ## Reinforcement Learning
 
-`src/rl/reach_env.py` implements `XArm6ReachEnv`, a Gymnasium environment where the
-xArm 6 TCP chases a randomly sampled target point (base-frame box
-`x∈[0.25, 0.45], y∈[-0.25, 0.25], z∈[0.05, 0.35]`, IK-validated for reachability).
-Actions are joint-position increments (±0.05 rad per 20 ms control step, clamped
-to joint limits); the 21-dim observation contains the TCP-target delta, normalized
-joint positions/velocities and the last action. Reward is potential shaping on the
+`src/rl/reach_env.py` implements `ReachEnv`, a Gymnasium environment covering all
+five arms (lite6, xarm5, xarm6, xarm7, uf850; `XArm6ReachEnv` stays as a
+compatibility alias) where the TCP chases a randomly sampled target point. The
+base-frame target box, shoulder pre-filter origin and radial band are calibrated
+per robot (`ROBOT_PROFILES`, derived by `scripts/measure_reach_workspace.py` from
+FK sampling plus IK reachability and guarded by regression tests). Actions are
+joint-position increments (±0.05 rad per 20 ms control step, clamped to joint
+limits); the `3+3n`-dim observation (n = joint count: 18 for xarm5, 21 for
+lite6/xarm6/uf850, 24 for xarm7) contains the TCP-target delta, normalized joint
+positions/velocities and the last action. Reward is potential shaping on the
 target distance plus a success bonus (15 mm) and small step/action/joint-limit
 costs; episodes are 200 control steps (4 s).
 
 ```bash
 # Train PPO (py313: gymnasium + stable-baselines3, see requirements-rl.txt)
-/opt/conda_envs/py313/bin/python scripts/train_reach_rl.py            # 300k steps, 8 envs
-/opt/conda_envs/py313/bin/python scripts/train_reach_rl.py --total-steps 1000000
+/opt/conda_envs/py313/bin/python scripts/train_reach_rl.py --model xarm6   # 300k steps, 8 envs
+/opt/conda_envs/py313/bin/python scripts/train_reach_rl.py --model lite6   # any of the five arms
+/opt/conda_envs/py313/bin/python scripts/train_reach_rl.py --model xarm5 --total-steps 1000000
 
 # Evaluate / visualize the trained policy
-/opt/conda_envs/py313/bin/python examples/rl/01_reach.py --headless --episodes 20
+/opt/conda_envs/py313/bin/python examples/rl/01_reach.py --model xarm6 --headless --episodes 20
 ```
 
-Training saves `build/rl/ppo_reach.zip` plus `build/rl/metrics.json` (success rate,
-final TCP error, package versions). The reference 300k-step run reached 96%
-success over 50 evaluation episodes (mean final TCP error 15 mm, ~98 steps to
-target, 2700 env-steps/s on 8 CPU workers). The environment itself only needs
-mujoco + numpy: without gymnasium it falls back to a minimal space stub so
-`examples/rl/01_reach.py --random` still runs on the py314 default.
+Training saves `build/rl/<model>/ppo_reach.zip` plus `build/rl/<model>/metrics.json`
+(success rate, final TCP error, package versions). Reference policies (1M steps,
+PPO, 8 CPU workers, ~5 min per arm) evaluated over 200 deterministic episodes via
+`examples/rl/01_reach.py --headless`:
+
+| model | success rate | mean final TCP error | mean steps to target |
+| :--- | ---: | ---: | ---: |
+| lite6 | 99.5% | 14.2 mm | 85 |
+| xarm5 | 95.5% | 14.6 mm | 98 |
+| xarm6 | 99.5% | 14.2 mm | 69 |
+| xarm7 | 99.0% | 14.3 mm | 87 |
+| uf850 | 96.0% | 14.3 mm | 112 |
+
+(The xArm 6 300k-step run from 0.0.5 reached 96% over 50 episodes.) The
+environment itself only needs mujoco + numpy: without gymnasium it falls back to
+a minimal space stub so `examples/rl/01_reach.py --random` still runs on the
+py314 default.
 
 ## Project Structure
 

@@ -1,6 +1,7 @@
-"""Gymnasium environment: xArm 6 TCP position reaching (roadmap 0.0.5).
+"""Gymnasium environment: TCP position reaching for the UFACTORY arms
+(roadmap 0.0.5: xArm 6; roadmap 0.0.7: lite6 / xarm5 / xarm6 / xarm7 / uf850).
 
-Task: drive the xArm 6 TCP (``attachment_site``) to a randomly sampled target
+Task: drive the robot TCP (``attachment_site``) to a randomly sampled target
 point using joint-position increment actions on top of the model's position
 servo actuators. The environment follows the standard Gymnasium API and only
 requires mujoco + numpy at runtime; gymnasium itself is optional (a minimal
@@ -8,16 +9,20 @@ fallback base keeps random rollouts possible in environments without it,
 e.g. the py314 project default), while training additionally needs
 stable-baselines3 (see requirements-rl.txt).
 
-MDP summary (docs/plan_0.0.5_rl.md):
-    action   Box(-1, 1, (6,))  joint increments, |dq| <= delta per step
-    obs      float32 (21,)     TCP-target delta (3), normalized joints (6),
-                               scaled joint velocities (6), last action (6)
+MDP summary (docs/plan_0.0.5_rl.md; n = robot joint count):
+    action   Box(-1, 1, (n,))  joint increments, |dq| <= delta per step
+    obs      float32 (3+3n,)   TCP-target delta (3), normalized joints (n),
+                               scaled joint velocities (n), last action (n)
     reward   potential shaping on distance, success bonus, step/action/limit costs
     episode  200 control steps x 10 physics steps x 2 ms = 4 s sim time
+
+Per-robot reach-workspace profiles (target box, shoulder, radial band) are
+calibrated by scripts/measure_reach_workspace.py and frozen in ROBOT_PROFILES.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 import mujoco
@@ -34,19 +39,48 @@ except ImportError:  # pragma: no cover - exercised on py314 (no gymnasium)
     _ENV_BASE = object
 
 _ROOT = Path(__file__).resolve().parent.parent.parent
-_DEFAULT_SCENE = _ROOT / "models" / "xarm6" / "scene_reach.xml"
-
-ARM_JOINTS = ("joint1", "joint2", "joint3", "joint4", "joint5", "joint6")
-ARM_ACTUATORS = ("act1", "act2", "act3", "act4", "act5", "act6")
 TCP_SITE = "attachment_site"
 TARGET_BODY = "target_mocap"
 
-# Base-frame workspace box the target is sampled from (meters)
-TARGET_LOW = np.array([0.25, -0.25, 0.05])
-TARGET_HIGH = np.array([0.45, 0.25, 0.35])
-# Shoulder position, used for a cheap radial reachability pre-filter
-_SHOULDER = np.array([0.0, 0.0, 0.267])
-_REACH_MIN, _REACH_MAX = 0.15, 0.55
+
+@dataclass(frozen=True)
+class RobotProfile:
+    """Frozen reach-workspace calibration for one robot (0.0.7 M0)."""
+
+    robot: str
+    n_joints: int
+    target_low: tuple   # target sampling box, base frame (m)
+    target_high: tuple
+    shoulder: tuple     # radial pre-filter origin (joint2 anchor at q=0)
+    reach_min: float    # radial band covering the box (m)
+    reach_max: float
+
+
+# Values produced by scripts/measure_reach_workspace.py (FK cloud + IK
+# reachability >= 90%). The xArm 6 entry keeps the production 0.0.5 box;
+# its reach_max was raised 0.55 -> 0.56 so the radial band covers every box
+# corner (the far bottom corner is 0.5586 m from the shoulder).
+ROBOT_PROFILES: dict[str, RobotProfile] = {
+    "lite6": RobotProfile("lite6", 6,
+                          (0.102, -0.2389, 0.0986), (0.2553, 0.2389, 0.4031),
+                          (0.0, 0.0, 0.2435), 0.0918, 0.4228),
+    "xarm5": RobotProfile("xarm5", 5,
+                          (0.1386, -0.3631, 0.155), (0.3914, 0.3631, 0.5834),
+                          (0.0, 0.0, 0.267), 0.1248, 0.6827),
+    "xarm6": RobotProfile("xarm6", 6,
+                          (0.25, -0.25, 0.05), (0.45, 0.25, 0.35),
+                          (0.0, 0.0, 0.267), 0.15, 0.56),
+    "xarm7": RobotProfile("xarm7", 7,
+                          (0.199, -0.3954, 0.2102), (0.4231, 0.3954, 0.5341),
+                          (0.0, 0.0, 0.267), 0.1791, 0.7015),
+    "uf850": RobotProfile("uf850", 6,
+                          (0.1956, -0.4869, 0.2071), (0.5182, 0.4869, 0.735),
+                          (0.0, 0.0, 0.364), 0.1761, 0.8823),
+}
+
+# xArm 6 production defaults, kept as module constants for compatibility
+TARGET_LOW = np.array(ROBOT_PROFILES["xarm6"].target_low)
+TARGET_HIGH = np.array(ROBOT_PROFILES["xarm6"].target_high)
 
 # Reward shaping constants (docs/plan_0.0.5_rl.md §3)
 _K_SHAPE = 2.0 / 0.01     # per meter of distance reduction (= 2.0 per cm)
@@ -58,11 +92,15 @@ _LIMIT_MARGIN = 0.02
 
 _QVEL_SCALE = 3.0         # rad/s -> obs units
 
-# Observation bounds: TCP-target delta (m), normalized joints, scaled joint
-# velocities, last action. Observations are clipped to these bounds.
-_OBS_LOW = np.array([-2.0] * 3 + [-1.5] * 6 + [-5.0] * 6 + [-1.0] * 6, dtype=np.float32)
-_OBS_HIGH = -_OBS_LOW
-_OBS_HIGH[18:24] = 1.0
+
+def _obs_bounds(n: int) -> tuple[np.ndarray, np.ndarray]:
+    """Observation bounds: TCP-target delta (m), normalized joints, scaled
+    joint velocities, last action. Observations are clipped to these bounds."""
+    low = np.array([-2.0] * 3 + [-1.5] * n + [-5.0] * n + [-1.0] * n,
+                   dtype=np.float32)
+    high = -low
+    high[3 + 2 * n:] = 1.0
+    return low, high
 
 
 class _BoxStub:
@@ -79,19 +117,35 @@ class _BoxStub:
         return rng.uniform(self.low, self.high).astype(self.dtype)
 
 
-class XArm6ReachEnv(_ENV_BASE):
-    """xArm 6 TCP reaching environment (Gymnasium API)."""
+def _resolve_actuators(model: mujoco.MjModel, n: int) -> np.ndarray:
+    """Actuator ids of the arm: names act1..actN when present, else the first
+    N actuators in model order (lite6 ships unnamed actuators)."""
+    ids = [mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, f"act{i + 1}")
+           for i in range(n)]
+    if all(a >= 0 for a in ids):
+        return np.array(ids)
+    if model.nu < n:
+        raise ValueError(f"scene must define at least {n} actuators")
+    return np.arange(n)
+
+
+class ReachEnv(_ENV_BASE):
+    """UFACTORY arm TCP reaching environment (Gymnasium API)."""
 
     metadata = {"render_modes": ["human"], "render_fps": 50}
 
-    def __init__(self, model_path: str | Path = _DEFAULT_SCENE, *,
+    def __init__(self, model_path: str | Path | None = None, *,
+                 robot: str = "xarm6",
                  render_mode: str | None = None,
                  max_steps: int = 200, decimation: int = 10, delta: float = 0.05,
                  success_dist: float = 0.015,
-                 target_low: np.ndarray = TARGET_LOW,
-                 target_high: np.ndarray = TARGET_HIGH,
+                 target_low: np.ndarray | None = None,
+                 target_high: np.ndarray | None = None,
                  q0_noise: float = 0.2,
                  validate_targets: bool = True):
+        if robot not in ROBOT_PROFILES:
+            raise ValueError(f"unknown robot {robot!r}; "
+                             f"expected one of {sorted(ROBOT_PROFILES)}")
         if render_mode is not None and render_mode != "human":
             raise ValueError(f"unsupported render_mode: {render_mode!r}")
         for name, value in (("max_steps", max_steps), ("decimation", decimation),
@@ -100,32 +154,43 @@ class XArm6ReachEnv(_ENV_BASE):
                 raise ValueError(f"{name} must be finite and positive")
         if not np.isfinite(q0_noise) or q0_noise < 0:
             raise ValueError("q0_noise must be finite and non-negative")
-        model_path = Path(model_path)
-        if not model_path.is_file():
-            raise FileNotFoundError(f"scene model not found: {model_path}")
+
+        profile = ROBOT_PROFILES[robot]
+        self.robot = robot
+        self._n = profile.n_joints
         self.render_mode = render_mode
         self._max_steps = int(max_steps)
         self._decimation = int(decimation)
         self._delta = float(delta)
         self._success_dist = float(success_dist)
-        self._target_low = np.asarray(target_low, dtype=float)
-        self._target_high = np.asarray(target_high, dtype=float)
+        self._target_low = (np.asarray(profile.target_low, dtype=float)
+                            if target_low is None
+                            else np.asarray(target_low, dtype=float))
+        self._target_high = (np.asarray(profile.target_high, dtype=float)
+                             if target_high is None
+                             else np.asarray(target_high, dtype=float))
+        self._shoulder = np.asarray(profile.shoulder, dtype=float)
+        self._reach_min = float(profile.reach_min)
+        self._reach_max = float(profile.reach_max)
         self._q0_noise = float(q0_noise)
         self._validate_targets = bool(validate_targets)
 
+        if model_path is None:
+            model_path = _ROOT / "models" / robot / "scene_reach.xml"
+        model_path = Path(model_path)
+        if not model_path.is_file():
+            raise FileNotFoundError(f"scene model not found: {model_path}")
         self.model = mujoco.MjModel.from_xml_path(str(model_path))
         self.data = mujoco.MjData(self.model)
         # dedicated instance for reachability IK so reset never perturbs env state
         self._ik_data = mujoco.MjData(self.model)
 
         self._joint_ids = np.array(
-            [mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, n) for n in ARM_JOINTS])
+            [mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, f"joint{i + 1}")
+             for i in range(self._n)])
         if (self._joint_ids < 0).any():
-            raise ValueError(f"scene must define joints {ARM_JOINTS}")
-        self._act_ids = np.array(
-            [mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_ACTUATOR, n) for n in ARM_ACTUATORS])
-        if (self._act_ids < 0).any():
-            raise ValueError(f"scene must define actuators {ARM_ACTUATORS}")
+            raise ValueError(f"scene must define joints joint1..joint{self._n}")
+        self._act_ids = _resolve_actuators(self.model, self._n)
         self._qpos_adr = self.model.jnt_qposadr[self._joint_ids]
         self._qvel_adr = self.model.jnt_dofadr[self._joint_ids]
         self._q_lo = self.model.jnt_range[self._joint_ids, 0].copy()
@@ -140,19 +205,25 @@ class XArm6ReachEnv(_ENV_BASE):
 
         self._rng = np.random.default_rng()
         self._step_count = 0
-        self._last_action = np.zeros(6, dtype=np.float32)
+        self._last_action = np.zeros(self._n, dtype=np.float32)
         self._target = np.zeros(3)
         self._prev_dist = np.inf
         self._viewer = None
 
+        obs_low, obs_high = _obs_bounds(self._n)
         if spaces is not None:  # gymnasium installed: standard spaces
-            self.observation_space = spaces.Box(_OBS_LOW, _OBS_HIGH, dtype=np.float32)
-            self.action_space = spaces.Box(-1.0, 1.0, (6,), dtype=np.float32)
+            self.observation_space = spaces.Box(obs_low, obs_high, dtype=np.float32)
+            self.action_space = spaces.Box(-1.0, 1.0, (self._n,), dtype=np.float32)
         else:  # fallback: keep shapes/dtypes available for non-gym rollouts
-            self.observation_space = _BoxStub(_OBS_LOW, _OBS_HIGH, (21,), np.float32)
-            self.action_space = _BoxStub(-1.0, 1.0, (6,), np.float32)
+            self.observation_space = _BoxStub(obs_low, obs_high, (3 + 3 * self._n,),
+                                              np.float32)
+            self.action_space = _BoxStub(-1.0, 1.0, (self._n,), np.float32)
 
     # ------------------------------------------------------------------ state
+    @property
+    def n_joints(self) -> int:
+        return self._n
+
     @property
     def target_position(self) -> np.ndarray:
         return self._target.copy()
@@ -185,7 +256,7 @@ class XArm6ReachEnv(_ENV_BASE):
         mujoco.mj_forward(self.model, self.data)
 
         self._step_count = 0
-        self._last_action = np.zeros(6, dtype=np.float32)
+        self._last_action = np.zeros(self._n, dtype=np.float32)
         self._prev_dist = self.distance_to_target()
         obs = self._get_obs()
         info = {"target": self._target.copy(), "dist": self._prev_dist,
@@ -196,7 +267,7 @@ class XArm6ReachEnv(_ENV_BASE):
         return obs, info
 
     def step(self, action):
-        action = np.asarray(action, dtype=float).reshape(6)
+        action = np.asarray(action, dtype=float).reshape(self._n)
         if not np.all(np.isfinite(action)):
             raise ValueError("action must be finite")
         action = np.clip(action, -1.0, 1.0)
@@ -260,7 +331,7 @@ class XArm6ReachEnv(_ENV_BASE):
 
     def _sample_q0(self) -> np.ndarray:
         """Ready pose (all-zero) plus uniform noise in +/- q0_noise rad."""
-        q0 = self._rng.uniform(-self._q0_noise, self._q0_noise, 6)
+        q0 = self._rng.uniform(-self._q0_noise, self._q0_noise, self._n)
         return np.clip(q0, self._q_lo, self._q_hi)
 
     def _sample_target(self, options: dict | None) -> np.ndarray:
@@ -277,8 +348,8 @@ class XArm6ReachEnv(_ENV_BASE):
                            f"in [{self._target_low}, {self._target_high}]")
 
     def _is_reachable(self, target: np.ndarray) -> bool:
-        reach = float(np.linalg.norm(target - _SHOULDER))
-        if not (_REACH_MIN <= reach <= _REACH_MAX):
+        reach = float(np.linalg.norm(target - self._shoulder))
+        if not (self._reach_min <= reach <= self._reach_max):
             return False
         if not self._validate_targets:
             return True
@@ -288,3 +359,7 @@ class XArm6ReachEnv(_ENV_BASE):
                                 q_init=q_ref, pos_tol=2e-3, max_iter=80)
         self._ik_data.qpos[:] = self.data.qpos  # keep scratch state neutral
         return bool(converged)
+
+
+# Compatibility alias (docs/plan_0.0.7_rl.md): removed at 0.1.0.
+XArm6ReachEnv = ReachEnv

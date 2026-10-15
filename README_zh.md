@@ -10,7 +10,7 @@
 - **全系列资产支持**：包含从 [ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis) 官方解构转换的全部机械臂（xArm 5、xArm 6、xArm 7、UF850、Lite6）及末端配件（Gripper G2、Bio Gripper G2、Lite6 Gripper、Lite6 Vacuum Gripper）。
 - **运动控制与运动学**：支持五次多项式关节插值平滑规划、重力补偿前馈控制、以及阻尼最小二乘法（DLS）笛卡尔逆运动学解算；提供任意 site 正运动学、TCP 雅可比、速度级逆解与可操作度/奇异性指标（`src/kinematics.py`）。
 - **刚体动力学模块**：质量矩阵、重力/科氏力项、逆/正动力学及轨迹前馈力矩计算（`src/dynamics.py`），支持 TCP 负载注入与真机交叉比对脚本。
-- **强化学习示例**：xArm 6 TCP 位置到达 Gymnasium 环境（`src/rl/reach_env.py`）、PPO 训练管线（`scripts/train_reach_rl.py`）与训练策略回放示例。
+- **强化学习示例**：全系 5 款机械臂（lite6 / xarm5 / xarm6 / xarm7 / uf850）TCP 位置到达 Gymnasium 环境（`src/rl/reach_env.py`，含标定的分机型工作空间 profile）、PPO 训练管线（`scripts/train_reach_rl.py --model`）与训练策略回放示例。
 - **稳定可靠的查看器**：集成实时时钟同步、异常安全退出保护，针对 Linux Wayland / X11 进行了深度适配。
 
 ## 快速上手
@@ -67,7 +67,8 @@ python examples/simulation/09_obstacle_avoidance.py
 python examples/simulation/09_obstacle_avoidance.py --headless
 
 # 强化学习 TCP 到达：加载训练好的 PPO 策略回放（训练用 scripts/train_reach_rl.py）
-python examples/rl/01_reach.py
+python examples/rl/01_reach.py                     # 默认 xArm 6
+python examples/rl/01_reach.py --model lite6       # lite6 / xarm5 / xarm7 / uf850
 python examples/rl/01_reach.py --headless     # 输出 success_rate / TCP 误差，失败时退出码非零
 python examples/rl/01_reach.py --random       # 未训练基线（无需 stable-baselines3）
 ```
@@ -124,18 +125,29 @@ python scripts/compare_torque_xarm6.py --no-move             # 静态保持力�
 
 ## 强化学习模块
 
-`src/rl/reach_env.py` 实现 `XArm6ReachEnv`（Gymnasium 环境）：xArm 6 的 TCP 追踪随机采样的目标点（基座系工作空间 `x∈[0.25, 0.45], y∈[-0.25, 0.25], z∈[0.05, 0.35]`，启动时经 IK 可达性校验）。动作为关节位置增量（每控制步 ±0.05 rad，20 ms/步，限位钳制）；21 维观测包含 TCP−目标相对位置、归一化关节位置/速度与上一动作。奖励采用势能塑形（目标距离缩减）+ 成功奖励（15 mm）− 步数/动作/近限位惩罚；每回合 200 控制步（4 s）。
+`src/rl/reach_env.py` 实现通用 `ReachEnv`（Gymnasium 环境，`robot` 参数选机型，`XArm6ReachEnv` 为兼容别名）：TCP 追踪随机采样的目标点，目标盒/肩部/径向带按机型标定（`ROBOT_PROFILES`，由 `scripts/measure_reach_workspace.py` FK 采样 + IK 可达率标定，回归测试防腐化）。动作为关节位置增量（每控制步 ±0.05 rad，20 ms/步，限位钳制）；观测 `3+3n` 维（TCP−目标相对位置、归一化关节位置/速度与上一动作，n 为关节数：xarm5 18 维、lite6/xarm6/uf850 21 维、xarm7 24 维）。奖励采用势能塑形（目标距离缩减）+ 成功奖励（15 mm）− 步数/动作/近限位惩罚；每回合 200 控制步（4 s）。
 
 ```bash
 # 训练 PPO（py313：gymnasium + stable-baselines3，见 requirements-rl.txt）
-/opt/conda_envs/py313/bin/python scripts/train_reach_rl.py            # 300k 步，8 并行环境
-/opt/conda_envs/py313/bin/python scripts/train_reach_rl.py --total-steps 1000000
+/opt/conda_envs/py313/bin/python scripts/train_reach_rl.py --model xarm6   # 300k 步，8 并行环境
+/opt/conda_envs/py313/bin/python scripts/train_reach_rl.py --model lite6   # 任一机型
+/opt/conda_envs/py313/bin/python scripts/train_reach_rl.py --model xarm5 --total-steps 1000000
 
 # 评估 / 可视化训练策略
-/opt/conda_envs/py313/bin/python examples/rl/01_reach.py --headless --episodes 20
+/opt/conda_envs/py313/bin/python examples/rl/01_reach.py --model xarm6 --headless --episodes 20
 ```
 
-训练产物保存于 `build/rl/ppo_reach.zip` 与 `build/rl/metrics.json`（成功率、TCP 误差、包版本）。参考的 300k 步训练在 50 回合评估上达到 96% 成功率（平均 TCP 误差 15 mm、约 98 步到达，8 进程 CPU 约 2700 env-steps/s）。环境本身仅依赖 mujoco + numpy：无 gymnasium 时退化为空间存根，`examples/rl/01_reach.py --random` 在 py314 默认环境仍可运行。
+训练产物保存于 `build/rl/<model>/ppo_reach.zip` 与 `build/rl/<model>/metrics.json`（成功率、TCP 误差、包版本）。参考策略（1M 步，PPO，8 进程 CPU，单臂约 5 分钟）经 `examples/rl/01_reach.py --headless` 200 确定性回合评估：
+
+| 机型 | 成功率 | 平均 TCP 误差 | 平均到达步数 |
+| :--- | ---: | ---: | ---: |
+| lite6 | 99.5% | 14.2 mm | 85 |
+| xarm5 | 95.5% | 14.6 mm | 98 |
+| xarm6 | 99.5% | 14.2 mm | 69 |
+| xarm7 | 99.0% | 14.3 mm | 87 |
+| uf850 | 96.0% | 14.3 mm | 112 |
+
+（0.0.5 的 xArm 6 300k 步参考训练在 50 回合评估上为 96%。）环境本身仅依赖 mujoco + numpy：无 gymnasium 时退化为空间存根，`examples/rl/01_reach.py --random` 在 py314 默认环境仍可运行。
 
 ## 项目结构
 

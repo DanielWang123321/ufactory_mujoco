@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Train a PPO policy for the xArm 6 TCP reaching task (roadmap 0.0.5).
+"""Train a PPO policy for the TCP reaching task (roadmap 0.0.5, 0.0.7).
 
-Runs on the py313 environment (requirements-rl.txt: gymnasium + stable-baselines3).
-The trained policy is saved to <out-dir>/ppo_reach.zip together with an
-evaluation report <out-dir>/metrics.json.
+Supports lite6 / xarm5 / xarm6 / xarm7 / uf850 (--model). Runs on the py313
+environment (requirements-rl.txt: gymnasium + stable-baselines3). The trained
+policy is saved to <out-dir>/ppo_reach.zip together with an evaluation report
+<out-dir>/metrics.json (default out-dir: build/rl/<model>/).
 
 Usage:
-    python scripts/train_reach_rl.py                        # 300k steps, 8 envs
+    python scripts/train_reach_rl.py                        # xArm 6, 300k steps
+    python scripts/train_reach_rl.py --model lite6          # another arm
     python scripts/train_reach_rl.py --total-steps 1000000  # longer run
     python scripts/train_reach_rl.py --n-envs 4 --device cpu
 """
@@ -33,12 +35,12 @@ try:
 except ImportError as exc:  # pragma: no cover
     sys.exit(f"training needs gymnasium + stable-baselines3 (requirements-rl.txt): {exc}")
 
-from src.rl import XArm6ReachEnv  # noqa: E402
+from src.rl import ROBOT_PROFILES, ReachEnv  # noqa: E402
 
 
-def evaluate(model, episodes: int, seed: int, max_steps: int = 200) -> dict:
+def evaluate(model, robot: str, episodes: int, seed: int, max_steps: int = 200) -> dict:
     """Deterministic-policy evaluation on a fresh single env."""
-    env = XArm6ReachEnv(max_steps=max_steps)
+    env = ReachEnv(robot=robot, max_steps=max_steps)
     successes, dists, returns, hit_steps = 0, [], [], []
     try:
         for ep in range(episodes):
@@ -67,24 +69,28 @@ def evaluate(model, episodes: int, seed: int, max_steps: int = 200) -> dict:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Train PPO on xArm 6 TCP reaching.")
+    parser = argparse.ArgumentParser(description="Train PPO on TCP reaching.")
+    parser.add_argument("--model", default="xarm6", choices=sorted(ROBOT_PROFILES),
+                        help="robot model (default: xarm6)")
     parser.add_argument("--total-steps", type=int, default=300_000)
     parser.add_argument("--n-envs", type=int, default=8)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--device", default="cpu", help="torch device (default: cpu)")
-    parser.add_argument("--out-dir", default=str(ROOT / "build" / "rl"))
+    parser.add_argument("--out-dir", default=None,
+                        help="output directory (default: build/rl/<model>)")
     parser.add_argument("--eval-episodes", type=int, default=50)
     parser.add_argument("--save-interval", type=int, default=50_000,
                         help="checkpoint every N total steps")
     parser.add_argument("--n-steps", type=int, default=2048, help="PPO rollout per env")
     args = parser.parse_args()
 
-    out_dir = Path(args.out_dir)
+    out_dir = Path(args.out_dir or ROOT / "build" / "rl" / args.model)
     (out_dir / "checkpoints").mkdir(parents=True, exist_ok=True)
 
     vec_cls = SubprocVecEnv if args.n_envs > 1 else DummyVecEnv
-    vec_env = make_vec_env(XArm6ReachEnv, n_envs=args.n_envs, seed=args.seed,
-                           env_kwargs={"max_steps": 200}, vec_env_cls=vec_cls)
+    vec_env = make_vec_env(ReachEnv, n_envs=args.n_envs, seed=args.seed,
+                           env_kwargs={"robot": args.model, "max_steps": 200},
+                           vec_env_cls=vec_cls)
     model = PPO(
         "MlpPolicy", vec_env, verbose=1, seed=args.seed, device=args.device,
         n_steps=args.n_steps, batch_size=256, n_epochs=10,
@@ -95,15 +101,17 @@ def main() -> None:
         save_freq=max(args.save_interval // max(args.n_envs, 1), 1),
         save_path=str(out_dir / "checkpoints"), name_prefix="ppo_reach")
 
-    print(f"[train] {args.total_steps} steps, {args.n_envs} envs, device={args.device}")
+    print(f"[train] {args.model}: {args.total_steps} steps, {args.n_envs} envs, "
+          f"device={args.device}")
     start = time.perf_counter()
     model.learn(total_timesteps=args.total_steps, callback=checkpoint_cb)
     train_seconds = time.perf_counter() - start
 
     model.save(out_dir / "ppo_reach.zip")
-    metrics = evaluate(model, args.eval_episodes, seed=10_000 + args.seed)
+    metrics = evaluate(model, args.model, args.eval_episodes, seed=10_000 + args.seed)
     metrics.update({
         "config": {
+            "model": args.model,
             "total_steps": args.total_steps, "n_envs": args.n_envs,
             "n_steps": args.n_steps, "seed": args.seed, "device": args.device,
         },
@@ -119,7 +127,7 @@ def main() -> None:
     })
     (out_dir / "metrics.json").write_text(json.dumps(metrics, indent=2) + "\n")
 
-    print("\n[train] evaluation "
+    print(f"\n[train] {args.model} evaluation "
           f"({metrics['episodes']} episodes, deterministic policy):")
     print(f"  success_rate        : {metrics['success_rate']:.2%}")
     print(f"  mean_final_dist_m   : {metrics['mean_final_dist_m']:.4f}")
