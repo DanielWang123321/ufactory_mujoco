@@ -150,6 +150,8 @@ src/                    Core library
   kinematics.py         FK, TCP Jacobian, velocity-level DLS IK, manipulability/singularity metrics
   trajectory.py         JointTrajectory data model, PTP quintic/LSPB, spline waypoints, Cartesian line
   dynamics.py           Mass matrix, gravity/Coriolis, inverse/forward dynamics, payload injection
+  collision.py          CollisionChecker: clearance/collision queries for planning
+  path_planning.py      RRT-Connect + shortcut for collision-free joint paths
   rl/reach_env.py       Gymnasium TCP-reaching environment (xArm 6, PPO training target)
   model_paths.py        Model name -> XML resolution (MODELS_ROOT, resolve_model_path)
   viewer.py             GLFW/X11 passive viewer lifecycle wrapper

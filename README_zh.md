@@ -138,6 +138,8 @@ src/                    核心控制与仿真库
   kinematics.py         FK、TCP 雅可比、速度级 DLS 逆解、可操作度/奇异性指标
   trajectory.py         JointTrajectory 数据模型、PTP 五次/LSPB、样条多路点、笛卡尔直线
   dynamics.py           质量矩阵、重力/科氏力、逆/正动力学、负载注入
+  collision.py          CollisionChecker：规划用碰撞/间隙查询
+  path_planning.py      RRT-Connect + shortcut 无关节避障路径
   rl/reach_env.py       Gymnasium TCP 到达环境（xArm 6，PPO 训练目标）
   model_paths.py        模型名称 → XML 路径解析（MODELS_ROOT、resolve_model_path）
   viewer.py             GLFW/X11 交互查看器生命周期封装
