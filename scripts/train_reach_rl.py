@@ -82,6 +82,10 @@ def main() -> None:
     parser.add_argument("--save-interval", type=int, default=50_000,
                         help="checkpoint every N total steps")
     parser.add_argument("--n-steps", type=int, default=2048, help="PPO rollout per env")
+    parser.add_argument("--net-arch", default="64,64",
+                        help="MLP layer sizes, comma separated (default: 64,64)")
+    parser.add_argument("--ent-coef", type=float, default=0.0,
+                        help="PPO entropy coefficient (default: 0.0)")
     args = parser.parse_args()
 
     out_dir = Path(args.out_dir or ROOT / "build" / "rl" / args.model)
@@ -94,8 +98,8 @@ def main() -> None:
     model = PPO(
         "MlpPolicy", vec_env, verbose=1, seed=args.seed, device=args.device,
         n_steps=args.n_steps, batch_size=256, n_epochs=10,
-        learning_rate=3e-4, gamma=0.99, gae_lambda=0.95, ent_coef=0.0,
-        policy_kwargs={"net_arch": [64, 64]},
+        learning_rate=3e-4, gamma=0.99, gae_lambda=0.95, ent_coef=args.ent_coef,
+        policy_kwargs={"net_arch": [int(x) for x in args.net_arch.split(",")]},
     )
     checkpoint_cb = CheckpointCallback(
         save_freq=max(args.save_interval // max(args.n_envs, 1), 1),

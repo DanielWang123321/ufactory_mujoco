@@ -135,7 +135,8 @@ joint-position increments (±0.05 rad per 20 ms control step, clamped to joint
 limits); the `3+3n`-dim observation (n = joint count: 18 for xarm5, 21 for
 lite6/xarm6/uf850, 24 for xarm7) contains the TCP-target delta, normalized joint
 positions/velocities and the last action. Reward is potential shaping on the
-target distance plus a success bonus (15 mm) and small step/action/joint-limit
+target distance plus a success bonus (5 mm threshold, aligned with the
+ufactory_genesis standard) and small step/action/joint-limit
 costs; episodes are 200 control steps (4 s).
 
 ```bash
@@ -149,22 +150,27 @@ costs; episodes are 200 control steps (4 s).
 ```
 
 Training saves `build/rl/<model>/ppo_reach.zip` plus `build/rl/<model>/metrics.json`
-(success rate, final TCP error, package versions). Reference policies (1M steps,
-PPO, 8 CPU workers, ~5 min per arm) evaluated over 200 deterministic episodes via
+(success rate, final TCP error, package versions). The success criterion and the
+acceptance bar follow the ufactory_genesis reach standard: success is a TCP
+distance **strictly below 5 mm**, and each acceptance group requires a success
+rate **>= 95%** with a mean termination distance **<= 10 mm** over 512 targets.
+Reference policies (2M PPO steps, [256,256,128] MLP, ent_coef 0.001, ~11 min per
+arm on 8 CPU workers; uf850 needed 4M steps), evaluated over two independent
+512-target groups (`--seed 17000` / `--seed 17512`) via
 `examples/rl/01_reach.py --headless`:
 
-| model | success rate | mean final TCP error | mean steps to target |
+| model | success rate (g1 / g2) | mean final TCP error (g1 / g2) | mean steps |
 | :--- | ---: | ---: | ---: |
-| lite6 | 99.5% | 14.2 mm | 85 |
-| xarm5 | 95.5% | 14.6 mm | 98 |
-| xarm6 | 99.5% | 14.2 mm | 69 |
-| xarm7 | 99.0% | 14.3 mm | 87 |
-| uf850 | 96.0% | 14.3 mm | 112 |
+| lite6 | 99.8% / 99.4% | 4.3 / 4.4 mm | 82 |
+| xarm5 | 99.4% / 99.0% | 4.2 / 4.2 mm | 95 |
+| xarm6 | 100% / 99.8% | 4.1 / 4.1 mm | 72 |
+| xarm7 | 99.6% / 99.0% | 4.3 / 4.3 mm | 88 |
+| uf850 | 98.1% / 96.3% | 4.4 / 4.9 mm | 110 |
 
-(The xArm 6 300k-step run from 0.0.5 reached 96% over 50 episodes.) The
-environment itself only needs mujoco + numpy: without gymnasium it falls back to
-a minimal space stub so `examples/rl/01_reach.py --random` still runs on the
-py314 default.
+(The xArm 6 300k-step run from 0.0.5 reached 96% over 50 episodes at the old
+15 mm threshold.) The environment itself only needs mujoco + numpy: without
+gymnasium it falls back to a minimal space stub so `examples/rl/01_reach.py
+--random` still runs on the py314 default.
 
 ## Project Structure
 

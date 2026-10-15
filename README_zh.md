@@ -125,7 +125,7 @@ python scripts/compare_torque_xarm6.py --no-move             # 静态保持力�
 
 ## 强化学习模块
 
-`src/rl/reach_env.py` 实现通用 `ReachEnv`（Gymnasium 环境，`robot` 参数选机型，`XArm6ReachEnv` 为兼容别名）：TCP 追踪随机采样的目标点，目标盒/肩部/径向带按机型标定（`ROBOT_PROFILES`，由 `scripts/measure_reach_workspace.py` FK 采样 + IK 可达率标定，回归测试防腐化）。动作为关节位置增量（每控制步 ±0.05 rad，20 ms/步，限位钳制）；观测 `3+3n` 维（TCP−目标相对位置、归一化关节位置/速度与上一动作，n 为关节数：xarm5 18 维、lite6/xarm6/uf850 21 维、xarm7 24 维）。奖励采用势能塑形（目标距离缩减）+ 成功奖励（15 mm）− 步数/动作/近限位惩罚；每回合 200 控制步（4 s）。
+`src/rl/reach_env.py` 实现通用 `ReachEnv`（Gymnasium 环境，`robot` 参数选机型，`XArm6ReachEnv` 为兼容别名）：TCP 追踪随机采样的目标点，目标盒/肩部/径向带按机型标定（`ROBOT_PROFILES`，由 `scripts/measure_reach_workspace.py` FK 采样 + IK 可达率标定，回归测试防腐化）。动作为关节位置增量（每控制步 ±0.05 rad，20 ms/步，限位钳制）；观测 `3+3n` 维（TCP−目标相对位置、归一化关节位置/速度与上一动作，n 为关节数：xarm5 18 维、lite6/xarm6/uf850 21 维、xarm7 24 维）。奖励采用势能塑形（目标距离缩减）+ 成功奖励（5 mm 阈值，对齐 ufactory_genesis 标准）− 步数/动作/近限位惩罚；每回合 200 控制步（4 s）。
 
 ```bash
 # 训练 PPO（py313：gymnasium + stable-baselines3，见 requirements-rl.txt）
@@ -137,17 +137,17 @@ python scripts/compare_torque_xarm6.py --no-move             # 静态保持力�
 /opt/conda_envs/py313/bin/python examples/rl/01_reach.py --model xarm6 --headless --episodes 20
 ```
 
-训练产物保存于 `build/rl/<model>/ppo_reach.zip` 与 `build/rl/<model>/metrics.json`（成功率、TCP 误差、包版本）。参考策略（1M 步，PPO，8 进程 CPU，单臂约 5 分钟）经 `examples/rl/01_reach.py --headless` 200 确定性回合评估：
+训练产物保存于 `build/rl/<model>/ppo_reach.zip` 与 `build/rl/<model>/metrics.json`（成功率、TCP 误差、包版本）。成功判定与验收门槛**对齐 ufactory_genesis reach 标准**：成功为 TCP 距离**严格小于 5 mm**，每组验收要求成功率 **≥ 95%** 且平均终止距离 **≤ 10 mm**（每组 512 目标）。参考策略（2M 步 PPO，[256,256,128] MLP，ent_coef 0.001，单臂约 11 分钟；uf850 需 4M 步）经两组独立 512 目标（`--seed 17000` / `--seed 17512`）验收：
 
-| 机型 | 成功率 | 平均 TCP 误差 | 平均到达步数 |
+| 机型 | 成功率（组1 / 组2） | 平均 TCP 误差（组1 / 组2） | 平均步数 |
 | :--- | ---: | ---: | ---: |
-| lite6 | 99.5% | 14.2 mm | 85 |
-| xarm5 | 95.5% | 14.6 mm | 98 |
-| xarm6 | 99.5% | 14.2 mm | 69 |
-| xarm7 | 99.0% | 14.3 mm | 87 |
-| uf850 | 96.0% | 14.3 mm | 112 |
+| lite6 | 99.8% / 99.4% | 4.3 / 4.4 mm | 82 |
+| xarm5 | 99.4% / 99.0% | 4.2 / 4.2 mm | 95 |
+| xarm6 | 100% / 99.8% | 4.1 / 4.1 mm | 72 |
+| xarm7 | 99.6% / 99.0% | 4.3 / 4.3 mm | 88 |
+| uf850 | 98.1% / 96.3% | 4.4 / 4.9 mm | 110 |
 
-（0.0.5 的 xArm 6 300k 步参考训练在 50 回合评估上为 96%。）环境本身仅依赖 mujoco + numpy：无 gymnasium 时退化为空间存根，`examples/rl/01_reach.py --random` 在 py314 默认环境仍可运行。
+（0.0.5 的 xArm 6 300k 步参考训练在旧 15 mm 阈值下 50 回合为 96%。）环境本身仅依赖 mujoco + numpy：无 gymnasium 时退化为空间存根，`examples/rl/01_reach.py --random` 在 py314 默认环境仍可运行。
 
 ## 项目结构
 

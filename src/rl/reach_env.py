@@ -13,7 +13,8 @@ MDP summary (docs/plan_0.0.5_rl.md; n = robot joint count):
     action   Box(-1, 1, (n,))  joint increments, |dq| <= delta per step
     obs      float32 (3+3n,)   TCP-target delta (3), normalized joints (n),
                                scaled joint velocities (n), last action (n)
-    reward   potential shaping on distance, success bonus, step/action/limit costs
+    reward   potential shaping on distance, success bonus (5 mm threshold,
+             aligned with the ufactory_genesis standard), step/action/limit costs
     episode  200 control steps x 10 physics steps x 2 ms = 4 s sim time
 
 Per-robot reach-workspace profiles (target box, shoulder, radial band) are
@@ -138,7 +139,7 @@ class ReachEnv(_ENV_BASE):
                  robot: str = "xarm6",
                  render_mode: str | None = None,
                  max_steps: int = 200, decimation: int = 10, delta: float = 0.05,
-                 success_dist: float = 0.015,
+                 success_dist: float = 0.005,
                  target_low: np.ndarray | None = None,
                  target_high: np.ndarray | None = None,
                  q0_noise: float = 0.2,

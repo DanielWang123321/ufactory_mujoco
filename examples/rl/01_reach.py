@@ -90,8 +90,12 @@ def main() -> None:
     ap.add_argument("--random", action="store_true", help="untrained random baseline")
     ap.add_argument("--target", type=float, nargs=3, metavar=("X", "Y", "Z"),
                     help="fixed base-frame target instead of random sampling")
-    ap.add_argument("--min-success-rate", type=float, default=0.7,
-                    help="PASS threshold over the episodes (default: 0.7)")
+    ap.add_argument("--min-success-rate", type=float, default=0.95,
+                    help="PASS success-rate threshold (default: 0.95, "
+                         "ufactory_genesis acceptance standard)")
+    ap.add_argument("--max-mean-dist-mm", type=float, default=10.0,
+                    help="PASS mean final distance bound in mm (default: 10.0, "
+                         "ufactory_genesis acceptance standard)")
     args = ap.parse_args()
     if args.policy is None:
         args.policy = str(_BUILD / args.model / "ppo_reach.zip")
@@ -111,7 +115,7 @@ def main() -> None:
     print(f"\n  success_rate={success_rate:.2%}  mean_final_dist={mean_dist:.1f} mm  "
           f"mean_steps={np.mean([r['steps'] for r in results]):.1f}")
 
-    ok = success_rate >= args.min_success_rate
+    ok = success_rate >= args.min_success_rate and mean_dist <= args.max_mean_dist_mm
     if args.random:
         print("\nRL reaching BASELINE (untrained policy, not judged)")
         sys.exit(0)

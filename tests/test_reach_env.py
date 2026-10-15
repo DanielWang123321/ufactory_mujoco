@@ -20,10 +20,19 @@ _HAS_GYM = importlib.util.find_spec("gymnasium") is not None
 _HAS_SB3 = importlib.util.find_spec("stable_baselines3") is not None
 
 
-def _greedy_action(env: XArm6ReachEnv) -> np.ndarray:
-    """Action driving the arm toward the IK solution for the current target."""
+def _greedy_action(env: ReachEnv) -> np.ndarray:
+    """Action driving the arm toward the IK solution for the current target.
+
+    When close (8 cm), the IK target is extended 2x past the current TCP
+    (ILC-style overcommand) to cancel the position servo's gravity droop
+    (~10 mrad / ~8 mm steady state), which would otherwise stall above the
+    5 mm success standard (ufactory_genesis).
+    """
+    target = env.target_position
+    err = target - env.tcp_position()
+    ik_target = target + 2.0 * err if np.linalg.norm(err) < 0.08 else target
     q_ik, _ = solve_ik(env.model, env._ik_data, "attachment_site",
-                       env.target_position, None, q_init=env.joint_positions(),
+                       ik_target, None, q_init=env.joint_positions(),
                        pos_tol=1e-3)
     q = env.joint_positions()
     return np.clip((q_ik - q) / env._delta, -1.0, 1.0)
@@ -144,7 +153,7 @@ class ReachEnvRewardTests(unittest.TestCase):
             if terminated or truncated:
                 break
         self.assertTrue(info["success"], f"final dist {info['dist']:.4f} m")
-        self.assertLess(info["dist"], 0.015)
+        self.assertLess(info["dist"], 0.005)   # ufactory_genesis success standard
         self.assertLess(info["dist"], start_dist)
         self.assertLessEqual(_max_penetration(self.env), 1e-3)
 
