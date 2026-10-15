@@ -29,36 +29,38 @@ pip install -r requirements.txt
 
 ```bash
 # Interactive viewer: load model and inspect (supports all arms, grippers, and combos)
-python examples/01_load_and_view.py
-python examples/01_load_and_view.py --model lite6 --pose ready
-python examples/01_load_and_view.py --model xarm6_with_gripper --pose ready
+python examples/simulation/01_load_and_view.py
+python examples/simulation/01_load_and_view.py --model lite6 --pose ready
+python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose ready
 
 # Joint-space control (supports all arms via --model)
-python examples/02_joint_control.py --model lite6
-python examples/02_joint_control.py --model xarm6
-python examples/02_joint_control.py --model xarm6 --speed 120
+python examples/simulation/02_joint_control.py --model lite6
+python examples/simulation/02_joint_control.py --model xarm6
+python examples/simulation/02_joint_control.py --model xarm6 --speed 120
 
 # Cartesian IK: line + arc trajectory
-python examples/03_cartesian_ik.py
+python examples/simulation/03_cartesian_ik.py
 
 # Gripper motion control (Gripper G2, Bio Gripper G2, Lite 6 Gripper)
-python examples/04_gripper_control.py --model lite6_with_gripper
-python examples/04_gripper_control.py --model xarm6_with_gripper
-python examples/04_gripper_control.py --model bio_gripper_g2
+python examples/simulation/04_gripper_control.py --model lite6_with_gripper
+python examples/simulation/04_gripper_control.py --model xarm6_with_gripper
+python examples/simulation/04_gripper_control.py --model bio_gripper_g2
 
 # Cube pick-and-place (xArm 6 + Gripper G2, replicates ufactory_genesis pick_place)
-python examples/05_pick_place.py
-python examples/05_pick_place.py --headless     # prints place_error_mm / home_drift_mm, exits non-zero on failure
+python examples/simulation/05_pick_place.py
+python examples/simulation/05_pick_place.py --headless     # prints place_error_mm / home_drift_mm, exits non-zero on failure
 
 # Trajectory planning: PTP quintic, multi-waypoint spline, Cartesian line, dynamics feedforward
-python examples/06_trajectory_planning.py
-python examples/06_trajectory_planning.py --headless
+python examples/simulation/06_trajectory_planning.py
+python examples/simulation/06_trajectory_planning.py --headless
 
 # RL TCP reaching: roll out a trained PPO policy (train with scripts/train_reach_rl.py)
-python examples/07_rl_reach.py
-python examples/07_rl_reach.py --headless     # prints success_rate / final TCP error, exits non-zero on failure
-python examples/07_rl_reach.py --random       # untrained baseline (works without stable-baselines3)
+python examples/rl/01_reach.py
+python examples/rl/01_reach.py --headless     # prints success_rate / final TCP error, exits non-zero on failure
+python examples/rl/01_reach.py --random       # untrained baseline (works without stable-baselines3)
 ```
+
+> **Layout since 0.0.6**: examples are grouped into `examples/simulation/` (01–06, shown above) and `examples/rl/` (RL examples, numbered per category). Migration: `examples/0X_*.py` → `examples/simulation/0X_*.py` (01–06); `examples/07_rl_reach.py` → `examples/rl/01_reach.py`.
 
 Bare `xarm6` defaults to the 20 `ufactory_genesis` dynamics validation poses (two round trips), with a peak target speed of 90 degrees/s. Other models retain their demo presets. Adjust `--speed`, or use `--motion demo --duration 2.5` for the original example. Reusing poses does not establish MuJoCo torque validation.
 
@@ -125,7 +127,7 @@ costs; episodes are 200 control steps (4 s).
 /opt/conda_envs/py313/bin/python scripts/train_reach_rl.py --total-steps 1000000
 
 # Evaluate / visualize the trained policy
-/opt/conda_envs/py313/bin/python examples/07_rl_reach.py --headless --episodes 20
+/opt/conda_envs/py313/bin/python examples/rl/01_reach.py --headless --episodes 20
 ```
 
 Training saves `build/rl/ppo_reach.zip` plus `build/rl/metrics.json` (success rate,
@@ -133,7 +135,7 @@ final TCP error, package versions). The reference 300k-step run reached 96%
 success over 50 evaluation episodes (mean final TCP error 15 mm, ~98 steps to
 target, 2700 env-steps/s on 8 CPU workers). The environment itself only needs
 mujoco + numpy: without gymnasium it falls back to a minimal space stub so
-`examples/07_rl_reach.py --random` still runs on the py314 default.
+`examples/rl/01_reach.py --random` still runs on the py314 default.
 
 ## Project Structure
 
@@ -149,9 +151,12 @@ src/                    Core library
   trajectory.py         JointTrajectory data model, PTP quintic/LSPB, spline waypoints, Cartesian line
   dynamics.py           Mass matrix, gravity/Coriolis, inverse/forward dynamics, payload injection
   rl/reach_env.py       Gymnasium TCP-reaching environment (xArm 6, PPO training target)
+  model_paths.py        Model name -> XML resolution (MODELS_ROOT, resolve_model_path)
   viewer.py             GLFW/X11 passive viewer lifecycle wrapper
-examples/               Runnable examples (load_and_view, joint_control, cartesian_ik, gripper_control,
-                        pick_place, trajectory_planning, rl_reach)
+examples/
+  simulation/           Simulation examples (load_and_view, joint_control, cartesian_ik,
+                        gripper_control, pick_place, trajectory_planning)
+  rl/                   Reinforcement-learning examples (01_reach)
 scripts/                Asset and model tooling
   convert_glb_to_obj.py Batch GLB -> OBJ converter with winding repair & Draco support
   build_all_mjcf.py     Generate standalone MJCF models and scene XMLs for all targets

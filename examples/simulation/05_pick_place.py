@@ -21,23 +21,22 @@ Success criteria (ufactory_genesis pick_place):
     home_drift_mm  = ||TCP final pos - home||      < 10 mm
 
 Usage:
-    python examples/05_pick_place.py                # GUI viewer
-    python examples/05_pick_place.py --headless     # metrics only
-    python examples/05_pick_place.py --cycles 2     # repeat the task
+    python examples/simulation/05_pick_place.py                # GUI viewer
+    python examples/simulation/05_pick_place.py --headless     # metrics only
+    python examples/simulation/05_pick_place.py --cycles 2     # repeat the task
 """
 
 import argparse
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
 
 from src import SimRobot  # noqa: E402
-
-MODELS_ROOT = Path(__file__).resolve().parent.parent / "models"
+from src.model_paths import MODELS_ROOT  # noqa: E402
 
 GRIP_DOWN_QUAT = np.array([0.0, 1.0, 0.0, 0.0])  # 180 deg about X, TCP z-axis points down
 

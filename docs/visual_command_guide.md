@@ -1,6 +1,6 @@
 # UFACTORY MuJoCo 可视化指令指南 (Visual Command Guide)
 
-本文档按产品型号（Lite 6、xArm 系列、UF850）与工作模式（静态查看 / 可动仿真）分类整理所有启动与控制指令。所有示例脚本均位于 `examples/` 目录下。
+本文档按产品型号（Lite 6、xArm 系列、UF850）与工作模式（静态查看 / 可动仿真）分类整理所有启动与控制指令。所有仿真示例脚本均位于 `examples/simulation/` 目录下（下文命令已含完整路径，速查表中省略路径前缀）；强化学习示例位于 `examples/rl/`。
 
 ---
 
@@ -29,50 +29,50 @@
 - **静态查看**：
   ```bash
   # 默认就绪姿态 (Ready)
-  python examples/01_load_and_view.py --model lite6 --pose ready
+  python examples/simulation/01_load_and_view.py --model lite6 --pose ready
 
   # 零位姿态 (Home)
-  python examples/01_load_and_view.py --model lite6 --pose home
+  python examples/simulation/01_load_and_view.py --model lite6 --pose home
   ```
 - **关节运动仿真**（Ready ↔ Demo 轨迹插值）：
   ```bash
-  python examples/02_joint_control.py --model lite6
+  python examples/simulation/02_joint_control.py --model lite6
   ```
 
 #### (2) 独立配件
 - **Lite 6 夹爪 (静态)**：
   ```bash
-  python examples/01_load_and_view.py --model lite6_gripper
+  python examples/simulation/01_load_and_view.py --model lite6_gripper
   ```
 - **Lite 6 夹爪 (可动开闭演示)**：
   ```bash
-  python examples/04_gripper_control.py --model lite6_gripper
+  python examples/simulation/04_gripper_control.py --model lite6_gripper
   ```
 - **Lite 6 真空吸盘 (静态)**：
   ```bash
-  python examples/01_load_and_view.py --model lite6_vacuum_gripper
+  python examples/simulation/01_load_and_view.py --model lite6_vacuum_gripper
   ```
 
 #### (3) 机械臂 + 配件组合
 - **Lite 6 + 夹爪 (静态)**：
   ```bash
-  python examples/01_load_and_view.py --model lite6_with_gripper --pose ready
+  python examples/simulation/01_load_and_view.py --model lite6_with_gripper --pose ready
   ```
 - **Lite 6 + 夹爪 (可动抓取循环)**：
   ```bash
-  python examples/04_gripper_control.py --model lite6_with_gripper
+  python examples/simulation/04_gripper_control.py --model lite6_with_gripper
   ```
 - **Lite 6 + 夹爪 (关节轨迹运动)**：
   ```bash
-  python examples/02_joint_control.py --model lite6_with_gripper
+  python examples/simulation/02_joint_control.py --model lite6_with_gripper
   ```
 - **Lite 6 + 真空吸盘 (静态)**：
   ```bash
-  python examples/01_load_and_view.py --model lite6_with_vacuum_gripper --pose ready
+  python examples/simulation/01_load_and_view.py --model lite6_with_vacuum_gripper --pose ready
   ```
 - **Lite 6 + 真空吸盘 (关节轨迹运动)**：
   ```bash
-  python examples/02_joint_control.py --model lite6_with_vacuum_gripper
+  python examples/simulation/02_joint_control.py --model lite6_with_vacuum_gripper
   ```
 
 ---
@@ -84,64 +84,64 @@
 #### (1) 机械臂本体
 - **静态查看**：
   ```bash
-  python examples/01_load_and_view.py --model xarm6 --pose ready
+  python examples/simulation/01_load_and_view.py --model xarm6 --pose ready
   ```
 - **关节空间插值控制**：
   ```bash
-  python examples/02_joint_control.py --model xarm6
+  python examples/simulation/02_joint_control.py --model xarm6
   ```
 - **笛卡尔空间逆运动学 (IK) 轨迹跟踪**：
   ```bash
   # 矩形末端轨迹跟踪
-  python examples/03_cartesian_ik.py
+  python examples/simulation/03_cartesian_ik.py
   ```
 
 #### (2) 独立配件
 - **Gripper G2 (静态)**：
   ```bash
-  python examples/01_load_and_view.py --model gripper_g2
+  python examples/simulation/01_load_and_view.py --model gripper_g2
   ```
 - **Gripper G2 (可动连杆开闭控制)**：
   ```bash
-  python examples/04_gripper_control.py --model gripper_g2
+  python examples/simulation/04_gripper_control.py --model gripper_g2
   ```
 - **Bio Gripper G2 (静态)**：
   ```bash
-  python examples/01_load_and_view.py --model bio_gripper_g2
+  python examples/simulation/01_load_and_view.py --model bio_gripper_g2
   ```
 - **Bio Gripper G2 (可动双滑块开闭控制)**：
   ```bash
-  python examples/04_gripper_control.py --model bio_gripper_g2
+  python examples/simulation/04_gripper_control.py --model bio_gripper_g2
   ```
 
 #### (3) 机械臂 + 配件组合
 - **xArm 6 + Gripper G2 (静态)**：
   ```bash
-  python examples/01_load_and_view.py --model xarm6_with_gripper --pose ready
+  python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose ready
   ```
 - **xArm 6 + Gripper G2 (可动控制)**：
   ```bash
-  python examples/04_gripper_control.py --model xarm6_with_gripper
+  python examples/simulation/04_gripper_control.py --model xarm6_with_gripper
   ```
 - **xArm 6 + Gripper G2 (方块抓放任务)**：
   ```bash
-  python examples/05_pick_place.py
+  python examples/simulation/05_pick_place.py
   ```
 - **xArm 6 + Gripper G2 (关节轨迹运动)**：
   ```bash
-  python examples/02_joint_control.py --model xarm6_with_gripper
+  python examples/simulation/02_joint_control.py --model xarm6_with_gripper
   ```
 - **xArm 6 + Bio Gripper G2 (静态)**：
   ```bash
-  python examples/01_load_and_view.py --model xarm6_with_bio_gripper --pose ready
+  python examples/simulation/01_load_and_view.py --model xarm6_with_bio_gripper --pose ready
   ```
 - **xArm 6 + Bio Gripper G2 (可动控制)**：
   ```bash
-  python examples/04_gripper_control.py --model xarm6_with_bio_gripper
+  python examples/simulation/04_gripper_control.py --model xarm6_with_bio_gripper
   ```
 - **xArm 6 + Bio Gripper G2 (关节轨迹运动)**：
   ```bash
-  python examples/02_joint_control.py --model xarm6_with_bio_gripper
+  python examples/simulation/02_joint_control.py --model xarm6_with_bio_gripper
   ```
 
 ---
@@ -150,11 +150,11 @@
 
 - **静态查看**：
   ```bash
-  python examples/01_load_and_view.py --model xarm7 --pose ready
+  python examples/simulation/01_load_and_view.py --model xarm7 --pose ready
   ```
 - **关节运动仿真**（7 自由度联动）：
   ```bash
-  python examples/02_joint_control.py --model xarm7
+  python examples/simulation/02_joint_control.py --model xarm7
   ```
 
 ---
@@ -163,11 +163,11 @@
 
 - **静态查看**：
   ```bash
-  python examples/01_load_and_view.py --model xarm5 --pose ready
+  python examples/simulation/01_load_and_view.py --model xarm5 --pose ready
   ```
 - **关节运动仿真**（5 自由度联动）：
   ```bash
-  python examples/02_joint_control.py --model xarm5
+  python examples/simulation/02_joint_control.py --model xarm5
   ```
 
 ---
@@ -176,11 +176,11 @@
 
 - **静态查看**：
   ```bash
-  python examples/01_load_and_view.py --model uf850 --pose ready
+  python examples/simulation/01_load_and_view.py --model uf850 --pose ready
   ```
 - **关节运动仿真**（6 自由度联动）：
   ```bash
-  python examples/02_joint_control.py --model uf850
+  python examples/simulation/02_joint_control.py --model uf850
   ```
 
 ---

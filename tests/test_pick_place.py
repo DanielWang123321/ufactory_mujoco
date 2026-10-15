@@ -7,7 +7,7 @@ import importlib
 import mujoco
 import numpy as np
 
-pick_place = importlib.import_module("examples.05_pick_place")
+pick_place = importlib.import_module("examples.simulation.05_pick_place")
 
 MODELS_ROOT = Path(__file__).resolve().parent.parent / "models"
 SCENE = MODELS_ROOT / "xarm6_with_gripper" / "scene_pick_place.xml"

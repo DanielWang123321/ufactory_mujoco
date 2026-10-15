@@ -11,7 +11,7 @@ import numpy as np
 from src import SimRobot
 from src.viewer import configure_low_power_rendering
 
-joint_control = importlib.import_module("examples.02_joint_control")
+joint_control = importlib.import_module("examples.simulation.02_joint_control")
 
 
 class JointControlTests(unittest.TestCase):

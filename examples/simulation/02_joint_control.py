@@ -5,25 +5,22 @@ xArm 6 defaults to the 20 ufactory_genesis dynamics validation poses.
 Other models retain their ready -> demo -> ready presets.
 
 Usage:
-    python examples/02_joint_control.py            # with interactive viewer
-    python examples/02_joint_control.py --speed 120
-    python examples/02_joint_control.py --headless # no rendering, prints metrics
+    python examples/simulation/02_joint_control.py            # with interactive viewer
+    python examples/simulation/02_joint_control.py --speed 120
+    python examples/simulation/02_joint_control.py --headless # no rendering, prints metrics
 """
 
 import argparse
-import importlib
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
 
 from src import SimRobot  # noqa: E402
-
-load_and_view = importlib.import_module("examples.01_load_and_view")
-resolve_model_path = load_and_view.resolve_model_path
+from src.model_paths import resolve_model_path  # noqa: E402
 
 # Presets for joint demo movements: [ready, demo]
 PRESETS: dict[str, tuple[list[float], list[float]]] = {

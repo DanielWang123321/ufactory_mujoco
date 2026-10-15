@@ -9,7 +9,7 @@ import numpy as np
 from src.sim_robot import SimRobot
 
 MODELS_ROOT = Path(__file__).resolve().parent.parent / "models"
-gripper_demo = importlib.import_module("examples.04_gripper_control")
+gripper_demo = importlib.import_module("examples.simulation.04_gripper_control")
 
 
 class GripperControlTest(unittest.TestCase):

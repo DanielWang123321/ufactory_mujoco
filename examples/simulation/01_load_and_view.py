@@ -2,42 +2,21 @@
 """Example 01: load the xArm 6 scene and open the interactive viewer.
 
 Usage:
-    python examples/01_load_and_view.py
-    python examples/01_load_and_view.py --pose ready
+    python examples/simulation/01_load_and_view.py
+    python examples/simulation/01_load_and_view.py --pose ready
 """
 
 import argparse
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
+from src.model_paths import resolve_model_path  # noqa: E402
 from src.viewer import launch  # noqa: E402
 
 import mujoco  # noqa: E402
 
-MODELS_ROOT = Path(__file__).resolve().parent.parent / "models"
-
-
-def resolve_model_path(model_arg: str) -> Path:
-    p = Path(model_arg)
-    if p.is_file():
-        return p
-    candidates = [
-        MODELS_ROOT / model_arg / "scene.xml",
-        MODELS_ROOT / model_arg / f"{model_arg}.xml",
-    ]
-    for c in candidates:
-        if c.is_file():
-            return c
-    available = [d.name for d in MODELS_ROOT.iterdir() if (d / "scene.xml").is_file()]
-    raise FileNotFoundError(
-        f"Model '{model_arg}' not found. Searched:\n"
-        f"  - {p}\n"
-        f"  - {candidates[0]}\n"
-        f"  - {candidates[1]}\n"
-        f"Available models with scene.xml: {available}"
-    )
 
 
 def main() -> None:

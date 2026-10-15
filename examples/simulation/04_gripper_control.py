@@ -6,35 +6,33 @@ Demonstrates controlling Gripper G2, Bio Gripper G2, and the Lite 6 gripper
 
 Usage:
     # xArm 6 + Gripper G2
-    python examples/04_gripper_control.py --model xarm6_with_gripper
+    python examples/simulation/04_gripper_control.py --model xarm6_with_gripper
 
     # xArm 6 + Bio Gripper G2
-    python examples/04_gripper_control.py --model xarm6_with_bio_gripper
+    python examples/simulation/04_gripper_control.py --model xarm6_with_bio_gripper
 
     # Lite 6 + parallel gripper (Studio factory ready pose)
-    python examples/04_gripper_control.py --model lite6_with_gripper
+    python examples/simulation/04_gripper_control.py --model lite6_with_gripper
 
     # Standalone Grippers
-    python examples/04_gripper_control.py --model gripper_g2
-    python examples/04_gripper_control.py --model bio_gripper_g2
+    python examples/simulation/04_gripper_control.py --model gripper_g2
+    python examples/simulation/04_gripper_control.py --model bio_gripper_g2
 
     # Headless mode (metrics only)
-    python examples/04_gripper_control.py --model xarm6_with_gripper --headless
+    python examples/simulation/04_gripper_control.py --model xarm6_with_gripper --headless
 """
 
 import argparse
-import importlib
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
 
-load_and_view = importlib.import_module("examples.01_load_and_view")
-resolve_model_path = load_and_view.resolve_model_path
 from src import SimRobot  # noqa: E402
+from src.model_paths import resolve_model_path  # noqa: E402
 
 
 def move_arm_to_ready(robot: SimRobot) -> None:

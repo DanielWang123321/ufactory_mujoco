@@ -1,17 +1,12 @@
 """Unit tests verifying all generated MJCF models can load, step, and parse in MuJoCo."""
 
-from pathlib import Path
 import unittest
 import numpy as np
 
 import mujoco
 
-import importlib
+from src.model_paths import MODELS_ROOT, resolve_model_path
 
-load_and_view = importlib.import_module("examples.01_load_and_view")
-resolve_model_path = load_and_view.resolve_model_path
-
-MODELS_ROOT = Path(__file__).resolve().parent.parent / "models"
 ALL_MODELS = [
     "xarm6",
     "xarm7",
@@ -69,7 +64,7 @@ class AllModelsLoadingTest(unittest.TestCase):
                     self.assertFalse(np.isinf(d.qvel).any(), f"Inf in qvel for {xml_file}")
 
     def test_resolve_model_path_support(self):
-        """Verify examples/01_load_and_view can resolve all model names."""
+        """Verify src.model_paths.resolve_model_path can resolve all model names."""
         for name in ALL_MODELS:
             path = resolve_model_path(name)
             self.assertTrue(path.is_file(), f"Could not resolve model {name}")

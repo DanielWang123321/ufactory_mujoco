@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Example 07: RL TCP reaching with a trained PPO policy (roadmap 0.0.5).
+"""RL example 01: TCP reaching with a trained PPO policy (roadmap 0.0.5).
 
 Loads the policy trained by scripts/train_reach_rl.py and rolls out episodes
 in the XArm6ReachEnv task: the TCP chases a randomly sampled target point.
 Use --random for the untrained baseline (works without stable-baselines3).
 
 Usage:
-    python examples/07_rl_reach.py                      # GUI, 10 episodes
-    python examples/07_rl_reach.py --headless           # metrics only
-    python examples/07_rl_reach.py --policy build/rl/ppo_reach.zip --episodes 20
-    python examples/07_rl_reach.py --random             # untrained baseline
-    python examples/07_rl_reach.py --target 0.35 0.15 0.25   # fixed target
+    python examples/rl/01_reach.py                      # GUI, 10 episodes
+    python examples/rl/01_reach.py --headless           # metrics only
+    python examples/rl/01_reach.py --policy build/rl/ppo_reach.zip --episodes 20
+    python examples/rl/01_reach.py --random             # untrained baseline
+    python examples/rl/01_reach.py --target 0.35 0.15 0.25   # fixed target
 """
 
 import argparse
@@ -18,13 +18,13 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import numpy as np  # noqa: E402
 
 from src.rl import XArm6ReachEnv  # noqa: E402
 
-DEFAULT_POLICY = Path(__file__).resolve().parent.parent / "build" / "rl" / "ppo_reach.zip"
+DEFAULT_POLICY = Path(__file__).resolve().parent.parent.parent / "build" / "rl" / "ppo_reach.zip"
 
 
 def make_policy(args):

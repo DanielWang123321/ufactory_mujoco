@@ -8,8 +8,8 @@ Demonstrates:
 4. Analytical trajectory integration with ArmDynamics feedforward torques.
 
 Usage:
-    python examples/06_trajectory_planning.py            # with interactive viewer
-    python examples/06_trajectory_planning.py --headless # metrics only
+    python examples/simulation/06_trajectory_planning.py            # with interactive viewer
+    python examples/simulation/06_trajectory_planning.py --headless # metrics only
 """
 
 import argparse
@@ -17,7 +17,7 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import mujoco  # noqa: E402
 import numpy as np  # noqa: E402

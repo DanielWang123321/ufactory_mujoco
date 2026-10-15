@@ -5,15 +5,15 @@ From the ready pose: straight line out and back (move_tcp), then a circle in
 the X-Z plane tracked by IK waypoints. Reports TCP tracking error.
 
 Usage:
-    python examples/03_cartesian_ik.py            # with interactive viewer
-    python examples/03_cartesian_ik.py --headless # offscreen, prints metrics
+    python examples/simulation/03_cartesian_ik.py            # with interactive viewer
+    python examples/simulation/03_cartesian_ik.py --headless # offscreen, prints metrics
 """
 
 import argparse
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import numpy as np  # noqa: E402
 

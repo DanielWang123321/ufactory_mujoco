@@ -29,36 +29,38 @@ pip install -r requirements.txt
 
 ```bash
 # 交互式查看器：载入模型并预览（支持所有机械臂、配件及组合）
-python examples/01_load_and_view.py
-python examples/01_load_and_view.py --model lite6 --pose ready
-python examples/01_load_and_view.py --model xarm6_with_gripper --pose ready
+python examples/simulation/01_load_and_view.py
+python examples/simulation/01_load_and_view.py --model lite6 --pose ready
+python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose ready
 
 # 关节空间轨迹控制（支持通过 --model 指定任意机械臂）
-python examples/02_joint_control.py --model lite6
-python examples/02_joint_control.py --model xarm6
-python examples/02_joint_control.py --model xarm6 --speed 120
+python examples/simulation/02_joint_control.py --model lite6
+python examples/simulation/02_joint_control.py --model xarm6
+python examples/simulation/02_joint_control.py --model xarm6 --speed 120
 
 # 笛卡尔空间 IK 跟踪控制：直线 + 圆弧轨迹
-python examples/03_cartesian_ik.py
+python examples/simulation/03_cartesian_ik.py
 
 # 夹爪运动控制（支持 Gripper G2, Bio Gripper G2, Lite 6 Gripper 独立及组合）
-python examples/04_gripper_control.py --model lite6_with_gripper
-python examples/04_gripper_control.py --model xarm6_with_gripper
-python examples/04_gripper_control.py --model bio_gripper_g2
+python examples/simulation/04_gripper_control.py --model lite6_with_gripper
+python examples/simulation/04_gripper_control.py --model xarm6_with_gripper
+python examples/simulation/04_gripper_control.py --model bio_gripper_g2
 
 # 方块抓放（xArm 6 + Gripper G2，复刻 ufactory_genesis pick_place）
-python examples/05_pick_place.py
-python examples/05_pick_place.py --headless     # 输出 place_error_mm / home_drift_mm，失败时退出码非零
+python examples/simulation/05_pick_place.py
+python examples/simulation/05_pick_place.py --headless     # 输出 place_error_mm / home_drift_mm，失败时退出码非零
 
 # 轨迹规划：点到点五次、多路点样条平滑、笛卡尔直线与动力学前馈
-python examples/06_trajectory_planning.py
-python examples/06_trajectory_planning.py --headless
+python examples/simulation/06_trajectory_planning.py
+python examples/simulation/06_trajectory_planning.py --headless
 
 # 强化学习 TCP 到达：加载训练好的 PPO 策略回放（训练用 scripts/train_reach_rl.py）
-python examples/07_rl_reach.py
-python examples/07_rl_reach.py --headless     # 输出 success_rate / TCP 误差，失败时退出码非零
-python examples/07_rl_reach.py --random       # 未训练基线（无需 stable-baselines3）
+python examples/rl/01_reach.py
+python examples/rl/01_reach.py --headless     # 输出 success_rate / TCP 误差，失败时退出码非零
+python examples/rl/01_reach.py --random       # 未训练基线（无需 stable-baselines3）
 ```
+
+> **0.0.6 目录调整**：示例分为 `examples/simulation/`（01–06，如上）与 `examples/rl/`（强化学习类，类别内独立编号）。迁移对照：`examples/0X_*.py` → `examples/simulation/0X_*.py`（01–06）；`examples/07_rl_reach.py` → `examples/rl/01_reach.py`。
 
 关节示例中，裸臂 `xarm6` 默认运行 `ufactory_genesis` 动力学验证的 20 个姿态（两组往返），峰值目标速度为 90°/s；其他型号保留原动作预设。`--speed` 调节速度，`--motion demo --duration 2.5` 复现原示例。复用姿态不代表已经完成 MuJoCo 力矩验证。
 
@@ -118,10 +120,10 @@ python scripts/compare_torque_xarm6.py --no-move             # 静态保持力�
 /opt/conda_envs/py313/bin/python scripts/train_reach_rl.py --total-steps 1000000
 
 # 评估 / 可视化训练策略
-/opt/conda_envs/py313/bin/python examples/07_rl_reach.py --headless --episodes 20
+/opt/conda_envs/py313/bin/python examples/rl/01_reach.py --headless --episodes 20
 ```
 
-训练产物保存于 `build/rl/ppo_reach.zip` 与 `build/rl/metrics.json`（成功率、TCP 误差、包版本）。参考的 300k 步训练在 50 回合评估上达到 96% 成功率（平均 TCP 误差 15 mm、约 98 步到达，8 进程 CPU 约 2700 env-steps/s）。环境本身仅依赖 mujoco + numpy：无 gymnasium 时退化为空间存根，`examples/07_rl_reach.py --random` 在 py314 默认环境仍可运行。
+训练产物保存于 `build/rl/ppo_reach.zip` 与 `build/rl/metrics.json`（成功率、TCP 误差、包版本）。参考的 300k 步训练在 50 回合评估上达到 96% 成功率（平均 TCP 误差 15 mm、约 98 步到达，8 进程 CPU 约 2700 env-steps/s）。环境本身仅依赖 mujoco + numpy：无 gymnasium 时退化为空间存根，`examples/rl/01_reach.py --random` 在 py314 默认环境仍可运行。
 
 ## 项目结构
 
@@ -137,9 +139,12 @@ src/                    核心控制与仿真库
   trajectory.py         JointTrajectory 数据模型、PTP 五次/LSPB、样条多路点、笛卡尔直线
   dynamics.py           质量矩阵、重力/科氏力、逆/正动力学、负载注入
   rl/reach_env.py       Gymnasium TCP 到达环境（xArm 6，PPO 训练目标）
+  model_paths.py        模型名称 → XML 路径解析（MODELS_ROOT、resolve_model_path）
   viewer.py             GLFW/X11 交互查看器生命周期封装
-examples/               可执行示例（模型预览、关节控制、笛卡尔IK、夹爪控制、方块抓放、
-                        轨迹规划、强化学习到达）
+examples/
+  simulation/           仿真类示例（模型预览、关节控制、笛卡尔IK、夹爪控制、方块抓放、
+                        轨迹规划）
+  rl/                   强化学习类示例（01_reach）
 scripts/                模型与资产转换工具
   convert_glb_to_obj.py 批量 GLB -> OBJ 转换器（支持 Draco 解压与绕序自愈）
   build_all_mjcf.py     全系列 MJCF 模型与场景 XML 自动化生成工具
