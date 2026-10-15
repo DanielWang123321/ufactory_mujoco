@@ -54,6 +54,10 @@ python examples/simulation/05_pick_place.py --headless     # 输出 place_error_
 python examples/simulation/06_trajectory_planning.py
 python examples/simulation/06_trajectory_planning.py --headless
 
+# 避障轨迹规划：RRT-Connect 绕立柱 + 横板（xArm 6 任务场景）
+python examples/simulation/09_obstacle_avoidance.py
+python examples/simulation/09_obstacle_avoidance.py --headless
+
 # 强化学习 TCP 到达：加载训练好的 PPO 策略回放（训练用 scripts/train_reach_rl.py）
 python examples/rl/01_reach.py
 python examples/rl/01_reach.py --headless     # 输出 success_rate / TCP 误差，失败时退出码非零

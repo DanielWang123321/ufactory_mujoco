@@ -1,0 +1,50 @@
+<mujoco model="xarm6 obstacle scene">
+  <include file="xarm6.xml"/>
+
+  <statistic center="0.3 0 0.3" extent="0.9"/>
+
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <global azimuth="-140" elevation="-25" offwidth="1280" offheight="720"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072"/>
+    <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4"
+      rgb2="0 0 0" markrgb="0.8 0.8 0.8" width="300" height="300"/>
+    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0 0 3" dir="0 0 -1" directional="true"/>
+    <geom name="floor" size="0 0 0.05" type="plane" material="groundplane"/>
+    <camera name="front" pos="1.2 0.8 0.9" quat="0.72 0 0.19 0.67"/>
+    <camera name="side" pos="-0.3 1.6 0.8" quat="0.66 0.24 0.24 0.67"/>
+
+    <!-- Obstacle-avoidance task props (roadmap 0.0.6): a vertical pillar in the
+         joint-space sweep between 'start' and 'goal', plus a horizontal board
+         above the workspace. Both are static, fully physical geoms. -->
+    <body name="pillar" pos="0.32 0.27 0">
+      <geom name="pillar_geom" type="cylinder" size="0.05 0.35" pos="0 0 0.35"
+        rgba="0.85 0.3 0.2 0.9"/>
+    </body>
+    <body name="board" pos="0.22 -0.32 0.58">
+      <geom name="board_geom" type="box" size="0.18 0.18 0.015"
+        rgba="0.9 0.6 0.2 0.9"/>
+    </body>
+
+    <!-- Path preview marker for example 09 (visual only, driven via mocap). -->
+    <body name="path_marker" mocap="true" pos="0 0 0.5">
+      <geom name="path_marker_geom" type="sphere" size="0.012"
+        rgba="1 0.2 0.2 0.8" contype="0" conaffinity="0"/>
+    </body>
+  </worldbody>
+
+  <keyframe>
+    <!-- start: arm forward at azimuth 0; goal: swung to azimuth +1.4 rad. The
+         straight joint interpolation sweeps the links through the pillar. -->
+    <key name="start" qpos="0 -0.6 -1.0 0.9 0.5 0" ctrl="0 -0.6 -1.0 0.9 0.5 0"/>
+    <key name="goal" qpos="1.4 -0.5 -1.1 1.0 0.4 0" ctrl="1.4 -0.5 -1.1 1.0 0.4 0"/>
+  </keyframe>
+</mujoco>

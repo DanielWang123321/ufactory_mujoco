@@ -95,6 +95,11 @@
   # 矩形末端轨迹跟踪
   python examples/simulation/03_cartesian_ik.py
   ```
+- **避障轨迹规划任务（立柱 + 横板场景）**：
+  ```bash
+  python examples/simulation/09_obstacle_avoidance.py
+  python examples/simulation/09_obstacle_avoidance.py --headless
+  ```
 
 #### (2) 独立配件
 - **Gripper G2 (静态)**：
@@ -191,7 +196,9 @@
 | :--- | :--- | :--- | :--- |
 | `--model <name>` | 所有示例 | 指定模型名称或自定义 xml 路径 | `--model xarm6_with_gripper` |
 | `--pose <home\|ready>` | `01_load_and_view.py` | 指定初始加载关键帧姿态 | `--pose ready` |
-| `--headless` | `02`, `03`, `04`, `05` | 无头模式（不启动视窗，纯终端输出精度指标） | `--headless` |
+| `--headless` | `02`–`06`, `09` | 无头模式（不启动视窗，纯终端输出精度指标） | `--headless` |
+| `--seed <N>` | `09_obstacle_avoidance.py` | RRT/shortcut 随机种子（结果可复现） | `--seed 3` |
+| `--safety-margin <m>` | `09_obstacle_avoidance.py` | 规划安全间隙（米，默认 0.002） | `--safety-margin 0.01` |
 | `--cycles <N>` | `04_gripper_control.py` | 夹爪开闭测试循环次数（默认 3） | `--cycles 5` |
 | `--cycles <N>` | `05_pick_place.py` | 抓放循环次数（默认 1，第二次起从当前方块位置抓取） | `--cycles 2` |
 

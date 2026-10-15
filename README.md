@@ -54,6 +54,10 @@ python examples/simulation/05_pick_place.py --headless     # prints place_error_
 python examples/simulation/06_trajectory_planning.py
 python examples/simulation/06_trajectory_planning.py --headless
 
+# Obstacle avoidance: RRT-Connect around pillar + board (xArm 6 task scene)
+python examples/simulation/09_obstacle_avoidance.py
+python examples/simulation/09_obstacle_avoidance.py --headless
+
 # RL TCP reaching: roll out a trained PPO policy (train with scripts/train_reach_rl.py)
 python examples/rl/01_reach.py
 python examples/rl/01_reach.py --headless     # prints success_rate / final TCP error, exits non-zero on failure
