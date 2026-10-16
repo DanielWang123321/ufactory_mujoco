@@ -25,7 +25,13 @@ from src.model_paths import resolve_model_path  # noqa: E402
 # Presets for joint demo movements: [ready, demo]
 PRESETS: dict[str, tuple[list[float], list[float]]] = {
     "xarm6": (
-        [0.0, -0.8, -1.2, 1.0, 0.3, 0.0],
+        [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],  # ready = all-zero joints
+        [0.3, -1.2, -1.0, 0.6, 0.6, 0.5],
+    ),
+    # Gripper G2 combo: all-zero would push the fingers into the floor, so ready is the
+    # IK pose with the gripper TCP at (300, 0, 300) mm, rpy (180, 0, 0).
+    "xarm6_with_gripper": (
+        [0.0, -0.631529917, -0.833150486, 0.0, 1.464680403, 0.0],
         [0.3, -1.2, -1.0, 0.6, 0.6, 0.5],
     ),
     "lite6": (
@@ -33,15 +39,15 @@ PRESETS: dict[str, tuple[list[float], list[float]]] = {
         [0.3, -0.8, 0.3, 0.2, 0.5, -0.3],
     ),
     "xarm5": (
-        [0.0, -0.5, 0.0, 0.0, 0.5],
+        [0.0, 0.0, 0.0, 0.0, 0.0],
         [0.3, -0.7, -0.3, 0.2, 0.6],
     ),
     "xarm7": (
-        [0.0, -0.5, 0.0, 0.0, 0.5, 0.0, 0.0],
+        [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         [0.3, -0.7, 0.2, 0.5, 0.2, 0.2, -0.3],
     ),
     "uf850": (
-        [0.0, -0.5, 0.0, 0.0, 0.5, 0.0],
+        [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         [0.3, -0.7, -0.3, 0.2, 0.4, -0.3],
     ),
 }
@@ -81,9 +87,9 @@ def move_duration(q_start: np.ndarray, q_goal: np.ndarray, speed_deg_s: float,
 
 
 def get_arm_targets(robot: SimRobot, model_name: str) -> tuple[np.ndarray, np.ndarray]:
-    base_name = model_name.split("_with_")[0]
-    if base_name in PRESETS:
-        ready, demo = PRESETS[base_name]
+    key = model_name if model_name in PRESETS else model_name.split("_with_")[0]
+    if key in PRESETS:
+        ready, demo = PRESETS[key]
         return np.array(ready, dtype=float), np.array(demo, dtype=float)
 
     # Fallback: extract from keyframe 'ready'

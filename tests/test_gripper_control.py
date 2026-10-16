@@ -113,7 +113,7 @@ class GripperControlTest(unittest.TestCase):
         # Move arm to a ready-like goal
         q_arm_init = robot.get_joint_positions()
         q_arm_goal = np.array([0.2, -0.5, -0.8, 0.5, 0.2, 0.1])
-        robot.move_joints(q_arm_goal, duration=0.5, wait=True)
+        robot.move_joints(q_arm_goal, duration=1.0, wait=True)  # larger move from the IK home pose
 
         # Arm should reach goal
         q_arm_final = robot.get_joint_positions()

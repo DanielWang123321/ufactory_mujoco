@@ -218,7 +218,7 @@ def build_xarm7() -> None:
 
   <keyframe>
     <key name="home" qpos="0 0 0 0 0 0 0" ctrl="0 0 0 0 0 0 0"/>
-    <key name="ready" qpos="0 -0.5 0 0 0.5 0 0" ctrl="0 -0.5 0 0 0.5 0 0"/>
+    <key name="ready" qpos="0 0 0 0 0 0 0" ctrl="0 0 0 0 0 0 0"/>
   </keyframe>
 </mujoco>
 """
@@ -361,7 +361,7 @@ def build_xarm5() -> None:
 
   <keyframe>
     <key name="home" qpos="0 0 0 0 0" ctrl="0 0 0 0 0"/>
-    <key name="ready" qpos="0 -0.5 0 0 0.5" ctrl="0 -0.5 0 0 0.5"/>
+    <key name="ready" qpos="0 0 0 0 0" ctrl="0 0 0 0 0"/>
   </keyframe>
 </mujoco>
 """
@@ -510,7 +510,7 @@ def build_uf850() -> None:
 
   <keyframe>
     <key name="home" qpos="0 0 0 0 0 0" ctrl="0 0 0 0 0 0"/>
-    <key name="ready" qpos="0 -0.5 0 0 0.5 0" ctrl="0 -0.5 0 0 0.5 0"/>
+    <key name="ready" qpos="0 0 0 0 0 0" ctrl="0 0 0 0 0 0"/>
   </keyframe>
 </mujoco>
 """
@@ -1260,8 +1260,9 @@ def build_xarm6_with_gripper() -> None:
 
   <keyframe>
     <!-- J2=-0.3 lifts the mounted gripper clear of the floor (all-zero home leaves the tool floor-grazing) -->
-    <key name="home" qpos="0 -0.3 0 0 0 0 0 0 0 0 0 0" ctrl="0 -0.3 0 0 0 0 0"/>
-    <key name="ready" qpos="0 -0.8 -1.2 1.0 0.3 0 0 0 0 0 0 0" ctrl="0 -0.8 -1.2 1.0 0.3 0 0"/>
+    <!-- Gripper G2 TCP at (300, 0, 300) mm, rpy (180, 0, 0); joints (deg): 0 -36.184 -47.736 0 83.920 0 -->
+    <key name="home" qpos="0 -0.631529917 -0.833150486 0 1.464680403 0 0 0 0 0 0 0" ctrl="0 -0.631529917 -0.833150486 0 1.464680403 0 0"/>
+    <key name="ready" qpos="0 -0.631529917 -0.833150486 0 1.464680403 0 0 0 0 0 0 0" ctrl="0 -0.631529917 -0.833150486 0 1.464680403 0 0"/>
   </keyframe>
 </mujoco>
 """
@@ -1476,7 +1477,7 @@ def build_xarm6_with_bio_gripper() -> None:
 
   <keyframe>
     <key name="home" qpos="0 0 0 0 0 0 0 0" ctrl="0 0 0 0 0 0 0"/>
-    <key name="ready" qpos="0 -0.8 -1.2 1.0 0.3 0 0 0" ctrl="0 -0.8 -1.2 1.0 0.3 0 0"/>
+    <key name="ready" qpos="0 0 0 0 0 0 0 0" ctrl="0 0 0 0 0 0 0"/>
   </keyframe>
 </mujoco>
 """
