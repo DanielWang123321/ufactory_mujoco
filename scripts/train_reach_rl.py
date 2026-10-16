@@ -68,12 +68,39 @@ def evaluate(model, robot: str, episodes: int, seed: int, max_steps: int = 200) 
     }
 
 
+ENV_MEMORY_MB = 350  # measured peak RSS per SubprocVecEnv worker (lite visuals + torch) ~310 MB
+
+
+def _available_memory_mb() -> int | None:
+    """MemAvailable from /proc/meminfo (Linux); None elsewhere."""
+    try:
+        for line in Path("/proc/meminfo").read_text().splitlines():
+            if line.startswith("MemAvailable:"):
+                return int(line.split()[1]) // 1024
+    except OSError:
+        pass
+    return None
+
+
+def auto_n_envs(cpu_count: int | None = None, avail_mb: int | None = None,
+                reserve_mb: int = 1500) -> int:
+    """Parallel env count bounded by CPU cores and available memory (min 1, max 16)."""
+    import os
+    cpus = cpu_count if cpu_count is not None else (os.cpu_count() or 1)
+    n = min(cpus, 16)
+    avail = avail_mb if avail_mb is not None else _available_memory_mb()
+    if avail is not None:
+        n = min(n, max(1, (avail - reserve_mb) // ENV_MEMORY_MB))
+    return max(1, n)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train PPO on TCP reaching.")
     parser.add_argument("--model", default="xarm6", choices=sorted(ROBOT_PROFILES),
                         help="robot model (default: xarm6)")
     parser.add_argument("--total-steps", type=int, default=300_000)
-    parser.add_argument("--n-envs", type=int, default=8)
+    parser.add_argument("--n-envs", type=int, default=None,
+                        help="parallel envs (default: auto from CPU cores and free memory)")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--device", default="cpu", help="torch device (default: cpu)")
     parser.add_argument("--out-dir", default=None,
@@ -88,6 +115,8 @@ def main() -> None:
                         help="PPO entropy coefficient (default: 0.0)")
     args = parser.parse_args()
 
+    if args.n_envs is None:
+        args.n_envs = auto_n_envs()
     out_dir = Path(args.out_dir or ROOT / "build" / "rl" / args.model)
     (out_dir / "checkpoints").mkdir(parents=True, exist_ok=True)
 
@@ -112,6 +141,7 @@ def main() -> None:
     train_seconds = time.perf_counter() - start
 
     model.save(out_dir / "ppo_reach.zip")
+    vec_env.close()  # free the worker processes before building the eval env
     metrics = evaluate(model, args.model, args.eval_episodes, seed=10_000 + args.seed)
     metrics.update({
         "config": {

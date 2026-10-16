@@ -21,7 +21,7 @@ Reinforcement learning example for 3D TCP position reaching across all five UFAC
 
 ## 2. Quick Start (Evaluation & Rollout)
 
-> **Weights are not shipped with the repo** (`build/` is git-ignored). Train a policy first (Section 3); it is saved to `build/rl/<model>/ppo_reach.zip`. Measured on an 8-core CPU / 15 GB RAM machine without GPU: the default recipe (300k steps, 8 envs) trains xArm 6 in about **100 s**, but each environment process uses about **1.3 GB RAM** (high-poly visual meshes), so 8 envs need ~11 GB. On machines with less memory pass `--n-envs 2`–`4`. The 300k-step quick recipe reaches only ~40% success; use the production recipe for the benchmark numbers.
+> **Weights are not shipped with the repo** (`build/` is git-ignored). Train a policy first (Section 3); it is saved to `build/rl/<model>/ppo_reach.zip` together with `metrics.json`. Training envs load a *lite-visual* model (visual meshes dropped, collision meshes shown; physics identical), so each worker uses about **0.3 GB RAM** instead of ~1.5 GB, and `--n-envs` defaults to an automatic value from CPU cores and free memory. Measured on an 8-core CPU / 15 GB RAM machine without GPU (xArm 6, 8 envs, ~2.9 GB total): the quick recipe (300k steps) takes **~65 s** and reaches only ~54% success; the production recipe (2M steps, `256,256,128`) takes **~16 min** and reaches **100% success, 3.9 mm mean error** over 200 episodes.
 
 > **Environment Note**: Rolling out trained PPO policies requires `stable-baselines3` (see `requirements-rl.txt`). The untrained `--random` baseline only requires the core dependencies.
 
@@ -65,7 +65,7 @@ python examples/rl/reach/01_reach.py --random --headless
 Train or re-train PPO policies with `scripts/train_reach_rl.py`:
 
 ```bash
-# Default quick training (300k steps, [64,64] MLP, 8 parallel envs)
+# Default quick training (300k steps, [64,64] MLP, auto parallel envs)
 python scripts/train_reach_rl.py --model xarm6
 
 # Full production recipe aligned with 5 mm acceptance standard (2M steps, [256,256,128] MLP)
