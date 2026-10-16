@@ -11,6 +11,18 @@ def configure_backend() -> None:
     if sys.platform.startswith("linux") and os.environ.get("DISPLAY"):
         if not os.environ.get("PYGLFW_LIBRARY"):
             os.environ.setdefault("PYGLFW_LIBRARY_VARIANT", "x11")
+        if (os.environ.get("PYGLFW_LIBRARY_VARIANT", "").lower() == "x11"
+                and "glfw" in sys.modules):
+            import importlib
+            import glfw
+            import glfw.library
+
+            if not glfw.platform_supported(glfw.PLATFORM_X11):
+                importlib.reload(glfw.library)
+                importlib.reload(glfw)
+                viewer_mod = sys.modules.get("mujoco.viewer")
+                if viewer_mod is not None and getattr(glfw, "_glfw", None) is not None:
+                    viewer_mod._simulate.set_glfw_dlhandle(glfw._glfw._handle)
 
 
 def configure_low_power_rendering(model) -> None:

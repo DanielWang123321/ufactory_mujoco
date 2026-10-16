@@ -32,6 +32,22 @@ class ViewerTests(unittest.TestCase):
         self.assertIn("X11", result.stdout)
         self.assertNotIn("Wayland", result.stdout)
 
+    @unittest.skipUnless(sys.platform.startswith("linux"), "Linux wheel selection")
+    def test_wayland_desktop_reloads_x11_even_if_mujoco_imported_first(self):
+        env = os.environ.copy()
+        env.update(DISPLAY=":0", XDG_SESSION_TYPE="wayland")
+        env.pop("PYGLFW_LIBRARY", None)
+        env.pop("PYGLFW_LIBRARY_VARIANT", None)
+        result = subprocess.run(
+            [sys.executable, "-c",
+             "import mujoco; from src import SimRobot; import glfw; "
+             "print(glfw.get_version_string().decode())"],
+            cwd=ROOT, env=env, text=True, capture_output=True, timeout=10,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("X11", result.stdout)
+        self.assertNotIn("Wayland", result.stdout)
+
     def test_backend_keeps_explicit_overrides(self):
         for override in ({"PYGLFW_LIBRARY_VARIANT": "wayland"},
                          {"PYGLFW_LIBRARY": "/custom/libglfw.so"}):

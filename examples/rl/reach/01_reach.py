@@ -7,12 +7,12 @@ Supports lite6 / xarm5 / xarm6 / xarm7 / uf850 (--model).
 Use --random for the untrained baseline (works without stable-baselines3).
 
 Usage:
-    python examples/rl/01_reach.py                      # xArm 6, GUI, 10 episodes
-    python examples/rl/01_reach.py --model lite6        # another arm
-    python examples/rl/01_reach.py --headless           # metrics only
-    python examples/rl/01_reach.py --policy build/rl/xarm6/ppo_reach.zip --episodes 20
-    python examples/rl/01_reach.py --random             # untrained baseline
-    python examples/rl/01_reach.py --target 0.35 0.15 0.25   # fixed target
+    python examples/rl/reach/01_reach.py                      # xArm 6, GUI, 10 episodes
+    python examples/rl/reach/01_reach.py --model lite6        # another arm
+    python examples/rl/reach/01_reach.py --headless           # metrics only
+    python examples/rl/reach/01_reach.py --policy build/rl/xarm6/ppo_reach.zip --episodes 20
+    python examples/rl/reach/01_reach.py --random             # untrained baseline
+    python examples/rl/reach/01_reach.py --target 0.35 0.15 0.25   # fixed target
 """
 
 import argparse
@@ -20,13 +20,14 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(_ROOT))
 
 import numpy as np  # noqa: E402
 
 from src.rl import ROBOT_PROFILES, ReachEnv  # noqa: E402
 
-_BUILD = Path(__file__).resolve().parent.parent.parent / "build" / "rl"
+_BUILD = _ROOT / "build" / "rl"
 
 
 def make_policy(args):
