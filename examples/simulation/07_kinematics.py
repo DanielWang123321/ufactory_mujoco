@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Example 07: kinematics toolkit on the xArm 6 (roadmap 0.0.6).
 
-Demonstrates src/kinematics.py / SimRobot kinematics helpers:
+Demonstrates ufactory_mujoco/kinematics.py / SimRobot kinematics helpers:
 1. Forward kinematics cross-checked against the SimRobot FK/pose API.
 2. Geometric Jacobian cross-checked against central finite differences
    (mj_integratePos perturbations, quaternion joints handled safely).
@@ -20,20 +20,19 @@ import argparse
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
 
-from src import SimRobot  # noqa: E402
-from src.kinematics import (  # noqa: E402
+from ufactory_mujoco import SimRobot  # noqa: E402
+from ufactory_mujoco.kinematics import (  # noqa: E402
     condition_number,
     fk_pose,
     pose_jacobian,
     quat_error,
     solve_joint_velocity,
 )
-from src.model_paths import MODELS_ROOT  # noqa: E402
+from ufactory_mujoco.model_paths import MODELS_ROOT  # noqa: E402
 
 SCENE = MODELS_ROOT / "xarm6" / "scene.xml"
 SITE = "attachment_site"
@@ -48,7 +47,7 @@ TWIST_TOL = 1e-3      # m/s, twist reproduction residual
 
 
 def check_fk(robot: SimRobot, q: np.ndarray) -> float:
-    """FK through src.kinematics vs the SimRobot pose API; returns max |pos diff|."""
+    """FK through ufactory_mujoco.kinematics vs the SimRobot pose API; returns max |pos diff|."""
     pos, _quat = fk_pose(robot.model, robot.eval_data, SITE, q)
     return float(np.max(np.abs(pos - robot.fk_positions(q[None, :])[0])))
 

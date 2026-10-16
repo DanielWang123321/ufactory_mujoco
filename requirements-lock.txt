@@ -1,0 +1,14 @@
+# Exact versions the test suite and headless examples were verified with
+# (Python 3.13, Linux x86_64). Install with: pip install -r requirements-lock.txt
+mujoco==3.16.0
+numpy==2.5.4
+scipy==1.18.1
+glfw==2.10.2
+PyOpenGL==3.1.10
+absl-py==2.5.1
+etils==1.14.0
+typing_extensions==4.16.0
+# RL extras (install CPU torch first, see requirements-rl.txt)
+# gymnasium==1.4.0
+# stable_baselines3==2.9.0
+# torch==2.14.1

@@ -2,7 +2,7 @@
 
 [English](README.md) | [中文](README_zh.md)
 
-基于 MuJoCo 与 Gymnasium 环境 `ReachEnv`（`src/rl/reach_env.py`）的机械臂末端（TCP）三维位置到达强化学习示例，支持 UFACTORY 全系 5 款机械臂（`lite6`、`xarm5`、`xarm6`、`xarm7`、`uf850`）的 PPO 策略回放、无头评测与训练。
+基于 MuJoCo 与 Gymnasium 环境 `ReachEnv`（`ufactory_mujoco/rl/reach_env.py`）的机械臂末端（TCP）三维位置到达强化学习示例，支持 UFACTORY 全系 5 款机械臂（`lite6`、`xarm5`、`xarm6`、`xarm7`、`uf850`）的 PPO 策略回放、无头评测与训练。
 
 ## 1. 环境与 MDP 规格
 

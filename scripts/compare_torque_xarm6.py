@@ -18,9 +18,8 @@ from pathlib import Path
 import numpy as np
 import mujoco
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.dynamics import ArmDynamics  # noqa: E402
+from ufactory_mujoco.dynamics import ArmDynamics  # noqa: E402
 
 IP = "192.168.1.60"
 READY = [0, -0.8, -1.2, 1.0, 0.3, 0]

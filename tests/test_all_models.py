@@ -5,7 +5,7 @@ import numpy as np
 
 import mujoco
 
-from src.model_paths import MODELS_ROOT, resolve_model_path
+from ufactory_mujoco.model_paths import MODELS_ROOT, resolve_model_path
 
 ALL_MODELS = [
     "xarm6",
@@ -64,7 +64,7 @@ class AllModelsLoadingTest(unittest.TestCase):
                     self.assertFalse(np.isinf(d.qvel).any(), f"Inf in qvel for {xml_file}")
 
     def test_resolve_model_path_support(self):
-        """Verify src.model_paths.resolve_model_path can resolve all model names."""
+        """Verify ufactory_mujoco.model_paths.resolve_model_path can resolve all model names."""
         for name in ALL_MODELS:
             path = resolve_model_path(name)
             self.assertTrue(path.is_file(), f"Could not resolve model {name}")

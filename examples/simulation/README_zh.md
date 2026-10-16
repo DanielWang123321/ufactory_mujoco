@@ -10,15 +10,15 @@
 
 | 脚本 | 核心模块 | 支持模型 | 功能说明 |
 | :--- | :--- | :--- | :--- |
-| `01_load_and_view.py` | `src.viewer`, `src.model_paths` | 全系机械臂、夹爪及组合 | 载入 MJCF 场景（支持 `home` / `ready` 关键帧）并启动交互视窗 |
-| `02_joint_control.py` | `src.sim_robot` | 全系机械臂及带夹爪组合 | 基于速度的五次多项式关节插值控制（裸臂 `xarm6` 默认运行 20 姿态动力学轨迹） |
-| `03_cartesian_ik.py` | `src.sim_robot`, `src.ik` | `xarm6` | 基于阻尼最小二乘法（DLS）IK 的笛卡尔直线往返与 X-Z 平面圆弧轨迹跟踪 |
-| `04_gripper_control.py` | `src.sim_robot` | 独立夹爪及机械臂+夹爪组合 | 夹爪位置开闭控制循环（`0.0` = 全开，`1.0` = 闭合） |
-| `05_pick_place.py` | `src.sim_robot`, `src.ik` | `xarm6_with_gripper` | 方块抓放任务，复刻 `ufactory_genesis` 流程与判据（放置误差 `< 50 mm`、回零漂移 `< 10 mm`） |
-| `06_trajectory_planning.py` | `src.trajectory`, `src.dynamics` | `xarm6` | 点到点五次多项式、多路点 C2 样条平滑、笛卡尔 SLERP 直线规划与动力学前馈力矩 |
-| `07_kinematics.py` | `src.kinematics` | `xarm6` | 任意 site 正运动学、解析雅可比与有限差分校验、速度级 DLS 逆解、可操作度/奇异性指标 |
-| `08_dynamics.py` | `src.dynamics` | `xarm6` | 质量矩阵 $M(q)$、重力/科氏力分解、正逆动力学互逆校验、3 kg 负载注入与前馈力矩包络 |
-| `09_obstacle_avoidance.py` | `src.collision`, `src.path_planning` | `xarm6` (`scene_obstacles.xml`) | 立柱+横板场景下的 RRT-Connect 避障规划、路径剪枝（shortcut）与时间参数化执行 |
+| `01_load_and_view.py` | `ufactory_mujoco.viewer`, `ufactory_mujoco.model_paths` | 全系机械臂、夹爪及组合 | 载入 MJCF 场景（支持 `home` / `ready` 关键帧）并启动交互视窗 |
+| `02_joint_control.py` | `ufactory_mujoco.sim_robot` | 全系机械臂及带夹爪组合 | 基于速度的五次多项式关节插值控制（裸臂 `xarm6` 默认运行 20 姿态动力学轨迹） |
+| `03_cartesian_ik.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.ik` | `xarm6` | 基于阻尼最小二乘法（DLS）IK 的笛卡尔直线往返与 X-Z 平面圆弧轨迹跟踪 |
+| `04_gripper_control.py` | `ufactory_mujoco.sim_robot` | 独立夹爪及机械臂+夹爪组合 | 夹爪位置开闭控制循环（`0.0` = 全开，`1.0` = 闭合） |
+| `05_pick_place.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.ik` | `xarm6_with_gripper` | 方块抓放任务，复刻 `ufactory_genesis` 流程与判据（放置误差 `< 50 mm`、回零漂移 `< 10 mm`） |
+| `06_trajectory_planning.py` | `ufactory_mujoco.trajectory`, `ufactory_mujoco.dynamics` | `xarm6` | 点到点五次多项式、多路点 C2 样条平滑、笛卡尔 SLERP 直线规划与动力学前馈力矩 |
+| `07_kinematics.py` | `ufactory_mujoco.kinematics` | `xarm6` | 任意 site 正运动学、解析雅可比与有限差分校验、速度级 DLS 逆解、可操作度/奇异性指标 |
+| `08_dynamics.py` | `ufactory_mujoco.dynamics` | `xarm6` | 质量矩阵 $M(q)$、重力/科氏力分解、正逆动力学互逆校验、3 kg 负载注入与前馈力矩包络 |
+| `09_obstacle_avoidance.py` | `ufactory_mujoco.collision`, `ufactory_mujoco.path_planning` | `xarm6` (`scene_obstacles.xml`) | 立柱+横板场景下的 RRT-Connect 避障规划、路径剪枝（shortcut）与时间参数化执行 |
 
 ## 2. 运行指南
 
@@ -81,10 +81,10 @@ python examples/simulation/08_dynamics.py
 python examples/simulation/08_dynamics.py --headless
 ```
 
-#### 动力学模块编程接口 (`src/dynamics.py`)
+#### 动力学模块编程接口 (`ufactory_mujoco/dynamics.py`)
 
 ```python
-from src.dynamics import ArmDynamics
+from ufactory_mujoco.dynamics import ArmDynamics
 
 # payload=(质量 kg, attachment_site 坐标系下的质心 [x, y, z] m)
 dyn = ArmDynamics("models/xarm6/xarm6.xml", payload=(3.0, [0, 0, 0.021]))

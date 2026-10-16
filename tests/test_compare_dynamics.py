@@ -15,7 +15,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 
 from scripts import compare_dynamics_xarm6 as comparison
-from src.dynamics import ArmDynamics
+from ufactory_mujoco.dynamics import ArmDynamics
 
 ROOT = Path(__file__).resolve().parent.parent
 METADATA = {"version": 1, "payload": {"mass_kg": 1.7, "com_m": [0.002, -0.003, 0.021],

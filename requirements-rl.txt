@@ -5,5 +5,5 @@
 #   NVIDIA GPU: pick the command for your CUDA version at https://pytorch.org/get-started/locally/
 # then: pip install -r requirements-rl.txt
 # The env itself only needs mujoco + numpy and degrades gracefully when gymnasium is absent.
-gymnasium>=1.0
-stable-baselines3>=2.4
+gymnasium>=1.0,<2
+stable-baselines3>=2.4,<3

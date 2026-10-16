@@ -8,8 +8,8 @@ from unittest.mock import patch
 import mujoco
 import numpy as np
 
-from src import SimRobot
-from src.viewer import configure_low_power_rendering
+from ufactory_mujoco import SimRobot
+from ufactory_mujoco.viewer import configure_low_power_rendering
 
 joint_control = importlib.import_module("examples.simulation.02_joint_control")
 
@@ -74,9 +74,9 @@ class JointControlTests(unittest.TestCase):
             sync=lambda: sync_times.append(now[0]), is_running=lambda: True,
             close=lambda: None,
         )
-        with patch("src.sim_robot.PassiveViewer", return_value=viewer), patch(
-            "src.sim_robot.time.monotonic", side_effect=lambda: now[0]
-        ), patch("src.sim_robot.time.sleep", side_effect=sleep):
+        with patch("ufactory_mujoco.sim_robot.PassiveViewer", return_value=viewer), patch(
+            "ufactory_mujoco.sim_robot.time.monotonic", side_effect=lambda: now[0]
+        ), patch("ufactory_mujoco.sim_robot.time.sleep", side_effect=sleep):
             with SimRobot(viewer=True, viewer_hz=30) as robot:
                 robot.settle(0.1)
                 self.assertAlmostEqual(robot.data.time, 0.1)
@@ -87,7 +87,7 @@ class JointControlTests(unittest.TestCase):
 
     def test_closed_viewer_stops_settling(self):
         viewer = SimpleNamespace(is_running=lambda: False, close=lambda: None)
-        with patch("src.sim_robot.PassiveViewer", return_value=viewer):
+        with patch("ufactory_mujoco.sim_robot.PassiveViewer", return_value=viewer):
             with SimRobot(viewer=True) as robot:
                 robot.settle(0.5)
                 self.assertEqual(robot.data.time, 0.0)

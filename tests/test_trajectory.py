@@ -6,7 +6,7 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
-from src import (
+from ufactory_mujoco import (
     JointTrajectory,
     SimRobot,
     plan_cartesian_line,

@@ -4,9 +4,13 @@ Single source for locating robot model XMLs under ``models/``; keeps examples
 independent of each other (no cross-example imports).
 """
 
+import os
 from pathlib import Path
 
-MODELS_ROOT = Path(__file__).resolve().parent.parent / "models"
+# Models live in the repository checkout (``pip install -e .``); override with
+# UFACTORY_MUJOCO_MODELS to point at another copy of the models/ tree.
+MODELS_ROOT = Path(os.environ.get("UFACTORY_MUJOCO_MODELS",
+                                  Path(__file__).resolve().parent.parent / "models"))
 
 
 def resolve_model_path(model_arg: str) -> Path:

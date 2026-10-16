@@ -2,7 +2,7 @@
 
 [English](README.md) | [中文](README_zh.md)
 
-Reinforcement learning example for 3D TCP position reaching across all five UFACTORY robotic arms (`lite6`, `xarm5`, `xarm6`, `xarm7`, `uf850`) in MuJoCo, using a PPO policy trained on `ReachEnv` (`src/rl/reach_env.py`).
+Reinforcement learning example for 3D TCP position reaching across all five UFACTORY robotic arms (`lite6`, `xarm5`, `xarm6`, `xarm7`, `uf850`) in MuJoCo, using a PPO policy trained on `ReachEnv` (`ufactory_mujoco/rl/reach_env.py`).
 
 ## 1. Environment & MDP Specification
 

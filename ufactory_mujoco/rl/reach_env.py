@@ -9,7 +9,7 @@ fallback base keeps random rollouts possible in environments without it,
 e.g. the py314 project default), while training additionally needs
 stable-baselines3 (see requirements-rl.txt).
 
-MDP summary (docs/plan_0.0.5_rl.md; n = robot joint count):
+MDP summary (docs/internal/plan_0.0.5_rl.md; n = robot joint count):
     action   Box(-1, 1, (n,))  joint increments, |dq| <= delta per step
     obs      float32 (3+3n,)   TCP-target delta (3), normalized joints (n),
                                scaled joint velocities (n), last action (n)
@@ -39,7 +39,7 @@ except ImportError:  # pragma: no cover - exercised on py314 (no gymnasium)
     spaces = None
     _ENV_BASE = object
 
-_ROOT = Path(__file__).resolve().parent.parent.parent
+from ..model_paths import MODELS_ROOT  # noqa: E402
 TCP_SITE = "attachment_site"
 TARGET_BODY = "target_mocap"
 
@@ -83,7 +83,7 @@ ROBOT_PROFILES: dict[str, RobotProfile] = {
 TARGET_LOW = np.array(ROBOT_PROFILES["xarm6"].target_low)
 TARGET_HIGH = np.array(ROBOT_PROFILES["xarm6"].target_high)
 
-# Reward shaping constants (docs/plan_0.0.5_rl.md §3)
+# Reward shaping constants (docs/internal/plan_0.0.5_rl.md §3)
 _K_SHAPE = 2.0 / 0.01     # per meter of distance reduction (= 2.0 per cm)
 _SUCCESS_BONUS = 10.0
 _STEP_COST = 0.02
@@ -208,7 +208,7 @@ class ReachEnv(_ENV_BASE):
         self._validate_targets = bool(validate_targets)
 
         if model_path is None:
-            model_path = _ROOT / "models" / robot / "scene_reach.xml"
+            model_path = MODELS_ROOT / robot / "scene_reach.xml"
         model_path = Path(model_path)
         if not model_path.is_file():
             raise FileNotFoundError(f"scene model not found: {model_path}")
@@ -343,7 +343,7 @@ class ReachEnv(_ENV_BASE):
     # -------------------------------------------------------------- internals
     def _ensure_viewer(self):
         if self._viewer is None:
-            from src.viewer import PassiveViewer
+            from ufactory_mujoco.viewer import PassiveViewer
             self._viewer = PassiveViewer(self.model, self.data)
 
     def _get_obs(self) -> np.ndarray:
@@ -387,7 +387,7 @@ class ReachEnv(_ENV_BASE):
             return False
         if not self._validate_targets:
             return True
-        from src.ik import solve_ik
+        from ufactory_mujoco.ik import solve_ik
         q_ref = self.data.qpos[self._qpos_adr].copy()
         _, converged = solve_ik(self.model, self._ik_data, TCP_SITE, target, None,
                                 q_init=q_ref, pos_tol=2e-3, max_iter=80)
@@ -395,5 +395,5 @@ class ReachEnv(_ENV_BASE):
         return bool(converged)
 
 
-# Compatibility alias (docs/plan_0.0.7_rl.md): removed at 0.1.0.
+# Compatibility alias (docs/internal/plan_0.0.7_rl.md): removed at 0.1.0.
 XArm6ReachEnv = ReachEnv
