@@ -10,7 +10,7 @@ Generates complete, verified MJCF models with:
 - Ready-to-view scene.xml with skybox, groundplane, and cameras
 
 Usage:
-    /opt/conda_envs/py314/bin/python scripts/build_all_mjcf.py
+    python scripts/build_all_mjcf.py
 """
 
 from __future__ import annotations

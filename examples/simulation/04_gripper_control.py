@@ -63,8 +63,10 @@ def main() -> None:
 
     with SimRobot(model_path, viewer=not args.headless) as robot:
         if not robot.has_gripper:
-            print(f"Model '{args.model}' has no gripper actuator.")
-            return
+            print(f"Model '{args.model}' has no gripper actuator "
+                  "(supported: gripper_g2, bio_gripper_g2, lite6_gripper and their arm combos).",
+                  file=sys.stderr)
+            sys.exit(2)
 
         print(f"Loaded: {args.model} (gripper actuator id: {robot._gripper_actuator_id})")
         print(f"Gripper ctrl range: {robot._gripper_ctrl_range}")

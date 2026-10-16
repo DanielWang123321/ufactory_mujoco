@@ -22,7 +22,7 @@ MuJoCo simulation examples (`01`–`09`) covering interactive model inspection, 
 
 ## 2. Running the Examples
 
-All scripts run in the default `py314` environment (`mujoco` + `numpy`). Pass `--headless` to `02`–`09` to run offscreen and print quantitative verification metrics.
+All scripts need only the core dependencies (`requirements.txt`). Pass `--headless` to `01`–`09` to run offscreen and print quantitative verification metrics.
 
 ### 2.1 Model Viewing & Basic Control (`01`–`04`)
 
@@ -110,7 +110,7 @@ python scripts/compare_torque_xarm6.py --no-move                              # 
 | :--- | :--- | :--- | :--- |
 | `--model <name>` | `01`, `02`, `04`, `05` | `xarm6` (`05`: `xarm6_with_gripper`) | Model name or path to MJCF XML |
 | `--pose <home\|ready>` | `01` | `home` | Initial keyframe pose |
-| `--headless` | `02`–`09` | `False` | Run offscreen and print verification metrics |
+| `--headless` | `01`–`09` | `False` | Run offscreen and print verification metrics |
 | `--speed <deg/s>` | `02`, `06` | `90.0` | Peak joint speed in degrees/s |
 | `--motion <mode>` | `02` | `auto` | Motion preset: `auto`, `dynamics` (20 poses), or `demo` |
 | `--duration <s>` | `02` | `None` | Fixed segment duration (overrides `--speed`) |
