@@ -17,14 +17,27 @@
 
 ### 1. 环境安装
 
+推荐 Python **3.13**（3.12 亦可；核心与 RL 依赖在这两个版本上都有预编译包）。
+
 ```bash
-conda create -n py314 python=3.14 -y
-conda activate py314
+# 仓库较大（网格约 600 MB），建议浅克隆
+git clone --depth 1 https://github.com/DanielWang123321/ufactory_mujoco.git
+cd ufactory_mujoco
+
+python3.13 -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-# 可选：强化学习训练与 PPO 权重回放依赖（gymnasium + stable-baselines3）
+# 可选：强化学习训练与 PPO 回放（先装 CPU 版 torch，详见 requirements-rl.txt）
+pip install torch --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements-rl.txt
 ```
+
+### 无显示器 / 远程机器
+
+- `--headless`（示例 `01`–`09`、`01_reach.py`）只跑物理，不需要显示器和 OpenGL，**不要**为此设置 `MUJOCO_GL`。
+- 若设置 `MUJOCO_GL=egl`，系统需有 `libEGL`（如 `apt install libegl1`），否则 `import mujoco` 会直接报错；`MUJOCO_GL=osmesa` 需要 `libosmesa6`。
+- 在无显示器的服务器上打开交互查看器，可用 Xvfb：`xvfb-run -a python examples/simulation/01_load_and_view.py`。
 
 ### 2. 示例与文档导航
 
@@ -47,7 +60,7 @@ python examples/simulation/09_obstacle_avoidance.py
 python examples/rl/reach/01_reach.py --model xarm6
 ```
 
-> 所有运动与强化学习示例（`02`–`09`、`01_reach.py`）均支持 `--headless` 参数，用于无头模式运行并输出量化验收指标。
+> 所有运动与强化学习示例（`01`–`09`、`01_reach.py`）均支持 `--headless` 参数，用于无头模式运行并输出量化验收指标。
 
 ### 3. 运行测试套件
 

@@ -10,8 +10,8 @@ Repairs inconsistent/inward triangle winding for MuJoCo's back-face culling whil
 retaining original vertices and hard-edge normals.
 
 Usage:
-    /opt/conda_envs/py313/bin/python scripts/convert_glb_to_obj.py --target all
-    /opt/conda_envs/py313/bin/python scripts/convert_glb_to_obj.py --target xarm7
+    python scripts/convert_glb_to_obj.py --ref-dir /path/to/ufactory_genesis/assets/urdf --target all
+    UFACTORY_GENESIS_ROOT=/path/to/ufactory_genesis python scripts/convert_glb_to_obj.py --target xarm7
 """
 
 from __future__ import annotations
@@ -269,10 +269,6 @@ def main() -> None:
         if "UFACTORY_GENESIS_ROOT" in os.environ
         else (repo_root.parent / "ufactory_genesis" / "assets" / "urdf")
     )
-    if not default_ref.exists():
-        local_cand = Path("/home/uf/Desktop/dev/ufactory_genesis/assets/urdf")
-        if local_cand.exists():
-            default_ref = local_cand
 
     out_root = repo_root / "models"
 
@@ -281,7 +277,7 @@ def main() -> None:
         "--ref-dir",
         type=Path,
         default=default_ref,
-        help="Path to ufactory_genesis assets/urdf directory",
+        help="Path to ufactory_genesis assets/urdf (default: $UFACTORY_GENESIS_ROOT/assets/urdf or ../ufactory_genesis/assets/urdf)",
     )
     parser.add_argument(
         "--target",
@@ -299,7 +295,7 @@ def main() -> None:
         import genesis as gs
     except ImportError as e:
         print(f"Error: Missing dependency: {e}", file=sys.stderr)
-        print("Please run with an environment containing genesis (e.g. /opt/conda_envs/py313/bin/python)", file=sys.stderr)
+        print("Please run with an environment containing genesis (pip install genesis-world trimesh)", file=sys.stderr)
         sys.exit(1)
 
     gs.init(backend=gs.cpu)

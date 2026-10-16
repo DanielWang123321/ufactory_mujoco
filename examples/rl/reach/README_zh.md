@@ -21,25 +21,25 @@
 
 ## 2. 快速运行（评估与回放）
 
-预训练 PPO 权重默认保存在 `build/rl/<model>/ppo_reach.zip`。
+> **仓库不附带预训练权重**（`build/` 已被 git 忽略），需先按第 3 节训练，结果保存在 `build/rl/<model>/ppo_reach.zip`。实测（8 核 CPU、15 GB 内存、无 GPU）：默认配方（30 万步、8 个并行环境）训练 xArm 6 约 **100 秒**，但每个环境进程约占 **1.3 GB 内存**（高面数可视网格），8 个环境需约 11 GB；内存较小的机器请加 `--n-envs 2`–`4`。30 万步快速配方成功率仅约 40%，基准表数据需用完整配方。
 
-> **环境说明**：加载 PPO 权重回放需安装 `stable-baselines3`（见 `requirements-rl.txt`，已配置于 `py313` 环境）。未训练基线 `--random` 仅依赖 `mujoco` + `numpy`，可在 `py314` 默认环境直接运行。
+> **环境说明**：加载 PPO 权重回放需安装 `stable-baselines3`（见 `requirements-rl.txt`）。未训练基线 `--random` 只需核心依赖。
 
 ```bash
 # 交互式 GUI 演示（默认 xArm 6，运行 10 个回合）
-/opt/conda_envs/py313/bin/python examples/rl/reach/01_reach.py
+python examples/rl/reach/01_reach.py
 
 # 切换其他机械臂型号
-/opt/conda_envs/py313/bin/python examples/rl/reach/01_reach.py --model lite6
-/opt/conda_envs/py313/bin/python examples/rl/reach/01_reach.py --model xarm5
-/opt/conda_envs/py313/bin/python examples/rl/reach/01_reach.py --model xarm7
-/opt/conda_envs/py313/bin/python examples/rl/reach/01_reach.py --model uf850
+python examples/rl/reach/01_reach.py --model lite6
+python examples/rl/reach/01_reach.py --model xarm5
+python examples/rl/reach/01_reach.py --model xarm7
+python examples/rl/reach/01_reach.py --model uf850
 
 # 无头模式评估（输出成功率与末端误差指标，达标退出码为 0，否则为 1）
-/opt/conda_envs/py313/bin/python examples/rl/reach/01_reach.py --model xarm6 --headless --episodes 20
+python examples/rl/reach/01_reach.py --model xarm6 --headless --episodes 20
 
 # 指定基座坐标系下的固定目标点 (x, y, z，单位：米)
-/opt/conda_envs/py313/bin/python examples/rl/reach/01_reach.py --target 0.35 0.15 0.25
+python examples/rl/reach/01_reach.py --target 0.35 0.15 0.25
 
 # 未训练随机策略基线（无需 stable-baselines3）
 python examples/rl/reach/01_reach.py --random --headless
@@ -66,10 +66,10 @@ python examples/rl/reach/01_reach.py --random --headless
 
 ```bash
 # 默认快速训练（300k 步，[64,64] MLP，8 并行环境）
-/opt/conda_envs/py313/bin/python scripts/train_reach_rl.py --model xarm6
+python scripts/train_reach_rl.py --model xarm6
 
 # 对齐 5 mm 验收标准的完整训练配方（2M 步，[256,256,128] MLP）
-/opt/conda_envs/py313/bin/python scripts/train_reach_rl.py \
+python scripts/train_reach_rl.py \
     --model xarm6 --total-steps 2000000 --net-arch 256,256,128 --ent-coef 0.001 --eval-episodes 200
 ```
 

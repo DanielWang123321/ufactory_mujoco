@@ -21,25 +21,25 @@ Reinforcement learning example for 3D TCP position reaching across all five UFAC
 
 ## 2. Quick Start (Evaluation & Rollout)
 
-Pre-trained PPO weights are stored in `build/rl/<model>/ppo_reach.zip`.
+> **Weights are not shipped with the repo** (`build/` is git-ignored). Train a policy first (Section 3); it is saved to `build/rl/<model>/ppo_reach.zip`. Measured on an 8-core CPU / 15 GB RAM machine without GPU: the default recipe (300k steps, 8 envs) trains xArm 6 in about **100 s**, but each environment process uses about **1.3 GB RAM** (high-poly visual meshes), so 8 envs need ~11 GB. On machines with less memory pass `--n-envs 2`–`4`. The 300k-step quick recipe reaches only ~40% success; use the production recipe for the benchmark numbers.
 
-> **Environment Note**: Rolling out trained PPO policies requires `stable-baselines3` (see `requirements-rl.txt`, installed in the `py313` environment). The untrained `--random` baseline only requires `mujoco` + `numpy` and runs in `py314`.
+> **Environment Note**: Rolling out trained PPO policies requires `stable-baselines3` (see `requirements-rl.txt`). The untrained `--random` baseline only requires the core dependencies.
 
 ```bash
 # Interactive GUI rollout (10 episodes, xArm 6 by default)
-/opt/conda_envs/py313/bin/python examples/rl/reach/01_reach.py
+python examples/rl/reach/01_reach.py
 
 # Run on other robot models
-/opt/conda_envs/py313/bin/python examples/rl/reach/01_reach.py --model lite6
-/opt/conda_envs/py313/bin/python examples/rl/reach/01_reach.py --model xarm5
-/opt/conda_envs/py313/bin/python examples/rl/reach/01_reach.py --model xarm7
-/opt/conda_envs/py313/bin/python examples/rl/reach/01_reach.py --model uf850
+python examples/rl/reach/01_reach.py --model lite6
+python examples/rl/reach/01_reach.py --model xarm5
+python examples/rl/reach/01_reach.py --model xarm7
+python examples/rl/reach/01_reach.py --model uf850
 
 # Headless evaluation (prints metrics, exits 0 on PASS / 1 on FAIL)
-/opt/conda_envs/py313/bin/python examples/rl/reach/01_reach.py --model xarm6 --headless --episodes 20
+python examples/rl/reach/01_reach.py --model xarm6 --headless --episodes 20
 
 # Roll out toward a fixed base-frame target (x, y, z in meters)
-/opt/conda_envs/py313/bin/python examples/rl/reach/01_reach.py --target 0.35 0.15 0.25
+python examples/rl/reach/01_reach.py --target 0.35 0.15 0.25
 
 # Untrained random policy baseline (no stable-baselines3 required)
 python examples/rl/reach/01_reach.py --random --headless
@@ -66,10 +66,10 @@ Train or re-train PPO policies with `scripts/train_reach_rl.py`:
 
 ```bash
 # Default quick training (300k steps, [64,64] MLP, 8 parallel envs)
-/opt/conda_envs/py313/bin/python scripts/train_reach_rl.py --model xarm6
+python scripts/train_reach_rl.py --model xarm6
 
 # Full production recipe aligned with 5 mm acceptance standard (2M steps, [256,256,128] MLP)
-/opt/conda_envs/py313/bin/python scripts/train_reach_rl.py \
+python scripts/train_reach_rl.py \
     --model xarm6 --total-steps 2000000 --net-arch 256,256,128 --ent-coef 0.001 --eval-episodes 200
 ```
 

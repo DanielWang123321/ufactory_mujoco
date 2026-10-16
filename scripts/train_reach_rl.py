@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Train a PPO policy for the TCP reaching task (roadmap 0.0.5, 0.0.7).
 
-Supports lite6 / xarm5 / xarm6 / xarm7 / uf850 (--model). Runs on the py313
-environment (requirements-rl.txt: gymnasium + stable-baselines3). The trained
+Supports lite6 / xarm5 / xarm6 / xarm7 / uf850 (--model). Requires the RL
+dependencies (requirements-rl.txt: gymnasium + stable-baselines3). The trained
 policy is saved to <out-dir>/ppo_reach.zip together with an evaluation report
 <out-dir>/metrics.json (default out-dir: build/rl/<model>/).
 
