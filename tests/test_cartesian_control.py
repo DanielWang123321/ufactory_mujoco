@@ -6,7 +6,7 @@ from unittest.mock import patch
 import mujoco
 import numpy as np
 
-from src import SimRobot
+from ufactory_mujoco import SimRobot
 
 
 class CartesianControlTests(unittest.TestCase):
@@ -33,7 +33,7 @@ class CartesianControlTests(unittest.TestCase):
     def _reference_poses(self, robot, pos, quat):
         """Inspect the Cartesian references before IK or servo tracking."""
         joint_path = np.tile(self.START, (50, 1))
-        with patch("src.sim_robot.solve_ik_trajectory",
+        with patch("ufactory_mujoco.sim_robot.solve_ik_trajectory",
                    return_value=(joint_path, True)) as solve_path, patch.object(
                        robot, "move_joints"
                    ):

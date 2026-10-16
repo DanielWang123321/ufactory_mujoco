@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Example 08: rigid-body dynamics toolkit on the xArm 6 (roadmap 0.0.6).
 
-Demonstrates src/dynamics.py:
+Demonstrates ufactory_mujoco/dynamics.py:
 1. Mass matrix symmetry and positive definiteness.
 2. Gravity / Coriolis decomposition (zero velocity => zero Coriolis term).
 3. Inverse/forward dynamics round trip (strictly reciprocal).
@@ -19,15 +19,14 @@ import argparse
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
 
-from src.dynamics import ArmDynamics  # noqa: E402
-from src.model_paths import MODELS_ROOT  # noqa: E402
-from src.sim_robot import SimRobot  # noqa: E402
-from src.trajectory import plan_ptp_quintic  # noqa: E402
+from ufactory_mujoco.dynamics import ArmDynamics  # noqa: E402
+from ufactory_mujoco.model_paths import MODELS_ROOT  # noqa: E402
+from ufactory_mujoco.sim_robot import SimRobot  # noqa: E402
+from ufactory_mujoco.trajectory import plan_ptp_quintic  # noqa: E402
 
 XARM6 = MODELS_ROOT / "xarm6" / "xarm6.xml"
 SCENE = MODELS_ROOT / "xarm6" / "scene.xml"

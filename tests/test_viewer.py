@@ -9,8 +9,8 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from src import SimRobot
-from src.viewer import PassiveViewer, _prepare_viewer, configure_backend
+from ufactory_mujoco import SimRobot
+from ufactory_mujoco.viewer import PassiveViewer, _prepare_viewer, configure_backend
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -24,7 +24,7 @@ class ViewerTests(unittest.TestCase):
         env.pop("PYGLFW_LIBRARY_VARIANT", None)
         result = subprocess.run(
             [sys.executable, "-c",
-             "from src import SimRobot; import glfw; "
+             "from ufactory_mujoco import SimRobot; import glfw; "
              "print(glfw.get_version_string().decode())"],
             cwd=ROOT, env=env, text=True, capture_output=True, timeout=10,
         )
@@ -40,7 +40,7 @@ class ViewerTests(unittest.TestCase):
         env.pop("PYGLFW_LIBRARY_VARIANT", None)
         result = subprocess.run(
             [sys.executable, "-c",
-             "import mujoco; from src import SimRobot; import glfw; "
+             "import mujoco; from ufactory_mujoco import SimRobot; import glfw; "
              "print(glfw.get_version_string().decode())"],
             cwd=ROOT, env=env, text=True, capture_output=True, timeout=10,
         )
@@ -70,7 +70,7 @@ class ViewerTests(unittest.TestCase):
         def fail(*args, **kwargs):
             raise RuntimeError("could not create window")
 
-        with patch("src.viewer._prepare_viewer",
+        with patch("ufactory_mujoco.viewer._prepare_viewer",
                    return_value=SimpleNamespace(_launch_internal=fail)):
             with self.assertRaisesRegex(RuntimeError, "startup failed: could not create window"):
                 PassiveViewer(None, None)
@@ -91,7 +91,7 @@ class ViewerTests(unittest.TestCase):
                 allow_cleanup.wait(2)
                 cleanup_finished.set()
 
-        with patch("src.viewer._prepare_viewer",
+        with patch("ufactory_mujoco.viewer._prepare_viewer",
                    return_value=SimpleNamespace(_launch_internal=render)):
             viewer = PassiveViewer(None, None)
 
@@ -114,7 +114,7 @@ class ViewerTests(unittest.TestCase):
     def test_robot_cleans_up_after_exception(self):
         close_calls = []
         viewer = SimpleNamespace(close=lambda: close_calls.append(True))
-        with patch("src.sim_robot.PassiveViewer", return_value=viewer):
+        with patch("ufactory_mujoco.sim_robot.PassiveViewer", return_value=viewer):
             with self.assertRaisesRegex(ValueError, "control failed"):
                 with SimRobot(viewer=True) as robot:
                     raise ValueError("control failed")

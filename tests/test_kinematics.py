@@ -6,9 +6,9 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
-from src import SimRobot
-from src.ik import solve_ik
-from src.kinematics import (
+from ufactory_mujoco import SimRobot
+from ufactory_mujoco.ik import solve_ik
+from ufactory_mujoco.kinematics import (
     condition_number,
     fk_pose,
     manipulability,

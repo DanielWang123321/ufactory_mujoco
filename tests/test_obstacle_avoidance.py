@@ -15,9 +15,9 @@ from unittest.mock import patch
 import mujoco
 import numpy as np
 
-from src.collision import CollisionChecker
-from src.path_planning import plan_collision_free, shortcut_path
-from src.sim_robot import SimRobot
+from ufactory_mujoco.collision import CollisionChecker
+from ufactory_mujoco.path_planning import plan_collision_free, shortcut_path
+from ufactory_mujoco.sim_robot import SimRobot
 
 avoidance = importlib.import_module("examples.simulation.09_obstacle_avoidance")
 

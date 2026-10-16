@@ -12,8 +12,8 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
-from src.ik import solve_ik
-from src.rl import ROBOT_PROFILES, ReachEnv, XArm6ReachEnv
+from ufactory_mujoco.ik import solve_ik
+from ufactory_mujoco.rl import ROBOT_PROFILES, ReachEnv, XArm6ReachEnv
 
 ROOT = Path(__file__).resolve().parent.parent
 _HAS_GYM = importlib.util.find_spec("gymnasium") is not None
@@ -221,7 +221,7 @@ class ReachEnvTrainingSmokeTests(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# 0.0.7: multi-robot coverage (docs/plan_0.0.7_rl.md §6)
+# 0.0.7: multi-robot coverage (docs/internal/plan_0.0.7_rl.md §6)
 
 ALL_ROBOTS = ("lite6", "xarm5", "xarm6", "xarm7", "uf850")
 
@@ -316,7 +316,7 @@ class LiteVisualsTests(unittest.TestCase):
     """The lite-visual reach model drops visual meshes but keeps the physics."""
 
     def test_lite_model_matches_full_model(self):
-        from src.rl.reach_env import load_reach_model
+        from ufactory_mujoco.rl.reach_env import load_reach_model
         rng = np.random.default_rng(3)
         for robot in ALL_ROBOTS:
             path = ROOT / "models" / robot / "scene_reach.xml"

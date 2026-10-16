@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ufactory_mujoco"
+version = "0.1.0.dev0"
+description = "MuJoCo simulation and RL suite for UFACTORY robot arms (xArm 5/6/7, UF850, Lite 6) and grippers"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.12"
+# Ranges verified in CI on Python 3.12 and 3.13; exact tested versions: requirements-lock.txt
+dependencies = [
+    "mujoco>=3.15,<4",
+    "numpy>=2.0,<3",
+    "scipy>=1.14,<2",
+]
+classifiers = [
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+]
+
+[project.optional-dependencies]
+# Install CPU torch first to avoid the large CUDA wheel: see requirements-rl.txt
+rl = ["gymnasium>=1.0,<2", "stable-baselines3>=2.4,<3"]
+assets = ["trimesh>=4", "xacro"]
+
+[project.urls]
+Homepage = "https://github.com/DanielWang123321/ufactory_mujoco"
+
+[tool.setuptools.packages.find]
+include = ["ufactory_mujoco*"]

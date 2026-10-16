@@ -1,4 +1,4 @@
-"""Unit tests for src/dynamics.py (offline, no real robot required)."""
+"""Unit tests for ufactory_mujoco/dynamics.py (offline, no real robot required)."""
 
 import unittest
 from pathlib import Path
@@ -8,7 +8,7 @@ from unittest.mock import patch
 import mujoco
 import numpy as np
 
-from src.dynamics import ArmDynamics, attach_payload
+from ufactory_mujoco.dynamics import ArmDynamics, attach_payload
 
 ROOT = Path(__file__).resolve().parent.parent
 XARM6 = ROOT / "models" / "xarm6" / "xarm6.xml"

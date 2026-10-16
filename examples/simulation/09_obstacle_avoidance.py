@@ -22,15 +22,14 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
 
-from src import SimRobot, plan_joint_waypoints  # noqa: E402
-from src.collision import CollisionChecker  # noqa: E402
-from src.model_paths import MODELS_ROOT  # noqa: E402
-from src.path_planning import path_length, plan_collision_free, shortcut_path  # noqa: E402
+from ufactory_mujoco import SimRobot, plan_joint_waypoints  # noqa: E402
+from ufactory_mujoco.collision import CollisionChecker  # noqa: E402
+from ufactory_mujoco.model_paths import MODELS_ROOT  # noqa: E402
+from ufactory_mujoco.path_planning import path_length, plan_collision_free, shortcut_path  # noqa: E402
 
 SCENE = MODELS_ROOT / "xarm6" / "scene_obstacles.xml"
 START_KEY, GOAL_KEY = "start", "goal"

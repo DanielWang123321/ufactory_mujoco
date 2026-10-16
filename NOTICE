@@ -1,0 +1,30 @@
+ufactory_mujoco — third-party notices
+=====================================
+
+The Python code in this repository is licensed under the MIT License (see LICENSE).
+The robot models under models/ are DERIVED from upstream UFACTORY assets and are
+subject to the upstream licenses listed below, not only to this repository's MIT
+license.
+
+1. ufactory_genesis — https://github.com/xArm-Developer/ufactory_genesis
+   License: MIT (Copyright (c) 2026 Daniel Wang)
+   Used for: GLB visual meshes converted to OBJ (scripts/convert_glb_to_obj.py),
+   combo-model layouts, keyframe and validation-pose conventions.
+   ufactory_genesis' own NOTICE states that its robot assets are derived from the
+   xArm ROS description packages (BSD-3-Clause) and are not MIT-only content.
+
+2. xarm_ros — https://github.com/xArm-Developer/xarm_ros
+   xarm_ros2 — https://github.com/xArm-Developer/xarm_ros2
+   License: BSD-3-Clause (Copyright (c) 2018, UFACTORY Inc. All rights reserved.)
+   Used for: kinematics, joint limits, inertial parameters, collision meshes
+   (URDF/xacro -> MJCF via scripts/build_model.py and scripts/build_all_mjcf.py).
+   BSD-3-Clause requires that redistributions retain the above copyright notice,
+   the list of conditions and the disclaimer; see the upstream LICENSE files.
+
+3. MuJoCo Menagerie — https://github.com/google-deepmind/mujoco_menagerie
+   Actuator parameter conventions only (no files copied). The menagerie
+   ufactory_lite6 / ufactory_xarm7 models are BSD-3-Clause (Copyright (c) 2018,
+   UFACTORY Inc.).
+
+Trademarks: xArm, UF850, Lite 6 and UFACTORY are trademarks of UFACTORY. Their use
+here describes hardware compatibility only and does not imply endorsement.
