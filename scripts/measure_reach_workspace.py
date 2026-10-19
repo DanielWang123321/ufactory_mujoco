@@ -2,7 +2,7 @@
 """Calibrate per-robot reach-workspace profiles for the RL reach task (0.0.7 M0).
 
 For every supported arm this derives the values frozen in
-src/rl/reach_env.py::ROBOT_PROFILES:
+ufactory_mujoco/rl/reach_env.py::ROBOT_PROFILES:
 
 1. shoulder position  - world anchor of joint2 at the zero configuration
 2. FK point cloud     - 20k joint-space samples (seed 0) pushed through FK
@@ -23,12 +23,11 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
 
 import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
 
-from src.ik import solve_ik  # noqa: E402
+from ufactory_mujoco.ik import solve_ik  # noqa: E402
 
 ROBOTS = ("lite6", "xarm5", "xarm6", "xarm7", "uf850")
 N_CLOUD = 20_000

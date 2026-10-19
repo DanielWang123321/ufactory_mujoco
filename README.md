@@ -8,10 +8,10 @@ MuJoCo simulation and reinforcement learning suite for UFACTORY robots — featu
 
 - **High-Fidelity Visuals**: Smooth-normal, multi-material OBJ visual meshes (PBR white shell, silver metal joints, black accents) paired with dedicated collision STLs.
 - **Full Asset Ecosystem**: All UFACTORY robot arms (`lite6`, `xarm5`, `xarm6`, `xarm7`, `uf850`) and grippers (`gripper_g2`, `bio_gripper_g2`, `lite6_gripper`, `lite6_vacuum_gripper`) converted from [ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis).
-- **Kinematics & Motion Planning**: Per-site FK, analytical Jacobian, damped least-squares (DLS) IK (`src/kinematics.py`, `src/ik.py`), PTP quintic/C2 spline trajectories (`src/trajectory.py`), and RRT-Connect obstacle avoidance (`src/collision.py`, `src/path_planning.py`).
-- **Rigid-Body Dynamics**: Mass matrix $M(q)$, gravity/Coriolis terms, inverse/forward dynamics, and TCP payload injection (`src/dynamics.py`), cross-validated against real xArm 6 hardware.
-- **Reinforcement Learning**: Gymnasium TCP-reaching environment (`src/rl/reach_env.py`) with calibrated workspace profiles and PPO policies achieving $\ge 96\%$ success at the $< 5\text{ mm}$ threshold across all five arms.
-- **Robust Viewer**: Passive viewer with real-time clock sync, graceful exit handling, and Linux Wayland/X11 compatibility (`src/viewer.py`).
+- **Kinematics & Motion Planning**: Per-site FK, analytical Jacobian, damped least-squares (DLS) IK (`ufactory_mujoco/kinematics.py`, `ufactory_mujoco/ik.py`), PTP quintic/C2 spline trajectories (`ufactory_mujoco/trajectory.py`), and RRT-Connect obstacle avoidance (`ufactory_mujoco/collision.py`, `ufactory_mujoco/path_planning.py`).
+- **Rigid-Body Dynamics**: Mass matrix $M(q)$, gravity/Coriolis terms, inverse/forward dynamics, and TCP payload injection (`ufactory_mujoco/dynamics.py`), cross-validated against real xArm 6 hardware.
+- **Reinforcement Learning**: Gymnasium TCP-reaching environment (`ufactory_mujoco/rl/reach_env.py`) with calibrated workspace profiles and PPO policies achieving $\ge 96\%$ success at the $< 5\text{ mm}$ threshold across all five arms.
+- **Robust Viewer**: Passive viewer with real-time clock sync, graceful exit handling, and Linux Wayland/X11 compatibility (`ufactory_mujoco/viewer.py`).
 
 ## Quick Start
 
@@ -26,12 +26,19 @@ cd ufactory_mujoco
 
 python3.13 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -e .                   # installs the ufactory_mujoco package + core deps
 
 # Optional: RL training & PPO rollout (install CPU torch first, see requirements-rl.txt)
 pip install torch --index-url https://download.pytorch.org/whl/cpu
-pip install -r requirements-rl.txt
+pip install -e ".[rl]"
 ```
+
+> Exact versions verified in CI: `pip install -r requirements-lock.txt`.
+
+### macOS and Windows
+
+- **macOS**: the interactive viewer (`launch_passive`) must run on the main thread, so start GUI examples with `mjpython` (shipped with the `mujoco` package): `mjpython examples/simulation/01_load_and_view.py`. `--headless` runs work with plain `python`.
+- **Windows**: activate the venv with `.venv\Scripts\activate`; the viewer works with plain `python`. `MUJOCO_GL` and Xvfb are Linux-only concerns. Paths in examples are resolved relative to the repo, so run them from any directory.
 
 ### Headless / remote machines
 
@@ -76,7 +83,7 @@ python -m unittest discover -s tests -v
 ```text
 models/                 Robot and accessory MJCF models & visual/collision meshes
   xarm6/, lite6/, ...   xArm 5/6/7, UF850, Lite6, and grippers (standalone & combined scenes)
-src/                    Core simulation, control, planning, and RL library
+ufactory_mujoco/        Core simulation, control, planning, and RL library
   sim_robot.py          SimRobot: physics stepping, joint/TCP control, viewer sync
   robot_interface.py    Abstract base class aligning sim and real robot interfaces
   ik.py                 Damped least-squares (DLS) Cartesian IK solver
@@ -93,6 +100,7 @@ examples/
   rl/reach/             RL TCP reaching example (see examples/rl/reach/README.md)
 scripts/                Asset conversion, workspace calibration, dynamics replay & RL training
 tests/                  Unit and regression test suite
+docs/internal/          Internal design/roadmap notes (not user documentation)
 ```
 
 ## Model Notes
@@ -103,4 +111,4 @@ tests/                  Unit and regression test suite
 
 ## License
 
-MIT
+Code: MIT (see `LICENSE`). Robot models are derived from UFACTORY assets (xarm_ros, BSD-3-Clause; ufactory_genesis, MIT) — see `NOTICE`.

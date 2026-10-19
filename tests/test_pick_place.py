@@ -35,7 +35,7 @@ class PickPlaceSceneTest(unittest.TestCase):
     def test_simrobot_init_keeps_cube_at_authored_pose(self):
         """Keyframe state init must not drop the free-joint cube to the origin
         (MuJoCo < 3.15 pads partial keyframe qpos vectors with zeros)."""
-        from src import SimRobot
+        from ufactory_mujoco import SimRobot
 
         with SimRobot(SCENE, viewer=False) as robot:
             cube_id = mujoco.mj_name2id(robot.model, mujoco.mjtObj.mjOBJ_BODY, "cube")
@@ -53,7 +53,7 @@ class IkJointLimitTest(unittest.TestCase):
     def test_solve_ik_respects_joint_limits(self):
         """DLS IK must clamp hinge/slide joints to their ranges (numpy-scalar enum
         comparison silently skipped the clamp before, allowing multi-turn escapes)."""
-        from src.ik import solve_ik
+        from ufactory_mujoco.ik import solve_ik
 
         m = mujoco.MjModel.from_xml_path(str(SCENE))
         d = mujoco.MjData(m)
@@ -72,7 +72,7 @@ class IkJointLimitTest(unittest.TestCase):
 class PickPlaceEndToEndTest(unittest.TestCase):
     def test_pick_place_headless(self):
         """Full pick-and-place sequence: cube lifted, placed within 50 mm, home within 10 mm."""
-        from src import SimRobot
+        from ufactory_mujoco import SimRobot
 
         with SimRobot(SCENE, viewer=False) as robot:
             results = pick_place.run_pick_place(robot, cycles=1)

@@ -30,13 +30,12 @@ import argparse
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
 
-from src import SimRobot  # noqa: E402
-from src.model_paths import MODELS_ROOT  # noqa: E402
+from ufactory_mujoco import SimRobot  # noqa: E402
+from ufactory_mujoco.model_paths import MODELS_ROOT  # noqa: E402
 
 GRIP_DOWN_QUAT = np.array([0.0, 1.0, 0.0, 0.0])  # 180 deg about X, TCP z-axis points down
 

@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install (pinned core deps + package)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-lock.txt
+          pip install -e .
+      - name: Unit tests (headless)
+        run: python -m unittest discover -s tests -v
+      - name: Example smoke tests (headless)
+        run: |
+          set -e
+          python examples/simulation/01_load_and_view.py --headless --model xarm6_with_gripper --pose ready
+          for s in 02_joint_control 03_cartesian_ik 05_pick_place 06_trajectory_planning 07_kinematics 08_dynamics 09_obstacle_avoidance; do
+            echo "::group::$s"; python examples/simulation/$s.py --headless; echo "::endgroup::"
+          done
+          for m in xarm5 xarm7 uf850 lite6 xarm6_with_gripper xarm6_with_bio_gripper lite6_with_gripper; do
+            python examples/simulation/02_joint_control.py --headless --model $m
+          done
+          for m in xarm6_with_gripper xarm6_with_bio_gripper lite6_with_gripper gripper_g2 bio_gripper_g2; do
+            python examples/simulation/04_gripper_control.py --headless --model $m
+          done
+          # unsupported model must fail with a non-zero exit code
+          if python examples/simulation/04_gripper_control.py --headless --model lite6_vacuum_gripper; then exit 1; fi
+          python examples/rl/reach/01_reach.py --random --headless --episodes 3
+
+  rl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install (CPU torch + RL extras)
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements-lock.txt -e ".[rl]"
+      - name: RL tests + tiny training smoke run
+        run: |
+          python -m unittest tests.test_reach_env -v
+          python scripts/train_reach_rl.py --model xarm6 --total-steps 4096 --n-envs 2 --n-steps 1024 --eval-episodes 2 --out-dir build/rl/ci
+          test -f build/rl/ci/metrics.json

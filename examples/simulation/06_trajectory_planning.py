@@ -17,18 +17,17 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
 
-from src import (  # noqa: E402
+from ufactory_mujoco import (  # noqa: E402
     SimRobot,
     plan_cartesian_line,
     plan_joint_waypoints,
     plan_ptp_quintic,
 )
-from src.dynamics import ArmDynamics  # noqa: E402
+from ufactory_mujoco.dynamics import ArmDynamics  # noqa: E402
 
 READY = np.array([0.0, -0.8, -1.2, 1.0, 0.3, 0.0])
 WAYPOINTS = np.array([

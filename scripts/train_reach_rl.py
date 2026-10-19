@@ -21,7 +21,6 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
 
 import numpy as np  # noqa: E402
 
@@ -35,7 +34,7 @@ try:
 except ImportError as exc:  # pragma: no cover
     sys.exit(f"training needs gymnasium + stable-baselines3 (requirements-rl.txt): {exc}")
 
-from src.rl import ROBOT_PROFILES, ReachEnv  # noqa: E402
+from ufactory_mujoco.rl import ROBOT_PROFILES, ReachEnv  # noqa: E402
 
 
 def evaluate(model, robot: str, episodes: int, seed: int, max_steps: int = 200) -> dict:

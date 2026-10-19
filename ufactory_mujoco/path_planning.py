@@ -2,7 +2,7 @@
 
 ``plan_collision_free`` runs RRT-Connect between two arm configurations and
 returns collision-free waypoints (start and goal inclusive). Time
-parameterization is delegated to :mod:`src.trajectory` (e.g.
+parameterization is delegated to :mod:`ufactory_mujoco.trajectory` (e.g.
 ``plan_joint_waypoints``) and execution to ``SimRobot.execute_trajectory``.
 
 Determinism: pass a ``seed`` for reproducible search trees and shortcuts.

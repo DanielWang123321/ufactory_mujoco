@@ -12,7 +12,7 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
-from src.collision import CollisionChecker, arm_joint_limits
+from ufactory_mujoco.collision import CollisionChecker, arm_joint_limits
 
 ROOT = Path(__file__).resolve().parent.parent
 PLANAR_XML = ROOT / "tests" / "fixtures" / "planar_arm.xml"

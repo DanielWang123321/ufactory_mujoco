@@ -26,13 +26,12 @@ import argparse
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
 
-from src import SimRobot  # noqa: E402
-from src.model_paths import resolve_model_path  # noqa: E402
+from ufactory_mujoco import SimRobot  # noqa: E402
+from ufactory_mujoco.model_paths import resolve_model_path  # noqa: E402
 
 
 def move_arm_to_ready(robot: SimRobot) -> None:

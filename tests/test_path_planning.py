@@ -10,14 +10,14 @@ from pathlib import Path
 
 import numpy as np
 
-from src.collision import CollisionChecker
-from src.path_planning import (
+from ufactory_mujoco.collision import CollisionChecker
+from ufactory_mujoco.path_planning import (
     PlanningError,
     path_length,
     plan_collision_free,
     shortcut_path,
 )
-from src.trajectory import plan_joint_waypoints
+from ufactory_mujoco.trajectory import plan_joint_waypoints
 
 ROOT = Path(__file__).resolve().parent.parent
 PLANAR_XML = ROOT / "tests" / "fixtures" / "planar_arm.xml"

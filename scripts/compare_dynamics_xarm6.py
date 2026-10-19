@@ -32,9 +32,8 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.dynamics import ArmDynamics  # noqa: E402
+from ufactory_mujoco.dynamics import ArmDynamics  # noqa: E402
 
 IP = "192.168.1.60"
 ROOT = Path(__file__).resolve().parent.parent

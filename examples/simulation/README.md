@@ -10,15 +10,15 @@ MuJoCo simulation examples (`01`–`09`) covering interactive model inspection, 
 
 | Script | Core Module(s) | Supported Models | Description |
 | :--- | :--- | :--- | :--- |
-| `01_load_and_view.py` | `src.viewer`, `src.model_paths` | All arms, grippers & combos | Load MJCF scene at `home` or `ready` keyframe in the interactive viewer |
-| `02_joint_control.py` | `src.sim_robot` | All arms & arm+gripper combos | Speed-based quintic joint interpolation (`xarm6` runs 20 dynamics poses by default) |
-| `03_cartesian_ik.py` | `src.sim_robot`, `src.ik` | `xarm6` | Cartesian straight-line (`move_tcp`) and X-Z circle tracking via DLS IK |
-| `04_gripper_control.py` | `src.sim_robot` | Standalone grippers & combos | Position-controlled open/close cycles (`0.0` = open, `1.0` = closed) |
-| `05_pick_place.py` | `src.sim_robot`, `src.ik` | `xarm6_with_gripper` | Cube pick-and-place replicating `ufactory_genesis` (`place_error < 50 mm`, `home_drift < 10 mm`) |
-| `06_trajectory_planning.py` | `src.trajectory`, `src.dynamics` | `xarm6` | Analytical PTP quintic, C2 multi-waypoint spline, Cartesian SLERP line & feedforward torques |
-| `07_kinematics.py` | `src.kinematics` | `xarm6` | Per-site FK, analytical vs finite-difference Jacobian, velocity-level DLS IK, manipulability |
-| `08_dynamics.py` | `src.dynamics` | `xarm6` | Mass matrix $M(q)$, gravity/Coriolis, ID/FD round-trip, payload injection & torque envelope |
-| `09_obstacle_avoidance.py` | `src.collision`, `src.path_planning` | `xarm6` (`scene_obstacles.xml`) | RRT-Connect + shortcutting + spline/quintic time parameterization around pillar & board |
+| `01_load_and_view.py` | `ufactory_mujoco.viewer`, `ufactory_mujoco.model_paths` | All arms, grippers & combos | Load MJCF scene at `home` or `ready` keyframe in the interactive viewer |
+| `02_joint_control.py` | `ufactory_mujoco.sim_robot` | All arms & arm+gripper combos | Speed-based quintic joint interpolation (`xarm6` runs 20 dynamics poses by default) |
+| `03_cartesian_ik.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.ik` | `xarm6` | Cartesian straight-line (`move_tcp`) and X-Z circle tracking via DLS IK |
+| `04_gripper_control.py` | `ufactory_mujoco.sim_robot` | Standalone grippers & combos | Position-controlled open/close cycles (`0.0` = open, `1.0` = closed) |
+| `05_pick_place.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.ik` | `xarm6_with_gripper` | Cube pick-and-place replicating `ufactory_genesis` (`place_error < 50 mm`, `home_drift < 10 mm`) |
+| `06_trajectory_planning.py` | `ufactory_mujoco.trajectory`, `ufactory_mujoco.dynamics` | `xarm6` | Analytical PTP quintic, C2 multi-waypoint spline, Cartesian SLERP line & feedforward torques |
+| `07_kinematics.py` | `ufactory_mujoco.kinematics` | `xarm6` | Per-site FK, analytical vs finite-difference Jacobian, velocity-level DLS IK, manipulability |
+| `08_dynamics.py` | `ufactory_mujoco.dynamics` | `xarm6` | Mass matrix $M(q)$, gravity/Coriolis, ID/FD round-trip, payload injection & torque envelope |
+| `09_obstacle_avoidance.py` | `ufactory_mujoco.collision`, `ufactory_mujoco.path_planning` | `xarm6` (`scene_obstacles.xml`) | RRT-Connect + shortcutting + spline/quintic time parameterization around pillar & board |
 
 ## 2. Running the Examples
 
@@ -81,10 +81,10 @@ python examples/simulation/08_dynamics.py
 python examples/simulation/08_dynamics.py --headless
 ```
 
-#### Programmatic Dynamics API (`src/dynamics.py`)
+#### Programmatic Dynamics API (`ufactory_mujoco/dynamics.py`)
 
 ```python
-from src.dynamics import ArmDynamics
+from ufactory_mujoco.dynamics import ArmDynamics
 
 # Optional payload: (mass_kg, com_xyz_m) expressed in the attachment_site frame
 dyn = ArmDynamics("models/xarm6/xarm6.xml", payload=(3.0, [0, 0, 0.021]))
