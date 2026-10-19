@@ -312,6 +312,54 @@ class SceneReachAssetTests(unittest.TestCase):
             self.assertGreaterEqual(int(model.body("target_mocap").mocapid[0]), 0, robot)
 
 
+class LiteVisualsTests(unittest.TestCase):
+    """The lite-visual reach model drops visual meshes but keeps the physics."""
+
+    def test_lite_model_matches_full_model(self):
+        from src.rl.reach_env import load_reach_model
+        rng = np.random.default_rng(3)
+        for robot in ALL_ROBOTS:
+            path = ROOT / "models" / robot / "scene_reach.xml"
+            full = mujoco.MjModel.from_xml_path(str(path))
+            lite = load_reach_model(path, lite_visuals=True)
+            self.assertLess(lite.nmeshvert, full.nmeshvert // 20, robot)
+            self.assertEqual(lite.nq, full.nq, robot)
+            self.assertEqual(lite.nu, full.nu, robot)
+            df, dl = mujoco.MjData(full), mujoco.MjData(lite)
+            for _ in range(5):
+                q = rng.uniform(full.jnt_range[:, 0], full.jnt_range[:, 1])
+                q = np.clip(q, -3.0, 3.0)
+                df.qpos[:] = q
+                dl.qpos[:] = q
+                df.qvel[:] = 0.3
+                dl.qvel[:] = 0.3
+                mujoco.mj_forward(full, df)
+                mujoco.mj_forward(lite, dl)
+                np.testing.assert_allclose(dl.site("attachment_site").xpos,
+                                           df.site("attachment_site").xpos, atol=1e-12)
+                np.testing.assert_allclose(dl.qfrc_bias, df.qfrc_bias, atol=1e-9)
+
+    def test_env_defaults(self):
+        env = ReachEnv(robot="xarm6", validate_targets=False)
+        self.assertLess(env.model.nmeshvert, 50_000)
+        env.close()
+
+
+class AutoNEnvsTests(unittest.TestCase):
+    def test_auto_n_envs_bounds(self):
+        import importlib.util as iu
+        spec = iu.spec_from_file_location("train_reach_rl_mod", ROOT / "scripts" / "train_reach_rl.py")
+        if not (_HAS_GYM and _HAS_SB3):
+            self.skipTest("train script needs gymnasium + stable-baselines3")
+        mod = iu.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        self.assertEqual(mod.auto_n_envs(cpu_count=8, avail_mb=100_000), 8)
+        self.assertEqual(mod.auto_n_envs(cpu_count=64, avail_mb=100_000), 16)
+        self.assertEqual(mod.auto_n_envs(cpu_count=8, avail_mb=2_200), 2)
+        self.assertEqual(mod.auto_n_envs(cpu_count=8, avail_mb=500), 1)
+        self.assertEqual(mod.auto_n_envs(cpu_count=8, avail_mb=3_250), 5)
+
+
 class RobotProfileCalibrationTests(unittest.TestCase):
     """Anti-rot: frozen ROBOT_PROFILES must stay valid for each scene."""
 

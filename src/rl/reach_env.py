@@ -118,6 +118,36 @@ class _BoxStub:
         return rng.uniform(self.low, self.high).astype(self.dtype)
 
 
+def load_reach_model(model_path: str | Path, lite_visuals: bool = True) -> mujoco.MjModel:
+    """Load a reach scene, optionally dropping the high-poly visual meshes.
+
+    With ``lite_visuals`` the visual-only mesh geoms (contype=conaffinity=0) and
+    their meshes are removed and the collision meshes are shown in their place
+    (group 2). Moving links have explicit inertias in the MJCF, so kinematics
+    and joint-space dynamics are unchanged (only the fixed, jointless base body's
+    geom-derived mass differs, which has no effect on the arm), while memory drops from ~1.3 GB to ~0.1 GB per
+    process -- this is what makes many parallel training envs affordable.
+    """
+    if not lite_visuals:
+        return mujoco.MjModel.from_xml_path(str(model_path))
+    spec = mujoco.MjSpec.from_file(str(model_path))
+    mesh_type = mujoco.mjtGeom.mjGEOM_MESH
+    visual = [g for g in spec.geoms
+              if g.type == mesh_type and g.contype == 0 and g.conaffinity == 0]
+    visual_meshes = {g.meshname for g in visual}
+    for g in visual:
+        spec.delete(g)
+    kept = {g.meshname for g in spec.geoms if g.type == mesh_type}
+    for m in list(spec.meshes):
+        if m.name in visual_meshes and m.name not in kept:
+            spec.delete(m)
+    for g in spec.geoms:
+        if g.type == mesh_type:
+            g.group = 2
+            g.rgba = [0.9, 0.9, 0.9, 1.0]
+    return spec.compile()
+
+
 def _resolve_actuators(model: mujoco.MjModel, n: int) -> np.ndarray:
     """Actuator ids of the arm: names act1..actN when present, else the first
     N actuators in model order (lite6 ships unnamed actuators)."""
@@ -143,7 +173,8 @@ class ReachEnv(_ENV_BASE):
                  target_low: np.ndarray | None = None,
                  target_high: np.ndarray | None = None,
                  q0_noise: float = 0.2,
-                 validate_targets: bool = True):
+                 validate_targets: bool = True,
+                 lite_visuals: bool | None = None):
         if robot not in ROBOT_PROFILES:
             raise ValueError(f"unknown robot {robot!r}; "
                              f"expected one of {sorted(ROBOT_PROFILES)}")
@@ -181,7 +212,9 @@ class ReachEnv(_ENV_BASE):
         model_path = Path(model_path)
         if not model_path.is_file():
             raise FileNotFoundError(f"scene model not found: {model_path}")
-        self.model = mujoco.MjModel.from_xml_path(str(model_path))
+        if lite_visuals is None:  # full meshes only when a human is watching
+            lite_visuals = render_mode is None
+        self.model = load_reach_model(model_path, lite_visuals=lite_visuals)
         self.data = mujoco.MjData(self.model)
         # dedicated instance for reachability IK so reset never perturbs env state
         self._ik_data = mujoco.MjData(self.model)
