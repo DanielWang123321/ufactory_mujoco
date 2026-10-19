@@ -4,6 +4,7 @@
 Usage:
     python examples/simulation/01_load_and_view.py
     python examples/simulation/01_load_and_view.py --pose ready
+    python examples/simulation/01_load_and_view.py --model lite6 --headless
 """
 
 import argparse
@@ -32,6 +33,11 @@ def main() -> None:
         default="home",
         help="initial keyframe (default: home)",
     )
+    parser.add_argument(
+        "--headless",
+        action="store_true",
+        help="load the model and print its summary without opening the viewer",
+    )
     args = parser.parse_args()
 
     model_path = resolve_model_path(args.model)
@@ -49,6 +55,8 @@ def main() -> None:
     site_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, "attachment_site")
     if site_id >= 0:
         print(f"TCP {args.pose}:", data.site(site_id).xpos)
+    if args.headless:
+        return
     print("viewer controls: mouse orbit/pan, Tab panel, Space pause. Close window to exit.")
 
     launch(model, data)

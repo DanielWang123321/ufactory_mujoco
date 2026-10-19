@@ -17,14 +17,27 @@ MuJoCo simulation and reinforcement learning suite for UFACTORY robots — featu
 
 ### 1. Installation
 
+Python **3.13** is recommended (3.12 also works; all core and RL dependencies ship wheels for both).
+
 ```bash
-conda create -n py314 python=3.14 -y
-conda activate py314
+# The repo is large (~600 MB of meshes); a shallow clone is much faster
+git clone --depth 1 https://github.com/DanielWang123321/ufactory_mujoco.git
+cd ufactory_mujoco
+
+python3.13 -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-# Optional: RL training & PPO rollout dependencies (gymnasium + stable-baselines3)
+# Optional: RL training & PPO rollout (install CPU torch first, see requirements-rl.txt)
+pip install torch --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements-rl.txt
 ```
+
+### Headless / remote machines
+
+- `--headless` (examples `01`–`09`, `01_reach.py`) runs physics only and needs no display or GL; do **not** set `MUJOCO_GL` for it.
+- If you set `MUJOCO_GL=egl`, the system must provide `libEGL` (e.g. `apt install libegl1`), otherwise `import mujoco` fails. `MUJOCO_GL=osmesa` needs `libosmesa6`.
+- To open the interactive viewer on a server without a display, use Xvfb: `xvfb-run -a python examples/simulation/01_load_and_view.py`.
 
 ### 2. Documentation & Examples
 
@@ -47,7 +60,7 @@ python examples/simulation/09_obstacle_avoidance.py
 python examples/rl/reach/01_reach.py --model xarm6
 ```
 
-> Pass `--headless` to any motion or RL example (`02`–`09`, `01_reach.py`) for offscreen execution and metric verification.
+> Pass `--headless` to any motion or RL example (`01`–`09`, `01_reach.py`) for offscreen execution and metric verification.
 
 ### 3. Running Tests
 
