@@ -1,0 +1,8 @@
+robot: xarm7
+gripper: gripper_g2
+scene: box_pack
+executor: servo_cartesian
+box_pack:
+  feed_xy: [[0.23, -0.16], [0.32, -0.16], [0.41, -0.16]]
+  drop_xy: [[0.275, 0.20], [0.32, 0.20], [0.365, 0.20]]
+  box_center_xy: [0.32, 0.20]

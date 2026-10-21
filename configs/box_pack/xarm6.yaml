@@ -1,0 +1,4 @@
+robot: xarm6
+gripper: gripper_g2
+scene: box_pack
+executor: servo_cartesian

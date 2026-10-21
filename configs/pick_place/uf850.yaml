@@ -1,0 +1,7 @@
+robot: uf850
+gripper: gripper_g2
+scene: pick_place
+executor: servo_cartesian
+pick_place:
+  cube_xy: [0.35, 0.0]
+  target_xy: [0.35, 0.25]

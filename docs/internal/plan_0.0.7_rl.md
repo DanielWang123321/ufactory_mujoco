@@ -8,8 +8,8 @@
 
 - 一个通用 `ReachEnv`（替代 `XArm6ReachEnv`），`robot` 参数选择机型，覆盖 lite6 / xarm5 / xarm6 / xarm7 / uf850。
 - 每款机型一个 `models/<robot>/scene_reach.xml` 任务场景（xarm6 已有）。
-- `scripts/train_reach_rl.py --model` 与 `examples/rl/01_reach.py --model` 支持全机型训练、评估、演示。
-- 每款机型交付一个训练好的 PPO 检查点（`models/<robot>/rl/`）与量化指标（成功率 / 到位误差）。
+- `scripts/train_reach_rl.py --model` 与 `examples/rl/reach/01_reach.py --model` 支持全机型训练、评估、演示。
+- 每款机型交付一个训练好的 PPO 检查点（`build/rl/<robot>/`）与量化指标（成功率 / 到位误差）。
 
 ## 2. 范围
 
@@ -22,7 +22,7 @@
 - 环境 `src/rl/reach_env.py::XArm6ReachEnv`：21 维观测 = TCP-target 偏差(3) + 关节角(n) + 关节速度(n) + 上一动作(n)，动作 = 关节增量；奖励= 势能塑形 + 成功 +10，15 mm 阈值，200 步上限。**机型耦合点**（本次全部解耦）：
   1. `_DEFAULT_SCENE` 固定 xarm6；2. `ARM_JOINTS/ARM_ACTUATORS` 固定 6 轴名；3. 工作空间盒 `TARGET_LOW/HIGH`、肩部高度 `_SHOULDER`、径向带 `_REACH_MIN/MAX` 为 xArm 6 标定值；4. `_OBS_LOW/HIGH` 尺寸写死 21 维。
 - 场景 `models/xarm6/scene_reach.xml`：arm + `target_mocap` 目标球（无关键帧、无障碍物，模板简单可复制）。
-- 工具链：`scripts/train_reach_rl.py`（PPO 300k、8 并行、`models/xarm6/rl/` 检查点）、`examples/rl/01_reach.py`（随机/策略对比）均硬编码 xArm 6。
+- 工具链：`scripts/train_reach_rl.py`（PPO 300k、8 并行、`build/rl/xarm6/` 检查点）、`examples/rl/reach/01_reach.py`（随机/策略对比）均硬编码 xArm 6。
 - 机型差异标定（已核实）：
   | 机型 | 关节 | 执行器名 | 备注 |
   |---|---|---|---|
@@ -37,7 +37,7 @@
 1. **单一通用环境 + 机型 profile 表**，不为每款机型复制环境类：`ReachEnv(robot="lite6")`，内部从 `ROBOT_PROFILES` 取轴数、工作空间盒、肩部位置、径向带；观测边界按 n 动态构造（dim = 3 + 3n）。跨机型奖励/成功阈值/200 步上限**保持一致**（可比性）。
 2. **执行器按"名字优先、顺序回退"解析**：`act1..actN` 存在则用之（xarm5/6/7/uf850），否则取前 N 个执行器（lite6）；关节名 `joint1..jointN` 全系一致，直接按名解析。这不修改模型资产（不破坏 Menagerie 同步）。
 3. **工作空间 profile 以 FK 采样 + IK 可达率标定**：均匀采样关节限位内构型 2 万点得 TCP 点云，为每机型选目标盒（盒内均匀采样点经环境自带可达性 IK 校验，通过率 ≥ 90%）；冻结为 `ROBOT_PROFILES` 常量表，并以**回归测试**（固定种子、可达率阈值）保证表不腐化。标定还暴露了 xArm 6 现役盒远下角点径向 0.5586 m 超出原 `reach_max=0.55` 的预筛误杀区，已上调至 0.56 使「盒 ⊆ 径向带」对全机型成立。
-4. **检查点按机型落盘** `build/rl/<model>/ppo_reach.zip`（沿用 0.0.5 的 build/rl 布局，按机型分目录；build/ 不入库）；`examples/rl/01_reach.py` 加 `--model` 自动加载对应检查点（缺失时提示训练命令）。不新增 `rl/02_*`（0.0.6 的编号决策仅在有新示例文件时顺延；本版本是"一个示例多机型"）。
+4. **检查点按机型落盘** `build/rl/<model>/ppo_reach.zip`（沿用 0.0.5 的 build/rl 布局，按机型分目录；build/ 不入库）；`examples/rl/reach/01_reach.py` 加 `--model` 自动加载对应检查点（缺失时提示训练命令）。不新增 `rl/02_*`（0.0.6 的编号决策仅在有新示例文件时顺延；本版本是"一个示例多机型"）。
 5. **`XArm6ReachEnv` 保留一行别名**（= `ReachEnv` 默认 xarm6），标注 0.1.0 移除——代码 API 与 CLI 迁移不同，给外部导入留缓冲。
 6. 训练预算每机型 300k 步（PPO、8 并行、种子固定，与 0.0.5 同超参），评估 200 个确定性回合。
 
@@ -69,7 +69,7 @@ XArm6ReachEnv = ReachEnv      # 兼容别名，0.1.0 移除
 
 - **场景资产**（4 新增）：`models/{lite6,xarm5,xarm7,uf850}/scene_reach.xml`，按 xarm6 版模板派生（include 各机型 `<robot>.xml` + `target_mocap` 目标球 15 mm，statistic/相机参数按臂展缩放），与 xarm6 版结构保持一致。
 - **训练脚本**：`scripts/train_reach_rl.py --model {lite6,xarm5,xarm6,xarm7,uf850}`（默认 xarm6）；`make_env()` 工厂闭包解决 `make_vec_env` 的类传参；评估摘要按机型输出。
-- **示例**：`examples/rl/01_reach.py --model ...`，其余逻辑不变。
+- **示例**：`examples/rl/reach/01_reach.py --model ...`，其余逻辑不变。
 
 ## 6. 测试计划
 
@@ -81,19 +81,19 @@ XArm6ReachEnv = ReachEnv      # 兼容别名，0.1.0 移除
 ## 7. 文档与收尾
 
 - README/README_zh：多机型训练/评估命令块 + 训练结果表（5 机型）。
-- `docs/plan_0.0.7_rl.md`：进度行 + 验收结果回填。
+- `docs/internal/plan_0.0.7_rl.md`：进度行 + 验收结果回填。
 - roadmap 0.0.7 勾选；worklog 按里程碑记录。
 
 ## 8. 验收标准
 
 1. `python -m unittest discover -s tests` 在 py313、py314 **双环境全量通过**（skip 规则不变）；`git diff --check` 干净。
-2. 每机型 `examples/rl/01_reach.py --model <m> --headless` 输出 `RL reach SUCCESS`，随机策略对照存在；GUI 模式 5 机型均可演示。
+2. 每机型 `examples/rl/reach/01_reach.py --model <m> --headless` 输出 `RL reaching PASS`，随机策略对照存在；GUI 模式 5 机型均可演示。
 3. 训练指标（200 确定性回合）：**每机型成功率 ≥ 85%**、平均到位误差 < 20 mm（xarm6 基线 96% / 15.2 mm；实测值全部记入验收表）。
 4. profile 测试与场景资产测试全绿；lite6 顺序回退执行器路径有专项测试。
 
 ## 8a. 验收结果（2026-10-14，全部通过）
 
-- **训练指标**：首轮 300k 步四款新机型成功率仅 16.5–41.5%（诊断：教师 73 步即达、失败距离 34–40 mm，属欠训练而非时间预算）；加码至 **1M 步**后全系达标。经 `examples/rl/01_reach.py --headless --episodes 200`（独立种子、确定性策略）验收：
+- **训练指标**：首轮 300k 步四款新机型成功率仅 16.5–41.5%（诊断：教师 73 步即达、失败距离 34–40 mm，属欠训练而非时间预算）；加码至 **1M 步**后全系达标。经 `examples/rl/reach/01_reach.py --headless --episodes 200`（独立种子、确定性策略）验收：
 
 | 机型 | 成功率 | 平均到位误差 | 平均步数 | 训练时长 |
 | :--- | ---: | ---: | ---: | ---: |
@@ -147,7 +147,7 @@ XArm6ReachEnv = ReachEnv      # 兼容别名，0.1.0 移除
 
 - [x] `src/rl/reach_env.py`：`RobotProfile`/`ROBOT_PROFILES`/`ReachEnv`（+ 兼容别名）
 - [x] `models/{lite6,xarm5,xarm7,uf850}/scene_reach.xml`（4 新增，xarm6 模板派生）与 `scripts/measure_reach_workspace.py` 标定脚本
-- [x] `scripts/train_reach_rl.py --model`、`examples/rl/01_reach.py --model`
+- [x] `scripts/train_reach_rl.py --model`、`examples/rl/reach/01_reach.py --model`
 - [x] `build/rl/<model>/` 训练检查点 ×5（xarm6 重训 1M / 4 新训）与指标记录（§8a）
 - [x] 测试：环境契约参数化、profile 防腐化、场景资产、lite6 执行器回退
 - [x] README/README_zh 命令与结果表、roadmap 0.0.7 勾选、worklog

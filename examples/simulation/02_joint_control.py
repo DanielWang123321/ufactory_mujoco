@@ -14,6 +14,7 @@ import argparse
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
@@ -41,12 +42,24 @@ PRESETS: dict[str, tuple[list[float], list[float]]] = {
         [0.0, 0.0, 0.0, 0.0, 0.0],
         [0.3, -0.7, -0.3, 0.2, 0.6],
     ),
+    "xarm5_with_gripper": (
+        [0.0, -0.5, 0.0, 0.0, 0.5],
+        [0.3, -0.7, -0.3, 0.2, 0.6],
+    ),
     "xarm7": (
         [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         [0.3, -0.7, 0.2, 0.5, 0.2, 0.2, -0.3],
     ),
+    "xarm7_with_gripper": (
+        [0.0, -0.5, 0.0, 0.0, 0.5, 0.0, 0.0],
+        [0.3, -0.7, 0.2, 0.5, 0.2, 0.2, -0.3],
+    ),
     "uf850": (
         [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        [0.3, -0.7, -0.3, 0.2, 0.4, -0.3],
+    ),
+    "uf850_with_gripper": (
+        [0.0, -0.5, 0.0, 0.0, 0.5, 0.0],
         [0.3, -0.7, -0.3, 0.2, 0.4, -0.3],
     ),
 }

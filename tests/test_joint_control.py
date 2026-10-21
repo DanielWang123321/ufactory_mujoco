@@ -9,6 +9,7 @@ import mujoco
 import numpy as np
 
 from ufactory_mujoco import SimRobot
+from ufactory_mujoco.model_paths import resolve_model_path
 from ufactory_mujoco.viewer import configure_low_power_rendering
 
 joint_control = importlib.import_module("examples.simulation.02_joint_control")
@@ -110,6 +111,20 @@ class JointControlTests(unittest.TestCase):
         mujoco.mj_step(fast, fast_data, nstep=100)
         np.testing.assert_array_equal(fast_data.qpos, full_data.qpos)
         np.testing.assert_array_equal(fast_data.qvel, full_data.qvel)
+
+    def test_n_arm_follows_the_loaded_model(self):
+        for name, n in (("xarm5", 5), ("xarm6", 6), ("xarm7", 7)):
+            with self.subTest(model=name):
+                with SimRobot(resolve_model_path(name)) as robot:
+                    self.assertEqual(robot.n_arm, n)
+                    self.assertEqual(robot.get_joint_positions().shape, (n,))
+
+    def test_move_joints_rejects_wrong_length(self):
+        with SimRobot() as robot:
+            ctrl = robot.data.ctrl.copy()
+            with self.assertRaises(ValueError):
+                robot.move_joints(np.zeros(robot.n_arm - 1), duration=0.1)
+            np.testing.assert_array_equal(robot.data.ctrl, ctrl)
 
 
 if __name__ == "__main__":

@@ -64,7 +64,7 @@ class CollisionChecker:
     """
 
     def __init__(self, scene: str | Path | mujoco.MjSpec, *, safety_margin: float = 0.0,
-                 query_margin: float = 0.05, ignore_pairs=()):
+                 query_margin: float = 0.05, ignore_pairs=(), ignore_bodies=()):
         if not np.isfinite(safety_margin) or safety_margin < 0:
             raise ValueError("safety_margin must be finite and non-negative")
         if not np.isfinite(query_margin) or query_margin < safety_margin or query_margin <= 0:
@@ -97,6 +97,12 @@ class CollisionChecker:
                 raise ValueError(f"unknown body in ignore_pairs: {pair}")
             self._ignore.add(frozenset((id1, id2)))
 
+        self._ignore_bodies: set[int] = set()
+        for name in ignore_bodies:
+            body_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, name)
+            if body_id >= 0:
+                self._ignore_bodies.add(body_id)
+
     # ------------------------------------------------------------------ queries
     def _contacts(self, q: np.ndarray) -> list[tuple[int, int, float]]:
         """Filtered contacts at state q: (body1, body2, dist) tuples."""
@@ -106,6 +112,8 @@ class CollisionChecker:
             c = self.data.contact[i]
             b1 = int(self.model.geom_bodyid[c.geom[0]])
             b2 = int(self.model.geom_bodyid[c.geom[1]])
+            if b1 in self._ignore_bodies or b2 in self._ignore_bodies:
+                continue
             if frozenset((b1, b2)) in self._ignore:
                 continue
             out.append((b1, b2, float(c.dist)))

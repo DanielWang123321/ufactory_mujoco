@@ -1,0 +1,8 @@
+robot: uf850
+gripper: gripper_g2
+scene: box_pack
+executor: servo_cartesian
+box_pack:
+  feed_xy: [[0.26, -0.18], [0.35, -0.18], [0.44, -0.18]]
+  drop_xy: [[0.305, 0.25], [0.35, 0.25], [0.395, 0.25]]
+  box_center_xy: [0.35, 0.25]

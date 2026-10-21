@@ -42,7 +42,7 @@ pip install -e ".[rl]"
 
 ### Headless / remote machines
 
-- `--headless` (examples `01`–`09`, `01_reach.py`) runs physics only and needs no display or GL; do **not** set `MUJOCO_GL` for it.
+- `--headless` (examples `01`–`10`, `01_reach.py`) runs physics only and needs no display or GL; do **not** set `MUJOCO_GL` for it.
 - If you set `MUJOCO_GL=egl`, the system must provide `libEGL` (e.g. `apt install libegl1`), otherwise `import mujoco` fails. `MUJOCO_GL=osmesa` needs `libosmesa6`.
 - To open the interactive viewer on a server without a display, use Xvfb: `xvfb-run -a python examples/simulation/01_load_and_view.py`.
 
@@ -50,7 +50,7 @@ pip install -e ".[rl]"
 
 | Category | Documentation | Description |
 | :--- | :--- | :--- |
-| **Simulation (`01`–`09`)** | [examples/simulation/README.md](examples/simulation/README.md) ([中文](examples/simulation/README_zh.md)) | Model viewer, joint/Cartesian control, grippers, pick-and-place, trajectory/RRT planning, kinematics & dynamics |
+| **Simulation (`01`–`10`)** | [examples/simulation/README.md](examples/simulation/README.md) ([中文](examples/simulation/README_zh.md)) | Model viewer, joint/Cartesian control, grippers, pick-and-place, box-packing, trajectory/RRT planning, kinematics & dynamics |
 | **RL Reach (`01_reach`)** | [examples/rl/reach/README.md](examples/rl/reach/README.md) ([中文](examples/rl/reach/README_zh.md)) | Multi-robot TCP position reaching environment, PPO policy evaluation & training |
 | **Command Matrix** | [docs/visual_command_guide.md](docs/visual_command_guide.md) | Model-by-model launch commands for all arms, grippers, and combinations |
 
@@ -58,16 +58,17 @@ pip install -e ".[rl]"
 # Interactive model viewer
 python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose ready
 
-# Joint control / Cube pick-and-place / RRT-Connect obstacle avoidance
+# Joint control / Cube pick-and-place / RRT-Connect obstacle avoidance / Box packing
 python examples/simulation/02_joint_control.py --model xarm6
 python examples/simulation/05_pick_place.py
 python examples/simulation/09_obstacle_avoidance.py
+python examples/simulation/10_box_pack.py
 
 # RL TCP reaching (PPO policy rollout; use --random if stable-baselines3 is not installed)
 python examples/rl/reach/01_reach.py --model xarm6
 ```
 
-> Pass `--headless` to any motion or RL example (`01`–`09`, `01_reach.py`) for offscreen execution and metric verification.
+> Pass `--headless` to any motion or RL example (`01`–`10`, `01_reach.py`) for offscreen execution and metric verification.
 
 ### 3. Running Tests
 
@@ -81,11 +82,16 @@ python -m unittest discover -s tests -v
 ## Project Structure
 
 ```text
+configs/                Strict YAML task configurations (default, pick_place, box_pack)
 models/                 Robot and accessory MJCF models & visual/collision meshes
   xarm6/, lite6/, ...   xArm 5/6/7, UF850, Lite6, and grippers (standalone & combined scenes)
 ufactory_mujoco/        Core simulation, control, planning, and RL library
   sim_robot.py          SimRobot: physics stepping, joint/TCP control, viewer sync
   robot_interface.py    Abstract base class aligning sim and real robot interfaces
+  robots.py             Typed registry for the 5 UFACTORY arms, combo paths & reach workspaces
+  config.py             Strict YAML task config loader, validation & content hashing
+  grippers.py           Physical gap <-> actuator mapping and bilateral finger-pad contact
+  preflight.py          Static IK/collision preflight for pick-and-place and box-packing
   ik.py                 Damped least-squares (DLS) Cartesian IK solver
   kinematics.py         FK, TCP Jacobian, velocity-level DLS IK, manipulability metrics
   trajectory.py         JointTrajectory, PTP quintic/LSPB, C2 spline, Cartesian SLERP line
@@ -96,7 +102,7 @@ ufactory_mujoco/        Core simulation, control, planning, and RL library
   model_paths.py        Model name -> MJCF XML path resolution
   viewer.py             GLFW/X11 passive viewer lifecycle wrapper
 examples/
-  simulation/           Simulation examples 01–09 (see examples/simulation/README.md)
+  simulation/           Simulation examples 01–10 (see examples/simulation/README.md)
   rl/reach/             RL TCP reaching example (see examples/rl/reach/README.md)
 scripts/                Asset conversion, workspace calibration, dynamics replay & RL training
 tests/                  Unit and regression test suite

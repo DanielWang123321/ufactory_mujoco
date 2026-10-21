@@ -128,6 +128,8 @@
                       <geom class="visual" mesh="finger1_silver_vis" material="silver"/>
                       <geom class="visual" mesh="finger1_black_vis" material="black"/>
                       <geom class="collision" mesh="finger1_col"/>
+                      <geom class="collision" type="box" size="0.006 0.001 0.005" pos="0 -0.011 0.006"
+                        friction="2 0.01 0.001"/>
                     </body>
 
                     <body name="uflite_finger2" pos="0 0 0.0543">
@@ -137,6 +139,8 @@
                       <geom class="visual" mesh="finger2_silver_vis" material="silver"/>
                       <geom class="visual" mesh="finger2_black_vis" material="black"/>
                       <geom class="collision" mesh="finger2_col"/>
+                      <geom class="collision" type="box" size="0.006 0.001 0.005" pos="0 0.011 0.006"
+                        friction="2 0.01 0.001"/>
                     </body>
 
                     <site name="attachment_site" pos="0 0 0.0836"/>
@@ -161,6 +165,7 @@
     <exclude body1="link6" body2="uflite_gripper_link"/>
     <exclude body1="link5" body2="uflite_gripper_link"/>
     <exclude body1="link4" body2="uflite_gripper_link"/>
+    <exclude body1="uflite_finger1" body2="uflite_finger2"/>
   </contact>
 
   <equality>

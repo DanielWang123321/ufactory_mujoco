@@ -21,6 +21,7 @@ import time
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(_ROOT))
 
 import numpy as np  # noqa: E402
 

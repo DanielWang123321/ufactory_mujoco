@@ -6,15 +6,15 @@
 
 ## 1. 全景速查矩阵
 
-| 产品型号 | 机械臂本体 (静态) | 机械臂本体 (关节运动) | 配件 (静态) | 配件 (可动) | 机械臂 + 配件 (静态) | 机械臂 + 配件 (可动) |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Lite 6** | `01_load_and_view.py --model lite6` | `02_joint_control.py --model lite6` | `01_load_and_view.py --model lite6_gripper` | `04_gripper_control.py --model lite6_gripper` | `01_load_and_view.py --model lite6_with_gripper` | `04_gripper_control.py --model lite6_with_gripper` |
-| **xArm 6** | `01_load_and_view.py --model xarm6` | `02_joint_control.py --model xarm6` | `01_load_and_view.py --model gripper_g2` | `04_gripper_control.py --model gripper_g2` | `01_load_and_view.py --model xarm6_with_gripper` | `04_gripper_control.py --model xarm6_with_gripper` |
-| **xArm 7** | `01_load_and_view.py --model xarm7` | `02_joint_control.py --model xarm7` | *(通用配件)* | *(通用配件)* | — | — |
-| **xArm 5** | `01_load_and_view.py --model xarm5` | `02_joint_control.py --model xarm5` | *(通用配件)* | *(通用配件)* | — | — |
-| **UF 850** | `01_load_and_view.py --model uf850` | `02_joint_control.py --model uf850` | *(通用配件)* | *(通用配件)* | — | — |
+| 产品型号 | 机械臂本体 (静态) | 机械臂本体 (关节运动) | 配件 (静态) | 配件 (可动) | 机械臂 + 配件 (静态) | 机械臂 + 配件 (可动/任务) | 强化学习 (Reach) |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Lite 6** | `01_load_and_view.py --model lite6` | `02_joint_control.py --model lite6` | `01_load_and_view.py --model lite6_gripper` | `04_gripper_control.py --model lite6_gripper` | `01_load_and_view.py --model lite6_with_gripper` | `04_gripper_control.py --model lite6_with_gripper`<br>`05_pick_place.py --robot lite6`<br>`10_box_pack.py --robot lite6` | `examples/rl/reach/01_reach.py --model lite6` |
+| **xArm 6** | `01_load_and_view.py --model xarm6` | `02_joint_control.py --model xarm6` | `01_load_and_view.py --model gripper_g2` | `04_gripper_control.py --model gripper_g2` | `01_load_and_view.py --model xarm6_with_gripper` | `04_gripper_control.py --model xarm6_with_gripper`<br>`05_pick_place.py --robot xarm6`<br>`10_box_pack.py --robot xarm6` | `examples/rl/reach/01_reach.py --model xarm6` |
+| **xArm 7** | `01_load_and_view.py --model xarm7` | `02_joint_control.py --model xarm7` | *(通用 Gripper G2 / Bio G2)* | *(通用 Gripper G2 / Bio G2)* | `01_load_and_view.py --model xarm7_with_gripper` | `04_gripper_control.py --model xarm7_with_gripper`<br>`05_pick_place.py --robot xarm7`<br>`10_box_pack.py --robot xarm7` | `examples/rl/reach/01_reach.py --model xarm7` |
+| **xArm 5** | `01_load_and_view.py --model xarm5` | `02_joint_control.py --model xarm5` | *(通用 Gripper G2 / Bio G2)* | *(通用 Gripper G2 / Bio G2)* | `01_load_and_view.py --model xarm5_with_gripper` | `04_gripper_control.py --model xarm5_with_gripper`<br>`05_pick_place.py --robot xarm5`<br>`10_box_pack.py --robot xarm5` | `examples/rl/reach/01_reach.py --model xarm5` |
+| **UF 850** | `01_load_and_view.py --model uf850` | `02_joint_control.py --model uf850` | *(通用 Gripper G2 / Bio G2)* | *(通用 Gripper G2 / Bio G2)* | `01_load_and_view.py --model uf850_with_gripper` | `04_gripper_control.py --model uf850_with_gripper`<br>`05_pick_place.py --robot uf850`<br>`10_box_pack.py --robot uf850` | `examples/rl/reach/01_reach.py --model uf850` |
 
-> **提示**：所有命令默认打开 MuJoCo 交互视窗；添加 `--headless` 参数可用于无头服务器执行与自动化测试。
+> **提示**：所有命令默认打开 MuJoCo 交互视窗；添加 `--headless` 参数可用于无头服务器执行与自动化测试，`05_pick_place.py` 与 `10_box_pack.py` 支持 `--dry-run` 仅运行轨迹预检。
 
 ---
 
@@ -65,6 +65,11 @@
 - **Lite 6 + 夹爪 (关节轨迹运动)**：
   ```bash
   python examples/simulation/02_joint_control.py --model lite6_with_gripper
+  ```
+- **Lite 6 + 夹爪 (方块抓放与装箱展示)**：
+  ```bash
+  python examples/simulation/05_pick_place.py --robot lite6
+  python examples/simulation/10_box_pack.py --robot lite6 --cycles 3
   ```
 - **Lite 6 + 真空吸盘 (静态)**：
   ```bash
@@ -140,9 +145,10 @@
   ```bash
   python examples/simulation/04_gripper_control.py --model xarm6_with_gripper
   ```
-- **xArm 6 + Gripper G2 (方块抓放任务)**：
+- **xArm 6 + Gripper G2 (方块抓放与装箱展示)**：
   ```bash
-  python examples/simulation/05_pick_place.py
+  python examples/simulation/05_pick_place.py --robot xarm6
+  python examples/simulation/10_box_pack.py --robot xarm6 --cycles 3
   ```
 - **xArm 6 + Gripper G2 (关节轨迹运动)**：
   ```bash
@@ -168,10 +174,18 @@
 - **静态查看**：
   ```bash
   python examples/simulation/01_load_and_view.py --model xarm7 --pose ready
+  python examples/simulation/01_load_and_view.py --model xarm7_with_gripper --pose ready
   ```
 - **关节运动仿真**（7 自由度联动）：
   ```bash
   python examples/simulation/02_joint_control.py --model xarm7
+  python examples/simulation/02_joint_control.py --model xarm7_with_gripper
+  ```
+- **夹爪开闭、方块抓放与装箱展示**：
+  ```bash
+  python examples/simulation/04_gripper_control.py --model xarm7_with_gripper
+  python examples/simulation/05_pick_place.py --robot xarm7
+  python examples/simulation/10_box_pack.py --robot xarm7 --cycles 3
   ```
 
 ---
@@ -181,10 +195,18 @@
 - **静态查看**：
   ```bash
   python examples/simulation/01_load_and_view.py --model xarm5 --pose ready
+  python examples/simulation/01_load_and_view.py --model xarm5_with_gripper --pose ready
   ```
 - **关节运动仿真**（5 自由度联动）：
   ```bash
   python examples/simulation/02_joint_control.py --model xarm5
+  python examples/simulation/02_joint_control.py --model xarm5_with_gripper
+  ```
+- **夹爪开闭、方块抓放与装箱展示**：
+  ```bash
+  python examples/simulation/04_gripper_control.py --model xarm5_with_gripper
+  python examples/simulation/05_pick_place.py --robot xarm5
+  python examples/simulation/10_box_pack.py --robot xarm5 --cycles 3
   ```
 
 ---
@@ -194,10 +216,18 @@
 - **静态查看**：
   ```bash
   python examples/simulation/01_load_and_view.py --model uf850 --pose ready
+  python examples/simulation/01_load_and_view.py --model uf850_with_gripper --pose ready
   ```
 - **关节运动仿真**（6 自由度联动）：
   ```bash
   python examples/simulation/02_joint_control.py --model uf850
+  python examples/simulation/02_joint_control.py --model uf850_with_gripper
+  ```
+- **夹爪开闭、方块抓放与装箱展示**：
+  ```bash
+  python examples/simulation/04_gripper_control.py --model uf850_with_gripper
+  python examples/simulation/05_pick_place.py --robot uf850
+  python examples/simulation/10_box_pack.py --robot uf850 --cycles 3
   ```
 
 ---
@@ -206,13 +236,16 @@
 
 | 参数 | 适用脚本 | 说明 | 示例 |
 | :--- | :--- | :--- | :--- |
-| `--model <name>` | 所有示例 | 指定模型名称或自定义 xml 路径 | `--model xarm6_with_gripper` |
+| `--model <name>` | `01`, `02`, `04`, `01_reach` | 指定模型名称或自定义 xml 路径 | `--model xarm6_with_gripper` |
+| `--robot <arm>` | `05_pick_place.py`, `10_box_pack.py` | 机械臂键名（自动关联对应任务 YAML） | `--robot lite6` |
+| `--executor <mode>` | `05_pick_place.py`, `10_box_pack.py` | 轨迹执行器：`servo_cartesian` 或 `servo_j` | `--executor servo_j` |
+| `--dry-run` | `05_pick_place.py`, `10_box_pack.py` | 仅做限位与碰撞预检并输出阶段状态，不步进物理 | `--dry-run` |
 | `--pose <home\|ready>` | `01_load_and_view.py` | 指定初始加载关键帧姿态 | `--pose ready` |
-| `--headless` | `02`–`06`, `09` | 无头模式（不启动视窗，纯终端输出精度指标） | `--headless` |
-| `--seed <N>` | `09_obstacle_avoidance.py` | RRT/shortcut 随机种子（结果可复现） | `--seed 3` |
+| `--headless` | `02`–`10`, `01_reach` | 无头模式（不启动视窗，纯终端输出精度指标） | `--headless` |
+| `--seed <N>` | `09_obstacle_avoidance.py`, `01_reach` | 随机种子（规划/评估结果可复现） | `--seed 3` |
 | `--safety-margin <m>` | `09_obstacle_avoidance.py` | 规划安全间隙（米，默认 0.002） | `--safety-margin 0.01` |
-| `--cycles <N>` | `04_gripper_control.py` | 夹爪开闭测试循环次数（默认 3） | `--cycles 5` |
-| `--cycles <N>` | `05_pick_place.py` | 抓放循环次数（默认 1，第二次起从当前方块位置抓取） | `--cycles 2` |
+| `--cycles <N>` | `04`, `05`, `10` | 循环执行次数（`04` 默认 3；`05`/`10` 默认 1） | `--cycles 3` |
+| `--speed <x>` | `10_box_pack.py` | 运动速度倍率（`>1` 加快；自由落体不缩放） | `--speed 2.0` |
 
 ---
 
@@ -228,4 +261,20 @@
 - **Backspace**：重置仿真状态到初始姿态
 - **Ctrl + A**：显示 / 隐藏物理接触点与法向量
 - **Ctrl + C**：显示 / 隐藏碰撞几何体
+
+---
+
+## 5. 批次 5 修复前问题复现（dev 工具）
+
+```bash
+# xArm5 长距离 deploy：修复前 move_tcp 路径 IK 不收敛（报错后视窗停留，关闭退出）
+python dev/visual/box_pack/xarm5_deploy_prefix.py
+# 对比：修复后 move_joints 到预解算构型，deploy 成功
+python dev/visual/box_pack/xarm5_deploy_prefix.py --fixed
+
+# Lite 6 掉块：修复前几何（宽供料台 + 浅抓取 + 远盒），运送中方块滑脱落在盒外
+python dev/visual/box_pack/lite6_drop_prefix.py
+# Lite 6 掉块：当前几何 + servo_j 关节空间运送（等价 --executor servo_j）
+python dev/visual/box_pack/lite6_drop_prefix.py --servo-j
+```
 

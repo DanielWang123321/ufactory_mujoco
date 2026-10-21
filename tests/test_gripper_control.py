@@ -13,6 +13,42 @@ gripper_demo = importlib.import_module("examples.simulation.04_gripper_control")
 
 
 class GripperControlTest(unittest.TestCase):
+    def test_bare_arm_has_no_gripper_kind(self):
+        robot = SimRobot(MODELS_ROOT / "xarm6" / "scene.xml")
+        self.assertEqual(robot.gripper_kind, "none")
+        with self.assertRaises(NotImplementedError):
+            robot.set_gripper_gap(0.02)
+
+    def test_commanded_gap_matches_normalized_position(self):
+        scenes = {
+            "xarm6_with_gripper": (0.084, 0.022),
+            "xarm6_with_bio_gripper": (0.079, 0.040),
+            "lite6_with_gripper": (0.0178, 0.008),
+        }
+        for name, (open_gap, mid_gap) in scenes.items():
+            with self.subTest(model=name):
+                robot = SimRobot(MODELS_ROOT / name / "scene.xml")
+                self.assertEqual(robot.gripper_kind, "jaw")
+                robot.set_gripper_gap(open_gap)
+                self.assertAlmostEqual(robot.get_gripper_gap(), open_gap, places=6)
+                self.assertAlmostEqual(robot.get_gripper_position(), 0.0, places=6)
+                robot.set_gripper_gap(mid_gap)
+                pos = robot.get_gripper_position()
+                self.assertAlmostEqual(robot.get_gripper_gap(), mid_gap, places=6)
+                self.assertAlmostEqual(pos, (open_gap - mid_gap) / open_gap, places=6)
+                with self.assertRaises(ValueError):
+                    robot.set_gripper_gap(open_gap + 0.001)
+                with self.assertRaises(ValueError):
+                    robot.set_gripper_gap(-0.001)
+
+    def test_vacuum_has_no_gap(self):
+        robot = SimRobot(MODELS_ROOT / "lite6_with_vacuum_gripper" / "scene.xml")
+        self.assertEqual(robot.gripper_kind, "vacuum")
+        self.assertFalse(robot.has_gripper)
+        with self.assertRaises(NotImplementedError):
+            robot.set_gripper_gap(0.01)
+        self.assertFalse(robot.cup_contact("link6"))
+
     def test_robot_without_gripper(self):
         """Standard xarm6 has no gripper; gripper methods raise NotImplementedError."""
         scene = MODELS_ROOT / "xarm6" / "scene.xml"

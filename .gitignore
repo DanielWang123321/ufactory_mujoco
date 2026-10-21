@@ -21,6 +21,7 @@ venv/
 AGENTS.md
 worklog.md
 roadmap.md
+todolist.md
 
 # MuJoCo intermediate / log files
 mjmodel.xml
@@ -29,4 +30,7 @@ MUJOCO_LOG.TXT
 # OS
 .DS_Store
 Thumbs.db
+
+# Local diagnostics
+dev/
 

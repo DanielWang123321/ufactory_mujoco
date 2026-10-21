@@ -9,6 +9,15 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
+from .grippers import (
+    GripperSpec,
+    bodies_in_contact,
+    bilateral_finger_contact,
+    gap_to_position,
+    identify_gripper,
+    position_to_gap,
+    require_bilateral_contact,
+)
 from .ik import solve_ik, solve_ik_trajectory
 from .kinematics import manipulability, pose_jacobian, solve_joint_velocity
 from .robot_interface import RobotInterface
@@ -88,6 +97,8 @@ class SimRobot(RobotInterface):
                 self._gripper_open_ctrl = 0.0
                 self._gripper_close_ctrl = float(hi if abs(hi) > abs(lo) else lo)
 
+        self._gripper_spec: GripperSpec | None = identify_gripper(self.model)
+
         # --- Initialise state ---
         self._viewer = None
         mujoco.mj_resetDataKeyframe(self.model, self.data, 0)  # home
@@ -109,6 +120,19 @@ class SimRobot(RobotInterface):
         self._last_viewer_sync = time.monotonic()
 
     # -- arm state ---------------------------------------------------------
+    @property
+    def n_arm(self) -> int:
+        return self._n_arm_qpos
+
+    def _tcp_site_name(self) -> str:
+        return self.model.site(self._site).name
+
+    def _require_arm_q(self, q: np.ndarray, name: str) -> np.ndarray:
+        q = np.asarray(q, dtype=float)
+        if q.shape != (self.n_arm,):
+            raise ValueError(f"{name} must have shape ({self.n_arm},), got {q.shape}")
+        return q
+
     def get_joint_positions(self) -> np.ndarray:
         """Arm joint positions only (excludes gripper joints)."""
         return self.data.qpos[:self._n_arm_qpos].copy()
@@ -155,23 +179,37 @@ class SimRobot(RobotInterface):
         """Step physics for a while (let the arm reach current ctrl)."""
         self._step_until(lambda: False, duration)
 
+    def settle_until(self, condition, timeout: float) -> bool:
+        """Step physics until ``condition()`` holds; return False on timeout."""
+        t0 = self.data.time
+        while self.data.time - t0 < timeout:
+            if self._viewer is not None and not self._viewer.is_running():
+                return False
+            self._step()
+            if condition():
+                self._sync(force=True)
+                return True
+        self._sync(force=True)
+        return False
+
     # -- arm commands ------------------------------------------------------
     def set_joint_positions(self, q: np.ndarray) -> None:
         """Set arm joint targets only (does not affect gripper)."""
-        self.data.ctrl[:self._n_arm_actuators] = q
+        q = self._require_arm_q(q, "q")
+        self.data.ctrl[:self.n_arm] = q
 
     def move_joints(self, q_goal: np.ndarray, duration: float, wait: bool = True) -> None:
         if not np.isfinite(duration) or duration <= 0:
             raise ValueError("duration must be finite and positive")
+        q_goal = self._require_arm_q(q_goal, "q_goal")
         # Continue the previous position command. Restarting from measured
         # qpos would introduce a target jump whenever the servo still lags.
-        q0 = self.data.ctrl[:self._n_arm_actuators].copy()
-        q_goal = np.asarray(q_goal, dtype=float)
+        q0 = self.data.ctrl[:self.n_arm].copy()
         n_steps = int(np.ceil(duration / self.model.opt.timestep))
         times = np.minimum(np.arange(1, n_steps + 1) * self.model.opt.timestep, duration)
         traj = _quintic(times, q0, q_goal, duration)
         for q in traj:
-            self.data.ctrl[:self._n_arm_actuators] = q
+            self.data.ctrl[:self.n_arm] = q
             self._step()
             if self._viewer is not None and not self._viewer.is_running():
                 return
@@ -201,14 +239,14 @@ class SimRobot(RobotInterface):
         # touches it), then track the joint path with quintic segments.
         # Use full qpos as q_start so IK preserves gripper state.
         q_start = self.data.qpos.copy()
-        q_traj, ok = solve_ik_trajectory(self.model, self.eval_data, "attachment_site",
+        q_traj, ok = solve_ik_trajectory(self.model, self.eval_data, self._tcp_site_name(),
                                          waypoints, quat_traj, q_start)
         if not ok:
             raise RuntimeError(f"IK did not converge for target pos={pos} quat={quat}")
         seg = max(duration / steps, 4 * self.model.opt.timestep)
         for q in q_traj:
             # IK returns full qpos; extract arm portion for move_joints
-            self.move_joints(q[:self._n_arm_qpos], seg, wait=False)
+            self.move_joints(q[:self.n_arm], seg, wait=False)
         if wait:
             self.settle(0.3)
 
@@ -217,6 +255,10 @@ class SimRobot(RobotInterface):
 
         Interpolates control targets at simulation timestep resolution model.opt.timestep.
         """
+        if traj.n_joints != self.n_arm:
+            raise ValueError(
+                f"trajectory n_joints must be {self.n_arm}, got {traj.n_joints}"
+            )
         if traj.n_steps == 0:
             return
 
@@ -227,14 +269,14 @@ class SimRobot(RobotInterface):
 
         while cur_t <= t_end + 0.5 * dt_sim:
             q_target, _, _ = traj.sample(cur_t)
-            self.data.ctrl[:self._n_arm_actuators] = q_target[:self._n_arm_actuators]
+            self.data.ctrl[:self.n_arm] = q_target
             self._step()
             if self._viewer is not None and not self._viewer.is_running():
                 return
             cur_t += dt_sim
 
         # Ensure exact final configuration
-        self.data.ctrl[:self._n_arm_actuators] = traj.q[-1, :self._n_arm_actuators]
+        self.data.ctrl[:self.n_arm] = traj.q[-1]
         if wait:
             self.settle(0.3)
 
@@ -261,7 +303,7 @@ class SimRobot(RobotInterface):
                       pos_tol: float = 5e-5) -> tuple[np.ndarray, bool]:
         """IK along Cartesian waypoints using the isolated eval_data."""
         # Use full qpos so IK operates on the complete kinematic chain
-        return solve_ik_trajectory(self.model, self.eval_data, "attachment_site",
+        return solve_ik_trajectory(self.model, self.eval_data, self._tcp_site_name(),
                                    np.asarray(waypoints_pos, dtype=float), quat,
                                    self.data.qpos.copy(), pos_tol=pos_tol)
 
@@ -307,6 +349,12 @@ class SimRobot(RobotInterface):
     def has_gripper(self) -> bool:
         return self._gripper_actuator_id is not None
 
+    @property
+    def gripper_kind(self) -> str:
+        if self._gripper_spec is None:
+            return "none"
+        return self._gripper_spec.kind
+
     def get_gripper_position(self) -> float:
         """Current gripper target (0.0 = fully open, 1.0 = fully closed)."""
         if not self.has_gripper:
@@ -325,6 +373,38 @@ class SimRobot(RobotInterface):
         target_ctrl = self._gripper_open_ctrl + pos * (self._gripper_close_ctrl - self._gripper_open_ctrl)
         self.data.ctrl[self._gripper_actuator_id] = target_ctrl
 
+    def get_gripper_gap(self) -> float:
+        spec = self._require_jaw()
+        return position_to_gap(spec, self.get_gripper_position())
+
+    def set_gripper_gap(self, gap_m: float) -> None:
+        if self.gripper_kind == "vacuum":
+            raise NotImplementedError("真空吸盘没有开合间隙")
+        spec = self._require_jaw()
+        self.set_gripper(gap_to_position(spec, gap_m))
+
+    def bilateral_finger_contact(self, object_body: str) -> bool:
+        spec = self._require_jaw()
+        return bilateral_finger_contact(self.model, self.data, spec, object_body)
+
+    def require_bilateral_contact(self, object_body: str) -> None:
+        spec = self._require_jaw()
+        require_bilateral_contact(self.model, self.data, spec, object_body)
+
+    def cup_contact(self, object_body: str) -> bool:
+        if self.gripper_kind != "vacuum" or self._gripper_spec is None:
+            raise NotImplementedError("This robot has no vacuum cup")
+        return bodies_in_contact(
+            self.model, self.data, self._gripper_spec.cup_body, object_body,
+        )
+
+    def _require_jaw(self) -> GripperSpec:
+        if self.gripper_kind == "vacuum":
+            raise NotImplementedError("真空吸盘没有开合间隙")
+        if self._gripper_spec is None or self._gripper_spec.kind != "jaw":
+            raise NotImplementedError("This robot has no jaw gripper")
+        return self._gripper_spec
+
     def open_gripper(self, wait: bool = True) -> None:
         """Fully open the gripper."""
         self.set_gripper(0.0)
@@ -340,7 +420,7 @@ class SimRobot(RobotInterface):
     # -- misc --------------------------------------------------------------
     def solve_tcp(self, pos, quat=None, q_init=None):
         """One-shot IK helper: q reaching (pos, quat) from current state."""
-        return solve_ik(self.model, self.eval_data, "attachment_site",
+        return solve_ik(self.model, self.eval_data, self._tcp_site_name(),
                         np.asarray(pos, dtype=float),
                         None if quat is None else np.asarray(quat, dtype=float),
                         q_init=q_init)

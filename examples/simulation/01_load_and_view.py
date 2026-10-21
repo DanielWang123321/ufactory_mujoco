@@ -11,6 +11,7 @@ import argparse
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from ufactory_mujoco.model_paths import resolve_model_path  # noqa: E402
 from ufactory_mujoco.viewer import launch  # noqa: E402

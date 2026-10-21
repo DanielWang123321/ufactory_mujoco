@@ -1,0 +1,13 @@
+robot: lite6
+gripper: lite6_gripper
+scene: pick_place
+executor: servo_cartesian
+pick_place:
+  cube_xy: [0.18, 0.0]
+  target_xy: [0.18, 0.05]
+  cube_half_m: 0.008
+  cube_mass_kg: 0.002
+  grasp_gap_m: 0.0
+  approach_m: 0.06
+  lift_z_m: 0.20
+  flange_grasp_z_m: 0.105

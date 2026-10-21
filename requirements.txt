@@ -4,5 +4,6 @@
 mujoco>=3.15,<4
 numpy>=2.0,<3
 scipy>=1.14,<2
+pyyaml>=6.0,<7
 # Optional, only for scripts/build_model.py (xacro -> URDF regeneration):
 #   pip install xacro

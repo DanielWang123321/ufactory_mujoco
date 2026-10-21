@@ -34,6 +34,7 @@ jobs:
           for s in 02_joint_control 03_cartesian_ik 05_pick_place 06_trajectory_planning 07_kinematics 08_dynamics 09_obstacle_avoidance; do
             echo "::group::$s"; python examples/simulation/$s.py --headless; echo "::endgroup::"
           done
+          echo "::group::10_box_pack"; python examples/simulation/10_box_pack.py --headless --cycles 1; echo "::endgroup::"
           for m in xarm5 xarm7 uf850 lite6 xarm6_with_gripper xarm6_with_bio_gripper lite6_with_gripper; do
             python examples/simulation/02_joint_control.py --headless --model $m
           done

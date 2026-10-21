@@ -2,7 +2,7 @@
 
 [English](README.md) | [中文](README_zh.md)
 
-MuJoCo simulation examples (`01`–`09`) covering interactive model inspection, joint/Cartesian motion control, gripper actuation, pick-and-place manipulation, time-parameterized trajectory planning, RRT-Connect obstacle avoidance, and kinematics/dynamics toolkits.
+MuJoCo simulation examples (`01`–`10`) covering interactive model inspection, joint/Cartesian motion control, gripper actuation, pick-and-place manipulation, time-parameterized trajectory planning, RRT-Connect obstacle avoidance, box-packing showcase, and kinematics/dynamics toolkits.
 
 > 📖 For a model-by-model command matrix (Lite 6, xArm 5/6/7, UF850; standalone and combined with grippers), see **[docs/visual_command_guide.md](../../docs/visual_command_guide.md)**.
 
@@ -14,15 +14,16 @@ MuJoCo simulation examples (`01`–`09`) covering interactive model inspection, 
 | `02_joint_control.py` | `ufactory_mujoco.sim_robot` | All arms & arm+gripper combos | Speed-based quintic joint interpolation (`xarm6` runs 20 dynamics poses by default) |
 | `03_cartesian_ik.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.ik` | `xarm6` | Cartesian straight-line (`move_tcp`) and X-Z circle tracking via DLS IK |
 | `04_gripper_control.py` | `ufactory_mujoco.sim_robot` | Standalone grippers & combos | Position-controlled open/close cycles (`0.0` = open, `1.0` = closed) |
-| `05_pick_place.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.ik` | `xarm6_with_gripper` | Cube pick-and-place replicating `ufactory_genesis` (`place_error < 50 mm`, `home_drift < 10 mm`) |
+| `05_pick_place.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.preflight` | All five arm+gripper combos | Cube pick-and-place with bilateral contact check & preflight (`place_error < 50 mm`, `home_drift < 10 mm`) |
 | `06_trajectory_planning.py` | `ufactory_mujoco.trajectory`, `ufactory_mujoco.dynamics` | `xarm6` | Analytical PTP quintic, C2 multi-waypoint spline, Cartesian SLERP line & feedforward torques |
 | `07_kinematics.py` | `ufactory_mujoco.kinematics` | `xarm6` | Per-site FK, analytical vs finite-difference Jacobian, velocity-level DLS IK, manipulability |
 | `08_dynamics.py` | `ufactory_mujoco.dynamics` | `xarm6` | Mass matrix $M(q)$, gravity/Coriolis, ID/FD round-trip, payload injection & torque envelope |
 | `09_obstacle_avoidance.py` | `ufactory_mujoco.collision`, `ufactory_mujoco.path_planning` | `xarm6` (`scene_obstacles.xml`) | RRT-Connect + shortcutting + spline/quintic time parameterization around pillar & board |
+| `10_box_pack.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.preflight` | All five arm+gripper combos | Box-packing showcase: cubes released 50 mm above the rim free-fall into the box; final collision bounds must stay inside (1 mm tolerance); multi-cycle & speed multiplier |
 
 ## 2. Running the Examples
 
-All scripts need only the core dependencies (`requirements.txt`). Pass `--headless` to `01`–`09` to run offscreen and print quantitative verification metrics.
+All scripts run in the default `py314` environment (`mujoco` + `numpy`). Pass `--headless` to `02`–`10` to run offscreen and print quantitative verification metrics.
 
 ### 2.1 Model Viewing & Basic Control (`01`–`04`)
 
@@ -52,12 +53,13 @@ python examples/simulation/04_gripper_control.py --model bio_gripper_g2 --cycles
 > - Shadows and reflections are disabled by default (`--render-quality fast`) to reduce GPU cost on high-poly meshes; pass `--render-quality full` to restore them.
 > - `--sync-hz 30` sets the viewer state-sync rate while physics steps remain at `2 ms`.
 
-### 2.2 Manipulation & Motion Planning (`05`, `06`, `09`)
+### 2.2 Manipulation & Motion Planning (`05`, `06`, `09`, `10`)
 
 ```bash
-# 05: Cube pick-and-place (xArm 6 + Gripper G2)
-python examples/simulation/05_pick_place.py
+# 05: Cube pick-and-place (all five arms; servo_cartesian / servo_j; preflight --dry-run)
 python examples/simulation/05_pick_place.py --headless
+python examples/simulation/05_pick_place.py --robot lite6 --executor servo_j --headless
+python examples/simulation/05_pick_place.py --robot xarm7 --dry-run
 
 # 06: Time-parameterized trajectory planning (PTP quintic, C2 spline, Cartesian line)
 python examples/simulation/06_trajectory_planning.py
@@ -67,6 +69,11 @@ python examples/simulation/06_trajectory_planning.py --headless --speed 120
 python examples/simulation/09_obstacle_avoidance.py
 python examples/simulation/09_obstacle_avoidance.py --headless
 python examples/simulation/09_obstacle_avoidance.py --seed 3 --safety-margin 0.01
+
+# 10: Box-packing showcase (five arms; free-fall release above the rim)
+python examples/simulation/10_box_pack.py --headless
+python examples/simulation/10_box_pack.py --robot lite6 --cycles 3 --speed 2.0 --headless
+python examples/simulation/10_box_pack.py --robot xarm7 --dry-run
 ```
 
 ### 2.3 Kinematics & Rigid-Body Dynamics Toolkits (`07`, `08`)
@@ -108,15 +115,22 @@ python scripts/compare_torque_xarm6.py --no-move                              # 
 
 | Option | Applicable Scripts | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `--model <name>` | `01`, `02`, `04`, `05` | `xarm6` (`05`: `xarm6_with_gripper`) | Model name or path to MJCF XML |
+| `--model <name>` | `01`, `02`, `04` | `xarm6` (`04`: `xarm6_with_gripper`) | Model name or path to MJCF XML |
+| `--robot <arm>` | `05`, `10` | `xarm6` | Arm key (`lite6`, `xarm5`, `xarm6`, `xarm7`, `uf850`); selects task YAML |
+| `--gripper <name>` | `05`, `10` | `None` (from YAML) | Override the mounted gripper in task config |
+| `--executor <mode>` | `05`, `10` | `servo_cartesian` | Execution mode: `servo_cartesian` or `servo_j` |
+| `--config <path>` | `05`, `10` | `configs/<task>/<robot>.yaml` | Custom task overlay YAML path |
+| `--dry-run` | `05`, `10` | `False` | Run joint-limit/collision preflight only without stepping physics |
+| `--report <path>` | `05`, `10` | `None` | Write preflight and cycle execution report as JSON |
 | `--pose <home\|ready>` | `01` | `home` | Initial keyframe pose |
-| `--headless` | `01`–`09` | `False` | Run offscreen and print verification metrics |
+| `--headless` | `01`–`10` | `False` | Run offscreen and print verification metrics |
 | `--speed <deg/s>` | `02`, `06` | `90.0` | Peak joint speed in degrees/s |
 | `--motion <mode>` | `02` | `auto` | Motion preset: `auto`, `dynamics` (20 poses), or `demo` |
 | `--duration <s>` | `02` | `None` | Fixed segment duration (overrides `--speed`) |
 | `--sync-hz <Hz>` | `02` | `30.0` | Viewer state-sync rate |
 | `--render-quality` | `02` | `fast` | `fast` (no shadows/reflections) or `full` |
-| `--cycles <N>` | `04`, `05` | `3` (`04`) / `1` (`05`) | Number of execution cycles |
+| `--cycles <N>` | `04`, `05`, `10` | `3` (`04`) / `1` (`05`, `10`) | Number of execution cycles (`10`: one feed cube per cycle, at most 3) |
+| `--speed <x>` | `10` | `1.0` | Motion speed multiplier (`>1` is faster; free fall is not scaled) |
 | `--seed <N>` | `09` | `0` | RNG seed for RRT-Connect and path shortcutting |
 | `--safety-margin <m>` | `09` | `0.002` | Minimum allowed obstacle clearance in meters |
 | `--step <rad>` | `09` | `0.15` | RRT-Connect joint-space steer step size (rad) |

@@ -1634,6 +1634,8 @@ def build_lite6_with_gripper() -> None:
                       <geom class="visual" mesh="finger1_silver_vis" material="silver"/>
                       <geom class="visual" mesh="finger1_black_vis" material="black"/>
                       <geom class="collision" mesh="finger1_col"/>
+                      <geom class="collision" type="box" size="0.006 0.001 0.005" pos="0 -0.011 0.006"
+                        friction="2 0.01 0.001"/>
                     </body>
 
                     <body name="uflite_finger2" pos="0 0 0.0543">
@@ -1643,6 +1645,8 @@ def build_lite6_with_gripper() -> None:
                       <geom class="visual" mesh="finger2_silver_vis" material="silver"/>
                       <geom class="visual" mesh="finger2_black_vis" material="black"/>
                       <geom class="collision" mesh="finger2_col"/>
+                      <geom class="collision" type="box" size="0.006 0.001 0.005" pos="0 0.011 0.006"
+                        friction="2 0.01 0.001"/>
                     </body>
 
                     <site name="attachment_site" pos="0 0 0.0836"/>
@@ -1667,6 +1671,7 @@ def build_lite6_with_gripper() -> None:
     <exclude body1="link6" body2="uflite_gripper_link"/>
     <exclude body1="link5" body2="uflite_gripper_link"/>
     <exclude body1="link4" body2="uflite_gripper_link"/>
+    <exclude body1="uflite_finger1" body2="uflite_finger2"/>
   </contact>
 
   <equality>
@@ -1892,6 +1897,9 @@ def verify_models() -> None:
         MODELS_DIR / "lite6_gripper/scene.xml",
         MODELS_DIR / "lite6_vacuum_gripper/scene.xml",
         MODELS_DIR / "xarm6_with_gripper/scene.xml",
+        MODELS_DIR / "xarm5_with_gripper/scene.xml",
+        MODELS_DIR / "xarm7_with_gripper/scene.xml",
+        MODELS_DIR / "uf850_with_gripper/scene.xml",
         MODELS_DIR / "xarm6_with_bio_gripper/scene.xml",
         MODELS_DIR / "lite6_with_gripper/scene.xml",
         MODELS_DIR / "lite6_with_vacuum_gripper/scene.xml",

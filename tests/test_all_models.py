@@ -18,6 +18,9 @@ ALL_MODELS = [
     "lite6_gripper",
     "lite6_vacuum_gripper",
     "xarm6_with_gripper",
+    "xarm5_with_gripper",
+    "xarm7_with_gripper",
+    "uf850_with_gripper",
     "xarm6_with_bio_gripper",
     "lite6_with_gripper",
     "lite6_with_vacuum_gripper",
@@ -34,20 +37,27 @@ class AllModelsLoadingTest(unittest.TestCase):
             primary_xml = model_dir / f"{name}.xml"
             self.assertTrue(scene_xml.is_file(), f"{name}/scene.xml not found")
             self.assertTrue(primary_xml.is_file(), f"{name}/{name}.xml not found")
-        # task scene for the pick-and-place example (xarm6_with_gripper only)
-        self.assertTrue((MODELS_ROOT / "xarm6_with_gripper" / "scene_pick_place.xml").is_file())
-        # task scene for the RL reaching example (xarm6 only)
-        self.assertTrue((MODELS_ROOT / "xarm6" / "scene_reach.xml").is_file())
+        # task scenes across all 5 arms (reach, pick_place, box_pack) and xarm6 obstacles
+        for arm in ("lite6", "xarm5", "xarm6", "xarm7", "uf850"):
+            self.assertTrue((MODELS_ROOT / arm / "scene_reach.xml").is_file(),
+                            f"{arm}/scene_reach.xml not found")
+        for combo in ("xarm5_with_gripper", "xarm6_with_gripper", "xarm7_with_gripper",
+                      "uf850_with_gripper", "lite6_with_gripper"):
+            self.assertTrue((MODELS_ROOT / combo / "scene_pick_place.xml").is_file(),
+                            f"{combo}/scene_pick_place.xml not found")
+            self.assertTrue((MODELS_ROOT / combo / "scene_box_pack.xml").is_file(),
+                            f"{combo}/scene_box_pack.xml not found")
+        self.assertTrue((MODELS_ROOT / "xarm6" / "scene_obstacles.xml").is_file())
 
     def test_all_models_load_and_step(self):
         """Load both primary XML and scene XML into MuJoCo and simulate 100 physics steps."""
         for name in ALL_MODELS:
             model_dir = MODELS_ROOT / name
             xmls = [model_dir / f"{name}.xml", model_dir / "scene.xml"]
-            if name == "xarm6":
-                xmls.append(model_dir / "scene_reach.xml")
-            if name == "xarm6_with_gripper":
-                xmls.append(model_dir / "scene_pick_place.xml")
+            for extra in ("scene_reach.xml", "scene_obstacles.xml",
+                          "scene_pick_place.xml", "scene_box_pack.xml"):
+                if (model_dir / extra).is_file():
+                    xmls.append(model_dir / extra)
             for xml_file in xmls:
                 with self.subTest(model=name, xml=xml_file.name):
                     m = mujoco.MjModel.from_xml_path(str(xml_file))

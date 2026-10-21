@@ -1,0 +1,18 @@
+robot: lite6
+gripper: lite6_gripper
+scene: box_pack
+executor: servo_cartesian
+box_pack:
+  feed_xy: [[0.14, 0.01], [0.18, 0.01], [0.22, 0.01]]
+  drop_xy: [[0.16, 0.065], [0.18, 0.065], [0.20, 0.065]]
+  cube_half_m: 0.008
+  cube_mass_kg: 0.002
+  grasp_gap_m: 0.0
+  box_center_xy: [0.18, 0.065]
+  box_inner_half_xy: [0.03, 0.03]
+  box_floor_m: 0.004
+  box_wall_m: 0.003
+  box_rim_z_m: 0.028
+  approach_m: 0.06
+  lift_z_m: 0.20
+  flange_grasp_z_m: 0.101

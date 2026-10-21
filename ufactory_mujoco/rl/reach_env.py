@@ -18,16 +18,19 @@ MDP summary (docs/internal/plan_0.0.5_rl.md; n = robot joint count):
     episode  200 control steps x 10 physics steps x 2 ms = 4 s sim time
 
 Per-robot reach-workspace profiles (target box, shoulder, radial band) are
-calibrated by scripts/measure_reach_workspace.py and frozen in ROBOT_PROFILES.
+calibrated by scripts/measure_reach_workspace.py and frozen in
+ufactory_mujoco/robots.py::ROBOT_PROFILES.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 
 import mujoco
 import numpy as np
+
+from ..model_paths import MODELS_ROOT
+from ..robots import ROBOT_PROFILES, RobotProfile
 
 try:  # gymnasium is optional: core env logic must stay importable without it
     import gymnasium as gym
@@ -39,45 +42,8 @@ except ImportError:  # pragma: no cover - exercised on py314 (no gymnasium)
     spaces = None
     _ENV_BASE = object
 
-from ..model_paths import MODELS_ROOT  # noqa: E402
 TCP_SITE = "attachment_site"
 TARGET_BODY = "target_mocap"
-
-
-@dataclass(frozen=True)
-class RobotProfile:
-    """Frozen reach-workspace calibration for one robot (0.0.7 M0)."""
-
-    robot: str
-    n_joints: int
-    target_low: tuple   # target sampling box, base frame (m)
-    target_high: tuple
-    shoulder: tuple     # radial pre-filter origin (joint2 anchor at q=0)
-    reach_min: float    # radial band covering the box (m)
-    reach_max: float
-
-
-# Values produced by scripts/measure_reach_workspace.py (FK cloud + IK
-# reachability >= 90%). The xArm 6 entry keeps the production 0.0.5 box;
-# its reach_max was raised 0.55 -> 0.56 so the radial band covers every box
-# corner (the far bottom corner is 0.5586 m from the shoulder).
-ROBOT_PROFILES: dict[str, RobotProfile] = {
-    "lite6": RobotProfile("lite6", 6,
-                          (0.102, -0.2389, 0.0986), (0.2553, 0.2389, 0.4031),
-                          (0.0, 0.0, 0.2435), 0.0918, 0.4228),
-    "xarm5": RobotProfile("xarm5", 5,
-                          (0.1386, -0.3631, 0.155), (0.3914, 0.3631, 0.5834),
-                          (0.0, 0.0, 0.267), 0.1248, 0.6827),
-    "xarm6": RobotProfile("xarm6", 6,
-                          (0.25, -0.25, 0.05), (0.45, 0.25, 0.35),
-                          (0.0, 0.0, 0.267), 0.15, 0.56),
-    "xarm7": RobotProfile("xarm7", 7,
-                          (0.199, -0.3954, 0.2102), (0.4231, 0.3954, 0.5341),
-                          (0.0, 0.0, 0.267), 0.1791, 0.7015),
-    "uf850": RobotProfile("uf850", 6,
-                          (0.1956, -0.4869, 0.2071), (0.5182, 0.4869, 0.735),
-                          (0.0, 0.0, 0.364), 0.1761, 0.8823),
-}
 
 # xArm 6 production defaults, kept as module constants for compatibility
 TARGET_LOW = np.array(ROBOT_PROFILES["xarm6"].target_low)

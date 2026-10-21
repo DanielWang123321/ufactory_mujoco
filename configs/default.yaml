@@ -1,0 +1,35 @@
+schema_version: 1
+robot: xarm6
+gripper: null
+scene: scene
+executor: servo_cartesian
+pick_place:
+  cube_xy: [0.30, 0.0]
+  target_xy: [0.30, 0.30]
+  cube_half_m: 0.015
+  cube_mass_kg: 0.017
+  grasp_gap_m: 0.022
+  approach_m: 0.10
+  lift_z_m: 0.30
+  flange_grasp_z_m: 0.1871
+  cart_v_m_s: 0.15
+  cart_a_m_s2: 0.8
+box_pack:
+  feed_xy: [[0.21, -0.18], [0.30, -0.18], [0.39, -0.18]]
+  drop_xy: [[0.255, 0.30], [0.30, 0.30], [0.345, 0.30]]
+  cube_half_m: 0.015
+  cube_mass_kg: 0.017
+  grasp_gap_m: 0.022
+  box_center_xy: [0.30, 0.30]
+  box_inner_half_xy: [0.075, 0.075]
+  box_floor_m: 0.005
+  box_wall_m: 0.005
+  box_rim_z_m: 0.06
+  release_above_rim_m: 0.05
+  approach_m: 0.10
+  lift_z_m: 0.30
+  flange_grasp_z_m: 0.1871
+  cart_v_m_s: 0.15
+  cart_a_m_s2: 0.8
+  speed_scale: 1.0
+  settle_timeout_s: 4.0

@@ -1,0 +1,51 @@
+<mujoco model="uf850_with_gripper box_pack scene">
+  <include file="uf850_with_gripper.xml"/>
+  <statistic center="0.35 0 0.15" extent="0.9"/>
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <global azimuth="-140" elevation="-25" offwidth="1280" offheight="720"/>
+  </visual>
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072"/>
+    <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4"
+      rgb2="0.1 0.15 0.2" markrgb="0.8 0.8 0.8" width="300" height="300"/>
+    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2"/>
+  </asset>
+  <worldbody>
+    <light pos="0 0 3" dir="0 0 -1" directional="true"/>
+    <geom name="floor" size="0 0 0.05" type="plane" material="groundplane"/>
+    <camera name="front" pos="1.2 0.8 0.9" quat="0.72 0 0.19 0.67"/>
+    <camera name="side" pos="-0.3 1.6 0.8" quat="0.66 0.24 0.24 0.67"/>
+
+    <!-- Box-pack props (mirrors configs/box_pack/uf850.yaml):
+         three 30 mm / 17 g feed cubes; box interior 150 mm, rim 60 mm, center (0.35, 0.25). -->
+    <body name="cube_0" pos="0.26 -0.18 0.015">
+      <freejoint name="cube_0"/>
+      <geom name="cube_0_geom" type="box" size="0.015 0.015 0.015" mass="0.017"
+        rgba="0.9 0.1 0.1 1" friction="1 1 0.005"/>
+    </body>
+    <body name="cube_1" pos="0.35 -0.18 0.015">
+      <freejoint name="cube_1"/>
+      <geom name="cube_1_geom" type="box" size="0.015 0.015 0.015" mass="0.017"
+        rgba="0.1 0.8 0.2 1" friction="1 1 0.005"/>
+    </body>
+    <body name="cube_2" pos="0.44 -0.18 0.015">
+      <freejoint name="cube_2"/>
+      <geom name="cube_2_geom" type="box" size="0.015 0.015 0.015" mass="0.017"
+        rgba="0.2 0.4 0.9 1" friction="1 1 0.005"/>
+    </body>
+    <body name="pack_box" pos="0.35 0.25 0">
+      <geom name="box_floor" type="box" size="0.08 0.08 0.0025" pos="0 0 0.0025"
+        rgba="0.55 0.4 0.25 1" friction="1 1 0.005"/>
+      <geom name="box_wall_px" type="box" size="0.0025 0.08 0.0275" pos="0.0775 0 0.0325"
+        rgba="0.6 0.45 0.3 1" friction="1 1 0.005"/>
+      <geom name="box_wall_nx" type="box" size="0.0025 0.08 0.0275" pos="-0.0775 0 0.0325"
+        rgba="0.6 0.45 0.3 1" friction="1 1 0.005"/>
+      <geom name="box_wall_py" type="box" size="0.075 0.0025 0.0275" pos="0 0.0775 0.0325"
+        rgba="0.6 0.45 0.3 1" friction="1 1 0.005"/>
+      <geom name="box_wall_ny" type="box" size="0.075 0.0025 0.0275" pos="0 -0.0775 0.0325"
+        rgba="0.6 0.45 0.3 1" friction="1 1 0.005"/>
+    </body>
+  </worldbody>
+</mujoco>

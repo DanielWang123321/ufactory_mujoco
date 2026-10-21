@@ -42,7 +42,7 @@ pip install -e ".[rl]"
 
 ### 无显示器 / 远程机器
 
-- `--headless`（示例 `01`–`09`、`01_reach.py`）只跑物理，不需要显示器和 OpenGL，**不要**为此设置 `MUJOCO_GL`。
+- `--headless`（示例 `01`–`10`、`01_reach.py`）只跑物理，不需要显示器和 OpenGL，**不要**为此设置 `MUJOCO_GL`。
 - 若设置 `MUJOCO_GL=egl`，系统需有 `libEGL`（如 `apt install libegl1`），否则 `import mujoco` 会直接报错；`MUJOCO_GL=osmesa` 需要 `libosmesa6`。
 - 在无显示器的服务器上打开交互查看器，可用 Xvfb：`xvfb-run -a python examples/simulation/01_load_and_view.py`。
 
@@ -50,7 +50,7 @@ pip install -e ".[rl]"
 
 | 类别 | 说明文档 | 内容概览 |
 | :--- | :--- | :--- |
-| **仿真示例 (`01`–`09`)** | [examples/simulation/README_zh.md](examples/simulation/README_zh.md) ([English](examples/simulation/README.md)) | 模型预览、关节/笛卡尔控制、夹爪控制、方块抓放、轨迹与避障规划、运动学与动力学工具链 |
+| **仿真示例 (`01`–`10`)** | [examples/simulation/README_zh.md](examples/simulation/README_zh.md) ([English](examples/simulation/README.md)) | 模型预览、关节/笛卡尔控制、夹爪控制、方块抓放、多方块装箱、轨迹与避障规划、运动学与动力学工具链 |
 | **强化学习 (`01_reach`)** | [examples/rl/reach/README_zh.md](examples/rl/reach/README_zh.md) ([English](examples/rl/reach/README.md)) | 全系 5 款机械臂 TCP 位置到达环境、PPO 策略回放评测与训练指南 |
 | **全机型指令速查** | [docs/visual_command_guide.md](docs/visual_command_guide.md) | 按产品型号（Lite 6、xArm 5/6/7、UF850）与组件状态分类的启动指令矩阵 |
 
@@ -58,16 +58,17 @@ pip install -e ".[rl]"
 # 交互式模型预览
 python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose ready
 
-# 关节轨迹控制 / 方块抓放 / RRT-Connect 避障规划
+# 关节轨迹控制 / 方块抓放 / RRT-Connect 避障规划 / 多方块装箱
 python examples/simulation/02_joint_control.py --model xarm6
 python examples/simulation/05_pick_place.py
 python examples/simulation/09_obstacle_avoidance.py
+python examples/simulation/10_box_pack.py
 
 # 强化学习 TCP 到达（加载 PPO 预训练策略；无 stable-baselines3 时可用 --random）
 python examples/rl/reach/01_reach.py --model xarm6
 ```
 
-> 所有运动与强化学习示例（`01`–`09`、`01_reach.py`）均支持 `--headless` 参数，用于无头模式运行并输出量化验收指标。
+> 所有运动与强化学习示例（`01`–`10`、`01_reach.py`）均支持 `--headless` 参数，用于无头模式运行并输出量化验收指标。
 
 ### 3. 运行测试套件
 
@@ -81,11 +82,16 @@ python -m unittest discover -s tests -v
 ## 项目结构
 
 ```text
+configs/                严格类型校验的 YAML 任务配置（default、pick_place、box_pack）
 models/                 机器人及配件 MJCF 模型与视觉/碰撞网格资产
   xarm6/, lite6/, ...   xArm 5/6/7、UF850、Lite6 及各款夹爪（独立与组合场景）
 ufactory_mujoco/        核心仿真、控制、规划与强化学习库
   sim_robot.py          SimRobot：物理步进、关节/TCP控制、渲染同步
   robot_interface.py    机械臂抽象基类（支持仿真与真机接口对齐）
+  robots.py             5 款机械臂规格注册表、组合场景路径解析与冻结工作空间
+  config.py             严格 YAML 任务配置加载、校验与稳定内容哈希
+  grippers.py           物理开口间距 <-> 执行器映射及双侧指垫接触检测
+  preflight.py          抓放与装箱任务静态 IK/碰撞预检及 RRT 备选路径规划
   ik.py                 阻尼最小二乘法（DLS）笛卡尔 IK 解算器
   kinematics.py         FK、TCP 雅可比、速度级 DLS 逆解、可操作度/奇异性指标
   trajectory.py         JointTrajectory、PTP 五次/LSPB、C2 样条、笛卡尔 SLERP 直线
@@ -96,7 +102,7 @@ ufactory_mujoco/        核心仿真、控制、规划与强化学习库
   model_paths.py        模型名称 → MJCF XML 路径解析
   viewer.py             GLFW/X11 交互查看器生命周期封装
 examples/
-  simulation/           仿真示例 01–09（详见 examples/simulation/README_zh.md）
+  simulation/           仿真示例 01–10（详见 examples/simulation/README_zh.md）
   rl/reach/             强化学习 reach 示例（详见 examples/rl/reach/README_zh.md）
 scripts/                资产转换、工作空间标定、真机动力学回放比对与 RL 训练脚本
 tests/                  单元测试与回归测试套件

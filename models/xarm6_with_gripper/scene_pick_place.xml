@@ -25,7 +25,7 @@
     <!-- Pick-and-place task props (replicates ufactory_genesis pick_place):
          30 mm red cube (17 g) at (0.30, 0) and a visual-only target marker at (0.30, 0.30). -->
     <body name="cube" pos="0.30 0 0.015">
-      <freejoint/>
+      <freejoint name="cube"/>
       <geom name="cube_geom" type="box" size="0.015 0.015 0.015" mass="0.017"
         rgba="0.9 0.1 0.1 1" friction="1 1 0.005"/>
     </body>
