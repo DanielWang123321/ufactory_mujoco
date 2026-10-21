@@ -1,9 +1,8 @@
-# Core runtime dependencies (Python 3.12 / 3.13). Same ranges as pyproject.toml;
+# Core runtime dependencies (Python 3.12 / 3.13 / 3.14). Same ranges as pyproject.toml;
 # `pip install -e .` installs these plus the ufactory_mujoco package.
 # Exact versions verified in CI: requirements-lock.txt
 mujoco>=3.15,<4
 numpy>=2.0,<3
 scipy>=1.14,<2
 pyyaml>=6.0,<7
-# Optional, only for scripts/build_model.py (xacro -> URDF regeneration):
-#   pip install xacro
+# Optional asset regeneration tools: requirements-assets.txt or .[assets]

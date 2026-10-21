@@ -1,5 +1,5 @@
 # Exact versions the test suite and headless examples were verified with
-# (Python 3.13, Linux x86_64). Install with: pip install -r requirements-lock.txt
+# (Python 3.12 / 3.13 / 3.14, Linux x86_64). Install with: pip install -r requirements-lock.txt
 mujoco==3.16.0
 numpy==2.5.4
 scipy==1.18.1

@@ -1,5 +1,7 @@
 # 仿真示例 (`examples/simulation`)
 
+安装后可直接运行 `ufactory-mujoco pick-place`、`ufactory-mujoco box-pack`、`ufactory-mujoco dynamics`，资源随 wheel 提供，可脱离源码目录运行。下文对应脚本保留为兼容包装，详见[安装说明](../../README_zh.md#1-环境安装)。
+
 [English](README.md) | [中文](README_zh.md)
 
 基于 MuJoCo 的机器人运动控制与仿真示例集（`01`–`10`），涵盖模型交互预览、关节/笛卡尔空间控制、夹爪开闭、方块抓放、时间参数化轨迹规划、RRT-Connect 避障规划、装箱展示以及运动学/刚体动力学工具链演示。
@@ -17,7 +19,7 @@
 | `05_pick_place.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.preflight` | 五款机械臂+夹爪组合 | 方块抓放任务：支持双侧指垫接触判据与轨迹预检（放置误差 `< 50 mm`、回零漂移 `< 10 mm`） |
 | `06_trajectory_planning.py` | `ufactory_mujoco.trajectory`, `ufactory_mujoco.dynamics` | `xarm6` | 点到点五次多项式、多路点 C2 样条平滑、笛卡尔 SLERP 直线规划与动力学前馈力矩 |
 | `07_kinematics.py` | `ufactory_mujoco.kinematics` | `xarm6` | 任意 site 正运动学、解析雅可比与有限差分校验、速度级 DLS 逆解、可操作度/奇异性指标 |
-| `08_dynamics.py` | `ufactory_mujoco.dynamics` | `xarm6` | 质量矩阵 $M(q)$、重力/科氏力分解、正逆动力学互逆校验、3 kg 负载注入与前馈力矩包络 |
+| `08_dynamics.py` | `ufactory_mujoco.dynamics`, `ufactory_mujoco.collision`, `ufactory_mujoco.sim_robot` | 五款裸臂 | 动力学、固定碰撞姿态、命令预检与逐步运动监测；xArm6 3 kg 负载回归 |
 | `09_obstacle_avoidance.py` | `ufactory_mujoco.collision`, `ufactory_mujoco.path_planning` | `xarm6` (`scene_obstacles.xml`) | 立柱+横板场景下的 RRT-Connect 避障规划、路径剪枝（shortcut）与时间参数化执行 |
 | `10_box_pack.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.preflight` | 五款机械臂+夹爪组合 | 装箱展示：方块在盒沿上方 50 mm 释放自由落体，最终碰撞边界须在盒内（1 mm 容差）；支持多周期与速度倍率 |
 
@@ -83,10 +85,18 @@ python examples/simulation/10_box_pack.py --robot xarm7 --dry-run
 python examples/simulation/07_kinematics.py
 python examples/simulation/07_kinematics.py --headless
 
-# 08: 刚体动力学工具链校验（质量矩阵、重力/科氏力、正逆动力学往返、3 kg 负载对标）
+# 08: 动力学与运动验收（默认 xarm6；无头模式同样执行运动）
 python examples/simulation/08_dynamics.py
 python examples/simulation/08_dynamics.py --headless
+python examples/simulation/08_dynamics.py --robot lite6 --headless --samples 32 --seed 0
+python examples/simulation/08_dynamics.py --robot all --headless --report build/dynamics/batch6.json
 ```
+
+`08` 检查 home/ready/target 与限位内 32 个随机姿态（默认 seed 0，每次验收独立初始化）。五臂共同检查使用无附加负载的普通裸臂场景，覆盖质量矩阵有限/对称正定、重力有限、静止科氏项为零、正逆动力学往返及执行器力矩范围内的前馈包络。同时验证固定安全/碰撞夹具；随机姿态的碰撞仅分类记录。
+
+home→ready→target→ready 约运行 8.4 秒仿真时间：部署 1.5 秒、往返各 3 秒，每段后收敛 0.3 秒。执行前按物理步长检查全部命令；执行时每个物理步积分后，用独立 checker 检查实际关节状态。最大穿透/关节超限分别须 ≤1e-6 m/rad，各阶段收敛后到位误差 <0.01 rad。非有限状态、MuJoCo 警告、提前结束或未完成前关闭视窗均判失败。`--robot all` 保留每臂结果，单臂失败后继续其余机型。
+
+`--report` 输出严格 JSON，记录版本、环境、路径、采样参数、阈值、指标和失败原因。退出码：全部通过 0，失败或未完成 1，参数非法 2；入口不需要 xArm SDK。xArm6 保留 3 kg 负载及前馈演示，并对六轴重力固定基线检查 ≤1e-6 Nm 回归误差；J2/J3 沿用历史参考值与 5% 容差。历史静态 ≤2.5% 实采结论不代表本批重新完成真机验证。固定姿态和基线见[批次 6 计划](../../docs/internal/plan_batch6_dynamics.md)。
 
 #### 动力学模块编程接口 (`ufactory_mujoco/dynamics.py`)
 
@@ -116,12 +126,13 @@ python scripts/compare_torque_xarm6.py --no-move                              # 
 | 参数 | 适用脚本 | 默认值 | 说明 |
 | :--- | :--- | :--- | :--- |
 | `--model <name>` | `01`, `02`, `04` | `xarm6`（`04` 为 `xarm6_with_gripper`） | 模型名称或自定义 MJCF XML 路径 |
-| `--robot <arm>` | `05`, `10` | `xarm6` | 机械臂键名（`lite6`、`xarm5`、`xarm6`、`xarm7`、`uf850`），自动关联对应 YAML |
+| `--robot <arm>` | `05`, `08`, `10` | `xarm6` | 机械臂键名（`lite6`、`xarm5`、`xarm6`、`xarm7`、`uf850`）；`08` 另支持 `all`；`05`/`10` 自动关联 YAML |
 | `--gripper <name>` | `05`, `10` | `None`（取自 YAML） | 覆盖任务配置中的夹爪型号 |
 | `--executor <mode>` | `05`, `10` | `servo_cartesian` | 轨迹执行器模式：`servo_cartesian` 或 `servo_j` |
 | `--config <path>` | `05`, `10` | `configs/<task>/<robot>.yaml` | 自定义任务 overlay YAML 路径 |
 | `--dry-run` | `05`, `10` | `False` | 仅执行关节限位与碰撞预检并输出阶段状态，不步进物理仿真 |
-| `--report <path>` | `05`, `10` | `None` | 将预检或周期执行报告导出为 JSON 文件 |
+| `--report <path>` | `05`, `08`, `10` | `None` | 将预检、动力学验收或周期执行报告导出为 JSON 文件 |
+| `--samples <N>` | `08` | `32` | 每臂随机动力学姿态数，须为正整数 |
 | `--pose <home\|ready>` | `01` | `home` | 初始加载关键帧姿态 |
 | `--headless` | `01`–`10` | `False` | 无头模式（关闭视窗，终端输出精度与验收指标） |
 | `--speed <deg/s>` | `02`, `06` | `90.0` | 关节峰值目标速度（度/秒） |
@@ -131,7 +142,7 @@ python scripts/compare_torque_xarm6.py --no-move                              # 
 | `--render-quality` | `02` | `fast` | 渲染质量：`fast`（关闭阴影/反射）或 `full` |
 | `--cycles <N>` | `04`, `05`, `10` | `3` (`04`) / `1` (`05`, `10`) | 动作执行循环次数（`10`：每周期一块供料方块，至多 3 块） |
 | `--speed <x>` | `10` | `1.0` | 运动速度倍率（`>1` 加快；自由落体不缩放） |
-| `--seed <N>` | `09` | `0` | RRT-Connect 与路径剪枝随机种子 |
+| `--seed <N>` | `08`, `09` | `0` | 动力学采样（`08`，非负）或 RRT-Connect/路径剪枝（`09`）随机种子 |
 | `--safety-margin <m>` | `09` | `0.002` | 规划安全间隙阈值（米） |
 | `--step <rad>` | `09` | `0.15` | RRT-Connect 关节空间扩展步长（rad） |
 | `--max-iter <N>` | `09` | `2000` | RRT-Connect 最大采样迭代次数 |

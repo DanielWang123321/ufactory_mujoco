@@ -159,5 +159,6 @@ def resolve_arm_scene(robot: str, gripper: str | None, scene: str) -> Path:
     if not path.is_file():
         if gripper is not None and (robot, gripper) not in _COMBO_DIRS:
             raise _config_error(f"{robot} 与夹爪 {gripper} 兼容但 MJCF 尚未构建")
-        raise _config_error(f"场景文件不存在: {path}")
+        from .config import ModelResourceError
+        raise ModelResourceError(f"场景文件不存在: {path}")
     return path

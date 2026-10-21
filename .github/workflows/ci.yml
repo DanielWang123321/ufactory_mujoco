@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12", "3.13"]
+        python-version: ["3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,10 +26,13 @@ jobs:
           pip install -r requirements-lock.txt
           pip install -e .
       - name: Unit tests (headless)
-        run: python -m unittest discover -s tests -v
+        run: |
+          mkdir -p build/ci
+          python -m unittest discover -s tests -v 2>&1 | tee build/ci/unittest.log
       - name: Example smoke tests (headless)
         run: |
           set -e
+          exec > >(tee build/ci/examples.log) 2>&1
           python examples/simulation/01_load_and_view.py --headless --model xarm6_with_gripper --pose ready
           for s in 02_joint_control 03_cartesian_ik 05_pick_place 06_trajectory_planning 07_kinematics 08_dynamics 09_obstacle_avoidance; do
             echo "::group::$s"; python examples/simulation/$s.py --headless; echo "::endgroup::"
@@ -44,6 +47,93 @@ jobs:
           # unsupported model must fail with a non-zero exit code
           if python examples/simulation/04_gripper_control.py --headless --model lite6_vacuum_gripper; then exit 1; fi
           python examples/rl/reach/01_reach.py --random --headless --episodes 3
+      - name: Upload core logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-logs-${{ matrix.python-version }}
+          path: build/ci/
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install build tools and editable core
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+          pip install -r requirements-lock.txt -e .
+      - name: Record source resource reference
+        run: |
+          mkdir -p build/ci
+          python scripts/accept_installed.py --record-reference build/ci/reference.json 2>&1 | tee build/ci/reference.log
+      - name: Build sdist, then wheel from sdist
+        run: python -m build 2>&1 | tee build/ci/build.log
+      - name: Validate release metadata and resources
+        run: |
+          python -m twine check dist/* 2>&1 | tee build/ci/twine.log
+          python scripts/check_distribution.py --dist-dir dist --reference build/ci/reference.json --report build/ci/distribution.json 2>&1 | tee build/ci/distribution.log
+      - name: Upload distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: distributions
+          path: dist/
+          compression-level: 0
+      - name: Upload standalone acceptance tools
+        uses: actions/upload-artifact@v4
+        with:
+          name: installed-acceptance
+          path: |
+            scripts/accept_installed.py
+            build/ci/reference.json
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: build/ci/
+
+  installed:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
+    # Deliberately no checkout: only the wheel, reference and standalone script.
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: distributions
+          path: distributions
+      - uses: actions/download-artifact@v4
+        with:
+          name: installed-acceptance
+          path: acceptance
+      - name: Install wheel and check dependency consistency
+        run: |
+          mkdir -p reports
+          python -m pip install --upgrade pip
+          pip install distributions/*.whl 2>&1 | tee reports/install.log
+          pip check 2>&1 | tee reports/pip-check.log
+      - name: Validate installed resources and five-arm tasks
+        run: |
+          mkdir -p empty
+          cd empty
+          env -u PYTHONPATH python -I ../acceptance/scripts/accept_installed.py --reference ../acceptance/build/ci/reference.json --out-dir ../reports 2>&1 | tee ../reports/acceptance.log
+      - name: Upload installed acceptance logs and JSON
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: installed-logs-${{ matrix.python-version }}
+          path: reports/
 
   rl:
     runs-on: ubuntu-latest
@@ -61,6 +151,16 @@ jobs:
           pip install -r requirements-lock.txt -e ".[rl]"
       - name: RL tests + tiny training smoke run
         run: |
-          python -m unittest tests.test_reach_env -v
-          python scripts/train_reach_rl.py --model xarm6 --total-steps 4096 --n-envs 2 --n-steps 1024 --eval-episodes 2 --out-dir build/rl/ci
+          mkdir -p build/rl/ci
+          python -m unittest discover -s tests -p test_reach_env.py -v 2>&1 | tee build/rl/ci/tests.log
+          python scripts/train_reach_rl.py --model xarm6 --total-steps 4096 --n-envs 2 --n-steps 1024 --eval-episodes 2 --out-dir build/rl/ci 2>&1 | tee build/rl/ci/training.log
           test -f build/rl/ci/metrics.json
+          python -c 'import json; from pathlib import Path; m=json.loads(Path("build/rl/ci/metrics.json").read_text()); assert m["config"]["total_steps"] == 4096 and m["config"]["device"] == "cpu" and m["episodes"] == 2; print(m)'
+      - name: Upload RL metrics and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rl-logs
+          path: |
+            build/rl/ci/*.json
+            build/rl/ci/*.log

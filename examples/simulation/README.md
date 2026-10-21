@@ -1,5 +1,7 @@
 # Simulation Examples (`examples/simulation`)
 
+Installed commands: `ufactory-mujoco pick-place`, `ufactory-mujoco box-pack`, and `ufactory-mujoco dynamics`. These three tasks include all resources in the wheel and run outside a checkout. The corresponding scripts below remain compatible wrappers. See the [installation guide](../../README.md#1-installation).
+
 [English](README.md) | [中文](README_zh.md)
 
 MuJoCo simulation examples (`01`–`10`) covering interactive model inspection, joint/Cartesian motion control, gripper actuation, pick-and-place manipulation, time-parameterized trajectory planning, RRT-Connect obstacle avoidance, box-packing showcase, and kinematics/dynamics toolkits.
@@ -17,7 +19,7 @@ MuJoCo simulation examples (`01`–`10`) covering interactive model inspection, 
 | `05_pick_place.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.preflight` | All five arm+gripper combos | Cube pick-and-place with bilateral contact check & preflight (`place_error < 50 mm`, `home_drift < 10 mm`) |
 | `06_trajectory_planning.py` | `ufactory_mujoco.trajectory`, `ufactory_mujoco.dynamics` | `xarm6` | Analytical PTP quintic, C2 multi-waypoint spline, Cartesian SLERP line & feedforward torques |
 | `07_kinematics.py` | `ufactory_mujoco.kinematics` | `xarm6` | Per-site FK, analytical vs finite-difference Jacobian, velocity-level DLS IK, manipulability |
-| `08_dynamics.py` | `ufactory_mujoco.dynamics` | `xarm6` | Mass matrix $M(q)$, gravity/Coriolis, ID/FD round-trip, payload injection & torque envelope |
+| `08_dynamics.py` | `ufactory_mujoco.dynamics`, `ufactory_mujoco.collision`, `ufactory_mujoco.sim_robot` | All five bare arms | Dynamics, fixed collision fixtures, command preflight & monitored motion; xArm6 3 kg payload regression |
 | `09_obstacle_avoidance.py` | `ufactory_mujoco.collision`, `ufactory_mujoco.path_planning` | `xarm6` (`scene_obstacles.xml`) | RRT-Connect + shortcutting + spline/quintic time parameterization around pillar & board |
 | `10_box_pack.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.preflight` | All five arm+gripper combos | Box-packing showcase: cubes released 50 mm above the rim free-fall into the box; final collision bounds must stay inside (1 mm tolerance); multi-cycle & speed multiplier |
 
@@ -83,10 +85,18 @@ python examples/simulation/10_box_pack.py --robot xarm7 --dry-run
 python examples/simulation/07_kinematics.py
 python examples/simulation/07_kinematics.py --headless
 
-# 08: Rigid-body dynamics verification (M(q), g(q), C(q,qd)qd, ID/FD, 3 kg payload)
+# 08: Dynamics and monitored motion (default: xarm6; headless also moves)
 python examples/simulation/08_dynamics.py
 python examples/simulation/08_dynamics.py --headless
+python examples/simulation/08_dynamics.py --robot lite6 --headless --samples 32 --seed 0
+python examples/simulation/08_dynamics.py --robot all --headless --report build/dynamics/batch6.json
 ```
+
+`08` checks home/ready/target and 32 random poses within joint limits (default seed 0, reset on each validation). All five arms use their ordinary bare-arm scenes without an added payload. Checks cover finite, symmetric positive-definite mass matrices, finite gravity, zero Coriolis at rest, ID/FD reciprocity, and feedforward torque within actuator force ranges. Fixed safe/colliding fixtures are also checked; random collisions are classified separately.
+
+The full home→ready→target→ready sequence takes about 8.4 simulated seconds: 1.5 s deployment, two 3 s moves, and 0.3 s settling after each. Commands are checked at the physical timestep before movement; an independent collision checker inspects the actual integrated joint positions after every physics step. Maximum penetration and joint-limit excess must each be ≤1e-6 (m/rad), and settled arrival error must be <0.01 rad. Invalid state, MuJoCo warnings and early termination fail validation. Closing the viewer before completion also fails. `--robot all` retains every arm's result and continues after a single-arm failure.
+
+`--report` writes strict JSON with versions, environment, paths, sampling, thresholds, metrics and failure reasons. Exit codes: 0 for all passed, 1 for failure/incompletion, 2 for invalid arguments. The entry point needs no xArm SDK. xArm6 retains the 3 kg payload/feedforward demonstration and a fixed six-axis gravity regression (≤1e-6 Nm); J2/J3 retain their historical 5% reference tolerance. The historical ≤2.5% real-hardware result is not a new hardware validation. Frozen poses and baselines are documented in [the batch 6 plan](../../docs/internal/plan_batch6_dynamics.md).
 
 #### Programmatic Dynamics API (`ufactory_mujoco/dynamics.py`)
 
@@ -116,12 +126,13 @@ python scripts/compare_torque_xarm6.py --no-move                              # 
 | Option | Applicable Scripts | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `--model <name>` | `01`, `02`, `04` | `xarm6` (`04`: `xarm6_with_gripper`) | Model name or path to MJCF XML |
-| `--robot <arm>` | `05`, `10` | `xarm6` | Arm key (`lite6`, `xarm5`, `xarm6`, `xarm7`, `uf850`); selects task YAML |
+| `--robot <arm>` | `05`, `08`, `10` | `xarm6` | Arm key (`lite6`, `xarm5`, `xarm6`, `xarm7`, `uf850`); `08` also accepts `all`; `05`/`10` select task YAML |
 | `--gripper <name>` | `05`, `10` | `None` (from YAML) | Override the mounted gripper in task config |
 | `--executor <mode>` | `05`, `10` | `servo_cartesian` | Execution mode: `servo_cartesian` or `servo_j` |
 | `--config <path>` | `05`, `10` | `configs/<task>/<robot>.yaml` | Custom task overlay YAML path |
 | `--dry-run` | `05`, `10` | `False` | Run joint-limit/collision preflight only without stepping physics |
-| `--report <path>` | `05`, `10` | `None` | Write preflight and cycle execution report as JSON |
+| `--report <path>` | `05`, `08`, `10` | `None` | Write preflight, dynamics validation or cycle execution report as JSON |
+| `--samples <N>` | `08` | `32` | Positive number of random dynamics poses per arm |
 | `--pose <home\|ready>` | `01` | `home` | Initial keyframe pose |
 | `--headless` | `01`–`10` | `False` | Run offscreen and print verification metrics |
 | `--speed <deg/s>` | `02`, `06` | `90.0` | Peak joint speed in degrees/s |
@@ -131,7 +142,7 @@ python scripts/compare_torque_xarm6.py --no-move                              # 
 | `--render-quality` | `02` | `fast` | `fast` (no shadows/reflections) or `full` |
 | `--cycles <N>` | `04`, `05`, `10` | `3` (`04`) / `1` (`05`, `10`) | Number of execution cycles (`10`: one feed cube per cycle, at most 3) |
 | `--speed <x>` | `10` | `1.0` | Motion speed multiplier (`>1` is faster; free fall is not scaled) |
-| `--seed <N>` | `09` | `0` | RNG seed for RRT-Connect and path shortcutting |
+| `--seed <N>` | `08`, `09` | `0` | RNG seed for dynamics sampling (`08`, nonnegative) or RRT-Connect/path shortcutting (`09`) |
 | `--safety-margin <m>` | `09` | `0.002` | Minimum allowed obstacle clearance in meters |
 | `--step <rad>` | `09` | `0.15` | RRT-Connect joint-space steer step size (rad) |
 | `--max-iter <N>` | `09` | `2000` | Maximum RRT-Connect iterations |

@@ -1,0 +1,9 @@
+include _build_support.py
+include NOTICE
+recursive-include licenses *
+recursive-include ufactory_mujoco/data *
+prune build
+prune dist
+prune dev
+prune tests
+global-exclude __pycache__ *.py[cod] *.zip *.log

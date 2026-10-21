@@ -6,6 +6,9 @@ The robot models under models/ are DERIVED from upstream UFACTORY assets and are
 subject to the upstream licenses listed below, not only to this repository's MIT
 license.
 
+Full upstream license texts and the ufactory_genesis NOTICE are included in
+licenses/ (and in ufactory_mujoco/data/licenses/ in installed distributions).
+
 1. ufactory_genesis — https://github.com/xArm-Developer/ufactory_genesis
    License: MIT (Copyright (c) 2026 Daniel Wang)
    Used for: GLB visual meshes converted to OBJ (scripts/convert_glb_to_obj.py),

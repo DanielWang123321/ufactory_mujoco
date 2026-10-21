@@ -11,8 +11,9 @@ from typing import Any, Mapping
 import yaml
 
 from .robots import resolve_arm_scene
+from .resource_paths import CONFIGS_ROOT
 
-DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent.parent / "configs" / "default.yaml"
+DEFAULT_CONFIG_PATH = CONFIGS_ROOT / "default.yaml"
 EXECUTORS = ("servo_cartesian", "servo_j")
 _HASH_FIELDS = ("schema_version", "robot", "gripper", "scene", "executor",
                 "pick_place", "box_pack")
@@ -20,6 +21,10 @@ _HASH_FIELDS = ("schema_version", "robot", "gripper", "scene", "executor",
 
 class ConfigError(ValueError):
     """A task configuration failed strict validation."""
+
+
+class ModelResourceError(ConfigError):
+    """A valid task selection refers to a missing model resource."""
 
 
 @dataclass(frozen=True)

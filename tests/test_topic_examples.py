@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import patch
 
 kinematics_demo = importlib.import_module("examples.simulation.07_kinematics")
-dynamics_demo = importlib.import_module("examples.simulation.08_dynamics")
+dynamics_demo = importlib.import_module("ufactory_mujoco.tasks.dynamics")
 
 
 class TopicExampleSmokeTests(unittest.TestCase):

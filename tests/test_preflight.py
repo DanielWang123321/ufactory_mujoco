@@ -73,7 +73,7 @@ class PreflightTests(unittest.TestCase):
 
     def test_xarm6_dry_run_phases(self):
         import importlib
-        pick_place = importlib.import_module("examples.simulation.05_pick_place")
+        pick_place = importlib.import_module("ufactory_mujoco.tasks.pick_place")
         config = load_task_config(XARM6)
         with SimRobot(config.scene_path, viewer=False) as robot:
             report = pick_place.run_pick_place(robot, config, dry_run=True)

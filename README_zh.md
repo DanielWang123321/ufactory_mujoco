@@ -9,7 +9,7 @@
 - **高精细视觉质感**：具备平滑法线与材质分色（烤漆白外壳、阳极氧化铝转轴、黑色部件及密封环）的高精度 OBJ 视觉网格，配合物理专用的 STL 碰撞网格。
 - **全系列资产支持**：包含从 [ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis) 官方解构转换的全部机械臂（`lite6`、`xarm5`、`xarm6`、`xarm7`、`uf850`）及末端配件（`gripper_g2`、`bio_gripper_g2`、`lite6_gripper`、`lite6_vacuum_gripper`）。
 - **运动学与轨迹规划**：提供任意 site 正运动学、TCP 解析雅可比、阻尼最小二乘法（DLS）逆运动学（`ufactory_mujoco/kinematics.py`、`ufactory_mujoco/ik.py`），点到点五次/多路点 C2 样条轨迹（`ufactory_mujoco/trajectory.py`），以及 RRT-Connect 避障路径规划（`ufactory_mujoco/collision.py`、`ufactory_mujoco/path_planning.py`）。
-- **刚体动力学模块**：支持质量矩阵 $M(q)$、重力/科氏力项、正/逆动力学与末端负载注入（`ufactory_mujoco/dynamics.py`），并通过真机 xArm 6 交叉比对验证。
+- **刚体动力学模块**：支持质量矩阵 $M(q)$、重力/科氏力项、正/逆动力学与末端负载注入（`ufactory_mujoco/dynamics.py`），保留历史 xArm 6 真机交叉验证；`08_dynamics.py` 覆盖五款裸臂的碰撞预检、逐步运动验收及 JSON 报告。
 - **强化学习环境**：全系 5 款机械臂通用的 TCP 位置到达 Gymnasium 环境（`ufactory_mujoco/rl/reach_env.py`，含标定工作空间），预训练 PPO 策略在 `< 5 mm` 官方标准下成功率均达 $\ge 96\%$。
 - **稳定可靠的查看器**：集成实时时钟同步与异常安全退出保护，深度适配 Linux Wayland / X11（`ufactory_mujoco/viewer.py`）。
 
@@ -17,10 +17,23 @@
 
 ### 1. 环境安装
 
-推荐 Python **3.13**（3.12 亦可；核心与 RL 依赖在这两个版本上都有预编译包）。
+核心仿真支持 Python **3.12、3.13、3.14**；RL CI 使用 **Python 3.13 + CPU PyTorch**。
+
+使用已构建的 wheel，无需克隆源码：
 
 ```bash
-# 仓库较大（网格约 600 MB），建议浅克隆
+python -m pip install /path/to/ufactory_mujoco-0.1.0.dev0-py3-none-any.whl
+ufactory-mujoco pick-place --robot xarm6 --headless
+ufactory-mujoco box-pack --robot lite6 --cycles 1 --headless
+ufactory-mujoco dynamics --robot all --samples 32 --seed 0 --headless --report reports/dynamics.json
+```
+
+wheel 自带全部模型、场景、默认/机型 YAML 和许可证（压缩约 89 MiB、资源展开约 533 MiB）。可从任意目录运行，无需下载资源或写入安装目录。核心安装不需要 RL、资产转换工具或 xArm SDK。
+
+源码开发安装：
+
+```bash
+# 网格较大，建议浅克隆
 git clone --depth 1 https://github.com/DanielWang123321/ufactory_mujoco.git
 cd ufactory_mujoco
 
@@ -34,6 +47,22 @@ pip install -e ".[rl]"
 ```
 
 > CI 验证过的精确版本：`pip install -r requirements-lock.txt`。
+
+使用 setuptools 构建两种产物：
+
+```bash
+python -m pip install build twine
+python -m build                 # 先 sdist，再从 sdist 重建 wheel
+python -m twine check dist/*
+# 可选，仅用于资产再生成：
+python -m pip install -e ".[assets]"
+```
+
+`ufactory-mujoco pick-place` 和 `box-pack` 支持 `--robot`、`--gripper`、`--executor`、`--config`、`--cycles`、`--headless`、`--dry-run`、`--report`；装箱另支持 `--speed`。各子命令可用 `--help` 查询。Lite6 装箱沿用现有 `servo_cartesian` 限制以保证运送稳定。原三个仿真脚本继续作为 `ufactory_mujoco.tasks` 的兼容包装。
+
+退出码：**0** 成功，**1** 运行/预检/报告失败，**2** 参数或配置非法。报告路径相对当前目录，自动创建父目录；`--dry-run` 不步进物理。`UFACTORY_MUJOCO_MODELS` 优先覆盖模型目录；否则普通安装读取包内资源，源码/editable 读取仓库资源。配置哈希仅取决于内容，不受安装路径影响。
+
+CI 包含 Python 3.12/3.13/3.14 的 editable 核心回归及无源码 wheel 验收，以及 Python 3.13 CPU Reach 测试和 4096 步训练烟测；失败时仍保存日志与 JSON 报告。
 
 ### macOS 与 Windows
 

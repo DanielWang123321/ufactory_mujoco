@@ -2,6 +2,17 @@
 
 本文档按产品型号（Lite 6、xArm 系列、UF850）与工作模式（静态查看 / 可动仿真）分类整理所有启动与控制指令。所有仿真示例脚本均位于 `examples/simulation/` 目录下（下文命令已含完整路径，速查表中省略路径前缀）；强化学习示例位于 `examples/rl/`。
 
+
+安装 wheel 后，抓放、装箱、动力学也可在任意目录使用统一入口（旧脚本继续兼容）：
+
+```bash
+ufactory-mujoco pick-place --robot xarm6 --headless
+ufactory-mujoco box-pack --robot lite6 --cycles 1 --headless
+ufactory-mujoco dynamics --robot all --samples 32 --seed 0 --headless --report reports/dynamics.json
+```
+
+抓放/装箱加 `--dry-run` 只预检；报告相对当前目录并自动建父目录。退出码 0/1/2 分别表示通过、运行失败、参数非法。安装与构建见 [README_zh.md](../README_zh.md#1-环境安装)。
+
 ---
 
 ## 1. 全景速查矩阵
@@ -107,11 +118,13 @@
   python examples/simulation/07_kinematics.py
   python examples/simulation/07_kinematics.py --headless
   ```
-- **动力学工具链（质量矩阵 / 正逆动力学 / 负载 / 前馈包络）**：
+- **动力学工具链（五臂验收 / 运动监测 / xArm6 负载回归）**：
   ```bash
   python examples/simulation/08_dynamics.py
   python examples/simulation/08_dynamics.py --headless
+  python examples/simulation/08_dynamics.py --robot all --headless --report build/dynamics/batch6.json
   ```
+  `--robot` 可选 lite6/xarm5/xarm6/xarm7/uf850/all，默认 xarm6；`--samples 32 --seed 0` 控制随机采样。无头模式同样执行约 8.4 秒运动，报告涵盖积分后的实际状态检查。无需 xArm SDK。
 - **避障轨迹规划任务（立柱 + 横板场景）**：
   ```bash
   python examples/simulation/09_obstacle_avoidance.py

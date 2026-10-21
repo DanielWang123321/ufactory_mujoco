@@ -9,7 +9,7 @@ MuJoCo simulation and reinforcement learning suite for UFACTORY robots — featu
 - **High-Fidelity Visuals**: Smooth-normal, multi-material OBJ visual meshes (PBR white shell, silver metal joints, black accents) paired with dedicated collision STLs.
 - **Full Asset Ecosystem**: All UFACTORY robot arms (`lite6`, `xarm5`, `xarm6`, `xarm7`, `uf850`) and grippers (`gripper_g2`, `bio_gripper_g2`, `lite6_gripper`, `lite6_vacuum_gripper`) converted from [ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis).
 - **Kinematics & Motion Planning**: Per-site FK, analytical Jacobian, damped least-squares (DLS) IK (`ufactory_mujoco/kinematics.py`, `ufactory_mujoco/ik.py`), PTP quintic/C2 spline trajectories (`ufactory_mujoco/trajectory.py`), and RRT-Connect obstacle avoidance (`ufactory_mujoco/collision.py`, `ufactory_mujoco/path_planning.py`).
-- **Rigid-Body Dynamics**: Mass matrix $M(q)$, gravity/Coriolis terms, inverse/forward dynamics, and TCP payload injection (`ufactory_mujoco/dynamics.py`), cross-validated against real xArm 6 hardware.
+- **Rigid-Body Dynamics**: Mass matrix $M(q)$, gravity/Coriolis terms, inverse/forward dynamics, and TCP payload injection (`ufactory_mujoco/dynamics.py`), with historical xArm 6 hardware cross-validation. Example `08_dynamics.py` validates all five bare arms, including collision preflight, monitored motion and JSON reports.
 - **Reinforcement Learning**: Gymnasium TCP-reaching environment (`ufactory_mujoco/rl/reach_env.py`) with calibrated workspace profiles and PPO policies achieving $\ge 96\%$ success at the $< 5\text{ mm}$ threshold across all five arms.
 - **Robust Viewer**: Passive viewer with real-time clock sync, graceful exit handling, and Linux Wayland/X11 compatibility (`ufactory_mujoco/viewer.py`).
 
@@ -17,10 +17,23 @@ MuJoCo simulation and reinforcement learning suite for UFACTORY robots — featu
 
 ### 1. Installation
 
-Python **3.13** is recommended (3.12 also works; all core and RL dependencies ship wheels for both).
+Core simulation supports Python **3.12, 3.13 and 3.14**. RL CI uses **Python 3.13 + CPU PyTorch**.
+
+Install a built wheel without cloning the repository:
 
 ```bash
-# The repo is large (~600 MB of meshes); a shallow clone is much faster
+python -m pip install /path/to/ufactory_mujoco-0.1.0.dev0-py3-none-any.whl
+ufactory-mujoco pick-place --robot xarm6 --headless
+ufactory-mujoco box-pack --robot lite6 --cycles 1 --headless
+ufactory-mujoco dynamics --robot all --samples 32 --seed 0 --headless --report reports/dynamics.json
+```
+
+The wheel includes all models, scenes, default/robot YAML and licenses (about 89 MiB compressed, 533 MiB of resources). It runs from any directory, with no resource downloads or writes to the installation. Core installation needs no RL, asset conversion tools or xArm SDK.
+
+For development:
+
+```bash
+# The meshes are large; use a shallow clone
 git clone --depth 1 https://github.com/DanielWang123321/ufactory_mujoco.git
 cd ufactory_mujoco
 
@@ -34,6 +47,22 @@ pip install -e ".[rl]"
 ```
 
 > Exact versions verified in CI: `pip install -r requirements-lock.txt`.
+
+Build both distributions with setuptools:
+
+```bash
+python -m pip install build twine
+python -m build                 # sdist first, then wheel rebuilt from that sdist
+python -m twine check dist/*
+# Optional asset regeneration only:
+python -m pip install -e ".[assets]"
+```
+
+`ufactory-mujoco pick-place` and `box-pack` accept `--robot`, `--gripper`, `--executor`, `--config`, `--cycles`, `--headless`, `--dry-run` and `--report`; `box-pack` also accepts `--speed`. Use `COMMAND --help` for details. Lite6 box packing keeps its existing `servo_cartesian` executor requirement for reliable transport. The three original simulation scripts remain compatible wrappers around `ufactory_mujoco.tasks`.
+
+Exit codes: **0** success, **1** runtime/preflight/report failure, **2** invalid arguments or configuration. Reports resolve relative to the current directory and create parent directories. `--dry-run` never steps physics. Set `UFACTORY_MUJOCO_MODELS` to override the model tree; otherwise wheels use bundled resources and source/editable installs use repository resources. Configuration hashes depend on content, not installation paths.
+
+CI covers editable core installs and source-free wheel acceptance on Python 3.12/3.13/3.14, plus Python 3.13 CPU Reach tests and a 4096-step training smoke run. Logs and JSON reports are retained on failure.
 
 ### macOS and Windows
 
@@ -99,6 +128,8 @@ ufactory_mujoco/        Core simulation, control, planning, and RL library
   collision.py          CollisionChecker: clearance and contact queries
   path_planning.py      RRT-Connect + path shortcutting for collision-free joint trajectories
   rl/reach_env.py       Gymnasium TCP-reaching environment (all 5 arms)
+  tasks/                Installed pick-place, box-pack and dynamics commands
+  resource_paths.py     Repository/editable and bundled resource roots
   model_paths.py        Model name -> MJCF XML path resolution
   viewer.py             GLFW/X11 passive viewer lifecycle wrapper
 examples/

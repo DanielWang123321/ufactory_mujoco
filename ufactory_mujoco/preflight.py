@@ -13,6 +13,7 @@ import numpy as np
 
 from .collision import CollisionChecker
 from .path_planning import PlanningError, plan_collision_free
+from .task_geometry import tcp_task_heights, box_task_heights
 
 PHASES = ("接近", "闭合", "抬起", "运送", "放置", "回位")
 PACK_PHASES = ("接近", "抓取", "抬起", "运送", "释放", "回位")
@@ -153,10 +154,7 @@ def preflight_pick_place(robot, config) -> PreflightReport:
     """Plan one pick-and-place cycle and check it without stepping physics."""
     task = config.pick_place
     checker = make_checker(config.scene_path)
-    # Heights come from the example helper so dry-run and execution share poses.
-    import importlib
-    heights, q_home_full = importlib.import_module(
-        "examples.simulation.05_pick_place").tcp_task_heights(robot, task)
+    heights, q_home_full = tcp_task_heights(robot, task)
     q_home = np.asarray(q_home_full[:robot.n_arm], dtype=float)
     q_now = np.asarray(robot.get_joint_positions(), dtype=float)
 
@@ -242,12 +240,9 @@ def preflight_box_pack(robot, config, cycles: int = 1) -> PreflightReport:
     if not 1 <= cycles <= n_blocks:
         raise ValueError(f"cycles 必须在 1..{n_blocks} 之间, 得到 {cycles}")
     checker = make_box_pack_checker(config.scene_path)
-    # Heights come from the example helper so dry-run and execution share poses.
     # An unreachable probe point fails every phase instead of raising.
-    import importlib
     try:
-        heights, q_home_full = importlib.import_module(
-            "examples.simulation.10_box_pack").box_task_heights(robot, task)
+        heights, q_home_full = box_task_heights(robot, task)
     except RuntimeError:
         heights, q_home_full = None, None
     n_arm = robot.n_arm

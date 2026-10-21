@@ -1,0 +1,4 @@
+# Optional asset regeneration dependencies; same ranges as pyproject.toml [assets].
+# For an installed checkout, prefer: pip install -e ".[assets]"
+trimesh>=4
+xacro

@@ -9,7 +9,7 @@ import numpy as np
 
 from ufactory_mujoco.config import ConfigError, load_task_config
 
-pick_place = importlib.import_module("examples.simulation.05_pick_place")
+pick_place = importlib.import_module("ufactory_mujoco.tasks.pick_place")
 
 ROOT = Path(__file__).resolve().parent.parent
 MODELS_ROOT = ROOT / "models"

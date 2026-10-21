@@ -1,4 +1,5 @@
-# RL training dependencies (roadmap 0.0.5) -- core deps are in requirements.txt.
+# Optional RL dependencies, same ranges as pyproject.toml [rl].
+# Core deps are in requirements.txt; RL CI uses Python 3.13.
 # Install PyTorch FIRST so pip does not pull the large CUDA build by default:
 #   CPU only (recommended for laptops / CI, ~200 MB):
 #     pip install torch --index-url https://download.pytorch.org/whl/cpu
