@@ -11,6 +11,7 @@ The xArm6 additionally retains the historical 3 kg payload checks.
 
 import argparse
 from dataclasses import dataclass
+import os
 import platform
 import sys
 from pathlib import Path
@@ -18,12 +19,20 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
+from ufactory_mujoco.calibration import apply_calibration_to_model
 from ufactory_mujoco.collision import CollisionChecker
 from ufactory_mujoco.dynamics import ArmDynamics
 from ufactory_mujoco.model_paths import MODELS_ROOT
 from ufactory_mujoco.robots import ARMS, resolve_arm_scene
+from ufactory_mujoco.safety import (
+    SafetyGateError,
+    authorize_real_motion,
+    run_sdk_simulation,
+    stream_sha256,
+)
 from ufactory_mujoco.sim_robot import SimRobot, _quintic
 from ufactory_mujoco.trajectory import plan_ptp_quintic
+from ufactory_mujoco.xarm_robot import XArmRobot
 from ._reporting import write_report
 
 VALIDATION_VERSION = "batch6-v1"
@@ -526,6 +535,152 @@ def integer_argument(value, *, positive=False):
     return number
 
 
+def run_hardware_dynamics_validation(
+    robot: str = "xarm6",
+    *,
+    mode: str,
+    ip: str | None = None,
+    calibration: str | Path | None = None,
+    confirm_real: bool = False,
+) -> dict:
+    """Validate dynamics on a real xArm controller with fail-closed confirmation gates."""
+    resolved_ip = ip or os.environ.get("XARM_IP")
+    report = {
+        "schema_version": 1,
+        "validation_version": VALIDATION_VERSION,
+        "mode": mode,
+        "robot": robot,
+        "success": False,
+        "completed": False,
+        "failures": [],
+    }
+    try:
+        if robot == "all" or robot not in ARMS:
+            raise SafetyGateError(f"hardware dynamics mode={mode!r} requires a single robot key, got {robot!r}")
+        if not resolved_ip:
+            raise SafetyGateError(f"dynamics mode={mode!r} requires --ip or XARM_IP")
+        if not calibration:
+            raise SafetyGateError(f"dynamics mode={mode!r} requires --calibration YAML")
+
+        scene_path = resolve_arm_scene(robot, None, "scene")
+        model_path = MODELS_ROOT / robot / f"{robot}.xml"
+        with XArmRobot(
+            resolved_ip,
+            robot=robot,
+            scene="scene",
+            model_path=scene_path,
+            calibration=calibration,
+            read_only=True,
+        ) as hw_robot:
+            calib = hw_robot.calibration
+            state = hw_robot.read_state()
+            q_now, _qd_now, tau_real = hw_robot.get_joint_states()
+            load_raw = state["tcp_load"]
+            mass_kg = float(load_raw[0]) if isinstance(load_raw, (list, tuple)) and len(load_raw) >= 2 else 0.0
+            com_mm = load_raw[1] if isinstance(load_raw, (list, tuple)) and len(load_raw) >= 2 else [0.0, 0.0, 0.0]
+            com_m = (np.asarray(com_mm, dtype=float) / 1000.0).tolist()
+
+            dyn = ArmDynamics(model_path, payload=(mass_kg, com_m))
+            apply_calibration_to_model(dyn.model, calib, dyn.data)
+            tau_gravity = dyn.gravity(q_now)
+            delta_nm = tau_real - tau_gravity
+
+            checker = make_checker(scene_path)
+            apply_calibration_to_model(checker.model, calib, checker.data)
+            ready, target = (np.asarray(p, dtype=float) for p in PRESETS[robot])
+            segments = motion_segments(ready, target)
+            home = np.zeros(ARMS[robot].dof, dtype=float)
+            preflight = preflight_motion(checker, home, segments)
+
+            report.update(
+                serial_number=hw_robot.serial_number,
+                calibration_sha256=calib.sha256,
+                tcp_load={"mass_kg": mass_kg, "com_m": com_m},
+                static_observation={
+                    "q_rad": q_now.tolist(),
+                    "tau_real_nm": tau_real.tolist(),
+                    "tau_mujoco_gravity_nm": tau_gravity.tolist(),
+                    "delta_nm": delta_nm.tolist(),
+                    "max_abs_delta_nm": float(np.max(np.abs(delta_nm))),
+                },
+                preflight={
+                    "success": preflight["success"],
+                    "samples_checked": preflight["samples_checked"],
+                    "max_penetration_m": preflight["max_penetration_m"],
+                    "max_joint_limit_excess_rad": preflight["max_joint_limit_excess_rad"],
+                    "failures": preflight["failures"],
+                },
+            )
+            if not preflight["success"]:
+                report["failures"].extend(f"preflight: {f}" for f in preflight["failures"])
+                return report
+
+            if mode == "real-read-only":
+                report["completed"] = True
+                report["success"] = not report["failures"]
+                return report
+
+            # Build velocity-bounded shadow stream for sdk-sim / real
+            def _seg(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+                disp = float(np.max(np.abs(b - a)))
+                dur = max(0.6, disp * 1.875 / 0.8)
+                return plan_ptp_quintic(a, b, duration=dur, dt=0.02).q
+
+            shadow_chunks = [
+                _seg(home, ready),
+                _seg(ready, target)[1:],
+                _seg(target, ready)[1:],
+            ]
+            shadow_q = np.vstack(shadow_chunks)
+            prog_hash = stream_sha256(shadow_q)
+
+            if mode == "sdk-sim":
+                evidence = run_sdk_simulation(
+                    hw_robot._arm,
+                    robot=robot,
+                    calibration=calib,
+                    shadow_joint_stream_rad=shadow_q,
+                    checker=checker,
+                    preflight_ok=preflight["success"],
+                    cycles=1,
+                    program_sha256=prog_hash,
+                    step_dt_s=0.02,
+                )
+                report["sdk_sim"] = evidence.as_dict()
+                if not evidence.passed:
+                    report["failures"].extend(f"sdk_sim: {f}" for f in evidence.failures)
+                report["completed"] = True
+                report["success"] = bool(evidence.passed and not report["failures"])
+                return report
+
+            # mode == "real"
+            approval = authorize_real_motion(
+                hw_robot._arm,
+                robot=robot,
+                calibration=calib,
+                preflight_ok=preflight["success"],
+                confirm_real=confirm_real,
+                cycles=1,
+                program_sha256=prog_hash,
+            )
+            hw_robot.unlock_motion(approval)
+            for seg in segments:
+                hw_robot.move_joints(seg.goal, duration=seg.duration, wait=True)
+            q_end = hw_robot.get_joint_positions()
+            arrival_err = float(np.max(np.abs(q_end - ready)))
+            report["real_motion"] = {
+                "arrival_error_rad": arrival_err,
+                "passed": arrival_err < 0.02,
+            }
+            if arrival_err >= 0.02:
+                report["failures"].append(f"real arrival error {arrival_err:.5f} rad >= 0.02 rad")
+            report["completed"] = True
+            report["success"] = not report["failures"]
+    except Exception as exc:
+        report["failures"].append(f"{type(exc).__name__}: {exc}")
+    return report
+
+
 def main(argv=None) -> None:
     parser = argparse.ArgumentParser(prog="ufactory-mujoco dynamics", description=__doc__)
     parser.add_argument("--robot", choices=(*ARMS, "all"), default="xarm6")
@@ -533,7 +688,33 @@ def main(argv=None) -> None:
     parser.add_argument("--samples", type=lambda s: integer_argument(s, positive=True), default=32)
     parser.add_argument("--seed", type=integer_argument, default=0)
     parser.add_argument("--report", type=Path, help="write a strict JSON validation report")
+    parser.add_argument("--mode", choices=("sim", "real-read-only", "sdk-sim", "real"), default="sim",
+                        help="execution mode: sim (default), real-read-only, sdk-sim, or real")
+    parser.add_argument("--ip", default=None, help="xArm controller IPv4 address (or XARM_IP)")
+    parser.add_argument("--calibration", type=Path, help="robot-bound kinematic calibration YAML")
+    parser.add_argument("--confirm-real", action="store_true",
+                        help="explicitly authorize single-cycle real robot motion")
     args = parser.parse_args(argv)
+    if args.mode != "sim":
+        report = run_hardware_dynamics_validation(
+            args.robot,
+            mode=args.mode,
+            ip=args.ip,
+            calibration=args.calibration,
+            confirm_real=args.confirm_real,
+        )
+        print(f"dynamics ({args.mode} {args.robot}): {'PASS' if report['success'] else 'FAIL'}")
+        for reason in report["failures"]:
+            print(f"  {reason}", file=sys.stderr)
+        if args.report is not None:
+            try:
+                write_report(args.report, json_safe(report))
+                print(f"Report: {args.report}")
+            except (OSError, TypeError, ValueError) as exc:
+                print(f"Report failed: {exc}", file=sys.stderr)
+                raise SystemExit(1) from exc
+        raise SystemExit(0 if report["success"] and report["completed"] else 1)
+
     report = run_validation(args.robot, args.samples, args.seed, headless=args.headless)
     for result in report["robots"]:
         motion = result["motion"]

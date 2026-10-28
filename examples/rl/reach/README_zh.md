@@ -38,6 +38,10 @@ python examples/rl/reach/01_reach.py --model uf850
 # 无头模式评估（输出成功率与末端误差指标，达标退出码为 0，否则为 1）
 python examples/rl/reach/01_reach.py --model xarm6 --headless --episodes 20
 
+# 严格检查点契约评测 CLI（支持单机型或全系 5 臂）
+python examples/rl/reach/evaluate.py --model xarm6 --episodes 50 --quiet-episodes
+python examples/rl/reach/evaluate.py --model all --episodes 20 --min-success-rate 0.95 --max-mean-dist-m 0.010 --out build/rl/reach_eval.json --quiet-episodes
+
 # 指定基座坐标系下的固定目标点 (x, y, z，单位：米)
 python examples/rl/reach/01_reach.py --target 0.35 0.15 0.25
 
@@ -71,9 +75,12 @@ python scripts/train_reach_rl.py --model xarm6
 # 对齐 5 mm 验收标准的完整训练配方（2M 步，[256,256,128] MLP）
 python scripts/train_reach_rl.py \
     --model xarm6 --total-steps 2000000 --net-arch 256,256,128 --ent-coef 0.001 --eval-episodes 200
+
+# 为已有 ppo_reach.zip 补齐 config.yaml 与 checkpoint_manifest.json 契约文件
+python scripts/train_reach_rl.py --model all --backfill-manifest
 ```
 
-训练产物保存在 `build/rl/<model>/` 下，包含最终策略 `ppo_reach.zip`、阶段检查点 `checkpoints/` 以及评估报告 `metrics.json`。
+声明式超参数位于 `examples/rl/reach/recipe.yaml`。训练产物保存在 `build/rl/<model>/` 下，包含最终策略 `ppo_reach.zip`、`config.yaml`、`ppo_reach.checkpoint_manifest.json`、`provenance.json`、阶段检查点 `checkpoints/` 以及评估报告 `metrics.json`。
 
 ## 4. 基准验收结果
 

@@ -3,6 +3,12 @@ from .viewer import configure_backend
 # MuJoCo imports GLFW while importing its rendering modules.
 configure_backend()
 
+from .calibration import (
+    CalibrationError,
+    KinematicsCalibration,
+    apply_calibration_to_model,
+    load_kinematics_calibration,
+)
 from .collision import CollisionChecker, arm_joint_limits
 from .config import (
     EXECUTORS,
@@ -35,6 +41,7 @@ from .kinematics import (
     site_jacobian,
     solve_joint_velocity,
 )
+from .kinematics_validation import validate_fk_ik_with_controller
 from .model_paths import MODELS_ROOT, resolve_model_path
 from .path_planning import (
     PlanningError,
@@ -62,6 +69,13 @@ from .robots import (
     resolve_arm_scene,
     robot_profile,
 )
+from .safety import (
+    MotionApproval,
+    SafetyGateError,
+    SdkSimEvidence,
+    authorize_real_motion,
+    run_sdk_simulation,
+)
 from .sim_robot import SimRobot
 from .trajectory import (
     JointTrajectory,
@@ -70,19 +84,23 @@ from .trajectory import (
     plan_ptp_lspb,
     plan_ptp_quintic,
 )
+from .xarm_robot import XArmRobot
 
 __all__ = [
     "ARMS",
     "ArmDynamics",
     "ArmSpec",
     "BoxPackConfig",
+    "CalibrationError",
     "CollisionChecker",
     "ConfigError",
     "EXECUTORS",
     "GraspError",
     "GripperSpec",
     "JointTrajectory",
+    "KinematicsCalibration",
     "MODELS_ROOT",
+    "MotionApproval",
     "PACK_PHASES",
     "PHASES",
     "PhaseResult",
@@ -94,11 +112,16 @@ __all__ = [
     "RobotInterface",
     "RobotProfile",
     "SCENES",
+    "SafetyGateError",
+    "SdkSimEvidence",
     "SegmentPlan",
     "SimRobot",
     "TaskConfig",
+    "XArmRobot",
+    "apply_calibration_to_model",
     "arm_joint_limits",
     "attach_payload",
+    "authorize_real_motion",
     "bilateral_finger_contact",
     "bodies_in_contact",
     "condition_number",
@@ -106,6 +129,7 @@ __all__ = [
     "fk_pose",
     "gap_to_position",
     "identify_gripper",
+    "load_kinematics_calibration",
     "load_task_config",
     "manipulability",
     "path_length",
@@ -124,9 +148,11 @@ __all__ = [
     "resolve_arm_scene",
     "resolve_model_path",
     "robot_profile",
+    "run_sdk_simulation",
     "shortcut_path",
     "site_jacobian",
     "solve_ik",
     "solve_ik_trajectory",
     "solve_joint_velocity",
+    "validate_fk_ik_with_controller",
 ]

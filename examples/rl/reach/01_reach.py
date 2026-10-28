@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""RL example 01: TCP reaching with a trained PPO policy (roadmap 0.0.5, 0.0.7).
+"""RL example 01: TCP reaching with a trained PPO policy (roadmap 0.0.5, 0.0.7, batch 8).
 
 Loads the policy trained by scripts/train_reach_rl.py and rolls out episodes
 in the ReachEnv task: the TCP chases a randomly sampled target point.
@@ -16,6 +16,7 @@ Usage:
 """
 
 import argparse
+import json
 import sys
 import time
 from pathlib import Path
@@ -25,30 +26,65 @@ sys.path.insert(0, str(_ROOT))
 
 import numpy as np  # noqa: E402
 
-from ufactory_mujoco.rl import ROBOT_PROFILES, ReachEnv  # noqa: E402
+from ufactory_mujoco.rl import (  # noqa: E402
+    ROBOT_PROFILES,
+    ReachEnv,
+    build_reach_task_configs,
+    load_validated_ppo,
+)
 
 _BUILD = _ROOT / "build" / "rl"
+DEFAULT_RECIPE = Path(__file__).resolve().with_name("recipe.yaml")
 
 
 def make_policy(args):
-    """Return (policy_fn, description). policy_fn(obs) -> action."""
+    """Return (policy_fn, description, meta_dict). policy_fn(obs) -> action."""
     if args.random:
         rng = np.random.default_rng(args.seed)
-        return ((lambda obs: rng.uniform(-1.0, 1.0, ROBOT_PROFILES[args.model].n_joints)),
-                "random baseline")
+        return (
+            (lambda obs: rng.uniform(-1.0, 1.0, ROBOT_PROFILES[args.model].n_joints)),
+            "random baseline",
+            {},
+        )
     try:
         from stable_baselines3 import PPO
     except ImportError:
-        sys.exit("stable-baselines3 not installed (requirements-rl.txt); "
-                 "use --random for the untrained baseline")
+        sys.exit(
+            "stable-baselines3 not installed (requirements-rl.txt); "
+            "use --random for the untrained baseline"
+        )
     policy_path = Path(args.policy)
     if not policy_path.is_file():
-        sys.exit(f"policy not found: {policy_path} -- "
-                 f"train first with scripts/train_reach_rl.py --model {args.model} "
-                 "or use --random")
-    model = PPO.load(str(policy_path), device=args.device)
-    return (lambda obs: model.predict(obs, deterministic=True)[0]), \
-        f"PPO policy {policy_path}"
+        sys.exit(
+            f"policy not found: {policy_path} -- "
+            f"train first with scripts/train_reach_rl.py --model {args.model} "
+            "or use --random"
+        )
+    manifest_path = policy_path.with_suffix(".checkpoint_manifest.json")
+    config_path = policy_path.parent / "config.yaml"
+    meta = {}
+    if manifest_path.is_file() and config_path.is_file():
+        expected_env, _, _ = build_reach_task_configs(args.model, recipe_path=args.recipe)
+        model, artifact, manifest = load_validated_ppo(
+            policy_path,
+            config_path,
+            manifest_path,
+            device=args.device,
+            expected_task="reach",
+            expected_robot=args.model,
+            expected_runtime_env=expected_env,
+        )
+        meta = {
+            "checkpoint_sha256": manifest.checkpoint_sha256,
+            "config_sha256": artifact["config_sha256"],
+        }
+    else:
+        model = PPO.load(str(policy_path), device=args.device)
+    return (
+        (lambda obs: model.predict(obs, deterministic=True)[0]),
+        f"PPO policy {policy_path}",
+        meta,
+    )
 
 
 def run_episodes(env: ReachEnv, policy_fn, episodes: int, seed: int,
@@ -84,6 +120,8 @@ def main() -> None:
                     help="robot model (default: xarm6)")
     ap.add_argument("--policy", default=None,
                     help="path to ppo_reach.zip (default: build/rl/<model>/ppo_reach.zip)")
+    ap.add_argument("--recipe", type=Path, default=DEFAULT_RECIPE,
+                    help="path to reach recipe.yaml")
     ap.add_argument("--episodes", type=int, default=10, help="evaluation episodes (default: 10)")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--device", default="cpu", help="torch device (default: cpu)")
@@ -97,11 +135,13 @@ def main() -> None:
     ap.add_argument("--max-mean-dist-mm", type=float, default=10.0,
                     help="PASS mean final distance bound in mm (default: 10.0, "
                          "ufactory_genesis acceptance standard)")
+    ap.add_argument("--report", "--summary-json", dest="report", type=Path, default=None,
+                    help="optional path to write JSON evaluation report")
     args = ap.parse_args()
     if args.policy is None:
         args.policy = str(_BUILD / args.model / "ppo_reach.zip")
 
-    policy_fn, description = make_policy(args)
+    policy_fn, description, meta = make_policy(args)
     options = {"target": np.asarray(args.target)} if args.target is not None else None
     env = ReachEnv(robot=args.model, render_mode=None if args.headless else "human")
     print(f"Reaching on {args.model} with {description} ({args.episodes} episodes)")
@@ -116,7 +156,25 @@ def main() -> None:
     print(f"\n  success_rate={success_rate:.2%}  mean_final_dist={mean_dist:.1f} mm  "
           f"mean_steps={np.mean([r['steps'] for r in results]):.1f}")
 
-    ok = success_rate >= args.min_success_rate and mean_dist <= args.max_mean_dist_mm
+    ok = bool(success_rate >= args.min_success_rate and mean_dist <= args.max_mean_dist_mm)
+    if args.report is not None:
+        args.report.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "schema_version": 1,
+            "task": "reach",
+            "robot": args.model,
+            "mode": "random" if args.random else "policy",
+            "policy": args.policy if not args.random else None,
+            **meta,
+            "seed": args.seed,
+            "episodes": len(results),
+            "success_rate": float(success_rate),
+            "mean_final_dist_mm": mean_dist,
+            "passed": True if args.random else ok,
+            "results": results,
+        }
+        args.report.write_text(json.dumps(payload, indent=2, allow_nan=False) + "\n", encoding="utf-8")
+
     if args.random:
         print("\nRL reaching BASELINE (untrained policy, not judged)")
         sys.exit(0)

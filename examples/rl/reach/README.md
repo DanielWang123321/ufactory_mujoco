@@ -38,6 +38,10 @@ python examples/rl/reach/01_reach.py --model uf850
 # Headless evaluation (prints metrics, exits 0 on PASS / 1 on FAIL)
 python examples/rl/reach/01_reach.py --model xarm6 --headless --episodes 20
 
+# Strict checkpoint-manifest evaluation CLI (single model or all 5 arms)
+python examples/rl/reach/evaluate.py --model xarm6 --episodes 50 --quiet-episodes
+python examples/rl/reach/evaluate.py --model all --episodes 20 --min-success-rate 0.95 --max-mean-dist-m 0.010 --out build/rl/reach_eval.json --quiet-episodes
+
 # Roll out toward a fixed base-frame target (x, y, z in meters)
 python examples/rl/reach/01_reach.py --target 0.35 0.15 0.25
 
@@ -71,9 +75,12 @@ python scripts/train_reach_rl.py --model xarm6
 # Full production recipe aligned with 5 mm acceptance standard (2M steps, [256,256,128] MLP)
 python scripts/train_reach_rl.py \
     --model xarm6 --total-steps 2000000 --net-arch 256,256,128 --ent-coef 0.001 --eval-episodes 200
+
+# Backfill config.yaml + ppo_reach.checkpoint_manifest.json for existing checkpoints
+python scripts/train_reach_rl.py --model all --backfill-manifest
 ```
 
-Training outputs `ppo_reach.zip`, periodic checkpoints under `checkpoints/`, and an evaluation summary `metrics.json` in `build/rl/<model>/`.
+Declarative parameters live in `examples/rl/reach/recipe.yaml`. Training outputs `ppo_reach.zip`, `config.yaml`, `ppo_reach.checkpoint_manifest.json`, `provenance.json`, periodic checkpoints under `checkpoints/`, and `metrics.json` in `build/rl/<model>/`.
 
 ## 4. Benchmark Results
 

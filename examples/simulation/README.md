@@ -113,12 +113,15 @@ qdd = dyn.forward_dynamics(q, qd, tau)
 tau_ff = dyn.feedforward_traj(q_traj, dt)  # feedforward torques along a trajectory
 ```
 
-Cross-validation scripts against a real xArm 6 (`xarm-python-sdk`):
+Cross-validation and hardware safety-gate commands against a real xArm 6 (`xarm-python-sdk`):
 
 ```bash
-python scripts/compare_dynamics_xarm6.py                                      # record + ID replay
-python scripts/compare_dynamics_xarm6.py --replay build/dynamics/run_xxx.csv  # replay from .meta.json
-python scripts/compare_torque_xarm6.py --no-move                              # static holding torque
+python scripts/gen_kinematics_params.py 192.168.1.60                          # extract per-unit calibration YAML
+python -m ufactory_mujoco.kinematics_validation --robot xarm6 --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_L56A01.yaml
+python scripts/compare_torque_xarm6.py --no-move --calibration calibrations/xarm6_kinematics_L56A01.yaml
+python scripts/compare_dynamics_xarm6.py --replay build/dynamics/run_xxx.csv  # replay from .meta.json (no motion)
+python examples/simulation/05_pick_place.py --robot xarm6 --mode sdk-sim --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_L56A01.yaml
+python examples/simulation/08_dynamics.py --robot xarm6 --mode real-read-only --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_L56A01.yaml
 ```
 
 ## 3. CLI Options Summary
@@ -131,6 +134,10 @@ python scripts/compare_torque_xarm6.py --no-move                              # 
 | `--executor <mode>` | `05`, `10` | `servo_cartesian` | Execution mode: `servo_cartesian` or `servo_j` |
 | `--config <path>` | `05`, `10` | `configs/<task>/<robot>.yaml` | Custom task overlay YAML path |
 | `--dry-run` | `05`, `10` | `False` | Run joint-limit/collision preflight only without stepping physics |
+| `--mode <mode>` | `05`, `08`, `10` | `sim` | Execution mode: `sim`, `dry-run` (`05`/`10`), `real-read-only` (`08`), `sdk-sim`, or `real` |
+| `--ip <addr>` | `05`, `08`, `10` | `192.168.1.60` | xArm controller IP address (`sdk-sim`, `real`, `real-read-only`) |
+| `--calibration <path>` | `05`, `08`, `10` | `None` | Required per-unit kinematic calibration YAML for hardware modes |
+| `--confirm-real` | `05`, `08`, `10` | `False` | Explicit safety confirmation required before `--mode real` motion |
 | `--report <path>` | `05`, `08`, `10` | `None` | Write preflight, dynamics validation or cycle execution report as JSON |
 | `--samples <N>` | `08` | `32` | Positive number of random dynamics poses per arm |
 | `--pose <home\|ready>` | `01` | `home` | Initial keyframe pose |

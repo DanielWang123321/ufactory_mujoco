@@ -13,7 +13,18 @@ import mujoco
 import numpy as np
 
 from ufactory_mujoco.ik import solve_ik
-from ufactory_mujoco.rl import ROBOT_PROFILES, ReachEnv, XArm6ReachEnv
+from ufactory_mujoco.rl import (
+    REACH_ACTION_CONTRACT,
+    ROBOT_PROFILES,
+    ArtifactError,
+    ReachEnv,
+    XArm6ReachEnv,
+    build_reach_task_configs,
+    load_training_config,
+    validate_checkpoint_artifacts,
+    write_checkpoint_manifest,
+    write_training_config,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 _HAS_GYM = importlib.util.find_spec("gymnasium") is not None
@@ -349,8 +360,6 @@ class AutoNEnvsTests(unittest.TestCase):
     def test_auto_n_envs_bounds(self):
         import importlib.util as iu
         spec = iu.spec_from_file_location("train_reach_rl_mod", ROOT / "scripts" / "train_reach_rl.py")
-        if not (_HAS_GYM and _HAS_SB3):
-            self.skipTest("train script needs gymnasium + stable-baselines3")
         mod = iu.module_from_spec(spec)
         spec.loader.exec_module(mod)
         self.assertEqual(mod.auto_n_envs(cpu_count=8, avail_mb=100_000), 8)
@@ -358,6 +367,100 @@ class AutoNEnvsTests(unittest.TestCase):
         self.assertEqual(mod.auto_n_envs(cpu_count=8, avail_mb=2_200), 2)
         self.assertEqual(mod.auto_n_envs(cpu_count=8, avail_mb=500), 1)
         self.assertEqual(mod.auto_n_envs(cpu_count=8, avail_mb=3_250), 5)
+
+
+class ReachRecipeAndArtifactTests(unittest.TestCase):
+    """Batch 8: Reach recipe.yaml + config.yaml + checkpoint_manifest.json contract."""
+
+    def test_reach_recipe_builds_valid_configs_for_all_robots(self):
+        recipe_path = ROOT / "examples" / "rl" / "reach" / "recipe.yaml"
+        for robot in ALL_ROBOTS:
+            env_cfg, reward_cfg, train_cfg = build_reach_task_configs(robot, recipe_path=recipe_path)
+            n = ROBOT_PROFILES[robot].n_joints
+            self.assertEqual(env_cfg["task_name"], "reach")
+            self.assertEqual(env_cfg["robot"], robot)
+            self.assertEqual(env_cfg["num_obs"], 3 + 3 * n)
+            self.assertEqual(env_cfg["num_actions"], n)
+            self.assertEqual(float(env_cfg["success_dist"]), 0.005)
+            self.assertEqual(env_cfg["control"], REACH_ACTION_CONTRACT)
+            self.assertIn("k_shape", reward_cfg)
+            self.assertEqual(train_cfg["algorithm"], "PPO")
+
+    def test_checkpoint_manifest_roundtrip_and_tamper_detection(self):
+        import tempfile
+
+        recipe_path = ROOT / "examples" / "rl" / "reach" / "recipe.yaml"
+        env_cfg, reward_cfg, train_cfg = build_reach_task_configs("xarm6", recipe_path=recipe_path)
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp)
+            cfg_path = out_dir / "config.yaml"
+            ckpt_path = out_dir / "ppo_reach.zip"
+            ckpt_path.write_bytes(b"fake-zip-payload-for-manifest-test")
+
+            write_training_config(
+                cfg_path,
+                task="reach",
+                robot="xarm6",
+                env=env_cfg,
+                reward=reward_cfg,
+                train=train_cfg,
+            )
+            loaded_cfg = load_training_config(cfg_path)
+            manifest_path = write_checkpoint_manifest(
+                ckpt_path,
+                training_config=loaded_cfg,
+                action_contract=REACH_ACTION_CONTRACT,
+            )
+            validated, manifest = validate_checkpoint_artifacts(
+                ckpt_path,
+                cfg_path,
+                manifest_path,
+                expected_task="reach",
+                expected_robot="xarm6",
+                expected_runtime_env=env_cfg,
+            )
+            self.assertEqual(validated["config_sha256"], manifest.config_sha256)
+
+            # Tampered checkpoint bytes must raise ArtifactError
+            ckpt_path.write_bytes(b"tampered-bytes")
+            with self.assertRaises(ArtifactError):
+                validate_checkpoint_artifacts(
+                    ckpt_path,
+                    cfg_path,
+                    manifest_path,
+                    expected_task="reach",
+                    expected_robot="xarm6",
+                )
+
+            # Restore checkpoint bytes, test runtime env mismatch
+            ckpt_path.write_bytes(b"fake-zip-payload-for-manifest-test")
+            bad_env = dict(env_cfg)
+            bad_env["delta"] = 0.10
+            with self.assertRaises(ArtifactError):
+                validate_checkpoint_artifacts(
+                    ckpt_path,
+                    cfg_path,
+                    manifest_path,
+                    expected_task="reach",
+                    expected_robot="xarm6",
+                    expected_runtime_env=bad_env,
+                )
+
+    def test_existing_reach_checkpoints_have_valid_manifests(self):
+        recipe_path = ROOT / "examples" / "rl" / "reach" / "recipe.yaml"
+        for robot in ALL_ROBOTS:
+            ckpt = ROOT / "build" / "rl" / robot / "ppo_reach.zip"
+            if not ckpt.is_file():
+                continue
+            env_cfg, _, _ = build_reach_task_configs(robot, recipe_path=recipe_path)
+            validated, manifest = validate_checkpoint_artifacts(
+                ckpt,
+                expected_task="reach",
+                expected_robot=robot,
+                expected_runtime_env=env_cfg,
+            )
+            self.assertEqual(validated["robot"], robot)
+            self.assertEqual(manifest.action_contract, REACH_ACTION_CONTRACT)
 
 
 class RobotProfileCalibrationTests(unittest.TestCase):

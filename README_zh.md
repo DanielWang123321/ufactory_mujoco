@@ -9,8 +9,9 @@
 - **高精细视觉质感**：具备平滑法线与材质分色（烤漆白外壳、阳极氧化铝转轴、黑色部件及密封环）的高精度 OBJ 视觉网格，配合物理专用的 STL 碰撞网格。
 - **全系列资产支持**：包含从 [ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis) 官方解构转换的全部机械臂（`lite6`、`xarm5`、`xarm6`、`xarm7`、`uf850`）及末端配件（`gripper_g2`、`bio_gripper_g2`、`lite6_gripper`、`lite6_vacuum_gripper`）。
 - **运动学与轨迹规划**：提供任意 site 正运动学、TCP 解析雅可比、阻尼最小二乘法（DLS）逆运动学（`ufactory_mujoco/kinematics.py`、`ufactory_mujoco/ik.py`），点到点五次/多路点 C2 样条轨迹（`ufactory_mujoco/trajectory.py`），以及 RRT-Connect 避障路径规划（`ufactory_mujoco/collision.py`、`ufactory_mujoco/path_planning.py`）。
-- **刚体动力学模块**：支持质量矩阵 $M(q)$、重力/科氏力项、正/逆动力学与末端负载注入（`ufactory_mujoco/dynamics.py`），保留历史 xArm 6 真机交叉验证；`08_dynamics.py` 覆盖五款裸臂的碰撞预检、逐步运动验收及 JSON 报告。
-- **强化学习环境**：全系 5 款机械臂通用的 TCP 位置到达 Gymnasium 环境（`ufactory_mujoco/rl/reach_env.py`，含标定工作空间），预训练 PPO 策略在 `< 5 mm` 官方标准下成功率均达 $\ge 96\%$。
+- **刚体动力学模块**：支持质量矩阵 $M(q)$、重力/科氏力项、正/逆动力学与末端负载注入（`ufactory_mujoco/dynamics.py`），包含 xArm 6 真机交叉验证；`08_dynamics.py` 覆盖五款裸臂的碰撞预检、逐步运动验收及 JSON 报告。
+- **强化学习环境与契约**：全系 5 款机械臂通用的 TCP 位置到达环境（`ufactory_mujoco/rl/reach_env.py`，`< 5 mm` 标准下成功率 $\ge 96\%$）以及 `xArm 6 + Gripper G2` 桌面物块抓放环境（`ufactory_mujoco/rl/pick_place_env.py`，成功率 $100\%$、触地下压 $\le 1\text{ mm}$），配套声明式配方与 SHA-256 检查点哈希契约（`ufactory_mujoco/rl/artifacts.py`）。
+- **真机接口与安全确认门**：`XArmRobot`（`ufactory_mujoco/xarm_robot.py`）实现 `RobotInterface`，默认只读观测，支持单机运动学标定（`ufactory_mujoco/calibration.py`）、控制器 FK/IK 比对（`ufactory_mujoco/kinematics_validation.py`）、`sdk-sim` 控制器内部仿真及 `--confirm-real` 单周期安全门禁（`ufactory_mujoco/safety.py`）。
 - **稳定可靠的查看器**：集成实时时钟同步与异常安全退出保护，深度适配 Linux Wayland / X11（`ufactory_mujoco/viewer.py`）。
 
 ## 快速上手
@@ -58,11 +59,11 @@ python -m twine check dist/*
 python -m pip install -e ".[assets]"
 ```
 
-`ufactory-mujoco pick-place` 和 `box-pack` 支持 `--robot`、`--gripper`、`--executor`、`--config`、`--cycles`、`--headless`、`--dry-run`、`--report`；装箱另支持 `--speed`。各子命令可用 `--help` 查询。Lite6 装箱沿用现有 `servo_cartesian` 限制以保证运送稳定。原三个仿真脚本继续作为 `ufactory_mujoco.tasks` 的兼容包装。
+`ufactory-mujoco pick-place` 和 `box-pack` 支持 `--robot`、`--gripper`、`--executor`、`--config`、`--cycles`、`--headless`、`--dry-run`、`--mode {sim,dry-run,sdk-sim,real}`、`--ip`、`--calibration`、`--confirm-real`、`--report`；装箱另支持 `--speed`。`ufactory-mujoco dynamics` 支持 `--mode {sim,real-read-only,sdk-sim,real}`、`--ip`、`--calibration` 与 `--confirm-real`。各子命令可用 `--help` 查询。Lite6 装箱沿用现有 `servo_cartesian` 限制以保证运送稳定。原三个仿真脚本继续作为 `ufactory_mujoco.tasks` 的兼容包装。
 
-退出码：**0** 成功，**1** 运行/预检/报告失败，**2** 参数或配置非法。报告路径相对当前目录，自动创建父目录；`--dry-run` 不步进物理。`UFACTORY_MUJOCO_MODELS` 优先覆盖模型目录；否则普通安装读取包内资源，源码/editable 读取仓库资源。配置哈希仅取决于内容，不受安装路径影响。
+退出码：**0** 成功，**1** 运行/预检/安全门/报告失败，**2** 参数或配置非法。报告路径相对当前目录，自动创建父目录；`--dry-run` 不步进物理；`--mode sdk-sim` 与 `--mode real` 强制 `cycles == 1`，要求匹配的 `--calibration` 标定文件，且物理运动必须显式传入 `--confirm-real`。`UFACTORY_MUJOCO_MODELS` 优先覆盖模型目录；否则普通安装读取包内资源，源码/editable 读取仓库资源。配置哈希仅取决于内容，不受安装路径影响。
 
-CI 包含 Python 3.12/3.13/3.14 的 editable 核心回归及无源码 wheel 验收，以及 Python 3.13 CPU Reach 测试和 4096 步训练烟测；失败时仍保存日志与 JSON 报告。
+CI 包含 Python 3.12/3.13/3.14 的 editable 核心回归及无源码 wheel 验收，以及 Python 3.13 CPU Reach 与 Pick-and-Place RL 测试及训练/评测烟测；失败时仍保存日志与 JSON 报告。
 
 ### macOS 与 Windows
 
@@ -80,7 +81,8 @@ CI 包含 Python 3.12/3.13/3.14 的 editable 核心回归及无源码 wheel 验�
 | 类别 | 说明文档 | 内容概览 |
 | :--- | :--- | :--- |
 | **仿真示例 (`01`–`10`)** | [examples/simulation/README_zh.md](examples/simulation/README_zh.md) ([English](examples/simulation/README.md)) | 模型预览、关节/笛卡尔控制、夹爪控制、方块抓放、多方块装箱、轨迹与避障规划、运动学与动力学工具链 |
-| **强化学习 (`01_reach`)** | [examples/rl/reach/README_zh.md](examples/rl/reach/README_zh.md) ([English](examples/rl/reach/README.md)) | 全系 5 款机械臂 TCP 位置到达环境、PPO 策略回放评测与训练指南 |
+| **强化学习到达 (`01_reach`)** | [examples/rl/reach/README_zh.md](examples/rl/reach/README_zh.md) ([English](examples/rl/reach/README.md)) | 全系 5 款机械臂 TCP 位置到达环境、PPO 策略回放评测与训练指南 |
+| **强化学习抓放 (`01_pick_place`)** | [examples/rl/pick_place/README_zh.md](examples/rl/pick_place/README_zh.md) ([English](examples/rl/pick_place/README.md)) | `xArm 6 + Gripper G2` 桌面物块抓放环境、闭环专家基线与 PPO 契约评测 |
 | **全机型指令速查** | [docs/visual_command_guide.md](docs/visual_command_guide.md) | 按产品型号（Lite 6、xArm 5/6/7、UF850）与组件状态分类的启动指令矩阵 |
 
 ```bash
@@ -93,11 +95,12 @@ python examples/simulation/05_pick_place.py
 python examples/simulation/09_obstacle_avoidance.py
 python examples/simulation/10_box_pack.py
 
-# 强化学习 TCP 到达（加载 PPO 预训练策略；无 stable-baselines3 时可用 --random）
+# 强化学习 TCP 到达与桌面抓放（无 stable-baselines3 时可用 --random / --expert）
 python examples/rl/reach/01_reach.py --model xarm6
+python examples/rl/pick_place/01_pick_place.py --expert --headless
 ```
 
-> 所有运动与强化学习示例（`01`–`10`、`01_reach.py`）均支持 `--headless` 参数，用于无头模式运行并输出量化验收指标。
+> 所有运动与强化学习示例（`01`–`10`、`01_reach.py`、`01_pick_place.py`）均支持 `--headless` 参数，用于无头模式运行并输出量化验收指标。
 
 ### 3. 运行测试套件
 
@@ -111,14 +114,19 @@ python -m unittest discover -s tests -v
 ## 项目结构
 
 ```text
+calibrations/           单机控制器运动学标定 YAML 文件（含 SHA-256 校验）
 configs/                严格类型校验的 YAML 任务配置（default、pick_place、box_pack）
 models/                 机器人及配件 MJCF 模型与视觉/碰撞网格资产
   xarm6/, lite6/, ...   xArm 5/6/7、UF850、Lite6 及各款夹爪（独立与组合场景）
-ufactory_mujoco/        核心仿真、控制、规划与强化学习库
+ufactory_mujoco/        核心仿真、控制、规划、真机接口与强化学习库
   sim_robot.py          SimRobot：物理步进、关节/TCP控制、渲染同步
+  xarm_robot.py         XArmRobot：默认只读会话与安全门授权后的真机控制接口
   robot_interface.py    机械臂抽象基类（支持仿真与真机接口对齐）
   robots.py             5 款机械臂规格注册表、组合场景路径解析与冻结工作空间
   config.py             严格 YAML 任务配置加载、校验与稳定内容哈希
+  calibration.py        单机运动学标定加载、MuJoCo 模型修补与 TCP/法兰变换
+  safety.py             真机安全确认门、单周期硬上限与 sdk-sim 内部仿真重放
+  kinematics_validation.py 与实机控制器固件的只读 FK/IK 交叉校验
   grippers.py           物理开口间距 <-> 执行器映射及双侧指垫接触检测
   preflight.py          抓放与装箱任务静态 IK/碰撞预检及 RRT 备选路径规划
   ik.py                 阻尼最小二乘法（DLS）笛卡尔 IK 解算器
@@ -128,12 +136,17 @@ ufactory_mujoco/        核心仿真、控制、规划与强化学习库
   collision.py          CollisionChecker：碰撞与最小间隙查询
   path_planning.py      RRT-Connect + 路径剪枝（shortcut）无碰撞规划
   rl/reach_env.py       Gymnasium TCP 到达强化学习环境（支持全系 5 款机械臂）
+  rl/pick_place_env.py  Gymnasium 桌面物块抓放强化学习环境与闭环专家基线
+  rl/artifacts.py       声明式 RL 配方、配置哈希与检查点契约校验
+  tasks/                可安装 pick-place、box-pack 与 dynamics 任务命令
+  resource_paths.py     源码/editable 与打包资源路径解析
   model_paths.py        模型名称 → MJCF XML 路径解析
   viewer.py             GLFW/X11 交互查看器生命周期封装
 examples/
   simulation/           仿真示例 01–10（详见 examples/simulation/README_zh.md）
-  rl/reach/             强化学习 reach 示例（详见 examples/rl/reach/README_zh.md）
-scripts/                资产转换、工作空间标定、真机动力学回放比对与 RL 训练脚本
+  rl/reach/             强化学习 reach 示例与评测（详见 examples/rl/reach/README_zh.md）
+  rl/pick_place/        强化学习 pick-and-place 示例与评测（详见 examples/rl/pick_place/README_zh.md）
+scripts/                资产转换、单机标定提取、真机动力学回放比对与 RL 训练脚本
 tests/                  单元测试与回归测试套件
 docs/internal/          内部设计与路线图记录（非用户文档）
 ```

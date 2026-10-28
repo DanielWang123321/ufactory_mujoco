@@ -9,8 +9,9 @@ MuJoCo simulation and reinforcement learning suite for UFACTORY robots — featu
 - **High-Fidelity Visuals**: Smooth-normal, multi-material OBJ visual meshes (PBR white shell, silver metal joints, black accents) paired with dedicated collision STLs.
 - **Full Asset Ecosystem**: All UFACTORY robot arms (`lite6`, `xarm5`, `xarm6`, `xarm7`, `uf850`) and grippers (`gripper_g2`, `bio_gripper_g2`, `lite6_gripper`, `lite6_vacuum_gripper`) converted from [ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis).
 - **Kinematics & Motion Planning**: Per-site FK, analytical Jacobian, damped least-squares (DLS) IK (`ufactory_mujoco/kinematics.py`, `ufactory_mujoco/ik.py`), PTP quintic/C2 spline trajectories (`ufactory_mujoco/trajectory.py`), and RRT-Connect obstacle avoidance (`ufactory_mujoco/collision.py`, `ufactory_mujoco/path_planning.py`).
-- **Rigid-Body Dynamics**: Mass matrix $M(q)$, gravity/Coriolis terms, inverse/forward dynamics, and TCP payload injection (`ufactory_mujoco/dynamics.py`), with historical xArm 6 hardware cross-validation. Example `08_dynamics.py` validates all five bare arms, including collision preflight, monitored motion and JSON reports.
-- **Reinforcement Learning**: Gymnasium TCP-reaching environment (`ufactory_mujoco/rl/reach_env.py`) with calibrated workspace profiles and PPO policies achieving $\ge 96\%$ success at the $< 5\text{ mm}$ threshold across all five arms.
+- **Rigid-Body Dynamics**: Mass matrix $M(q)$, gravity/Coriolis terms, inverse/forward dynamics, and TCP payload injection (`ufactory_mujoco/dynamics.py`), with xArm 6 hardware cross-validation. Example `08_dynamics.py` validates all five bare arms, including collision preflight, monitored motion and JSON reports.
+- **Reinforcement Learning**: Gymnasium TCP-reaching (`ufactory_mujoco/rl/reach_env.py`, $\ge 96\%$ success at $< 5\text{ mm}$ across all five arms) and tabletop cube pick-and-place (`ufactory_mujoco/rl/pick_place_env.py` for `xarm6 + gripper_g2`, $100\%$ success with touchdown press $\le 1\text{ mm}$), backed by declarative recipes and SHA-256 checkpoint-manifest contracts (`ufactory_mujoco/rl/artifacts.py`).
+- **Real-Robot Interface & Safety Gate**: `XArmRobot` (`ufactory_mujoco/xarm_robot.py`) implements `RobotInterface` with read-only observation by default, per-unit kinematic calibration (`ufactory_mujoco/calibration.py`), controller FK/IK cross-validation (`ufactory_mujoco/kinematics_validation.py`), `sdk-sim` controller internal simulation, and a `--confirm-real` single-cycle safety gate (`ufactory_mujoco/safety.py`).
 - **Robust Viewer**: Passive viewer with real-time clock sync, graceful exit handling, and Linux Wayland/X11 compatibility (`ufactory_mujoco/viewer.py`).
 
 ## Quick Start
@@ -58,11 +59,11 @@ python -m twine check dist/*
 python -m pip install -e ".[assets]"
 ```
 
-`ufactory-mujoco pick-place` and `box-pack` accept `--robot`, `--gripper`, `--executor`, `--config`, `--cycles`, `--headless`, `--dry-run` and `--report`; `box-pack` also accepts `--speed`. Use `COMMAND --help` for details. Lite6 box packing keeps its existing `servo_cartesian` executor requirement for reliable transport. The three original simulation scripts remain compatible wrappers around `ufactory_mujoco.tasks`.
+`ufactory-mujoco pick-place` and `box-pack` accept `--robot`, `--gripper`, `--executor`, `--config`, `--cycles`, `--headless`, `--dry-run`, `--mode {sim,dry-run,sdk-sim,real}`, `--ip`, `--calibration`, `--confirm-real` and `--report`; `box-pack` also accepts `--speed`. `ufactory-mujoco dynamics` accepts `--mode {sim,real-read-only,sdk-sim,real}`, `--ip`, `--calibration` and `--confirm-real`. Use `COMMAND --help` for details. Lite6 box packing keeps its existing `servo_cartesian` executor requirement for reliable transport. The three original simulation scripts remain compatible wrappers around `ufactory_mujoco.tasks`.
 
-Exit codes: **0** success, **1** runtime/preflight/report failure, **2** invalid arguments or configuration. Reports resolve relative to the current directory and create parent directories. `--dry-run` never steps physics. Set `UFACTORY_MUJOCO_MODELS` to override the model tree; otherwise wheels use bundled resources and source/editable installs use repository resources. Configuration hashes depend on content, not installation paths.
+Exit codes: **0** success, **1** runtime/preflight/safety-gate/report failure, **2** invalid arguments or configuration. Reports resolve relative to the current directory and create parent directories. `--dry-run` never steps physics; `--mode sdk-sim` and `--mode real` enforce `cycles == 1`, require a matching `--calibration` YAML, and require `--confirm-real` before physical motion. Set `UFACTORY_MUJOCO_MODELS` to override the model tree; otherwise wheels use bundled resources and source/editable installs use repository resources. Configuration hashes depend on content, not installation paths.
 
-CI covers editable core installs and source-free wheel acceptance on Python 3.12/3.13/3.14, plus Python 3.13 CPU Reach tests and a 4096-step training smoke run. Logs and JSON reports are retained on failure.
+CI covers editable core installs and source-free wheel acceptance on Python 3.12/3.13/3.14, plus Python 3.13 CPU Reach and Pick-and-Place RL tests and training/evaluation smoke runs. Logs and JSON reports are retained on failure.
 
 ### macOS and Windows
 
@@ -81,6 +82,7 @@ CI covers editable core installs and source-free wheel acceptance on Python 3.12
 | :--- | :--- | :--- |
 | **Simulation (`01`–`10`)** | [examples/simulation/README.md](examples/simulation/README.md) ([中文](examples/simulation/README_zh.md)) | Model viewer, joint/Cartesian control, grippers, pick-and-place, box-packing, trajectory/RRT planning, kinematics & dynamics |
 | **RL Reach (`01_reach`)** | [examples/rl/reach/README.md](examples/rl/reach/README.md) ([中文](examples/rl/reach/README_zh.md)) | Multi-robot TCP position reaching environment, PPO policy evaluation & training |
+| **RL Pick and Place (`01_pick_place`)** | [examples/rl/pick_place/README.md](examples/rl/pick_place/README.md) ([中文](examples/rl/pick_place/README_zh.md)) | Tabletop cube pick-and-place (`xArm 6 + Gripper G2`), scripted expert & PPO checkpoint evaluation |
 | **Command Matrix** | [docs/visual_command_guide.md](docs/visual_command_guide.md) | Model-by-model launch commands for all arms, grippers, and combinations |
 
 ```bash
@@ -93,11 +95,12 @@ python examples/simulation/05_pick_place.py
 python examples/simulation/09_obstacle_avoidance.py
 python examples/simulation/10_box_pack.py
 
-# RL TCP reaching (PPO policy rollout; use --random if stable-baselines3 is not installed)
+# RL TCP reaching & tabletop pick-and-place (use --random / --expert if stable-baselines3 is not installed)
 python examples/rl/reach/01_reach.py --model xarm6
+python examples/rl/pick_place/01_pick_place.py --expert --headless
 ```
 
-> Pass `--headless` to any motion or RL example (`01`–`10`, `01_reach.py`) for offscreen execution and metric verification.
+> Pass `--headless` to any motion or RL example (`01`–`10`, `01_reach.py`, `01_pick_place.py`) for offscreen execution and metric verification.
 
 ### 3. Running Tests
 
@@ -111,14 +114,19 @@ python -m unittest discover -s tests -v
 ## Project Structure
 
 ```text
+calibrations/           Per-unit controller kinematic calibration YAML files (SHA-256 verified)
 configs/                Strict YAML task configurations (default, pick_place, box_pack)
 models/                 Robot and accessory MJCF models & visual/collision meshes
   xarm6/, lite6/, ...   xArm 5/6/7, UF850, Lite6, and grippers (standalone & combined scenes)
-ufactory_mujoco/        Core simulation, control, planning, and RL library
+ufactory_mujoco/        Core simulation, control, planning, hardware, and RL library
   sim_robot.py          SimRobot: physics stepping, joint/TCP control, viewer sync
+  xarm_robot.py         XArmRobot: read-only session by default + gated real-robot execution
   robot_interface.py    Abstract base class aligning sim and real robot interfaces
   robots.py             Typed registry for the 5 UFACTORY arms, combo paths & reach workspaces
   config.py             Strict YAML task config loader, validation & content hashing
+  calibration.py        Per-unit kinematic calibration loader, model patcher & TCP/flange transforms
+  safety.py             Hardware safety gate, single-cycle enforcement & sdk-sim trajectory replay
+  kinematics_validation.py Read-only FK/IK cross-validation against xArm controller firmware
   grippers.py           Physical gap <-> actuator mapping and bilateral finger-pad contact
   preflight.py          Static IK/collision preflight for pick-and-place and box-packing
   ik.py                 Damped least-squares (DLS) Cartesian IK solver
@@ -128,14 +136,17 @@ ufactory_mujoco/        Core simulation, control, planning, and RL library
   collision.py          CollisionChecker: clearance and contact queries
   path_planning.py      RRT-Connect + path shortcutting for collision-free joint trajectories
   rl/reach_env.py       Gymnasium TCP-reaching environment (all 5 arms)
+  rl/pick_place_env.py  Gymnasium tabletop cube pick-and-place environment & scripted expert
+  rl/artifacts.py       Declarative RL recipes, config hashing & checkpoint-manifest contracts
   tasks/                Installed pick-place, box-pack and dynamics commands
   resource_paths.py     Repository/editable and bundled resource roots
   model_paths.py        Model name -> MJCF XML path resolution
   viewer.py             GLFW/X11 passive viewer lifecycle wrapper
 examples/
   simulation/           Simulation examples 01–10 (see examples/simulation/README.md)
-  rl/reach/             RL TCP reaching example (see examples/rl/reach/README.md)
-scripts/                Asset conversion, workspace calibration, dynamics replay & RL training
+  rl/reach/             RL TCP reaching example & evaluator (see examples/rl/reach/README.md)
+  rl/pick_place/        RL tabletop pick-and-place example & evaluator (see examples/rl/pick_place/README.md)
+scripts/                Asset conversion, calibration extraction, dynamics replay & RL training
 tests/                  Unit and regression test suite
 docs/internal/          Internal design/roadmap notes (not user documentation)
 ```

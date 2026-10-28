@@ -20,7 +20,7 @@ ufactory-mujoco dynamics --robot all --samples 32 --seed 0 --headless --report r
 | 产品型号 | 机械臂本体 (静态) | 机械臂本体 (关节运动) | 配件 (静态) | 配件 (可动) | 机械臂 + 配件 (静态) | 机械臂 + 配件 (可动/任务) | 强化学习 (Reach) |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Lite 6** | `01_load_and_view.py --model lite6` | `02_joint_control.py --model lite6` | `01_load_and_view.py --model lite6_gripper` | `04_gripper_control.py --model lite6_gripper` | `01_load_and_view.py --model lite6_with_gripper` | `04_gripper_control.py --model lite6_with_gripper`<br>`05_pick_place.py --robot lite6`<br>`10_box_pack.py --robot lite6` | `examples/rl/reach/01_reach.py --model lite6` |
-| **xArm 6** | `01_load_and_view.py --model xarm6` | `02_joint_control.py --model xarm6` | `01_load_and_view.py --model gripper_g2` | `04_gripper_control.py --model gripper_g2` | `01_load_and_view.py --model xarm6_with_gripper` | `04_gripper_control.py --model xarm6_with_gripper`<br>`05_pick_place.py --robot xarm6`<br>`10_box_pack.py --robot xarm6` | `examples/rl/reach/01_reach.py --model xarm6` |
+| **xArm 6** | `01_load_and_view.py --model xarm6` | `02_joint_control.py --model xarm6` | `01_load_and_view.py --model gripper_g2` | `04_gripper_control.py --model gripper_g2` | `01_load_and_view.py --model xarm6_with_gripper` | `04_gripper_control.py --model xarm6_with_gripper`<br>`05_pick_place.py --robot xarm6`<br>`10_box_pack.py --robot xarm6` | `examples/rl/reach/01_reach.py --model xarm6`<br>`examples/rl/pick_place/01_pick_place.py` |
 | **xArm 7** | `01_load_and_view.py --model xarm7` | `02_joint_control.py --model xarm7` | *(通用 Gripper G2 / Bio G2)* | *(通用 Gripper G2 / Bio G2)* | `01_load_and_view.py --model xarm7_with_gripper` | `04_gripper_control.py --model xarm7_with_gripper`<br>`05_pick_place.py --robot xarm7`<br>`10_box_pack.py --robot xarm7` | `examples/rl/reach/01_reach.py --model xarm7` |
 | **xArm 5** | `01_load_and_view.py --model xarm5` | `02_joint_control.py --model xarm5` | *(通用 Gripper G2 / Bio G2)* | *(通用 Gripper G2 / Bio G2)* | `01_load_and_view.py --model xarm5_with_gripper` | `04_gripper_control.py --model xarm5_with_gripper`<br>`05_pick_place.py --robot xarm5`<br>`10_box_pack.py --robot xarm5` | `examples/rl/reach/01_reach.py --model xarm5` |
 | **UF 850** | `01_load_and_view.py --model uf850` | `02_joint_control.py --model uf850` | *(通用 Gripper G2 / Bio G2)* | *(通用 Gripper G2 / Bio G2)* | `01_load_and_view.py --model uf850_with_gripper` | `04_gripper_control.py --model uf850_with_gripper`<br>`05_pick_place.py --robot uf850`<br>`10_box_pack.py --robot uf850` | `examples/rl/reach/01_reach.py --model uf850` |
@@ -162,6 +162,10 @@ ufactory-mujoco dynamics --robot all --samples 32 --seed 0 --headless --report r
   ```bash
   python examples/simulation/05_pick_place.py --robot xarm6
   python examples/simulation/10_box_pack.py --robot xarm6 --cycles 3
+  # 强化学习桌面抓放（PPO 策略或 --expert 专家基线）
+  python examples/rl/pick_place/01_pick_place.py --expert
+  # 控制器内部仿真 sdk-sim（物理关节保持静止，需提供单机标定）
+  python examples/simulation/05_pick_place.py --robot xarm6 --mode sdk-sim --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_L56A01.yaml
   ```
 - **xArm 6 + Gripper G2 (关节轨迹运动)**：
   ```bash

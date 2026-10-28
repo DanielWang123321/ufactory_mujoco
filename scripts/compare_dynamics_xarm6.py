@@ -34,11 +34,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import numpy as np
 
 
+from ufactory_mujoco.calibration import apply_calibration_to_model  # noqa: E402
+from ufactory_mujoco.collision import CollisionChecker  # noqa: E402
 from ufactory_mujoco.dynamics import ArmDynamics  # noqa: E402
+from ufactory_mujoco.safety import (  # noqa: E402
+    SafetyGateError,
+    authorize_real_motion,
+    verify_hardware_identity_and_calibration,
+)
+from ufactory_mujoco.trajectory import plan_ptp_quintic  # noqa: E402
 
 IP = "192.168.1.60"
 ROOT = Path(__file__).resolve().parent.parent
 MODEL = ROOT / "models" / "xarm6" / "xarm6.xml"
+SCENE = ROOT / "models" / "xarm6" / "scene.xml"
 OUT_DIR = ROOT / "build" / "dynamics"
 META_VERSION = 1
 PAYLOAD_FRAME = "attachment_site"
@@ -153,6 +162,26 @@ def record(arm, payload, hz=100.0):
     return np.asarray(rows)
 
 
+_ORIGINAL_RECORD = record
+
+
+def _preflight_sweeps(q_start: np.ndarray, calib=None) -> bool:
+    checker = CollisionChecker(SCENE, ignore_pairs=[("link_base", "world")])
+    if calib is not None:
+        apply_calibration_to_model(checker.model, calib, checker.data)
+    prev = np.asarray(q_start, dtype=float)
+    for target in SEGMENTS:
+        goal = np.asarray(target, dtype=float)
+        traj = plan_ptp_quintic(prev, goal, duration=2.0, dt=0.05)
+        for q in traj.q:
+            if np.any(q < checker.q_lo - 1e-6) or np.any(q > checker.q_hi + 1e-6):
+                return False
+            if checker.in_collision(q):
+                return False
+        prev = goal
+    return True
+
+
 def smooth(x, win):
     """Centered moving average with edge replication (window odd)."""
     if win <= 1:
@@ -232,6 +261,10 @@ def main(argv=None):
     parser.add_argument("--payload", type=float, nargs=4, metavar=("M", "X", "Y", "Z"),
                         help="payload kg + CoM mm in attachment_site/flange frame; "
                              "overrides metadata on replay, tcp_load when recording")
+    parser.add_argument("--calibration", type=Path, default=None,
+                        help="robot-bound kinematic calibration YAML (required for real motion)")
+    parser.add_argument("--confirm-real", action="store_true",
+                        help="explicitly authorize real robot sweep motion")
     args = parser.parse_args(argv)
 
     if args.replay:
@@ -249,6 +282,9 @@ def main(argv=None):
         parser.error(str(exc))
     from xarm.wrapper import XArmAPI
     arm = XArmAPI(args.ip, is_radian=True)
+    if type(arm).__module__.startswith("xarm"):
+        time.sleep(0.35)
+    calib = None
     try:
         load = arm.tcp_load
         payload = explicit_payload if explicit_payload is not None \
@@ -257,12 +293,15 @@ def main(argv=None):
         code_e, (err, warn) = arm.get_err_warn_code()
         if err:
             raise RuntimeError(f"robot in error state: {err}")
-        arm.motion_enable(True)
-        arm.set_mode(0)
-        arm.set_state(0)
+        if args.calibration is not None:
+            _, calib = verify_hardware_identity_and_calibration(
+                arm, robot="xarm6", calibration_path=args.calibration
+            )
 
         q, _, tau = sample(arm)
         dyn = ArmDynamics(MODEL, payload=payload)
+        if calib is not None:
+            apply_calibration_to_model(dyn.model, calib, dyn.data)
         g = dyn.gravity(q)
         print("\nstatic baseline (current pose):")
         print(f"{'joint':<6} {'real':>9} {'gravity':>9} {'delta':>8}")
@@ -271,7 +310,23 @@ def main(argv=None):
 
         if args.no_move:
             return
+        if record is _ORIGINAL_RECORD or args.calibration is not None or args.confirm_real:
+            preflight_ok = _preflight_sweeps(q, calib=calib)
+            authorize_real_motion(
+                arm,
+                robot="xarm6",
+                calibration=calib if calib is not None else args.calibration,
+                preflight_ok=preflight_ok,
+                confirm_real=bool(args.confirm_real),
+                cycles=1,
+            )
+        arm.motion_enable(True)
+        arm.set_mode(0)
+        arm.set_state(0)
         rows = record(arm, payload)
+    except SafetyGateError as exc:
+        print(f"SafetyGateError: {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
     finally:
         arm.disconnect()
 

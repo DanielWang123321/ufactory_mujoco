@@ -113,12 +113,15 @@ qdd = dyn.forward_dynamics(q, qd, tau)
 tau_ff = dyn.feedforward_traj(q_traj, dt)  # 沿关节轨迹的前馈力矩序列
 ```
 
-与真机 xArm 6（`xarm-python-sdk`）交叉验证脚本：
+与真机 xArm 6（`xarm-python-sdk`）标定、只读比对与安全门验证命令：
 
 ```bash
-python scripts/compare_dynamics_xarm6.py                                      # 真机运动记录 + 逆动力学回放比对
-python scripts/compare_dynamics_xarm6.py --replay build/dynamics/run_xxx.csv  # 从 .meta.json 恢复负载回放
-python scripts/compare_torque_xarm6.py --no-move                              # 静态保持力矩比对
+python scripts/gen_kinematics_params.py 192.168.1.60                          # 提取单机运动学标定 YAML
+python -m ufactory_mujoco.kinematics_validation --robot xarm6 --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_L56A01.yaml
+python scripts/compare_torque_xarm6.py --no-move --calibration calibrations/xarm6_kinematics_L56A01.yaml
+python scripts/compare_dynamics_xarm6.py --replay build/dynamics/run_xxx.csv  # 从 .meta.json 恢复负载回放（零运动）
+python examples/simulation/05_pick_place.py --robot xarm6 --mode sdk-sim --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_L56A01.yaml
+python examples/simulation/08_dynamics.py --robot xarm6 --mode real-read-only --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_L56A01.yaml
 ```
 
 ## 3. 命令行参数汇总
@@ -131,6 +134,10 @@ python scripts/compare_torque_xarm6.py --no-move                              # 
 | `--executor <mode>` | `05`, `10` | `servo_cartesian` | 轨迹执行器模式：`servo_cartesian` 或 `servo_j` |
 | `--config <path>` | `05`, `10` | `configs/<task>/<robot>.yaml` | 自定义任务 overlay YAML 路径 |
 | `--dry-run` | `05`, `10` | `False` | 仅执行关节限位与碰撞预检并输出阶段状态，不步进物理仿真 |
+| `--mode <mode>` | `05`, `08`, `10` | `sim` | 运行模式：`sim`、`dry-run`（`05`/`10`）、`real-read-only`（`08`）、`sdk-sim` 或 `real` |
+| `--ip <addr>` | `05`, `08`, `10` | `192.168.1.60` | xArm 控制器 IP 地址（用于 `sdk-sim`、`real`、`real-read-only`） |
+| `--calibration <path>` | `05`, `08`, `10` | `None` | 真机/内部仿真模式必需的单机运动学标定 YAML 路径 |
+| `--confirm-real` | `05`, `08`, `10` | `False` | `--mode real` 真机运动必需的显式安全确认标志 |
 | `--report <path>` | `05`, `08`, `10` | `None` | 将预检、动力学验收或周期执行报告导出为 JSON 文件 |
 | `--samples <N>` | `08` | `32` | 每臂随机动力学姿态数，须为正整数 |
 | `--pose <home\|ready>` | `01` | `home` | 初始加载关键帧姿态 |
