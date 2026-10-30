@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """RL example 02: Tabletop cube pick-and-place on xArm6 + Gripper G2 (Batch 8).
 
-Loads a trained PPO policy (default: build/rl/pick_place/xarm6/ppo_pick_place.zip),
+Loads a trained PPO policy (default: build/rl/pick_place/xarm6_g2_v2/ppo_pick_place.zip),
 the independent scripted expert (--expert), or an untrained baseline (--random /
 --zero-policy), and rolls out episodes in PickPlaceEnv.
 
@@ -42,7 +42,7 @@ from examples.rl.pick_place.evaluate import (  # noqa: E402
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(description="RL tabletop cube pick-and-place on xArm6 + Gripper G2.")
     ap.add_argument("--policy", "--checkpoint", dest="policy", type=Path, default=None,
-                    help="path to ppo_pick_place.zip (default: build/rl/pick_place/xarm6/ppo_pick_place.zip)")
+                    help="path to ppo_pick_place.zip (default: build/rl/pick_place/xarm6_g2_v2/ppo_pick_place.zip)")
     ap.add_argument("--recipe", type=Path, default=DEFAULT_RECIPE,
                     help="path to pick-place recipe.yaml")
     ap.add_argument("--episodes", type=int, default=5, help="evaluation episodes (default: 5)")
@@ -76,6 +76,10 @@ def main(argv: list[str] | None = None) -> None:
         close_floor_gap_m=float(expected_env["close_floor_gap_m"]),
         workspace_lower=expected_env["workspace_lower"],
         workspace_upper=expected_env["workspace_upper"],
+        spawn_xy_lower=expected_env["spawn_xy_lower"],
+        spawn_xy_upper=expected_env["spawn_xy_upper"],
+        g2_speed_percent=float(expected_env["g2_speed_percent"]),
+        g2_force_percent=float(expected_env["g2_force_percent"]),
         reward_gamma=float(expected_env["reward_gamma"]),
         place_clearance_m=float(expected_env["place_clearance_m"]),
         release_max_height_m=float(expected_env["release_max_height_m"]),
@@ -88,6 +92,7 @@ def main(argv: list[str] | None = None) -> None:
         tilt_limit_deg=float(expected_env["tilt_limit_deg"]),
         success_hold_steps=int(expected_env["success_hold_steps"]),
         reward_scales=expected_reward,
+        expected_runtime_model_sha256=expected_env["runtime_model_sha256"],
     )
 
     extra_meta = {"task": "pick_place", "robot": "xarm6"}

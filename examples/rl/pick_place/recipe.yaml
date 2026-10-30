@@ -1,19 +1,24 @@
+# End-to-end tabletop pick-and-place, pure PPO from scratch from the fixed home pose.
 schema_version: 1
 task: pick_place
 environment:
-  env_version: 1
+  env_version: 2
   control: cartesian_and_g2_gap_increment
-  max_steps: 380
+  max_steps: 400
   decimation: 10
   action_scale: 0.005
   action_clip: 1.0
   gap_action_scale: 0.003
   setpoint_leash_m: 0.025
   pre_grasp_gap_m: 0.050
-  close_floor_gap_m: 0.018
+  close_floor_gap_m: 0.012
   workspace_lower: [0.10, -0.35, -0.02]
   workspace_upper: [0.65, 0.35, 0.55]
-  reward_gamma: 0.995
+  spawn_xy_lower: [0.30, -0.20]
+  spawn_xy_upper: [0.50, 0.20]
+  g2_speed_percent: 50.0
+  g2_force_percent: 50.0
+  reward_gamma: 1.0
   place_clearance_m: 0.002
   release_max_height_m: 0.003
   press_limit_m: 0.001
@@ -24,7 +29,7 @@ environment:
   drag_limit_m: 0.010
   tilt_limit_deg: 15.0
   success_hold_steps: 10
-  num_obs: 46
+  num_obs: 70
   num_actions: 4
 reward:
   approach_potential: 8.0
@@ -32,36 +37,44 @@ reward:
   grasp_potential: 4.0
   lift_potential: 40.0
   transit_potential: 8.0
-  place_potential: 6.0
-  release_potential: 4.0
-  hold_potential: 6.0
+  place_potential: 16.0
+  release_potential: 8.0
+  hold_potential: 10.0
   first_contact: 2.0
+  first_carry: 3.0
   first_lift: 6.0
+  first_touchdown: 6.0
   first_place: 10.0
   success: 40.0
   failure_penalty: 10.0
   fast_descent_penalty: 10.0
   press_penalty: 3000.0
-  recontact_penalty: 5.0
+  recontact_penalty: 0.5
   table_overload_penalty: 0.1
   high_release_penalty: 10.0
   robot_table_penalty: 1.0
   action_penalty: 0.001
-  action_saturation_penalty: 0.1
-  step_penalty: 0.005
+  action_saturation_penalty: 0.0
+  step_penalty: 0.015
 train:
   algorithm: PPO
-  total_steps: 200000
-  n_steps: 512
-  batch_size: 256
-  n_epochs: 10
+  total_steps: 50000000
+  n_steps: 128
+  batch_size: 2048
+  n_epochs: 5
   learning_rate: 0.0003
   gamma: 0.995
   gae_lambda: 0.95
+  clip_range: 0.2
+  vf_coef: 1.0
   ent_coef: 0.005
+  max_grad_norm: 1.0
   net_arch: [256, 256]
-  save_interval: 50000
-  eval_episodes: 20
-  warmstart_episodes: 16
-  warmstart_epochs: 80
+  activation: elu
+  init_std: 0.50
+  save_interval: 1000000
+  eval_interval: 1000000
+  eval_episodes: 64
+  early_stop_evaluations: 2
+  min_success_rate: 0.95
   seed: 1

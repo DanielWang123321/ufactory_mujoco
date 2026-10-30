@@ -136,9 +136,10 @@ ufactory-mujoco dynamics --robot all --samples 32 --seed 0 --headless --report r
   ```bash
   python examples/simulation/01_load_and_view.py --model gripper_g2
   ```
-- **Gripper G2 (可动连杆开闭控制)**：
+- **Gripper G2 (可动连杆开闭与速度/力控制)**：
   ```bash
   python examples/simulation/04_gripper_control.py --model gripper_g2
+  python examples/simulation/04_gripper_control.py --model gripper_g2 --speed-percent 80 --force-percent 75
   ```
 - **Bio Gripper G2 (静态)**：
   ```bash
@@ -258,10 +259,12 @@ ufactory-mujoco dynamics --robot all --samples 32 --seed 0 --headless --report r
 | `--executor <mode>` | `05_pick_place.py`, `10_box_pack.py` | 轨迹执行器：`servo_cartesian` 或 `servo_j` | `--executor servo_j` |
 | `--dry-run` | `05_pick_place.py`, `10_box_pack.py` | 仅做限位与碰撞预检并输出阶段状态，不步进物理 | `--dry-run` |
 | `--pose <home\|ready>` | `01_load_and_view.py` | 指定初始加载关键帧姿态 | `--pose ready` |
-| `--headless` | `02`–`10`, `01_reach` | 无头模式（不启动视窗，纯终端输出精度指标） | `--headless` |
-| `--seed <N>` | `09_obstacle_avoidance.py`, `01_reach` | 随机种子（规划/评估结果可复现） | `--seed 3` |
+| `--headless` | `01`–`10`, `01_reach`, `01_pick_place` | 无头模式（不启动视窗，纯终端输出精度指标） | `--headless` |
+| `--seed <N>` | `09_obstacle_avoidance.py`, `01_reach`, `01_pick_place` | 随机种子（规划/评估结果可复现） | `--seed 3` |
 | `--safety-margin <m>` | `09_obstacle_avoidance.py` | 规划安全间隙（米，默认 0.002） | `--safety-margin 0.01` |
 | `--cycles <N>` | `04`, `05`, `10` | 循环执行次数（`04` 默认 3；`05`/`10` 默认 1） | `--cycles 3` |
+| `--speed-percent <pct>` | `04_gripper_control.py` | Gripper G2 速度百分比（`0..100`，默认 `50`） | `--speed-percent 80` |
+| `--force-percent <pct>` | `04_gripper_control.py` | Gripper G2 力控百分比（`1..100`，默认 `50`） | `--force-percent 75` |
 | `--speed <x>` | `10_box_pack.py` | 运动速度倍率（`>1` 加快；自由落体不缩放） | `--speed 2.0` |
 
 ---

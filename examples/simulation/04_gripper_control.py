@@ -57,6 +57,18 @@ def main() -> None:
     )
     ap.add_argument("--headless", action="store_true", help="no viewer, print metrics")
     ap.add_argument("--cycles", type=int, default=3, help="number of open/close cycles (default: 3)")
+    ap.add_argument(
+        "--speed-percent",
+        type=float,
+        default=100.0,
+        help="Gripper G2 speed percent [0..100] (default: 100)",
+    )
+    ap.add_argument(
+        "--force-percent",
+        type=float,
+        default=100.0,
+        help="Gripper G2 force percent [1..100] (default: 100)",
+    )
     args = ap.parse_args()
 
     model_path = resolve_model_path(args.model)
@@ -81,26 +93,59 @@ def main() -> None:
             print(f"\n--- Cycle {cycle}/{args.cycles} ---")
 
             # 1. Close gripper
-            print("  Action: Close gripper (target=1.0)...")
-            robot.close_gripper(wait=True)
+            print(
+                f"  Action: Close gripper (target=1.0, speed={args.speed_percent:.0f}%, force={args.force_percent:.0f}%)..."
+            )
+            robot.close_gripper(
+                wait=True,
+                speed_percent=args.speed_percent,
+                force_percent=args.force_percent,
+            )
             pos_close = robot.get_gripper_position()
-            print(f"  Closed state: normalized={pos_close:.3f}, gripper_qpos={np.round(robot.data.qpos[robot._n_arm_qpos:], 4)}")
+            out_close = robot.get_gripper_control_output()
+            tau_str = (
+                f", torque_limit={float(out_close.torque_limit_nm[0]):.3f} Nm"
+                if out_close is not None
+                else ""
+            )
+            print(
+                f"  Closed state: normalized={pos_close:.3f}, measured_gap={robot.get_measured_gripper_gap() * 1000:.2f} mm, "
+                f"gripper_qpos={np.round(robot.data.qpos[robot._n_arm_qpos:], 4)}{tau_str}"
+            )
 
             # 2. Open gripper
             print("  Action: Open gripper (target=0.0)...")
-            robot.open_gripper(wait=True)
+            robot.open_gripper(
+                wait=True,
+                speed_percent=args.speed_percent,
+                force_percent=args.force_percent,
+            )
             pos_open = robot.get_gripper_position()
-            print(f"  Open state:   normalized={pos_open:.3f}, gripper_qpos={np.round(robot.data.qpos[robot._n_arm_qpos:], 4)}")
+            print(
+                f"  Open state:   normalized={pos_open:.3f}, measured_gap={robot.get_measured_gripper_gap() * 1000:.2f} mm, "
+                f"gripper_qpos={np.round(robot.data.qpos[robot._n_arm_qpos:], 4)}"
+            )
 
             # 3. Half open
             print("  Action: Half grip (target=0.5)...")
-            robot.set_gripper(0.5)
-            robot.settle(0.5)
+            robot.set_gripper(
+                0.5,
+                speed_percent=args.speed_percent,
+                force_percent=args.force_percent,
+            )
+            robot.settle(robot._g2_wait_duration())
             pos_half = robot.get_gripper_position()
-            print(f"  Half state:   normalized={pos_half:.3f}, gripper_qpos={np.round(robot.data.qpos[robot._n_arm_qpos:], 4)}")
+            print(
+                f"  Half state:   normalized={pos_half:.3f}, measured_gap={robot.get_measured_gripper_gap() * 1000:.2f} mm, "
+                f"gripper_qpos={np.round(robot.data.qpos[robot._n_arm_qpos:], 4)}"
+            )
 
             # Return to open
-            robot.open_gripper(wait=True)
+            robot.open_gripper(
+                wait=True,
+                speed_percent=args.speed_percent,
+                force_percent=args.force_percent,
+            )
 
         print("\nGripper demonstration completed successfully.")
 

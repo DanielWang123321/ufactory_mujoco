@@ -705,13 +705,13 @@ def build_gripper_g2() -> None:
         <geom type="mesh" group="3"/>
       </default>
       <default class="driver">
-        <joint range="0 0.85" armature="0.005" damping="0.1" solreflimit="0.005 1"/>
+        <joint range="0.057210812728026743 0.86509464599328212" armature="0.01" damping="0.05" frictionloss="0" solreflimit="0.005 1"/>
       </default>
       <default class="follower">
-        <joint range="0 0.85" solreflimit="0.005 1"/>
+        <joint range="0.057210812728026743 0.86509464599328212" armature="0.01" damping="0.05" frictionloss="0" solreflimit="0.005 1"/>
       </default>
       <default class="spring_link">
-        <joint range="0 0.85" stiffness="0.05" springref="2.62" damping="0.00125"/>
+        <joint range="0.057210812728026743 0.86509464599328212" armature="0.01" damping="0.05" frictionloss="0" solreflimit="0.005 1"/>
       </default>
     </default>
   </default>
@@ -724,7 +724,7 @@ def build_gripper_g2() -> None:
       <geom class="g2_collision" mesh="base_link_col"/>
 
       <!-- Left finger chain -->
-      <body name="left_outer_knuckle" pos="0 0.035 0.059098">
+      <body name="left_outer_knuckle" pos="0 0.035 0.0606">
         <inertial pos="0 0.02156 0.01518" quat="0.4779 0.8784 0 0" mass="0.03362"
           diaginertia="1.91e-05 1.79e-05 1.90e-06"/>
         <joint name="left_driver_joint" axis="1 0 0" class="driver"/>
@@ -738,7 +738,7 @@ def build_gripper_g2() -> None:
           <geom class="g2_collision" mesh="left_finger_col"/>
         </body>
       </body>
-      <body name="left_inner_knuckle" pos="0 0.02 0.074098">
+      <body name="left_inner_knuckle" pos="0 0.02 0.075602">
         <inertial pos="0 0.02205 0.02613" quat="0.6641 -0.2427 0.2427 0.6641" mass="0.02301"
           diaginertia="8.34e-06 6.09e-06 2.76e-06"/>
         <joint name="left_inner_knuckle_joint" axis="1 0 0" class="spring_link"/>
@@ -747,7 +747,7 @@ def build_gripper_g2() -> None:
       </body>
 
       <!-- Right finger chain -->
-      <body name="right_outer_knuckle" pos="0 -0.035 0.059098">
+      <body name="right_outer_knuckle" pos="0 -0.035 0.0606">
         <inertial pos="0 -0.02156 0.01518" quat="0.8784 0.4779 0 0" mass="0.03362"
           diaginertia="1.91e-05 1.79e-05 1.90e-06"/>
         <joint name="right_driver_joint" axis="-1 0 0" class="driver"/>
@@ -761,7 +761,7 @@ def build_gripper_g2() -> None:
           <geom class="g2_collision" mesh="right_finger_col"/>
         </body>
       </body>
-      <body name="right_inner_knuckle" pos="0 -0.02 0.074098">
+      <body name="right_inner_knuckle" pos="0 -0.02 0.075602">
         <inertial pos="0 -0.02205 0.02613" quat="0.6641 0.2427 -0.2427 0.6641" mass="0.02301"
           diaginertia="8.34e-06 6.09e-06 2.76e-06"/>
         <joint name="right_inner_knuckle_joint" axis="-1 0 0" class="spring_link"/>
@@ -769,11 +769,15 @@ def build_gripper_g2() -> None:
         <geom class="g2_collision" mesh="right_inner_knuckle_col"/>
       </body>
 
-      <site name="link_tcp" pos="0 0 0.172"/>
+      <site name="link_tcp" pos="0 0 0.1735"/>
     </body>
   </worldbody>
 
   <contact>
+    <exclude body1="xarm_gripper_base_link" body2="left_outer_knuckle"/>
+    <exclude body1="xarm_gripper_base_link" body2="left_inner_knuckle"/>
+    <exclude body1="xarm_gripper_base_link" body2="right_outer_knuckle"/>
+    <exclude body1="xarm_gripper_base_link" body2="right_inner_knuckle"/>
     <exclude body1="right_inner_knuckle" body2="right_outer_knuckle"/>
     <exclude body1="right_inner_knuckle" body2="right_finger"/>
     <exclude body1="left_inner_knuckle" body2="left_outer_knuckle"/>
@@ -781,20 +785,20 @@ def build_gripper_g2() -> None:
   </contact>
 
   <equality>
-    <joint joint1="left_driver_joint" joint2="left_finger_joint" polycoef="0 1 0 0 0"/>
-    <joint joint1="left_driver_joint" joint2="left_inner_knuckle_joint" polycoef="0 1 0 0 0"/>
-    <joint joint1="left_driver_joint" joint2="right_driver_joint" polycoef="0 1 0 0 0"/>
-    <joint joint1="left_driver_joint" joint2="right_finger_joint" polycoef="0 1 0 0 0"/>
-    <joint joint1="left_driver_joint" joint2="right_inner_knuckle_joint" polycoef="0 1 0 0 0"/>
+    <joint joint1="left_driver_joint" joint2="left_finger_joint" polycoef="0 1 0 0 0" solref="0.02 1" solimp="0.9 0.95 0.001 0.5 2"/>
+    <joint joint1="left_driver_joint" joint2="left_inner_knuckle_joint" polycoef="0 1 0 0 0" solref="0.02 1" solimp="0.9 0.95 0.001 0.5 2"/>
+    <joint joint1="left_driver_joint" joint2="right_driver_joint" polycoef="0 1 0 0 0" solref="0.02 1" solimp="0.9 0.95 0.001 0.5 2"/>
+    <joint joint1="left_driver_joint" joint2="right_finger_joint" polycoef="0 1 0 0 0" solref="0.02 1" solimp="0.9 0.95 0.001 0.5 2"/>
+    <joint joint1="left_driver_joint" joint2="right_inner_knuckle_joint" polycoef="0 1 0 0 0" solref="0.02 1" solimp="0.9 0.95 0.001 0.5 2"/>
   </equality>
 
   <actuator>
-    <position name="gripper_motor" joint="left_driver_joint" kp="100" kv="10" forcerange="-50 50" ctrlrange="0 0.85"/>
+    <position name="gripper_motor" joint="left_driver_joint" kp="40" kv="5" forcerange="-7.005931530547601 7.005931530547601" ctrlrange="0.057210812728026743 0.86509464599328212"/>
   </actuator>
 
   <keyframe>
-    <key name="open" qpos="0 0 0 0 0 0" ctrl="0"/>
-    <key name="close" qpos="0.8 0.8 0.8 0.8 0.8 0.8" ctrl="0.8"/>
+    <key name="open" qpos="0.057210812728026743 0.057210812728026743 0.057210812728026743 0.057210812728026743 0.057210812728026743 0.057210812728026743" ctrl="0.057210812728026743"/>
+    <key name="close" qpos="0.86509464599328212 0.86509464599328212 0.86509464599328212 0.86509464599328212 0.86509464599328212 0.86509464599328212" ctrl="0.86509464599328212"/>
   </keyframe>
 </mujoco>
 """
@@ -1103,13 +1107,13 @@ def build_xarm6_with_gripper() -> None:
         <general gainprm="800" biasprm="0 -800 -80"/>
       </default>
       <default class="driver">
-        <joint range="0 0.85" armature="0.005" damping="0.1" solreflimit="0.005 1"/>
+        <joint range="0.057210812728026743 0.86509464599328212" armature="0.01" damping="0.05" frictionloss="0" solreflimit="0.005 1"/>
       </default>
       <default class="follower">
-        <joint range="0 0.85" solreflimit="0.005 1"/>
+        <joint range="0.057210812728026743 0.86509464599328212" armature="0.01" damping="0.05" frictionloss="0" solreflimit="0.005 1"/>
       </default>
       <default class="spring_link">
-        <joint range="0 0.85" stiffness="0.05" springref="2.62" damping="0.00125"/>
+        <joint range="0.057210812728026743 0.86509464599328212" armature="0.01" damping="0.05" frictionloss="0" solreflimit="0.005 1"/>
       </default>
       <site size="0.001" rgba="1 0 0 1" group="4"/>
     </default>
@@ -1171,7 +1175,7 @@ def build_xarm6_with_gripper() -> None:
                     <geom class="visual" mesh="g2_base_vis" material="white"/>
                     <geom class="collision" mesh="g2_base_link_col"/>
 
-                    <body name="left_outer_knuckle" pos="0 0.035 0.059098">
+                    <body name="left_outer_knuckle" pos="0 0.035 0.0606">
                       <inertial pos="0 0.02156 0.01518" quat="0.4779 0.8784 0 0" mass="0.03362"
                         diaginertia="1.91e-05 1.79e-05 1.90e-06"/>
                       <joint name="left_driver_joint" axis="1 0 0" class="driver"/>
@@ -1185,7 +1189,7 @@ def build_xarm6_with_gripper() -> None:
                         <geom class="collision" mesh="g2_left_finger_col"/>
                       </body>
                     </body>
-                    <body name="left_inner_knuckle" pos="0 0.02 0.074098">
+                    <body name="left_inner_knuckle" pos="0 0.02 0.075602">
                       <inertial pos="0 0.02205 0.02613" quat="0.6641 -0.2427 0.2427 0.6641" mass="0.02301"
                         diaginertia="8.34e-06 6.09e-06 2.76e-06"/>
                       <joint name="left_inner_knuckle_joint" axis="1 0 0" class="spring_link"/>
@@ -1193,7 +1197,7 @@ def build_xarm6_with_gripper() -> None:
                       <geom class="collision" mesh="g2_left_inner_knuckle_col"/>
                     </body>
 
-                    <body name="right_outer_knuckle" pos="0 -0.035 0.059098">
+                    <body name="right_outer_knuckle" pos="0 -0.035 0.0606">
                       <inertial pos="0 -0.02156 0.01518" quat="0.8784 0.4779 0 0" mass="0.03362"
                         diaginertia="1.91e-05 1.79e-05 1.90e-06"/>
                       <joint name="right_driver_joint" axis="-1 0 0" class="driver"/>
@@ -1207,7 +1211,7 @@ def build_xarm6_with_gripper() -> None:
                         <geom class="collision" mesh="g2_right_finger_col"/>
                       </body>
                     </body>
-                    <body name="right_inner_knuckle" pos="0 -0.02 0.074098">
+                    <body name="right_inner_knuckle" pos="0 -0.02 0.075602">
                       <inertial pos="0 -0.02205 0.02613" quat="0.6641 0.2427 -0.2427 0.6641" mass="0.02301"
                         diaginertia="8.34e-06 6.09e-06 2.76e-06"/>
                       <joint name="right_inner_knuckle_joint" axis="-1 0 0" class="spring_link"/>
@@ -1215,7 +1219,7 @@ def build_xarm6_with_gripper() -> None:
                       <geom class="collision" mesh="g2_right_inner_knuckle_col"/>
                     </body>
 
-                    <site name="attachment_site" pos="0 0 0.172"/>
+                    <site name="attachment_site" pos="0 0 0.1735"/>
                   </body>
                 </body>
               </body>
@@ -1241,11 +1245,11 @@ def build_xarm6_with_gripper() -> None:
   </contact>
 
   <equality>
-    <joint joint1="left_driver_joint" joint2="left_finger_joint" polycoef="0 1 0 0 0"/>
-    <joint joint1="left_driver_joint" joint2="left_inner_knuckle_joint" polycoef="0 1 0 0 0"/>
-    <joint joint1="left_driver_joint" joint2="right_driver_joint" polycoef="0 1 0 0 0"/>
-    <joint joint1="left_driver_joint" joint2="right_finger_joint" polycoef="0 1 0 0 0"/>
-    <joint joint1="left_driver_joint" joint2="right_inner_knuckle_joint" polycoef="0 1 0 0 0"/>
+    <joint joint1="left_driver_joint" joint2="left_finger_joint" polycoef="0 1 0 0 0" solref="0.02 1" solimp="0.9 0.95 0.001 0.5 2"/>
+    <joint joint1="left_driver_joint" joint2="left_inner_knuckle_joint" polycoef="0 1 0 0 0" solref="0.02 1" solimp="0.9 0.95 0.001 0.5 2"/>
+    <joint joint1="left_driver_joint" joint2="right_driver_joint" polycoef="0 1 0 0 0" solref="0.02 1" solimp="0.9 0.95 0.001 0.5 2"/>
+    <joint joint1="left_driver_joint" joint2="right_finger_joint" polycoef="0 1 0 0 0" solref="0.02 1" solimp="0.9 0.95 0.001 0.5 2"/>
+    <joint joint1="left_driver_joint" joint2="right_inner_knuckle_joint" polycoef="0 1 0 0 0" solref="0.02 1" solimp="0.9 0.95 0.001 0.5 2"/>
   </equality>
 
   <actuator>
@@ -1255,14 +1259,13 @@ def build_xarm6_with_gripper() -> None:
     <general name="act4" joint="joint4" class="size2" forcerange="-81.558 81.558"/>
     <general name="act5" joint="joint5" class="size2" ctrlrange="-1.69297 3.14159" forcerange="-30.6 30.6"/>
     <general name="act6" joint="joint6" class="size3" forcerange="-30.6 30.6"/>
-    <position name="gripper" joint="left_driver_joint" kp="100" kv="10" forcerange="-50 50" ctrlrange="0 0.85"/>
+    <position name="gripper" joint="left_driver_joint" kp="40" kv="5" forcerange="-7.005931530547601 7.005931530547601" ctrlrange="0.057210812728026743 0.86509464599328212"/>
   </actuator>
 
   <keyframe>
-    <!-- J2=-0.3 lifts the mounted gripper clear of the floor (all-zero home leaves the tool floor-grazing) -->
-    <!-- Gripper G2 TCP at (300, 0, 300) mm, rpy (180, 0, 0); joints (deg): 0 -36.184 -47.736 0 83.920 0 -->
-    <key name="home" qpos="0 -0.631529917 -0.833150486 0 1.464680403 0 0 0 0 0 0 0" ctrl="0 -0.631529917 -0.833150486 0 1.464680403 0 0"/>
-    <key name="ready" qpos="0 -0.631529917 -0.833150486 0 1.464680403 0 0 0 0 0 0 0" ctrl="0 -0.631529917 -0.833150486 0 1.464680403 0 0"/>
+    <!-- Gripper G2 home joints (deg): 0 -36.184 -47.736 0 83.920 0 -->
+    <key name="home" qpos="0 -0.631529917 -0.833150486 0 1.464680403 0 0.057210812728026743 0.057210812728026743 0.057210812728026743 0.057210812728026743 0.057210812728026743 0.057210812728026743" ctrl="0 -0.631529917 -0.833150486 0 1.464680403 0 0.057210812728026743"/>
+    <key name="ready" qpos="0 -0.631529917 -0.833150486 0 1.464680403 0 0.057210812728026743 0.057210812728026743 0.057210812728026743 0.057210812728026743 0.057210812728026743 0.057210812728026743" ctrl="0 -0.631529917 -0.833150486 0 1.464680403 0 0.057210812728026743"/>
   </keyframe>
 </mujoco>
 """

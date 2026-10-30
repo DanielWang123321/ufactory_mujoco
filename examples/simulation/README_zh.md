@@ -15,7 +15,7 @@
 | `01_load_and_view.py` | `ufactory_mujoco.viewer`, `ufactory_mujoco.model_paths` | 全系机械臂、夹爪及组合 | 载入 MJCF 场景（支持 `home` / `ready` 关键帧）并启动交互视窗 |
 | `02_joint_control.py` | `ufactory_mujoco.sim_robot` | 全系机械臂及带夹爪组合 | 基于速度的五次多项式关节插值控制（裸臂 `xarm6` 默认运行 20 姿态动力学轨迹） |
 | `03_cartesian_ik.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.ik` | `xarm6` | 基于阻尼最小二乘法（DLS）IK 的笛卡尔直线往返与 X-Z 平面圆弧轨迹跟踪 |
-| `04_gripper_control.py` | `ufactory_mujoco.sim_robot` | 独立夹爪及机械臂+夹爪组合 | 夹爪位置开闭控制循环（`0.0` = 全开，`1.0` = 闭合） |
+| `04_gripper_control.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.g2_controller` | 独立夹爪及机械臂+夹爪组合 | 夹爪开闭控制循环（`0.0` = 全开，`1.0` = 闭合；Gripper G2 支持 `--speed-percent` 与 `--force-percent` 速度/力控） |
 | `05_pick_place.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.preflight` | 五款机械臂+夹爪组合 | 方块抓放任务：支持双侧指垫接触判据与轨迹预检（放置误差 `< 50 mm`、回零漂移 `< 10 mm`） |
 | `06_trajectory_planning.py` | `ufactory_mujoco.trajectory`, `ufactory_mujoco.dynamics` | `xarm6` | 点到点五次多项式、多路点 C2 样条平滑、笛卡尔 SLERP 直线规划与动力学前馈力矩 |
 | `07_kinematics.py` | `ufactory_mujoco.kinematics` | `xarm6` | 任意 site 正运动学、解析雅可比与有限差分校验、速度级 DLS 逆解、可操作度/奇异性指标 |
@@ -46,6 +46,7 @@ python examples/simulation/03_cartesian_ik.py --headless
 
 # 04: 夹爪开闭控制（支持 Gripper G2、Bio Gripper G2、Lite 6 Gripper）
 python examples/simulation/04_gripper_control.py --model xarm6_with_gripper
+python examples/simulation/04_gripper_control.py --model xarm6_with_gripper --speed-percent 80 --force-percent 75
 python examples/simulation/04_gripper_control.py --model lite6_with_gripper
 python examples/simulation/04_gripper_control.py --model bio_gripper_g2 --cycles 5
 ```
@@ -148,6 +149,8 @@ python examples/simulation/08_dynamics.py --robot xarm6 --mode real-read-only --
 | `--sync-hz <Hz>` | `02` | `30.0` | 查看器状态同步频率（Hz） |
 | `--render-quality` | `02` | `fast` | 渲染质量：`fast`（关闭阴影/反射）或 `full` |
 | `--cycles <N>` | `04`, `05`, `10` | `3` (`04`) / `1` (`05`, `10`) | 动作执行循环次数（`10`：每周期一块供料方块，至多 3 块） |
+| `--speed-percent <pct>` | `04` | `50.0` | Gripper G2 速度百分比（`0..100`） |
+| `--force-percent <pct>` | `04` | `50.0` | Gripper G2 力控百分比（`1..100`） |
 | `--speed <x>` | `10` | `1.0` | 运动速度倍率（`>1` 加快；自由落体不缩放） |
 | `--seed <N>` | `08`, `09` | `0` | 动力学采样（`08`，非负）或 RRT-Connect/路径剪枝（`09`）随机种子 |
 | `--safety-margin <m>` | `09` | `0.002` | 规划安全间隙阈值（米） |

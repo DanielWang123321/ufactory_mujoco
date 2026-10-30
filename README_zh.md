@@ -7,10 +7,10 @@
 ## 功能特性
 
 - **高精细视觉质感**：具备平滑法线与材质分色（烤漆白外壳、阳极氧化铝转轴、黑色部件及密封环）的高精度 OBJ 视觉网格，配合物理专用的 STL 碰撞网格。
-- **全系列资产支持**：包含从 [ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis) 官方解构转换的全部机械臂（`lite6`、`xarm5`、`xarm6`、`xarm7`、`uf850`）及末端配件（`gripper_g2`、`bio_gripper_g2`、`lite6_gripper`、`lite6_vacuum_gripper`）。
+- **全系列资产支持**：包含从 [ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis) 官方解构转换的全部机械臂（`lite6`、`xarm5`、`xarm6`、`xarm7`、`uf850`）及末端配件（`gripper_g2`、`bio_gripper_g2`、`lite6_gripper`、`lite6_vacuum_gripper`），其中 Gripper G2 支持标定四连杆非线性几何映射、实测速度-电流夹持力查表及限速 PI+PD 位置-力矩混合闭环伺服控制（`ufactory_mujoco/g2_model.py`、`ufactory_mujoco/g2_controller.py`）。
 - **运动学与轨迹规划**：提供任意 site 正运动学、TCP 解析雅可比、阻尼最小二乘法（DLS）逆运动学（`ufactory_mujoco/kinematics.py`、`ufactory_mujoco/ik.py`），点到点五次/多路点 C2 样条轨迹（`ufactory_mujoco/trajectory.py`），以及 RRT-Connect 避障路径规划（`ufactory_mujoco/collision.py`、`ufactory_mujoco/path_planning.py`）。
 - **刚体动力学模块**：支持质量矩阵 $M(q)$、重力/科氏力项、正/逆动力学与末端负载注入（`ufactory_mujoco/dynamics.py`），包含 xArm 6 真机交叉验证；`08_dynamics.py` 覆盖五款裸臂的碰撞预检、逐步运动验收及 JSON 报告。
-- **强化学习环境与契约**：全系 5 款机械臂通用的 TCP 位置到达环境（`ufactory_mujoco/rl/reach_env.py`，`< 5 mm` 标准下成功率 $\ge 96\%$）以及 `xArm 6 + Gripper G2` 桌面物块抓放环境（`ufactory_mujoco/rl/pick_place_env.py`，成功率 $100\%$、触地下压 $\le 1\text{ mm}$），配套声明式配方与 SHA-256 检查点哈希契约（`ufactory_mujoco/rl/artifacts.py`）。
+- **强化学习环境与契约**：全系 5 款机械臂通用的 TCP 位置到达环境（`ufactory_mujoco/rl/reach_env.py`，`< 5 mm` 标准下成功率 $\ge 96\%$）以及 `xArm 6 + Gripper G2` 桌面物块抓放环境（`ufactory_mujoco/rl/pick_place_env.py`，从零训练的纯 PPO v2 策略与闭环专家基线在 64 回合随机出生域评测中成功率均为 $100\%$、触地下压 $\le 1\text{ mm}$）。抓放检查点通过 SHA-256 绑定训练配置、场景和网格（`ufactory_mujoco/rl/artifacts.py`）。
 - **真机接口与安全确认门**：`XArmRobot`（`ufactory_mujoco/xarm_robot.py`）实现 `RobotInterface`，默认只读观测，支持单机运动学标定（`ufactory_mujoco/calibration.py`）、控制器 FK/IK 比对（`ufactory_mujoco/kinematics_validation.py`）、`sdk-sim` 控制器内部仿真及 `--confirm-real` 单周期安全门禁（`ufactory_mujoco/safety.py`）。
 - **稳定可靠的查看器**：集成实时时钟同步与异常安全退出保护，深度适配 Linux Wayland / X11（`ufactory_mujoco/viewer.py`）。
 
@@ -72,7 +72,7 @@ CI 包含 Python 3.12/3.13/3.14 的 editable 核心回归及无源码 wheel 验�
 
 ### 无显示器 / 远程机器
 
-- `--headless`（示例 `01`–`10`、`01_reach.py`）只跑物理，不需要显示器和 OpenGL，**不要**为此设置 `MUJOCO_GL`。
+- `--headless`（示例 `01`–`10`、`01_reach.py`、`01_pick_place.py`）只跑物理，不需要显示器和 OpenGL，**不要**为此设置 `MUJOCO_GL`。
 - 若设置 `MUJOCO_GL=egl`，系统需有 `libEGL`（如 `apt install libegl1`），否则 `import mujoco` 会直接报错；`MUJOCO_GL=osmesa` 需要 `libosmesa6`。
 - 在无显示器的服务器上打开交互查看器，可用 Xvfb：`xvfb-run -a python examples/simulation/01_load_and_view.py`。
 
@@ -127,7 +127,9 @@ ufactory_mujoco/        核心仿真、控制、规划、真机接口与强化�
   calibration.py        单机运动学标定加载、MuJoCo 模型修补与 TCP/法兰变换
   safety.py             真机安全确认门、单周期硬上限与 sdk-sim 内部仿真重放
   kinematics_validation.py 与实机控制器固件的只读 FK/IK 交叉校验
-  grippers.py           物理开口间距 <-> 执行器映射及双侧指垫接触检测
+  g2_model.py           Gripper G2 四连杆非线性几何、实测速度-电流夹持力查表与 SDK 脉冲/转速换算
+  g2_controller.py      Gripper G2 限速 PI+PD 位置-力矩混合闭环伺服控制器
+  grippers.py           物理开口间距 <-> 执行器映射、双侧指垫接触检测与单指净接触力求和
   preflight.py          抓放与装箱任务静态 IK/碰撞预检及 RRT 备选路径规划
   ik.py                 阻尼最小二乘法（DLS）笛卡尔 IK 解算器
   kinematics.py         FK、TCP 雅可比、速度级 DLS 逆解、可操作度/奇异性指标
@@ -138,6 +140,7 @@ ufactory_mujoco/        核心仿真、控制、规划、真机接口与强化�
   rl/reach_env.py       Gymnasium TCP 到达强化学习环境（支持全系 5 款机械臂）
   rl/pick_place_env.py  Gymnasium 桌面物块抓放强化学习环境与闭环专家基线
   rl/artifacts.py       声明式 RL 配方、配置哈希与检查点契约校验
+  rl/model_hash.py      递归 MJCF 场景与网格资产 SHA-256 内容指纹校验
   tasks/                可安装 pick-place、box-pack 与 dynamics 任务命令
   resource_paths.py     源码/editable 与打包资源路径解析
   model_paths.py        模型名称 → MJCF XML 路径解析

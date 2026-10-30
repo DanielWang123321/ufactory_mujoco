@@ -15,7 +15,7 @@ MuJoCo simulation examples (`01`–`10`) covering interactive model inspection, 
 | `01_load_and_view.py` | `ufactory_mujoco.viewer`, `ufactory_mujoco.model_paths` | All arms, grippers & combos | Load MJCF scene at `home` or `ready` keyframe in the interactive viewer |
 | `02_joint_control.py` | `ufactory_mujoco.sim_robot` | All arms & arm+gripper combos | Speed-based quintic joint interpolation (`xarm6` runs 20 dynamics poses by default) |
 | `03_cartesian_ik.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.ik` | `xarm6` | Cartesian straight-line (`move_tcp`) and X-Z circle tracking via DLS IK |
-| `04_gripper_control.py` | `ufactory_mujoco.sim_robot` | Standalone grippers & combos | Position-controlled open/close cycles (`0.0` = open, `1.0` = closed) |
+| `04_gripper_control.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.g2_controller` | Standalone grippers & combos | Open/close cycles (`0.0` = open, `1.0` = closed); Gripper G2 supports calibrated speed & force control (`--speed-percent`, `--force-percent`) |
 | `05_pick_place.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.preflight` | All five arm+gripper combos | Cube pick-and-place with bilateral contact check & preflight (`place_error < 50 mm`, `home_drift < 10 mm`) |
 | `06_trajectory_planning.py` | `ufactory_mujoco.trajectory`, `ufactory_mujoco.dynamics` | `xarm6` | Analytical PTP quintic, C2 multi-waypoint spline, Cartesian SLERP line & feedforward torques |
 | `07_kinematics.py` | `ufactory_mujoco.kinematics` | `xarm6` | Per-site FK, analytical vs finite-difference Jacobian, velocity-level DLS IK, manipulability |
@@ -46,6 +46,7 @@ python examples/simulation/03_cartesian_ik.py --headless
 
 # 04: Gripper open/close control (Gripper G2, Bio Gripper G2, Lite 6 Gripper)
 python examples/simulation/04_gripper_control.py --model xarm6_with_gripper
+python examples/simulation/04_gripper_control.py --model xarm6_with_gripper --speed-percent 80 --force-percent 75
 python examples/simulation/04_gripper_control.py --model lite6_with_gripper
 python examples/simulation/04_gripper_control.py --model bio_gripper_g2 --cycles 5
 ```
@@ -148,6 +149,8 @@ python examples/simulation/08_dynamics.py --robot xarm6 --mode real-read-only --
 | `--sync-hz <Hz>` | `02` | `30.0` | Viewer state-sync rate |
 | `--render-quality` | `02` | `fast` | `fast` (no shadows/reflections) or `full` |
 | `--cycles <N>` | `04`, `05`, `10` | `3` (`04`) / `1` (`05`, `10`) | Number of execution cycles (`10`: one feed cube per cycle, at most 3) |
+| `--speed-percent <pct>` | `04` | `50.0` | Gripper G2 speed percentage (`0..100`) |
+| `--force-percent <pct>` | `04` | `50.0` | Gripper G2 force percentage (`1..100`) |
 | `--speed <x>` | `10` | `1.0` | Motion speed multiplier (`>1` is faster; free fall is not scaled) |
 | `--seed <N>` | `08`, `09` | `0` | RNG seed for dynamics sampling (`08`, nonnegative) or RRT-Connect/path shortcutting (`09`) |
 | `--safety-margin <m>` | `09` | `0.002` | Minimum allowed obstacle clearance in meters |

@@ -13,7 +13,7 @@ Examples program exclusively against RobotInterface.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -83,7 +83,13 @@ class RobotInterface(ABC):
         """Current gripper position (0.0 = fully open, 1.0 = fully closed)."""
         raise NotImplementedError("This robot has no gripper")
 
-    def set_gripper(self, pos: float) -> None:
+    def set_gripper(
+        self,
+        pos: float,
+        *,
+        speed_percent: float | None = None,
+        force_percent: float | None = None,
+    ) -> None:
         """Set gripper target position (0.0 = fully open, 1.0 = fully closed)."""
         raise NotImplementedError("This robot has no gripper")
 
@@ -91,9 +97,33 @@ class RobotInterface(ABC):
         """Commanded finger gap in meters. Vacuum grippers have no gap."""
         raise NotImplementedError("This robot has no jaw gripper")
 
-    def set_gripper_gap(self, gap_m: float) -> None:
-        """Command a finger gap in meters, mapped onto the 0–1 jaw position."""
+    def get_measured_gripper_gap(self) -> float:
+        """Measured physical finger gap in meters."""
+        return self.get_gripper_gap()
+
+    def set_gripper_gap(
+        self,
+        gap_m: float,
+        *,
+        speed_percent: float | None = None,
+        force_percent: float | None = None,
+    ) -> None:
+        """Command a finger gap in meters, with optional speed/force percent."""
         raise NotImplementedError("This robot has no jaw gripper")
+
+    def set_gripper_command(
+        self,
+        position_mm: float,
+        *,
+        speed_percent: float = 50.0,
+        force_percent: float = 50.0,
+    ) -> None:
+        """Command Gripper G2 target opening in mm with speed (%) and force (%)."""
+        self.set_gripper_gap(
+            float(position_mm) / 1000.0,
+            speed_percent=speed_percent,
+            force_percent=force_percent,
+        )
 
     def bilateral_finger_contact(self, object_body: str) -> bool:
         """Whether both finger pads touch ``object_body``."""
@@ -109,15 +139,33 @@ class RobotInterface(ABC):
         """Whether the vacuum cup touches ``object_body``."""
         raise NotImplementedError("This robot has no vacuum cup")
 
-    def open_gripper(self, wait: bool = True) -> None:
+    def open_gripper(
+        self,
+        wait: bool = True,
+        *,
+        speed_percent: float | None = None,
+        force_percent: float | None = None,
+    ) -> None:
         """Fully open the gripper."""
-        self.set_gripper(0.0)
+        if speed_percent is None and force_percent is None:
+            self.set_gripper(0.0)
+        else:
+            self.set_gripper(0.0, speed_percent=speed_percent, force_percent=force_percent)
         if wait:
             self.settle(0.5)
 
-    def close_gripper(self, wait: bool = True) -> None:
+    def close_gripper(
+        self,
+        wait: bool = True,
+        *,
+        speed_percent: float | None = None,
+        force_percent: float | None = None,
+    ) -> None:
         """Fully close the gripper."""
-        self.set_gripper(1.0)
+        if speed_percent is None and force_percent is None:
+            self.set_gripper(1.0)
+        else:
+            self.set_gripper(1.0, speed_percent=speed_percent, force_percent=force_percent)
         if wait:
             self.settle(0.5)
 

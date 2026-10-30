@@ -26,6 +26,7 @@ from .calibration import (
     read_tcp_offset,
     tcp_mm_rpy_to_flange_m_quat,
 )
+from .g2_model import checked, sdk_position_counts, sdk_speed_rpm, speed_mm_s
 from .grippers import (
     GripperSpec,
     gap_to_position,
@@ -461,7 +462,13 @@ class XArmRobot(RobotInterface):
                 return float(np.clip(1.0 - float(pos) / 850.0, 0.0, 1.0))
         return self._commanded_gripper_pos
 
-    def set_gripper(self, pos: float) -> None:
+    def set_gripper(
+        self,
+        pos: float,
+        *,
+        speed_percent: float | None = None,
+        force_percent: float | None = None,
+    ) -> None:
         self._require_motion_unlocked("set_gripper")
         if not self.has_gripper:
             raise NotImplementedError("This robot has no gripper")
@@ -471,6 +478,43 @@ class XArmRobot(RobotInterface):
             code = int(enable_fn(True))
             if code != 0:
                 raise SafetyGateError(f"set_gripper_enable failed with SDK code {code}")
+
+        if (
+            self._gripper_spec is not None
+            and self._gripper_spec.name == "gripper_g2"
+            and (speed_percent is not None or force_percent is not None)
+        ):
+            gap_mm = float(position_to_gap(self._gripper_spec, pos_clamped) * 1000.0)
+            spd_pct = 50.0 if speed_percent is None else checked(speed_percent, 0.0, 100.0, "speed_percent")
+            frc_pct = 50.0 if force_percent is None else checked(force_percent, 1.0, 100.0, "force_percent")
+            spd_mm = speed_mm_s(spd_pct)
+            g2_fn = getattr(self._arm, "set_gripper_g2_position", None)
+            if callable(g2_fn):
+                code = int(
+                    g2_fn(
+                        int(round(gap_mm)),
+                        speed=int(round(spd_mm)),
+                        force=int(round(frc_pct)),
+                        wait=True,
+                    )
+                )
+                if code != 0:
+                    raise SafetyGateError(f"set_gripper_g2_position failed with SDK code {code}")
+                self._commanded_gripper_pos = pos_clamped
+                return
+            speed_fn = getattr(self._arm, "set_gripper_speed", None)
+            if callable(speed_fn) and spd_mm > 0:
+                code = int(speed_fn(sdk_speed_rpm(spd_mm)))
+                if code != 0:
+                    raise SafetyGateError(f"set_gripper_speed failed with SDK code {code}")
+            set_pos_fn = getattr(self._arm, "set_gripper_position", None)
+            if callable(set_pos_fn):
+                code = int(set_pos_fn(sdk_position_counts(gap_mm), wait=True))
+                if code != 0:
+                    raise SafetyGateError(f"set_gripper_position failed with SDK code {code}")
+            self._commanded_gripper_pos = pos_clamped
+            return
+
         set_pos_fn = getattr(self._arm, "set_gripper_position", None)
         if callable(set_pos_fn):
             sdk_pulse = float((1.0 - pos_clamped) * 850.0)
@@ -483,10 +527,20 @@ class XArmRobot(RobotInterface):
         spec = self._require_jaw()
         return position_to_gap(spec, self.get_gripper_position())
 
-    def set_gripper_gap(self, gap_m: float) -> None:
+    def set_gripper_gap(
+        self,
+        gap_m: float,
+        *,
+        speed_percent: float | None = None,
+        force_percent: float | None = None,
+    ) -> None:
         self._require_motion_unlocked("set_gripper_gap")
         spec = self._require_jaw()
-        self.set_gripper(gap_to_position(spec, gap_m))
+        norm_pos = gap_to_position(spec, gap_m)
+        if speed_percent is None and force_percent is None:
+            self.set_gripper(norm_pos)
+        else:
+            self.set_gripper(norm_pos, speed_percent=speed_percent, force_percent=force_percent)
 
     def bilateral_finger_contact(self, object_body: str) -> bool:
         del object_body

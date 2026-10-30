@@ -178,6 +178,40 @@ class FreeJointModelTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             fk_pose(self.model, self.data, "attachment_site", q[:-1])
 
+    def test_solve_ik_kinematics_fast_path_matches_mj_forward(self):
+        rng = np.random.default_rng(42)
+        q_seed = self.model.qpos0.copy()
+        q_seed[:6] = np.array([0.0, -0.45, -0.75, 0.0, 1.20, 0.0])
+        pos0, quat0 = fk_pose(self.model, self.data, "attachment_site", q_seed)
+        for _ in range(10):
+            target_pos = pos0 + rng.uniform(-0.04, 0.04, size=3)
+            q_sol, ok = solve_ik(
+                self.model,
+                self.data,
+                "attachment_site",
+                target_pos,
+                quat0,
+                q_init=q_seed,
+                pos_tol=1e-4,
+                rot_tol=1e-3,
+                max_iter=30,
+            )
+            self.assertTrue(ok)
+            # Re-evaluate with full mj_forward to confirm exact pose agreement
+            ref_data = mujoco.MjData(self.model)
+            ref_data.qpos[:] = q_sol
+            mujoco.mj_forward(self.model, ref_data)
+            site_id = self.model.site("attachment_site").id
+            np.testing.assert_allclose(
+                self.data.site_xpos[site_id], ref_data.site_xpos[site_id], atol=1e-12
+            )
+            np.testing.assert_allclose(
+                self.data.site_xmat[site_id], ref_data.site_xmat[site_id], atol=1e-12
+            )
+            np.testing.assert_allclose(
+                ref_data.site_xpos[site_id], target_pos, atol=1e-4
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

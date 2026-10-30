@@ -32,22 +32,30 @@ def solve_ik(model: mujoco.MjModel, data: mujoco.MjData, site_name: str,
     jacp = np.zeros((3, model.nv))
     jacr = np.zeros((3, model.nv))
 
+    jnt_types = model.jnt_type
+    clamp_mask = (jnt_types == int(mujoco.mjtJoint.mjJNT_HINGE)) | (
+        jnt_types == int(mujoco.mjtJoint.mjJNT_SLIDE)
+    )
+    clamp_adrs = model.jnt_qposadr[clamp_mask]
+    clamp_lo = model.jnt_range[clamp_mask, 0]
+    clamp_hi = model.jnt_range[clamp_mask, 1]
+    has_clamp = clamp_adrs.size > 0
+    quat = np.empty(4)
+    quat_trial = np.empty(4)
+    eye_m = (damping ** 2) * np.eye(6 if target_quat is not None else 3)
+
     def _clamp_hinge_slide(qvec: np.ndarray) -> None:
-        # jnt_type is an int array; compare as ints (enum tuple `in` fails on numpy scalars)
-        for j in range(model.njnt):
-            if int(model.jnt_type[j]) in (int(mujoco.mjtJoint.mjJNT_HINGE), int(mujoco.mjtJoint.mjJNT_SLIDE)):
-                adr = model.jnt_qposadr[j]
-                qvec[adr] = np.clip(qvec[adr], model.jnt_range[j, 0], model.jnt_range[j, 1])
+        if has_clamp:
+            qvec[clamp_adrs] = np.clip(qvec[clamp_adrs], clamp_lo, clamp_hi)
 
     step = 0.5
     for _ in range(max_iter):
         data.qpos[:] = q
-        mujoco.mj_forward(model, data)  # FK (kinematics only needed, but forward is fine)
+        mujoco.mj_kinematics(model, data)
 
         pos_err = target_pos - data.site_xpos[site_id]
         err = pos_err
         if target_quat is not None:
-            quat = np.empty(4)
             mujoco.mju_mat2Quat(quat, data.site_xmat[site_id])
             rot_err = _quat_error(quat, target_quat)
             err = np.concatenate([pos_err, rot_err])
@@ -57,9 +65,10 @@ def solve_ik(model: mujoco.MjModel, data: mujoco.MjData, site_name: str,
             break
         err_scaled = err / tol_vec
 
+        mujoco.mj_comPos(model, data)
         mujoco.mj_jacSite(model, data, jacp, jacr, site_id)
         J = jacp if target_quat is None else np.vstack([jacp, jacr])
-        JJt = J @ J.T + (damping ** 2) * np.eye(J.shape[0])
+        JJt = J @ J.T + eye_m
         dq = J.T @ np.linalg.solve(JJt, err)
 
         # nullspace bias towards a reference posture
@@ -81,10 +90,9 @@ def solve_ik(model: mujoco.MjModel, data: mujoco.MjData, site_name: str,
             mujoco.mj_integratePos(model, q_trial, dq, step)
             _clamp_hinge_slide(q_trial)
             data.qpos[:] = q_trial
-            mujoco.mj_forward(model, data)
+            mujoco.mj_kinematics(model, data)
             pos_trial = target_pos - data.site_xpos[site_id]
             if target_quat is not None:
-                quat_trial = np.empty(4)
                 mujoco.mju_mat2Quat(quat_trial, data.site_xmat[site_id])
                 err_trial = np.concatenate([pos_trial, _quat_error(quat_trial, target_quat)])
             else:
@@ -99,18 +107,14 @@ def solve_ik(model: mujoco.MjModel, data: mujoco.MjData, site_name: str,
         step = min(step * 1.5, 0.5)
 
     data.qpos[:] = q
-    mujoco.mj_forward(model, data)
+    mujoco.mj_kinematics(model, data)
+    mujoco.mj_comPos(model, data)
     pos_err_vec = target_pos - data.site_xpos[site_id]
     converged = bool(np.all(np.abs(pos_err_vec) < pos_tol))  # per-component, like the loop
-    pos_err = float(np.linalg.norm(pos_err_vec))
     if target_quat is not None:
-        quat = np.empty(4)
         mujoco.mju_mat2Quat(quat, data.site_xmat[site_id])
         rot_err_vec = _quat_error(quat, target_quat)
         converged = converged and bool(np.all(np.abs(rot_err_vec) < rot_tol))
-        rot_err = float(np.linalg.norm(rot_err_vec))
-    else:
-        rot_err = 0.0
     return q.copy(), converged
 
 

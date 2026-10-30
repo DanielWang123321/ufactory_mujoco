@@ -1,9 +1,9 @@
-"""Gymnasium environment, strict metrics, and scripted expert for xArm6 + Gripper G2
-tabletop cube pick-and-place (Batch 8).
+"""Gymnasium environment, strict metrics, and independent scripted baseline for
+xArm6 + Gripper G2 tabletop cube pick-and-place.
 
-Reuses Batch 2-3 assets and interfaces:
+Reuses project assets and calibrated Gripper G2 interfaces:
 - Scene: ``models/xarm6_with_gripper/scene_pick_place.xml`` via ``configs/pick_place/xarm6.yaml``
-- Gripper G2 gap and contact checks: ``ufactory_mujoco.grippers``
+- Calibrated Gripper G2 linkage & servo: ``ufactory_mujoco.g2_model`` / ``g2_controller``
 - Kinematics/IK: ``ufactory_mujoco.ik.solve_ik`` and ``ufactory_mujoco.task_geometry``
 
 Requires only ``mujoco`` + ``numpy`` at runtime; ``gymnasium`` is optional
@@ -21,7 +21,13 @@ import mujoco
 import numpy as np
 
 from ..config import load_task_config
-from ..grippers import gap_to_position, identify_gripper, position_to_gap
+from ..g2_controller import G2Controller
+from ..g2_model import (
+    G2_LINKAGE_GEOMETRY,
+    G2Model,
+    gripper_g2_gap_m_to_sim_drive,
+)
+from ..grippers import identify_gripper
 from ..ik import solve_ik
 from ..resource_paths import CONFIGS_ROOT
 from ..task_geometry import GRIP_DOWN_QUAT
@@ -31,15 +37,18 @@ from .artifacts import (
     PICK_PLACE_NUM_ACTIONS,
     PICK_PLACE_NUM_OBS,
 )
-from .reach_env import _BoxStub, _ENV_BASE, gym, load_reach_model, spaces
+from .model_hash import runtime_model_sha256, verify_runtime_model
+from .reach_env import _ENV_BASE, _BoxStub, gym, load_reach_model, spaces
 
 TCP_SITE = "attachment_site"
 
-# Default task and physical constants aligned with configs/pick_place/xarm6.yaml
-SPAWN_X = 0.30
-SPAWN_Y = 0.00
-TARGET_X = 0.30
-TARGET_Y = 0.30
+# Default task and physical constants aligned with ufactory_genesis pick_place
+SPAWN_X = 0.300
+SPAWN_Y = 0.000
+SPAWN_XY_LOWER = (0.300, -0.200)
+SPAWN_XY_UPPER = (0.500, 0.200)
+TARGET_X = 0.300
+TARGET_Y = 0.300
 CUBE_HALF_M = 0.015
 CUBE_SIZE = 2.0 * CUBE_HALF_M
 CUBE_REST_Z = 0.015
@@ -57,9 +66,20 @@ RELEASE_MAX_HEIGHT_M = 0.003
 PRESS_LIMIT_M = 0.001
 PLACE_CLEARANCE_M = 0.002
 
-# Local coordinates of the inner fingertip pad centers on left_finger / right_finger
-_LEFT_PAD_LOCAL = np.array([0.0, -0.02568, 0.0567], dtype=float)
-_RIGHT_PAD_LOCAL = np.array([0.0, 0.02568, 0.0567], dtype=float)
+# Minimum TCP (attachment_site) Z setpoint before lift: keeps closed fingertips >= 2.7 mm
+# above the z=0 table while placing fingertip pad centers inside the cube's grasp band.
+_PRE_LIFT_MIN_TCP_Z = 0.0055
+
+# Local coordinates of the calibrated G2 inner fingertip pad centers on left_finger / right_finger
+_LEFT_PAD_LOCAL = np.array(
+    [0.0, G2_LINKAGE_GEOMETRY.pad_inner_y_m, G2_LINKAGE_GEOMETRY.pad_center_z_m],
+    dtype=float,
+)
+_RIGHT_PAD_LOCAL = np.array(
+    [0.0, -G2_LINKAGE_GEOMETRY.pad_inner_y_m, G2_LINKAGE_GEOMETRY.pad_center_z_m],
+    dtype=float,
+)
+_PAD_NORMAL_LOCAL = np.array([0.0, 1.0, 0.0], dtype=float)
 
 
 def cube_clearance(pos: np.ndarray, quat: np.ndarray, cube_half_m: float = CUBE_HALF_M) -> float:
@@ -70,15 +90,10 @@ def cube_clearance(pos: np.ndarray, quat: np.ndarray, cube_half_m: float = CUBE_
     if norm > 0.0:
         q = q / norm
     w, x, y, z = float(q[0]), float(q[1]), float(q[2]), float(q[3])
-    row_z = np.array(
-        [
-            2.0 * (x * z - w * y),
-            2.0 * (y * z + w * x),
-            1.0 - 2.0 * (x * x + y * y),
-        ],
-        dtype=float,
-    )
-    return float(pos_arr[2] - float(cube_half_m) * float(np.sum(np.abs(row_z))))
+    r0 = abs(2.0 * (x * z - w * y))
+    r1 = abs(2.0 * (y * z + w * x))
+    r2 = abs(1.0 - 2.0 * (x * x + y * y))
+    return float(pos_arr[2] - float(cube_half_m) * (r0 + r1 + r2))
 
 
 def grasp_distance(pad_center: np.ndarray, obj_pos: np.ndarray, cube_half_m: float = CUBE_HALF_M) -> float:
@@ -86,7 +101,7 @@ def grasp_distance(pad_center: np.ndarray, obj_pos: np.ndarray, cube_half_m: flo
     rel = np.asarray(pad_center, dtype=float).reshape(3) - np.asarray(obj_pos, dtype=float).reshape(3)
     band = 0.8 * float(cube_half_m)
     z_excess = max(0.0, abs(float(rel[2])) - band)
-    return float(np.linalg.norm([rel[0], rel[1], z_excess]))
+    return float(math.sqrt(float(rel[0]) ** 2 + float(rel[1]) ** 2 + z_excess * z_excess))
 
 
 class PickPlaceMetrics:
@@ -124,7 +139,7 @@ class PickPlaceMetrics:
     def reset(
         self,
         spawn_xy: np.ndarray | tuple[float, float] | None = None,
-        ee_z: float = 0.128,
+        ee_z: float = 0.1266,
     ) -> None:
         if spawn_xy is not None:
             self.spawn_xy = np.asarray(spawn_xy, dtype=float).reshape(2).copy()
@@ -181,14 +196,14 @@ class PickPlaceMetrics:
 
         self.clearance = cube_clearance(pos, quat, self.cube_half_m)
         height = max(0.0, self.clearance)
-        q_norm = np.linalg.norm(quat)
+        q_norm = float(np.linalg.norm(quat))
         q = quat / q_norm if q_norm > 0.0 else np.array([1.0, 0.0, 0.0, 0.0])
         up_z = float(np.clip(1.0 - 2.0 * (q[1] * q[1] + q[2] * q[2]), -1.0, 1.0))
-        tilt = float(np.rad2deg(np.arccos(up_z)))
+        tilt = float(np.rad2deg(math.acos(up_z)))
 
         on_table = self.clearance < 0.015
         before_lift = (not self.ever_carried) and on_table
-        drag = float(np.linalg.norm(pos[:2] - self.spawn_xy))
+        drag = float(math.hypot(float(pos[0] - self.spawn_xy[0]), float(pos[1] - self.spawn_xy[1])))
         if before_lift:
             self.max_drag = max(self.max_drag, drag)
             self.max_tilt_deg = max(self.max_tilt_deg, tilt)
@@ -199,8 +214,8 @@ class PickPlaceMetrics:
                 self.finger_contact[i] = True
             elif forces[i] < RELEASE_FORCE_N:
                 self.finger_contact[i] = False
-        touching = bool(np.all(self.finger_contact))
-        any_contact = bool(np.any(forces >= RELEASE_FORCE_N))
+        touching = bool(self.finger_contact[0] and self.finger_contact[1])
+        any_contact = bool(forces[0] >= RELEASE_FORCE_N or forces[1] >= RELEASE_FORCE_N)
 
         recontact = self.release_confirmed and any_contact
         if recontact:
@@ -238,7 +253,7 @@ class PickPlaceMetrics:
         if tracking:
             self.max_press = max(self.max_press, max(0.0, self.touchdown_ee_z - self.min_ee_z))
 
-        both_clear = bool(np.all(forces < RELEASE_FORCE_N))
+        both_clear = bool(forces[0] < RELEASE_FORCE_N and forces[1] < RELEASE_FORCE_N)
         first_clear = self.ever_carried and both_clear and (self.clear_steps == 0) and (not self.release_confirmed)
         if first_clear:
             self.release_candidate_height = max(max(0.0, self.prev_clearance), height)
@@ -264,7 +279,7 @@ class PickPlaceMetrics:
             self.max_held_table_force = max(self.max_held_table_force, table_force)
         self.max_robot_table_force = max(self.max_robot_table_force, robot_table_force)
 
-        self.target_error = float(np.linalg.norm(pos[:2] - self.target_xy))
+        self.target_error = float(math.hypot(float(pos[0] - self.target_xy[0]), float(pos[1] - self.target_xy[1])))
         in_target_xy = self.target_error <= self.target_tol
         at_target_table = self.ever_lifted_clear and in_target_xy and supported and (tilt <= self.tilt_limit)
         press_failed = self.max_press > self.press_limit + 1e-7
@@ -319,12 +334,12 @@ def _extract_contact_loads(
     floor_geom_id: int,
     base_body_id: int,
 ) -> tuple[np.ndarray, float, float]:
-    """Return ``(finger_forces[2], table_support_force_n, robot_table_force_n)``."""
-    f_left = 0.0
-    f_right = 0.0
-    table_force = 0.0
+    """Return ``(finger_forces[2], table_support_force_n, robot_table_force_n)`` using net 3D force vectors."""
+    left_net = np.zeros(3, dtype=float)
+    right_net = np.zeros(3, dtype=float)
+    table_net = np.zeros(3, dtype=float)
     robot_table_force = 0.0
-    f6 = np.zeros(6, dtype=float)
+    wrench = np.zeros(6, dtype=float)
 
     for i in range(data.ncon):
         contact = data.contact[i]
@@ -332,27 +347,37 @@ def _extract_contact_loads(
             continue
         g1, g2 = int(contact.geom1), int(contact.geom2)
         b1, b2 = int(model.geom_bodyid[g1]), int(model.geom_bodyid[g2])
-        mujoco.mj_contactForce(model, data, i, f6)
-        force_mag = float(np.linalg.norm(f6[:3]))
-        if not math.isfinite(force_mag):
+        is_floor = g1 == floor_geom_id or g2 == floor_geom_id
+        has_cube = b1 == cube_body_id or b2 == cube_body_id
+        if not (is_floor or has_cube):
             continue
-        pair = {b1, b2}
-        if pair == {cube_body_id, left_finger_id}:
-            f_left += force_mag
-        elif pair == {cube_body_id, right_finger_id}:
-            f_right += force_mag
-        elif g1 == floor_geom_id or g2 == floor_geom_id:
-            other_body = b2 if g1 == floor_geom_id else b1
-            if other_body == cube_body_id:
-                table_force += force_mag
-            elif other_body not in (0, base_body_id):
-                robot_table_force += force_mag
+        mujoco.mj_contactForce(model, data, i, wrench)
+        if not np.all(np.isfinite(wrench[:3])):
+            continue
+        frame = np.asarray(contact.frame, dtype=float).reshape(3, 3)
+        force_world = frame.T @ wrench[:3]
 
+        if has_cube and not is_floor:
+            other = b2 if b1 == cube_body_id else b1
+            if other == left_finger_id:
+                left_net += force_world if other == b2 else -force_world
+            elif other == right_finger_id:
+                right_net += force_world if other == b2 else -force_world
+        elif is_floor:
+            other = b2 if g1 == floor_geom_id else b1
+            if other == cube_body_id:
+                table_net += force_world if other == b2 else -force_world
+            elif other not in (0, base_body_id):
+                robot_table_force += float(np.linalg.norm(force_world))
+
+    f_left = float(np.linalg.norm(left_net))
+    f_right = float(np.linalg.norm(right_net))
+    table_force = float(np.linalg.norm(table_net))
     return np.array([f_left, f_right], dtype=float), table_force, robot_table_force
 
 
 class PickPlaceEnv(_ENV_BASE):
-    """xArm6 + Gripper G2 tabletop pick-and-place Gymnasium environment."""
+    """xArm6 + calibrated Gripper G2 tabletop pick-and-place Gymnasium environment."""
 
     metadata = {"render_modes": ["human"], "render_fps": 50}
 
@@ -363,16 +388,20 @@ class PickPlaceEnv(_ENV_BASE):
         robot: str = "xarm6",
         config_path: str | Path | None = None,
         render_mode: str | None = None,
-        max_steps: int = 380,
+        max_steps: int = 400,
         decimation: int = 10,
         action_scale: float = 0.005,
         action_clip: float = 1.0,
         gap_action_scale: float = 0.003,
         setpoint_leash_m: float = 0.025,
         pre_grasp_gap_m: float = 0.050,
-        close_floor_gap_m: float = 0.018,
+        close_floor_gap_m: float = 0.012,
         workspace_lower: tuple[float, float, float] | list[float] = (0.10, -0.35, -0.02),
         workspace_upper: tuple[float, float, float] | list[float] = (0.65, 0.35, 0.55),
+        spawn_xy_lower: tuple[float, float] | list[float] = SPAWN_XY_LOWER,
+        spawn_xy_upper: tuple[float, float] | list[float] = SPAWN_XY_UPPER,
+        g2_speed_percent: float = 50.0,
+        g2_force_percent: float = 50.0,
         reward_gamma: float = 0.995,
         place_clearance_m: float = PLACE_CLEARANCE_M,
         release_max_height_m: float = RELEASE_MAX_HEIGHT_M,
@@ -386,6 +415,8 @@ class PickPlaceEnv(_ENV_BASE):
         success_hold_steps: int = SUCCESS_HOLD_STEPS,
         reward_scales: dict[str, float] | None = None,
         lite_visuals: bool | None = None,
+        expected_runtime_model_sha256: str | None = None,
+        fast_info: bool = False,
     ) -> None:
         if robot != "xarm6":
             raise ValueError(f"pick-place RL only supports xArm6, got {robot!r}")
@@ -400,9 +431,13 @@ class PickPlaceEnv(_ENV_BASE):
             ("setpoint_leash_m", setpoint_leash_m),
             ("pre_grasp_gap_m", pre_grasp_gap_m),
             ("close_floor_gap_m", close_floor_gap_m),
+            ("g2_speed_percent", g2_speed_percent),
+            ("g2_force_percent", g2_force_percent),
         ):
             if not np.isfinite(val) or val <= 0:
                 raise ValueError(f"{name} must be finite and positive")
+        if g2_speed_percent > 100.0 or g2_force_percent > 100.0:
+            raise ValueError("g2_speed_percent and g2_force_percent must be <= 100")
 
         overlay = config_path if config_path is not None else (CONFIGS_ROOT / "pick_place" / "xarm6.yaml")
         self.task_config = load_task_config(overlay)
@@ -415,6 +450,7 @@ class PickPlaceEnv(_ENV_BASE):
         self.action_contract = PICK_PLACE_ACTION_CONTRACT
         self.runtime_config_sha256 = self.task_config.sha256
         self.render_mode = render_mode
+        self.fast_info = bool(fast_info)
         self._max_steps = int(max_steps)
         self._decimation = int(decimation)
         self.action_scale = float(action_scale)
@@ -425,6 +461,16 @@ class PickPlaceEnv(_ENV_BASE):
         self.close_floor_gap_m = float(close_floor_gap_m)
         self.workspace_lower = np.asarray(workspace_lower, dtype=float).reshape(3)
         self.workspace_upper = np.asarray(workspace_upper, dtype=float).reshape(3)
+        self.spawn_xy_lower = np.asarray(spawn_xy_lower, dtype=float).reshape(2)
+        self.spawn_xy_upper = np.asarray(spawn_xy_upper, dtype=float).reshape(2)
+        if (
+            np.any(self.spawn_xy_lower > self.spawn_xy_upper)
+            or np.any(self.spawn_xy_lower < self.workspace_lower[:2])
+            or np.any(self.spawn_xy_upper > self.workspace_upper[:2])
+        ):
+            raise ValueError("spawn_xy bounds must be ordered and within workspace XY bounds")
+        self.g2_speed_percent = float(g2_speed_percent)
+        self.g2_force_percent = float(g2_force_percent)
         self.reward_gamma = float(reward_gamma)
         self.near_table_m = float(near_table_m)
         self.max_near_table_descent_m_s = float(max_near_table_descent_m_s)
@@ -440,9 +486,14 @@ class PickPlaceEnv(_ENV_BASE):
         scene_path = Path(model_path) if model_path is not None else self.task_config.scene_path
         if not scene_path.is_file():
             raise FileNotFoundError(f"scene model not found: {scene_path}")
+        self.scene_path = scene_path
+        self.runtime_model_sha256 = runtime_model_sha256(scene_path)
+        if expected_runtime_model_sha256 is not None:
+            verify_runtime_model(scene_path, expected_runtime_model_sha256)
         if lite_visuals is None:
             lite_visuals = render_mode is None
         self.model = load_reach_model(scene_path, lite_visuals=lite_visuals)
+        verify_runtime_model(scene_path, self.runtime_model_sha256)
         self.data = mujoco.MjData(self.model)
         self._ik_data = mujoco.MjData(self.model)
 
@@ -461,9 +512,9 @@ class PickPlaceEnv(_ENV_BASE):
             [mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_ACTUATOR, f"act{i + 1}") for i in range(self._n_arm)]
         )
         self._gripper_act_id = int(mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_ACTUATOR, "gripper"))
-        self._gripper_ctrl_max = float(self.model.actuator(self._gripper_act_id).ctrlrange[1])
         self._driver_joint_id = int(mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, "left_driver_joint"))
         self._driver_qpos_adr = int(self.model.jnt_qposadr[self._driver_joint_id])
+        self._driver_dof_adr = int(self.model.jnt_dofadr[self._driver_joint_id])
         self._gripper_qpos_adrs = np.array(
             [
                 int(self.model.jnt_qposadr[mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, name)])
@@ -478,12 +529,25 @@ class PickPlaceEnv(_ENV_BASE):
             ]
         )
 
+        # Calibrated 0.0.9 Gripper G2 servo (matches SimRobot & ufactory_genesis)
+        self.model.actuator_ctrllimited[self._gripper_act_id] = 0
+        self.g2_model = G2Model.load()
+        self.g2_controller = G2Controller(
+            self.g2_model,
+            initial_position_mm=self.pre_grasp_gap_m * 1000.0,
+        )
+        self.g2_controller.command(
+            self.pre_grasp_gap_m * 1000.0,
+            self.g2_speed_percent,
+            self.g2_force_percent,
+        )
+        init_limit = float(self.g2_controller.torque_limit_nm[0])
+        self.model.actuator_forcerange[self._gripper_act_id] = (-init_limit, init_limit)
+
         self._qpos_adr = self.model.jnt_qposadr[self._joint_ids]
         self._qvel_adr = self.model.jnt_dofadr[self._joint_ids]
         self._q_lo = self.model.jnt_range[self._joint_ids, 0].copy()
         self._q_hi = self.model.jnt_range[self._joint_ids, 1].copy()
-        self._q_mid = 0.5 * (self._q_lo + self._q_hi)
-        self._q_half = 0.5 * (self._q_hi - self._q_lo)
 
         self._site_id = int(mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SITE, TCP_SITE))
         self._cube_body_id = int(mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "cube"))
@@ -494,10 +558,11 @@ class PickPlaceEnv(_ENV_BASE):
         self._right_finger_id = int(mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "right_finger"))
         self._base_body_id = int(mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "link_base"))
         self._floor_geom_id = int(mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_GEOM, "floor"))
+        self._configure_contact_physics()
 
         self.ctrl_dt = self._decimation * float(self.model.opt.timestep)
         self._home_q, self._heights = self._compute_home_pose(pp)
-        self.home_tcp = np.array([self.default_spawn_xy[0], self.default_spawn_xy[1], self._heights["lift_z"]])
+        self.home_tcp = np.array([SPAWN_X, SPAWN_Y, self._heights["lift_z"]], dtype=float)
 
         self.metrics = PickPlaceMetrics(
             ctrl_dt=self.ctrl_dt,
@@ -514,18 +579,21 @@ class PickPlaceEnv(_ENV_BASE):
         )
 
         self._rng = np.random.default_rng()
+        self.fixed_spawns: np.ndarray | None = None
+        self.fixed_cursor = 0
+        self.scenario_id = -1
         self._step_count = 0
         self.episode_id = -1
-        self._phase = 0
-        self._phase_steps = 0
         self.ee_setpoint = self.home_tcp.copy()
         self.q_target = self._home_q.copy()
         self.gap_cmd = self.pre_grasp_gap_m
         self.forces = np.zeros(2, dtype=float)
         self.table_force = 0.0
+        self.prev_raw_table_force = 0.0
         self.robot_table_force = 0.0
         self.last_action = np.zeros(PICK_PLACE_NUM_ACTIONS, dtype=np.float32)
         self.contact_rewarded = False
+        self.touchdown_rewarded = False
         self.place_rewarded = False
         self.ik_rejects = 0
         self.ep_return = 0.0
@@ -541,16 +609,30 @@ class PickPlaceEnv(_ENV_BASE):
             self.observation_space = _BoxStub(obs_low, obs_high, (PICK_PLACE_NUM_OBS,), np.float32)
             self.action_space = _BoxStub(-1.0, 1.0, (PICK_PLACE_NUM_ACTIONS,), np.float32)
 
+    def _configure_contact_physics(self) -> None:
+        """Configure rigid Signorini-like contact impedance for calibrated G2 pinch forces on the 17 g cube."""
+        m = self.model
+        m.opt.cone = mujoco.mjtCone.mjCONE_ELLIPTIC
+        timeconst = max(0.004, 2.0 * float(m.opt.timestep))
+        contact_bodies = {self._cube_body_id, self._left_finger_id, self._right_finger_id}
+        finger_bodies = {self._left_finger_id, self._right_finger_id}
+        for gid in range(m.ngeom):
+            body_id = int(m.geom_bodyid[gid])
+            if gid == self._floor_geom_id or body_id in contact_bodies:
+                m.geom_solref[gid] = (timeconst, 1.0)
+                m.geom_solimp[gid] = (0.99, 0.999, 0.001, 0.5, 2.0)
+            if body_id in finger_bodies:
+                m.geom_friction[gid, 0] = max(float(m.geom_friction[gid, 0]), 1.2)
+
     def _compute_home_pose(self, pp) -> tuple[np.ndarray, dict[str, float]]:
-        """Solve the deployment pose above the cube using flange-to-TCP offset."""
-        mujoco.mj_resetDataKeyframe(self.model, self. _ik_data, 0)
+        """Solve fixed home deployment pose at (0.30, 0.00) with flange at ~0.30 m."""
+        mujoco.mj_resetDataKeyframe(self.model, self._ik_data, 0)
         mujoco.mj_forward(self.model, self._ik_data)
-        cx, cy = float(pp.cube_xy[0]), float(pp.cube_xy[1])
         q_seed, ok = solve_ik(
             self.model,
             self._ik_data,
             TCP_SITE,
-            np.array([cx, cy, float(pp.lift_z_m)]),
+            np.array([SPAWN_X, SPAWN_Y, float(pp.lift_z_m)]),
             GRIP_DOWN_QUAT,
             q_init=self._ik_data.qpos.copy(),
         )
@@ -563,21 +645,33 @@ class PickPlaceEnv(_ENV_BASE):
         flange_z = float(self._ik_data.body(link6_id).xpos[2])
         off = tcp_z - flange_z
         heights = {
-            "grasp_z": float(pp.flange_grasp_z_m) + off,
+            "grasp_z": max(_PRE_LIFT_MIN_TCP_Z, float(pp.flange_grasp_z_m) + off),
             "pre_grasp_z": float(pp.flange_grasp_z_m) + float(pp.approach_m) + off,
-            "lift_z": float(pp.lift_z_m) + off,
+            "lift_z": 0.30 + off,
         }
         q_home, ok = solve_ik(
             self.model,
             self._ik_data,
             TCP_SITE,
-            np.array([cx, cy, heights["lift_z"]]),
+            np.array([SPAWN_X, SPAWN_Y, heights["lift_z"]]),
             GRIP_DOWN_QUAT,
             q_init=q_seed,
         )
         if not ok:
             raise RuntimeError("IK failed while solving home deployment pose")
         return q_home[: self._n_arm].copy(), heights
+
+    def set_evaluation_spawns(self, xy: Any) -> None:
+        """Install deterministic (N, 2) evaluation cube XY spawns; pass None to clear."""
+        if xy is None:
+            self.fixed_spawns = None
+            self.fixed_cursor = 0
+            return
+        arr = np.asarray(xy, dtype=float)
+        if arr.ndim != 2 or arr.shape[1] != 2 or len(arr) < 1:
+            raise ValueError(f"evaluation spawns must have shape (N, 2), got {arr.shape}")
+        self.fixed_spawns = arr.copy()
+        self.fixed_cursor = 0
 
     # ------------------------------------------------------------------ state
     @property
@@ -603,21 +697,22 @@ class PickPlaceEnv(_ENV_BASE):
     def cube_velocity(self) -> np.ndarray:
         return self.data.qvel[self._cube_dof_adr : self._cube_dof_adr + 3].copy()
 
+    def cube_angular_velocity(self) -> np.ndarray:
+        return self.data.qvel[self._cube_dof_adr + 3 : self._cube_dof_adr + 6].copy()
+
     def pad_centers(self) -> tuple[np.ndarray, np.ndarray]:
-        l_pos = self.data.body(self._left_finger_id).xpos
-        l_mat = self.data.body(self._left_finger_id).xmat.reshape(3, 3)
-        r_pos = self.data.body(self._right_finger_id).xpos
-        r_mat = self.data.body(self._right_finger_id).xmat.reshape(3, 3)
+        l_pos = self.data.xpos[self._left_finger_id]
+        l_mat = self.data.xmat[self._left_finger_id].reshape(3, 3)
+        r_pos = self.data.xpos[self._right_finger_id]
+        r_mat = self.data.xmat[self._right_finger_id].reshape(3, 3)
         return l_pos + l_mat @ _LEFT_PAD_LOCAL, r_pos + r_mat @ _RIGHT_PAD_LOCAL
 
     def measured_gap(self) -> float:
-        q_drv = float(self.data.qpos[self._driver_qpos_adr])
-        norm_pos = float(np.clip(q_drv / max(self._gripper_ctrl_max, 1e-9), 0.0, 1.0))
-        return float(position_to_gap(self._gripper_spec, norm_pos))
-
-    def _gap_to_ctrl(self, gap_m: float) -> float:
-        pos = gap_to_position(self._gripper_spec, float(np.clip(gap_m, 0.0, self.open_gap_m)))
-        return float(pos * self._gripper_ctrl_max)
+        """Measured fingertip pad separation in meters via 4-bar linkage geometry."""
+        left_center, right_center = self.pad_centers()
+        l_mat = self.data.xmat[self._left_finger_id].reshape(3, 3)
+        normal = l_mat @ _PAD_NORMAL_LOCAL
+        return float(abs(np.dot(right_center - left_center, normal)))
 
     def _solve_ik(self, target_pos: np.ndarray) -> tuple[np.ndarray, bool]:
         q_init = self.data.qpos.copy()
@@ -632,6 +727,7 @@ class PickPlaceEnv(_ENV_BASE):
             pos_tol=1e-3,
             rot_tol=1e-2,
             max_iter=20,
+            damping=0.01,
         )
         q_arm = q_sol[self._qpos_adr].copy()
         reject = (
@@ -647,16 +743,73 @@ class PickPlaceEnv(_ENV_BASE):
         return q_arm, False
 
     def _apply_action(self, action: np.ndarray, current_measured_gap: float) -> None:
-        """Integrate 4D increments [dx, dy, dz, dgap]; zero actions hold commands."""
-        action = np.asarray(action, dtype=float).reshape(PICK_PLACE_NUM_ACTIONS)
-        moving = bool(np.any(action[:3] != 0.0))
-        if moving:
-            target = np.clip(
-                self.ee_setpoint + action[:3] * self.action_scale,
-                self.workspace_lower,
-                self.workspace_upper,
+        """Integrate 4D increments [dx, dy, dz, dgap] with near-table safety guardrails."""
+        act = np.asarray(action, dtype=float).reshape(PICK_PLACE_NUM_ACTIONS).copy()
+        ee = self.tcp_position()
+        base_setpoint = self.ee_setpoint.copy()
+
+        obj_pos = self.cube_position()
+        height = max(0.0, cube_clearance(obj_pos, self.cube_quat(), self.cube_half_m))
+        in_target_xy = (
+            math.hypot(float(obj_pos[0] - self.target_xy[0]), float(obj_pos[1] - self.target_xy[1]))
+            <= self.metrics.target_tol
+        )
+        at_release_table = (
+            self.metrics.ever_lifted_clear
+            and in_target_xy
+            and (height <= self.metrics.release_max_height)
+            and (
+                self.metrics.touchdown_seen
+                or self.metrics.release_confirmed
+                or (height <= self.metrics.place_clearance)
             )
-            ee = self.tcp_position()
+        )
+
+        near_place = False
+        table_sp_z: float | None = None
+        if not self.metrics.ever_lifted_clear:
+            gripping_pre_lift = (self.metrics.contact_steps >= CONTACT_CONFIRM_STEPS) or self.metrics.ever_carried
+            pre_lift_min_sp_z = (
+                max(base_setpoint[2], ee[2], _PRE_LIFT_MIN_TCP_Z) if gripping_pre_lift else _PRE_LIFT_MIN_TCP_Z
+            )
+            base_setpoint[2] = max(base_setpoint[2], pre_lift_min_sp_z)
+            if gripping_pre_lift:
+                act[2] = max(0.0, float(act[2]))
+        elif height <= self.near_table_m:
+            near_place = True
+            # Allow ~0.4 mm gentle table contact settlement while physically bounding press < 1.0 mm
+            ref_table_ee_z = max(self.metrics.touchdown_ee_z, float(ee[2]) - height)
+            table_sp_z = ref_table_ee_z - 0.0004
+            base_setpoint[2] = max(base_setpoint[2], max(table_sp_z, float(ee[2]) - 0.0040))
+            near_dz_limit = self.max_near_table_descent_m_s * self.ctrl_dt
+            dz_cmd = max(float(act[2]) * self.action_scale, -near_dz_limit) / self.action_scale
+            if at_release_table:
+                opening_started = (
+                    self.gap_cmd >= 2.0 * self.cube_half_m - 0.0005
+                    or self.metrics.clear_steps > 0
+                    or self.metrics.release_confirmed
+                )
+                dz_cmd = min(dz_cmd, near_dz_limit / self.action_scale)
+                if (self.metrics.touchdown_seen or opening_started) and float(act[2]) <= 0.3:
+                    dz_cmd = 0.0
+                if opening_started:
+                    if current_measured_gap < 0.038:
+                        act[:2] = 0.0
+                    else:
+                        act[:2] *= 0.25
+                    act[3] = max(0.0, float(act[3]))
+                else:
+                    act[:2] *= 0.25
+            act[2] = dz_cmd
+
+        moving = bool(np.any(act[:3] != 0.0)) or bool(np.any(base_setpoint != self.ee_setpoint))
+        if moving:
+            target = base_setpoint + act[:3] * self.action_scale
+            if not self.metrics.ever_lifted_clear:
+                target[2] = max(target[2], _PRE_LIFT_MIN_TCP_Z)
+            if near_place and table_sp_z is not None:
+                target[2] = max(target[2], table_sp_z)
+            target = np.clip(target, self.workspace_lower, self.workspace_upper)
             delta = target - ee
             dist = float(np.linalg.norm(delta))
             if dist > self.setpoint_leash_m:
@@ -665,29 +818,50 @@ class PickPlaceEnv(_ENV_BASE):
             if not reject:
                 self.ee_setpoint = target
                 self.q_target = q_new
+            else:
+                self.ee_setpoint = base_setpoint
 
         self.data.ctrl[self._act_ids] = self.q_target
 
         base_gap = self.gap_cmd
-        at_release_table = self.metrics.ever_lifted_clear and (
-            self.metrics.touchdown_seen or self.metrics.release_confirmed
-        )
-        if at_release_table and action[3] > 0.0 and self.gap_cmd < current_measured_gap:
+        if at_release_table and float(act[3]) > 0.0 and self.gap_cmd < current_measured_gap:
             base_gap = current_measured_gap
         self.gap_cmd = float(
-            np.clip(base_gap + action[3] * self.gap_action_scale, self.close_floor_gap_m, self.open_gap_m)
+            np.clip(base_gap + float(act[3]) * self.gap_action_scale, self.close_floor_gap_m, self.open_gap_m)
         )
-        self.data.ctrl[self._gripper_act_id] = self._gap_to_ctrl(self.gap_cmd)
+        self.g2_controller.command(self.gap_cmd * 1000.0, self.g2_speed_percent, self.g2_force_percent)
+        q_drv = float(self.data.qpos[self._driver_qpos_adr])
+        v_drv = float(self.data.qvel[self._driver_dof_adr])
+        out = self.g2_controller.update(
+            q_drv,
+            v_drv,
+            self.ctrl_dt,
+            measured_gap_mm=current_measured_gap * 1000.0,
+        )
+        limit = float(out.torque_limit_nm[0])
+        self.model.actuator_forcerange[self._gripper_act_id] = (-limit, limit)
+        kv_over_kp = self.g2_controller.kv / self.g2_controller.kp
+        self.data.ctrl[self._gripper_act_id] = float(out.position_rad[0]) + kv_over_kp * float(out.velocity_rad_s[0])
 
     # ------------------------------------------------------------------ gym API
     def reset(self, *, seed: int | None = None, options: dict | None = None):
         if gym is not None:
             super().reset(seed=seed)
-        self._rng = np.random.default_rng(seed)
+        if seed is not None:
+            self._rng = np.random.default_rng(seed)
 
-        spawn_xy = self.default_spawn_xy.copy()
         if options is not None and "cube_xy" in options:
             spawn_xy = np.asarray(options["cube_xy"], dtype=float).reshape(2).copy()
+            self.scenario_id = int(options.get("scenario_id", -1))
+        elif self.fixed_spawns is not None and len(self.fixed_spawns) > 0:
+            idx = self.fixed_cursor % len(self.fixed_spawns)
+            spawn_xy = self.fixed_spawns[idx].copy()
+            self.scenario_id = self.fixed_cursor
+            self.fixed_cursor += 1
+        else:
+            u = self._rng.random(2)
+            spawn_xy = self.spawn_xy_lower + u * (self.spawn_xy_upper - self.spawn_xy_lower)
+            self.scenario_id = -1
 
         self.data.qpos[:] = 0.0
         self.data.qvel[:] = 0.0
@@ -696,9 +870,17 @@ class PickPlaceEnv(_ENV_BASE):
         self.data.qpos[self._qpos_adr] = self._home_q
         self.data.ctrl[self._act_ids] = self._home_q
 
-        drv_ctrl = self._gap_to_ctrl(self.pre_grasp_gap_m)
-        self.data.qpos[self._gripper_qpos_adrs] = drv_ctrl
-        self.data.ctrl[self._gripper_act_id] = drv_ctrl
+        drv_rad = gripper_g2_gap_m_to_sim_drive(self.pre_grasp_gap_m)
+        self.data.qpos[self._gripper_qpos_adrs] = drv_rad
+        self.g2_controller.reset(position_mm=self.pre_grasp_gap_m * 1000.0)
+        self.g2_controller.command(
+            self.pre_grasp_gap_m * 1000.0,
+            self.g2_speed_percent,
+            self.g2_force_percent,
+        )
+        limit = float(self.g2_controller.torque_limit_nm[0])
+        self.model.actuator_forcerange[self._gripper_act_id] = (-limit, limit)
+        self.data.ctrl[self._gripper_act_id] = drv_rad
 
         self.data.qpos[self._cube_qpos_adr : self._cube_qpos_adr + 3] = [
             spawn_xy[0],
@@ -710,24 +892,24 @@ class PickPlaceEnv(_ENV_BASE):
 
         self._step_count = 0
         self.episode_id += 1
-        self._phase = 0
-        self._phase_steps = 0
         self.q_target = self._home_q.copy()
         self.ee_setpoint = self.tcp_position()
         self._prev_tcp_pos = self.ee_setpoint.copy()
         self.gap_cmd = self.pre_grasp_gap_m
         self.forces = np.zeros(2, dtype=float)
         self.table_force = 0.0
+        self.prev_raw_table_force = 0.0
         self.robot_table_force = 0.0
         self.last_action = np.zeros(PICK_PLACE_NUM_ACTIONS, dtype=np.float32)
         self.contact_rewarded = False
+        self.touchdown_rewarded = False
         self.place_rewarded = False
         self.ik_rejects = 0
         self.ep_return = 0.0
 
         self.metrics.reset(spawn_xy=spawn_xy, ee_z=float(self.ee_setpoint[2]))
         obs = self._get_obs()
-        info = self._build_info(success=False, failed=False, timeout=False)
+        info = {} if self.fast_info else self._build_info(success=False, failed=False, timeout=False)
         if self.render_mode == "human":
             self._ensure_viewer()
             self._viewer.sync()
@@ -747,73 +929,124 @@ class PickPlaceEnv(_ENV_BASE):
         left, right = self.pad_centers()
         pad_mid = 0.5 * (left + right)
         distance = grasp_distance(pad_mid, obj, self.cube_half_m)
-        pad_xy_err = float(np.linalg.norm((pad_mid - obj)[:2]))
+        pad_xy_err = float(math.hypot(float(pad_mid[0] - obj[0]), float(pad_mid[1] - obj[1])))
+        dz_band = max(0.0, abs(float(pad_mid[2] - obj[2])) - CUBE_SIZE * 0.4)
         height = max(0.0, cube_clearance(obj, quat, self.cube_half_m))
-        target_error = float(np.linalg.norm(obj[:2] - self.target_xy))
+        target_error = float(math.hypot(float(obj[0] - self.target_xy[0]), float(obj[1] - self.target_xy[1])))
         current_gap = self.measured_gap()
         grasp_near = math.exp(-distance / 0.025)
         placed = self.place_rewarded
 
-        min_force = float(np.min(self.forces))
+        min_force = float(min(self.forces[0], self.forces[1]))
         if self.metrics.ever_lifted_clear:
-            grip_force = float(np.clip(min_force / 2.0, 0.0, 1.0))
+            grip_force = min(1.0, max(0.0, min_force / 2.0))
         else:
-            grip_force = 0.75 * float(np.clip(min_force / 2.0, 0.0, 1.0)) + 0.25 * float(
-                np.clip(min_force / 20.0, 0.0, 1.0)
-            )
+            grip_force = 0.75 * min(1.0, max(0.0, min_force / 2.0)) + 0.25 * min(1.0, max(0.0, min_force / 20.0))
         grip = grip_force * grasp_near * (0.0 if placed else 1.0)
 
-        desired_gap = self.pre_grasp_gap_m - 0.025 * math.exp(-distance / 0.012)
-        gap_alignment = math.exp(-abs(current_gap - desired_gap) / 0.012)
-        target_near = math.exp(-target_error / 0.04)
-        target_zone = math.exp(-max(0.0, target_error - 0.015) / 0.04)
-        lifted = 1.0 if self.metrics.ever_lifted_clear else 0.0
-        place_height_err = max(0.0, height - self.metrics.place_clearance)
-        both_clear = 1.0 if bool(np.all(self.forces < 0.1)) else 0.0
-        released_clear = (1.0 if self.metrics.release_confirmed else 0.0) * both_clear
-        meas_open = float(np.clip((current_gap - CUBE_SIZE) / (self.pre_grasp_gap_m - CUBE_SIZE), 0.0, 1.0))
+        any_force = bool(self.forces[0] > 0.2 or self.forces[1] > 0.2)
+        outside_xy = max(0.0, pad_xy_err - 0.015)
+        z_floor = float(obj[2]) + CUBE_SIZE * 0.4 + 0.038 * (1.0 - math.exp(-((outside_xy / 0.015) ** 2)))
+        if self.metrics.ever_lifted_clear or any_force:
+            below_floor = 0.0
+            near_cube = 1.0
+        else:
+            below_floor = max(0.0, z_floor - float(pad_mid[2]))
+            near_cube = math.exp(-((distance / 0.012) ** 2))
+        floor_gate = math.exp(-below_floor / 0.015)
+
         at_table = self.metrics.ever_lifted_clear and (
             (height <= self.metrics.release_max_height)
             or self.metrics.touchdown_seen
             or self.metrics.release_confirmed
         )
-        pad_xy_drift = max(0.0, pad_xy_err - 0.008)
+        at_target_table = at_table and (target_error <= self.metrics.target_tol)
+        if at_target_table:
+            over_open = 0.0
+        else:
+            over_open = 0.65 * max(0.0, current_gap - self.pre_grasp_gap_m) + 0.35 * max(
+                0.0, self.gap_cmd - self.pre_grasp_gap_m
+            )
+        gap_span_floor = max(1e-6, self.pre_grasp_gap_m - self.close_floor_gap_m)
+        gap_span_cube = max(1e-6, self.pre_grasp_gap_m - CUBE_SIZE)
+        early_close = min(1.0, max(0.0, (self.pre_grasp_gap_m - min(current_gap, self.gap_cmd)) / gap_span_floor))
+        cmd_close = min(1.0, max(0.0, (self.pre_grasp_gap_m - self.gap_cmd) / gap_span_floor))
+        meas_close = min(1.0, max(0.0, (self.pre_grasp_gap_m - current_gap) / gap_span_cube))
+        if at_target_table:
+            close_progress = 1.0
+        elif self.metrics.ever_lifted_clear:
+            close_progress = meas_close
+        else:
+            close_progress = 0.65 * meas_close + 0.35 * cmd_close
+        pregrasp_gap = (
+            0.62 * (1.0 - ((1.0 - near_cube) ** 2) * early_close) + 0.38 * near_cube * close_progress
+        ) * math.exp(-over_open / 0.010)
+
+        approach_kernel = (
+            0.35 * math.exp(-pad_xy_err / 0.22 - dz_band / 0.06) + 0.65 * math.exp(-distance / 0.045)
+        ) * floor_gate
+        pregrasp_kernel = 1.125 * math.exp(-distance / 0.040) * pregrasp_gap * floor_gate
+        target_near = math.exp(-target_error / 0.04)
+        place_approach = 0.75 * target_near + 0.25 * math.exp(-target_error / 0.18)
+        target_zone = math.exp(-max(0.0, target_error - 0.015) / 0.04)
+        lifted = 1.0 if self.metrics.ever_lifted_clear else 0.0
+        place_height_err = max(0.0, height - self.metrics.place_clearance)
+        smooth_clear = math.exp(-max(float(self.forces[0]), float(self.forces[1])) / 10.0)
+        meas_open = min(1.0, max(0.0, (current_gap - CUBE_SIZE) / gap_span_cube))
+
         ee_z = float(self.tcp_position()[2])
         ref_ee_z = self.metrics.touchdown_ee_z if self.metrics.touchdown_ee_z > 0.0 else self._heights["grasp_z"]
         has_td_ref = (self.metrics.touchdown_ee_z > 0.0 or self.metrics.release_confirmed) and at_table
         ee_sink = max(0.0, ref_ee_z - ee_z - 0.0025) if has_td_ref else 0.0
-        post_td_pose = math.exp(-pad_xy_drift / 0.015) * math.exp(-ee_sink / 0.0015)
-        table_guard = post_td_pose * (released_clear if placed else 1.0)
+        post_td_pose = math.exp(-ee_sink / 0.0015)
+        table_guard = post_td_pose * (smooth_clear if placed else 1.0)
         place_zone = lifted * target_zone * math.exp(-place_height_err / 0.005) * table_guard
-        cmd_open = float(
-            np.clip((self.gap_cmd - self.close_floor_gap_m) / (self.pre_grasp_gap_m - self.close_floor_gap_m), 0.0, 1.0)
-        )
-        action_open = float(np.clip(0.5 * (float(self.last_action[3]) + 1.0), 0.0, 1.0))
+        descent_funnel = target_zone * math.exp(-place_height_err / 0.025) * post_td_pose
+        cmd_open = min(1.0, max(0.0, (self.gap_cmd - self.close_floor_gap_m) / gap_span_floor))
+        action_open = min(1.0, max(0.0, 0.5 * (float(self.last_action[3]) + 1.0)))
         open_drive = 0.85 * cmd_open + 0.15 * action_open
         release_zone = place_zone * max(open_drive, meas_open)
 
         approach_term = max(
-            math.exp(-distance / 0.06) * (table_guard if at_table else 1.0),
+            approach_kernel * (table_guard if at_table else 1.0),
             release_zone,
         )
         pregrasp = max(
-            math.exp(-distance / 0.04) * gap_alignment * (table_guard if at_table else 1.0),
-            release_zone,
+            pregrasp_kernel * (table_guard if at_table else 1.0),
+            1.125 * release_zone,
         )
         grasp_or_place = max(
             grip * (post_td_pose if at_table else 1.0),
             place_zone,
         )
-        hold_progress = float(np.clip(self.metrics.hold_steps / self.metrics.required_hold_steps, 0.0, 1.0))
-        lift_progress = float(np.clip(self.metrics.max_held_z - CUBE_REST_Z, 0.0, SAFE_LIFT_Z - CUBE_REST_Z))
+        hold_progress = min(1.0, max(0.0, self.metrics.hold_steps / self.metrics.required_hold_steps))
+        init_target_dist = float(
+            math.hypot(
+                float(self.metrics.spawn_xy[0] - self.target_xy[0]),
+                float(self.metrics.spawn_xy[1] - self.target_xy[1]),
+            )
+        )
+        lift_cap = SAFE_LIFT_Z - CUBE_REST_Z
+        max_lift = min(lift_cap, max(0.0, self.metrics.max_held_z - CUBE_REST_Z))
+        current_lift = (
+            min(lift_cap, max(0.0, height))
+            if (self.forces[0] > RELEASE_FORCE_N and self.forces[1] > RELEASE_FORCE_N)
+            else 0.0
+        )
+        lift_progress = max_lift if self.metrics.ever_lifted_clear else (0.75 * current_lift + 0.25 * max_lift)
+        transit_xy_progress = max(-0.05, init_target_dist - target_error)
+        excess_height = max(0.0, height - lift_cap)
+
         s = self.reward_scales
         return float(
             float(s.get("approach_potential", 8.0)) * approach_term
             + float(s.get("pregrasp_potential", 4.0)) * pregrasp
             + float(s.get("grasp_potential", 4.0)) * grasp_or_place
             + float(s.get("lift_potential", 40.0)) * lift_progress
-            + float(s.get("transit_potential", 8.0)) * lifted * (0.3 - target_error)
-            + float(s.get("place_potential", 6.0)) * lifted * target_near / (1.0 + place_height_err / 0.10)
+            + float(s.get("transit_potential", 8.0)) * lifted * (transit_xy_progress - 0.8 * excess_height)
+            + float(s.get("place_potential", 16.0))
+            * lifted
+            * (0.4 * place_approach / (1.0 + place_height_err / 0.10) + 0.6 * descent_funnel)
             + float(s.get("release_potential", 4.0)) * place_zone * open_drive
             + float(s.get("hold_potential", 6.0)) * (0.5 * place_zone * meas_open + 0.5 * hold_progress)
         )
@@ -839,7 +1072,9 @@ class PickPlaceEnv(_ENV_BASE):
 
         ee = self.tcp_position()
         obj = self.cube_position()
-        self.forces, self.table_force, self.robot_table_force = _extract_contact_loads(
+        obj_quat = self.cube_quat()
+        obj_vel = self.cube_velocity()
+        self.forces, raw_table_force, self.robot_table_force = _extract_contact_loads(
             self.model,
             self.data,
             cube_body_id=self._cube_body_id,
@@ -848,11 +1083,20 @@ class PickPlaceEnv(_ENV_BASE):
             floor_geom_id=self._floor_geom_id,
             base_body_id=self._base_body_id,
         )
+        substep_alias = (
+            raw_table_force == 0.0
+            and self.prev_raw_table_force > SUPPORT_FORCE_N
+            and cube_clearance(obj, obj_quat, self.cube_half_m) <= 0.0
+            and abs(float(obj_vel[2])) < 0.01
+        )
+        self.table_force = self.prev_raw_table_force if substep_alias else raw_table_force
+        self.prev_raw_table_force = raw_table_force
+
         status = self.metrics.update(
             obj,
-            self.cube_quat(),
+            obj_quat,
             self.forces,
-            self.cube_velocity(),
+            obj_vel,
             self.measured_gap(),
             ee_z=float(ee[2]),
             table_force=self.table_force,
@@ -873,8 +1117,23 @@ class PickPlaceEnv(_ENV_BASE):
         truncated = bool(timeout)
 
         s = self.reward_scales
-        first_contact = bool(status["stable_contact"] and (not self.contact_rewarded) and status["quality_ok"])
+        left, right = self.pad_centers()
+        pad_mid_z = 0.5 * float(left[2] + right[2])
+        in_vertical_grasp_band = abs(pad_mid_z - float(obj[2])) <= CUBE_SIZE * 0.4 + 1e-4
+        first_contact = bool(
+            status["stable_contact"]
+            and (not self.contact_rewarded)
+            and status["quality_ok"]
+            and in_vertical_grasp_band
+        )
         self.contact_rewarded = self.contact_rewarded or first_contact
+        first_target_td = bool(
+            self.metrics.ever_lifted_clear
+            and status["in_target_xy"]
+            and (self.metrics.touchdown_seen or self.metrics.clearance <= self.metrics.place_clearance)
+            and (not self.touchdown_rewarded)
+        )
+        self.touchdown_rewarded = self.touchdown_rewarded or first_target_td
         first_place = bool(
             status["first_release"]
             and status["in_target_xy"]
@@ -884,12 +1143,18 @@ class PickPlaceEnv(_ENV_BASE):
         self.place_rewarded = self.place_rewarded or first_place
 
         done = terminated or truncated
-        new_potential = 0.0 if (done and not success) else self._potential()
+        # Zero terminal potential on failure so failing early can never harvest shaping;
+        # keep terminal potential on timeout/success so finite-horizon PBRS telescopes cleanly.
+        new_potential = 0.0 if failed else self._potential()
         reward = self.reward_gamma * new_potential - old_potential - float(s.get("step_penalty", 0.005))
         if first_contact:
             reward += float(s.get("first_contact", 2.0))
+        if status["first_carry"]:
+            reward += float(s.get("first_carry", 3.0))
         if status["first_lift_clear"]:
             reward += float(s.get("first_lift", 6.0))
+        if first_target_td:
+            reward += float(s.get("first_touchdown", 6.0))
         if first_place:
             reward += float(s.get("first_place", 10.0))
 
@@ -905,7 +1170,7 @@ class PickPlaceEnv(_ENV_BASE):
         )
         if near_held:
             ee_vel = self.tcp_velocity()
-            descent_limit = 0.0 if at_release_table else self.max_near_table_descent_m_s
+            descent_limit = 0.005 if at_release_table else (self.max_near_table_descent_m_s + 0.010)
             fast_descent = max(0.0, -float(ee_vel[2]) - descent_limit)
             lateral_excess = max(0.0, float(np.linalg.norm(ee_vel[:2])) - 0.02) if at_release_table else 0.0
             reward -= float(s.get("fast_descent_penalty", 10.0)) * (fast_descent + lateral_excess)
@@ -925,36 +1190,15 @@ class PickPlaceEnv(_ENV_BASE):
             reward -= float(s.get("failure_penalty", 10.0))
 
         self.ep_return += float(reward)
-        self._update_phase()
         obs = self._get_obs()
-        info = self._build_info(success=success, failed=failed, timeout=timeout, status=status)
+        if self.fast_info and not done:
+            info: dict[str, Any] = {}
+        else:
+            info = self._build_info(success=success, failed=failed, timeout=timeout, status=status)
         if self.render_mode == "human":
             self._ensure_viewer()
             self._viewer.sync()
         return obs, float(reward), terminated, truncated, info
-
-    def _update_phase(self) -> None:
-        ee = self.tcp_position()
-        obj = self.cube_position()
-        height = max(0.0, cube_clearance(obj, self.cube_quat(), self.cube_half_m))
-        grasp_z = self._heights["grasp_z"]
-        goal = np.array([obj[0], obj[1], grasp_z + (0.045 if self._phase == 0 else 0.0)])
-        aligned = float(np.linalg.norm(goal - ee)) < 0.004
-        target_error = float(np.linalg.norm(obj[:2] - self.target_xy))
-        ee_xy_speed = float(np.linalg.norm(self.tcp_velocity()[:2]))
-
-        advance = (
-            (self._phase <= 1 and aligned and self._phase_steps > 3)
-            or (self._phase == 2 and self.metrics.contact_steps >= 4 and self._phase_steps >= 12)
-            or (self._phase == 3 and height >= 0.070)
-            or (self._phase == 4 and target_error < 0.003 and ee_xy_speed < 0.02)
-            or (self._phase == 5 and height <= 0.0018)
-        )
-        if advance:
-            self._phase += 1
-            self._phase_steps = 0
-        else:
-            self._phase_steps += 1
 
     def _build_info(
         self,
@@ -975,7 +1219,9 @@ class PickPlaceEnv(_ENV_BASE):
             "dropped": bool(status["dropped"]) if status else False,
             "press_failed": bool(status["press_failed"]) if status else (m.max_press > m.press_limit + 1e-7),
             "high_release": bool(m.high_release),
-            "collision_failed": bool(status["collision_failed"]) if status else (m.max_robot_table_force > CONTACT_FORCE_N),
+            "collision_failed": (
+                bool(status["collision_failed"]) if status else (m.max_robot_table_force > CONTACT_FORCE_N)
+            ),
             "max_drag_mm": float(m.max_drag * 1000.0),
             "max_tilt_deg": float(m.max_tilt_deg),
             "target_error_mm": float(m.target_error * 1000.0),
@@ -992,6 +1238,8 @@ class PickPlaceEnv(_ENV_BASE):
             "max_robot_table_force_n": float(m.max_robot_table_force),
             "clearance_mm": float(m.clearance * 1000.0),
             "obj_pos": obj.tolist(),
+            "spawn_xy": m.spawn_xy.tolist(),
+            "scenario_id": int(self.scenario_id),
             "hold_steps": int(m.hold_steps),
             "steps": int(self._step_count),
             "return": float(self.ep_return),
@@ -999,57 +1247,116 @@ class PickPlaceEnv(_ENV_BASE):
         }
 
     def _get_obs(self) -> np.ndarray:
-        q = self.data.qpos[self._qpos_adr]
-        q_norm = np.clip((q - self._q_mid) / self._q_half, -1.5, 1.5)
-        qd = np.clip(self.data.qvel[self._qvel_adr] / 2.0, -5.0, 5.0)
+        """70 policy inputs aligned with ufactory_genesis: measured state, contacts, and safety margins."""
+        q = self.data.qpos[self._qpos_adr] / math.pi  # 6
+        qd = self.data.qvel[self._qvel_adr] / 2.0  # 6
         ee = self.tcp_position()
+        ee_vel = self.tcp_velocity() / 0.2  # 3
         obj = self.cube_position()
         quat = self.cube_quat()
-        obj_vel = np.clip(self.cube_velocity() / 0.2, -5.0, 5.0)
-        target = np.array([self.target_xy[0], self.target_xy[1], CUBE_REST_Z])
-        target_rel = np.clip((target - obj) / 0.3, -3.0, 3.0)
+        q_norm = float(np.linalg.norm(quat))
+        quat_unit = quat / q_norm if q_norm > 0.0 else np.array([1.0, 0.0, 0.0, 0.0])  # 4
+        obj_vel = self.cube_velocity() / 0.2  # 3
+        obj_ang = self.cube_angular_velocity() / 2.0  # 3
         left, right = self.pad_centers()
-        pad_mid = 0.5 * (left + right)
-        pad_mid_rel = np.clip((pad_mid - obj) / 0.1, -5.0, 5.0)
-        gaps = np.array(
+        meas_gap = self.measured_gap()
+        m = self.metrics
+
+        if m.ever_lifted_clear:
+            ee_obs = np.array(
+                [
+                    (ee[0] - self.target_xy[0]) / 0.3,
+                    (ee[1] - self.target_xy[1]) / 0.3,
+                    ee[2],
+                ],
+                dtype=float,
+            )
+            at_release = m.touchdown_seen or m.release_confirmed
+            target_obs = np.array(
+                [
+                    (self.target_xy[0] - obj[0]) / 0.3,
+                    (self.target_xy[1] - obj[1]) / 0.3,
+                    0.0 if at_release else (CUBE_REST_Z - obj[2]) / 0.3,
+                ],
+                dtype=float,
+            )
+        else:
+            ee_obs = np.array([0.0, 0.0, ee[2]], dtype=float)
+            target_obs = np.zeros(3, dtype=float)
+
+        obj_obs = np.array([obj[0] - ee[0], obj[1] - ee[1], obj[2]], dtype=float)  # 3
+        left_rel = (left - obj) / 0.1  # 3
+        right_rel = (right - obj) / 0.1  # 3
+        gaps = np.array([self.gap_cmd / self.open_gap_m, meas_gap / self.open_gap_m], dtype=float)  # 2
+        setpoint_err = (self.ee_setpoint - ee) / self.setpoint_leash_m  # 3
+        forces_obs = np.clip(self.forces / 20.0, 0.0, 1.0)  # 2
+        contact_flags = m.finger_contact.astype(float)  # 2
+        table_loads = np.array(
             [
-                self.gap_cmd / self.open_gap_m,
-                self.measured_gap() / self.open_gap_m,
+                min(1.0, max(0.0, self.table_force / 20.0)) if m.ever_lifted_clear else 0.0,
+                min(1.0, max(0.0, self.robot_table_force / 20.0)),
             ],
             dtype=float,
-        )
-        setpoint_err = np.clip((self.ee_setpoint - ee) / self.setpoint_leash_m, -2.0, 2.0)
-        contact_state = np.array(
+        )  # 2
+        quality_hold = np.array(
             [
-                min(5.0, max(0.0, self.forces[0] / 10.0)),
-                min(5.0, max(0.0, self.forces[1] / 10.0)),
-                1.0 if self.metrics.finger_contact[0] else 0.0,
-                1.0 if self.metrics.finger_contact[1] else 0.0,
+                m.max_drag / max(m.drag_limit, 1e-9),
+                m.max_tilt_deg / max(m.tilt_limit, 1e-9),
+                m.hold_steps / max(m.required_hold_steps, 1),
             ],
             dtype=float,
-        )
-        progress = np.array(
+        )  # 3
+        lift_flags = np.array([float(m.ever_carried), float(m.ever_lifted_clear)], dtype=float)  # 2
+        press_obs = np.array(
             [
-                min(1.0, float(self._phase) / 3.0),
-                max(0.0, float(self._phase - 3) / 3.0),
+                m.max_press / max(m.press_limit, 1e-9),
+                float(m.touchdown_seen),
+                ((m.touchdown_ee_z - ee[2]) / 0.01) if m.touchdown_seen else 0.0,
             ],
             dtype=float,
-        )
+        )  # 3
+        release_obs = np.array(
+            [
+                m.release_height / max(m.release_max_height, 1e-9),
+                float(m.release_confirmed),
+                float(m.high_release),
+            ],
+            dtype=float,
+        )  # 3
+        reward_flags = np.array([float(self.contact_rewarded), float(self.place_rewarded)], dtype=float)  # 2
+        tail = np.array(
+            [
+                1.0 - float(self._step_count) / max(self._max_steps, 1),
+                min(1.0, max(0.0, (m.max_held_z - CUBE_REST_Z) / (SAFE_LIFT_Z - CUBE_REST_Z))),
+            ],
+            dtype=float,
+        )  # 2
+
         obs = np.concatenate(
             [
-                q_norm,  # 6
+                q,  # 6
                 qd,  # 6
-                ee,  # 3
-                obj,  # 3
-                quat,  # 4
+                ee_obs,  # 3
+                ee_vel,  # 3
+                obj_obs,  # 3
+                quat_unit,  # 4
                 obj_vel,  # 3
-                target_rel,  # 3
-                pad_mid_rel,  # 3
+                obj_ang,  # 3
+                target_obs,  # 3
+                left_rel,  # 3
+                right_rel,  # 3
                 gaps,  # 2
                 setpoint_err,  # 3
-                contact_state,  # 4
+                forces_obs,  # 2
+                contact_flags,  # 2
+                table_loads,  # 2
                 self.last_action,  # 4
-                progress,  # 2
+                quality_hold,  # 3
+                lift_flags,  # 2
+                press_obs,  # 3
+                release_obs,  # 3
+                reward_flags,  # 2
+                tail,  # 2
             ]
         ).astype(np.float32)
         if obs.shape != (PICK_PLACE_NUM_OBS,):
@@ -1075,7 +1382,7 @@ class PickPlaceEnv(_ENV_BASE):
 
 
 class PickPlaceExpert:
-    """Independent closed-loop scripted expert for physics and evaluation checks."""
+    """Independent closed-loop scripted policy for physics checks; never used for PPO training."""
 
     def __init__(self, env: PickPlaceEnv) -> None:
         self.env = env
@@ -1085,15 +1392,39 @@ class PickPlaceExpert:
 
     def __call__(self, _obs: np.ndarray | None = None) -> np.ndarray:
         env = self.env
-        self.stage = env._phase
-        self.steps = env._phase_steps
-        self.episode_id = env.episode_id
+        if self.episode_id != env.episode_id:
+            self.stage = 0
+            self.steps = 0
+            self.episode_id = env.episode_id
 
         ee = env.tcp_position()
+        ee_vel = env.tcp_velocity()
         obj = env.cube_position()
+        left, right = env.pad_centers()
+        center = 0.5 * (left + right)
         height = max(0.0, cube_clearance(obj, env.cube_quat(), env.cube_half_m))
-        grasp_z = env._heights["grasp_z"]
-        goal = np.array([obj[0], obj[1], grasp_z + (0.045 if self.stage == 0 else 0.0)])
+
+        # Open fingers have pad centers ~20 mm above fingertip bottoms; leave fingertip clearance above table
+        goal = ee + (obj - center)
+        goal[2] += 0.009 + (0.050 if self.stage == 0 else 0.0)
+        goal[2] = max(goal[2], _PRE_LIFT_MIN_TCP_Z)
+
+        aligned = (float(np.linalg.norm(goal - env.ee_setpoint)) < 0.0025) and (
+            float(np.linalg.norm(ee_vel)) < 0.025
+        )
+        target_error = float(np.linalg.norm(obj[:2] - env.target_xy))
+        advance = (
+            (self.stage <= 1 and aligned and self.steps > 5)
+            or (self.stage == 2 and env.metrics.contact_steps >= 6 and self.steps >= 16)
+            or (self.stage == 3 and obj[2] >= 0.090)
+            or (self.stage == 4 and target_error < 0.010 and float(np.linalg.norm(ee_vel[:2])) < 0.04)
+            or (self.stage == 5 and (env.metrics.touchdown_seen or height <= 0.0018))
+        )
+        if advance:
+            self.stage += 1
+            self.steps = 0
+        else:
+            self.steps += 1
 
         action = np.zeros(PICK_PLACE_NUM_ACTIONS, dtype=np.float32)
         if self.stage <= 1:
@@ -1101,15 +1432,15 @@ class PickPlaceExpert:
         elif self.stage == 2:
             action[3] = -1.0
         elif self.stage == 3:
-            action[2] = 0.8
+            action[2] = 0.90
         elif self.stage == 4:
             xy_goal = ee[:2] + (env.target_xy - obj[:2])
-            action[:2] = np.clip((xy_goal - env.ee_setpoint[:2]) / env.action_scale, -0.8, 0.8)
+            action[:2] = np.clip((xy_goal - env.ee_setpoint[:2]) / env.action_scale, -1.0, 1.0)
         elif self.stage == 5:
             xy_goal = ee[:2] + (env.target_xy - obj[:2])
             action[:2] = np.clip((xy_goal - env.ee_setpoint[:2]) / env.action_scale, -0.5, 0.5)
-            speed = 0.10 if height > 0.025 else 0.015
-            descent = -min(max(0.0, height - 0.0015), speed * env.ctrl_dt) / env.action_scale
+            speed = 0.20 if height > 0.020 else 0.015
+            descent = -min(max(0.0, height - 0.0010), speed * env.ctrl_dt) / env.action_scale
             action[2] = float(descent)
         else:
             action[3] = 1.0

@@ -7,10 +7,10 @@ MuJoCo simulation and reinforcement learning suite for UFACTORY robots — featu
 ## Features
 
 - **High-Fidelity Visuals**: Smooth-normal, multi-material OBJ visual meshes (PBR white shell, silver metal joints, black accents) paired with dedicated collision STLs.
-- **Full Asset Ecosystem**: All UFACTORY robot arms (`lite6`, `xarm5`, `xarm6`, `xarm7`, `uf850`) and grippers (`gripper_g2`, `bio_gripper_g2`, `lite6_gripper`, `lite6_vacuum_gripper`) converted from [ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis).
+- **Full Asset Ecosystem**: All UFACTORY robot arms (`lite6`, `xarm5`, `xarm6`, `xarm7`, `uf850`) and grippers (`gripper_g2`, `bio_gripper_g2`, `lite6_gripper`, `lite6_vacuum_gripper`) converted from [ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis), including calibrated Gripper G2 4-bar linkage kinematics, empirical speed-current force lookup, and rate-limited PI+PD position-torque hybrid servo control (`ufactory_mujoco/g2_model.py`, `ufactory_mujoco/g2_controller.py`).
 - **Kinematics & Motion Planning**: Per-site FK, analytical Jacobian, damped least-squares (DLS) IK (`ufactory_mujoco/kinematics.py`, `ufactory_mujoco/ik.py`), PTP quintic/C2 spline trajectories (`ufactory_mujoco/trajectory.py`), and RRT-Connect obstacle avoidance (`ufactory_mujoco/collision.py`, `ufactory_mujoco/path_planning.py`).
 - **Rigid-Body Dynamics**: Mass matrix $M(q)$, gravity/Coriolis terms, inverse/forward dynamics, and TCP payload injection (`ufactory_mujoco/dynamics.py`), with xArm 6 hardware cross-validation. Example `08_dynamics.py` validates all five bare arms, including collision preflight, monitored motion and JSON reports.
-- **Reinforcement Learning**: Gymnasium TCP-reaching (`ufactory_mujoco/rl/reach_env.py`, $\ge 96\%$ success at $< 5\text{ mm}$ across all five arms) and tabletop cube pick-and-place (`ufactory_mujoco/rl/pick_place_env.py` for `xarm6 + gripper_g2`, $100\%$ success with touchdown press $\le 1\text{ mm}$), backed by declarative recipes and SHA-256 checkpoint-manifest contracts (`ufactory_mujoco/rl/artifacts.py`).
+- **Reinforcement Learning**: Gymnasium TCP-reaching (`ufactory_mujoco/rl/reach_env.py`, $\ge 96\%$ success at $< 5\text{ mm}$ across all five arms) and tabletop cube pick-and-place (`ufactory_mujoco/rl/pick_place_env.py` for `xarm6 + gripper_g2`; both the pure-PPO v2 policy trained from scratch and `PickPlaceExpert` achieve $100\%$ across 64 randomized-spawn episodes with touchdown press $\le 1\text{ mm}$). Checkpoint contracts bind the pick-place scene and meshes as well as the training configuration (`ufactory_mujoco/rl/artifacts.py`).
 - **Real-Robot Interface & Safety Gate**: `XArmRobot` (`ufactory_mujoco/xarm_robot.py`) implements `RobotInterface` with read-only observation by default, per-unit kinematic calibration (`ufactory_mujoco/calibration.py`), controller FK/IK cross-validation (`ufactory_mujoco/kinematics_validation.py`), `sdk-sim` controller internal simulation, and a `--confirm-real` single-cycle safety gate (`ufactory_mujoco/safety.py`).
 - **Robust Viewer**: Passive viewer with real-time clock sync, graceful exit handling, and Linux Wayland/X11 compatibility (`ufactory_mujoco/viewer.py`).
 
@@ -72,7 +72,7 @@ CI covers editable core installs and source-free wheel acceptance on Python 3.12
 
 ### Headless / remote machines
 
-- `--headless` (examples `01`–`10`, `01_reach.py`) runs physics only and needs no display or GL; do **not** set `MUJOCO_GL` for it.
+- `--headless` (examples `01`–`10`, `01_reach.py`, `01_pick_place.py`) runs physics only and needs no display or GL; do **not** set `MUJOCO_GL` for it.
 - If you set `MUJOCO_GL=egl`, the system must provide `libEGL` (e.g. `apt install libegl1`), otherwise `import mujoco` fails. `MUJOCO_GL=osmesa` needs `libosmesa6`.
 - To open the interactive viewer on a server without a display, use Xvfb: `xvfb-run -a python examples/simulation/01_load_and_view.py`.
 
@@ -127,7 +127,9 @@ ufactory_mujoco/        Core simulation, control, planning, hardware, and RL lib
   calibration.py        Per-unit kinematic calibration loader, model patcher & TCP/flange transforms
   safety.py             Hardware safety gate, single-cycle enforcement & sdk-sim trajectory replay
   kinematics_validation.py Read-only FK/IK cross-validation against xArm controller firmware
-  grippers.py           Physical gap <-> actuator mapping and bilateral finger-pad contact
+  g2_model.py           Gripper G2 4-bar linkage geometry, force lookup table & SDK unit helpers
+  g2_controller.py      Gripper G2 rate-limited PI+PD position-torque hybrid servo controller
+  grippers.py           Physical gap <-> actuator mapping, bilateral contact & finger contact forces
   preflight.py          Static IK/collision preflight for pick-and-place and box-packing
   ik.py                 Damped least-squares (DLS) Cartesian IK solver
   kinematics.py         FK, TCP Jacobian, velocity-level DLS IK, manipulability metrics
@@ -138,6 +140,7 @@ ufactory_mujoco/        Core simulation, control, planning, hardware, and RL lib
   rl/reach_env.py       Gymnasium TCP-reaching environment (all 5 arms)
   rl/pick_place_env.py  Gymnasium tabletop cube pick-and-place environment & scripted expert
   rl/artifacts.py       Declarative RL recipes, config hashing & checkpoint-manifest contracts
+  rl/model_hash.py      Recursive MJCF scene & mesh SHA-256 content fingerprinting
   tasks/                Installed pick-place, box-pack and dynamics commands
   resource_paths.py     Repository/editable and bundled resource roots
   model_paths.py        Model name -> MJCF XML path resolution

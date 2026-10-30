@@ -21,13 +21,14 @@ import yaml
 from ..config import load_task_config
 from ..resource_paths import CONFIGS_ROOT
 from ..robots import ROBOT_PROFILES
+from .model_hash import ModelHashError, runtime_model_sha256
 
 REACH_ENV_VERSION = 1
-PICK_PLACE_ENV_VERSION = 1
+PICK_PLACE_ENV_VERSION = 2
 REACH_SUCCESS_DIST_M = 0.005
 REACH_ACTION_CONTRACT = "joint_position_delta"
 PICK_PLACE_ACTION_CONTRACT = "cartesian_and_g2_gap_increment"
-PICK_PLACE_NUM_OBS = 46
+PICK_PLACE_NUM_OBS = 70
 PICK_PLACE_NUM_ACTIONS = 4
 
 
@@ -85,6 +86,10 @@ _PICK_PLACE_ENV_RECIPE_KEYS = {
     "close_floor_gap_m",
     "workspace_lower",
     "workspace_upper",
+    "spawn_xy_lower",
+    "spawn_xy_upper",
+    "g2_speed_percent",
+    "g2_force_percent",
     "reward_gamma",
     "place_clearance_m",
     "release_max_height_m",
@@ -109,7 +114,9 @@ _PICK_PLACE_REWARD_RECIPE_KEYS = {
     "release_potential",
     "hold_potential",
     "first_contact",
+    "first_carry",
     "first_lift",
+    "first_touchdown",
     "first_place",
     "success",
     "failure_penalty",
@@ -132,12 +139,18 @@ _PICK_PLACE_TRAIN_RECIPE_KEYS = {
     "learning_rate",
     "gamma",
     "gae_lambda",
+    "clip_range",
+    "vf_coef",
     "ent_coef",
+    "max_grad_norm",
     "net_arch",
+    "activation",
+    "init_std",
     "save_interval",
+    "eval_interval",
     "eval_episodes",
-    "warmstart_episodes",
-    "warmstart_epochs",
+    "early_stop_evaluations",
+    "min_success_rate",
     "seed",
 }
 
@@ -161,6 +174,7 @@ _PICK_PLACE_RUNTIME_ENV_CONTRACT_KEYS = (
     "env_version",
     "control",
     "runtime_config_sha256",
+    "runtime_model_sha256",
     "num_obs",
     "num_actions",
     "max_steps",
@@ -173,6 +187,10 @@ _PICK_PLACE_RUNTIME_ENV_CONTRACT_KEYS = (
     "close_floor_gap_m",
     "workspace_lower",
     "workspace_upper",
+    "spawn_xy_lower",
+    "spawn_xy_upper",
+    "g2_speed_percent",
+    "g2_force_percent",
     "reward_gamma",
     "place_clearance_m",
     "release_max_height_m",
@@ -304,6 +322,31 @@ def load_training_recipe(path: str | Path) -> dict[str, Any]:
             raise ArtifactError(
                 f"pick-place requires num_obs={PICK_PLACE_NUM_OBS} and num_actions={PICK_PLACE_NUM_ACTIONS}"
             )
+        ws_lo = env.get("workspace_lower")
+        ws_hi = env.get("workspace_upper")
+        if (
+            not isinstance(ws_lo, list | tuple)
+            or not isinstance(ws_hi, list | tuple)
+            or len(ws_lo) != 3
+            or len(ws_hi) != 3
+            or any(float(ws_lo[i]) >= float(ws_hi[i]) for i in range(3))
+        ):
+            raise ArtifactError("workspace_lower and workspace_upper must be ordered 3D bounds")
+        if "spawn_xy_lower" in env or "spawn_xy_upper" in env:
+            sp_lo = env.get("spawn_xy_lower")
+            sp_hi = env.get("spawn_xy_upper")
+            if (
+                not isinstance(sp_lo, list | tuple)
+                or not isinstance(sp_hi, list | tuple)
+                or len(sp_lo) != 2
+                or len(sp_hi) != 2
+                or any(float(sp_lo[i]) > float(sp_hi[i]) for i in range(2))
+                or any(float(sp_lo[i]) < float(ws_lo[i]) or float(sp_hi[i]) > float(ws_hi[i]) for i in range(2))
+            ):
+                raise ArtifactError("spawn_xy_lower/upper must be ordered 2D bounds within workspace XY bounds")
+        for g2_key in ("g2_speed_percent", "g2_force_percent"):
+            if g2_key in env and not (0.0 < float(env[g2_key]) <= 100.0):
+                raise ArtifactError(f"{g2_key} must be in (0, 100]")
     return _plain(raw)
 
 
@@ -349,6 +392,7 @@ def build_pick_place_task_configs(
     *,
     recipe_path: str | Path,
     config_path: str | Path | None = None,
+    model_path: str | Path | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     """Resolve xArm6 + Gripper G2 pick-and-place RL configs bound to TaskConfig SHA-256."""
     if robot != "xarm6":
@@ -362,12 +406,17 @@ def build_pick_place_task_configs(
         raise ValueError("pick-place RL requires robot=xarm6, gripper=gripper_g2, scene=pick_place")
     pp = task_config.pick_place
     env_cfg = deepcopy(recipe["environment"])
+    env_cfg.setdefault("spawn_xy_lower", [0.30, -0.20])
+    env_cfg.setdefault("spawn_xy_upper", [0.50, 0.20])
+    env_cfg.setdefault("g2_speed_percent", 50.0)
+    env_cfg.setdefault("g2_force_percent", 50.0)
     env_cfg.update(
         {
             "task_name": "pick_place",
             "robot": "xarm6",
             "gripper": "gripper_g2",
             "runtime_config_sha256": task_config.sha256,
+            "runtime_model_sha256": runtime_model_sha256(model_path or task_config.scene_path),
             "cube_xy": list(pp.cube_xy),
             "target_xy": list(pp.target_xy),
             "cube_half_m": float(pp.cube_half_m),
@@ -505,7 +554,11 @@ def load_checkpoint_manifest(path: str | Path) -> CheckpointManifest:
     if not isinstance(data, dict) or set(data) != required:
         raise ArtifactError(f"checkpoint manifest fields must be exactly {sorted(required)}")
     manifest = CheckpointManifest(**data)
-    if type(manifest.schema_version) is not int or manifest.schema_version != 1 or len(manifest.checkpoint_sha256) != 64:
+    if (
+        type(manifest.schema_version) is not int
+        or manifest.schema_version != 1
+        or len(manifest.checkpoint_sha256) != 64
+    ):
         raise ArtifactError("invalid checkpoint manifest schema or hash")
     return manifest
 
@@ -603,8 +656,28 @@ def validate_checkpoint_artifacts(
     expected_robot: str | None = None,
     expected_runtime_config_sha256: str | None = None,
     expected_runtime_env: Mapping[str, Any] | None = None,
+    model_path: str | Path | None = None,
 ) -> tuple[dict[str, Any], CheckpointManifest]:
     """Validate config and manifest hashes and task contracts before deserializing a checkpoint."""
+    return _validate_checkpoint_artifacts(
+        checkpoint_path, config_path, manifest_path, expected_task=expected_task,
+        expected_robot=expected_robot, expected_runtime_config_sha256=expected_runtime_config_sha256,
+        expected_runtime_env=expected_runtime_env, model_path=model_path, legacy_migration=False,
+    )
+
+
+def _validate_checkpoint_artifacts(
+    checkpoint_path: str | Path,
+    config_path: str | Path | None = None,
+    manifest_path: str | Path | None = None,
+    *,
+    expected_task: str | None = None,
+    expected_robot: str | None = None,
+    expected_runtime_config_sha256: str | None = None,
+    expected_runtime_env: Mapping[str, Any] | None = None,
+    model_path: str | Path | None = None,
+    legacy_migration: bool = False,
+) -> tuple[dict[str, Any], CheckpointManifest]:
     checkpoint = Path(checkpoint_path)
     if not checkpoint.is_file():
         raise ArtifactError(f"checkpoint does not exist: {checkpoint}")
@@ -620,22 +693,48 @@ def validate_checkpoint_artifacts(
         failures.append("config hash")
     if manifest.checkpoint_file != checkpoint.name:
         failures.append("checkpoint filename")
+    if manifest.task != config["task"] or manifest.robot != config["robot"]:
+        failures.append("manifest task/robot")
     if expected_task is not None and (manifest.task != expected_task or config["task"] != expected_task):
         failures.append("task")
     if expected_robot is not None and (manifest.robot != expected_robot or config["robot"] != expected_robot):
         failures.append("robot")
 
     env = config["env"]
+    if manifest.runtime_config_sha256 != env.get("runtime_config_sha256"):
+        failures.append("manifest runtime config hash")
     if config["task"] == "reach":
         if float(env.get("success_dist", 0.0)) != REACH_SUCCESS_DIST_M:
             failures.append("reach success_dist (5 mm required)")
         if manifest.action_contract != REACH_ACTION_CONTRACT:
             failures.append("reach action contract")
     elif config["task"] == "pick_place":
-        if int(env.get("env_version", 0)) != PICK_PLACE_ENV_VERSION:
+        if (env.get("task_name") != "pick_place" or config["robot"] != "xarm6"
+                or env.get("robot") != "xarm6" or env.get("gripper") != "gripper_g2"
+                or manifest.dof != 6 or manifest.observation_dim != PICK_PLACE_NUM_OBS
+                or manifest.action_dim != PICK_PLACE_NUM_ACTIONS):
+            failures.append("pick-place robot or space contract")
+        required_version = 1 if legacy_migration else PICK_PLACE_ENV_VERSION
+        if int(env.get("env_version", 0)) != required_version:
             failures.append("pick-place env_version (retrain the policy)")
         if manifest.action_contract != PICK_PLACE_ACTION_CONTRACT:
             failures.append("pick-place action contract (retrain the policy)")
+        if legacy_migration:
+            if "runtime_model_sha256" in env:
+                failures.append("legacy checkpoint already contains a model hash")
+        else:
+            saved_model_hash = env.get("runtime_model_sha256")
+            if not isinstance(saved_model_hash, str) or len(saved_model_hash) != 64:
+                failures.append("missing or invalid runtime model hash (migration required)")
+            else:
+                scene = model_path or load_task_config(CONFIGS_ROOT / "pick_place" / "xarm6.yaml").scene_path
+                try:
+                    if saved_model_hash != runtime_model_sha256(scene):
+                        failures.append("runtime model hash")
+                except ModelHashError as exc:
+                    raise ArtifactError(str(exc)) from exc
+    elif legacy_migration:
+        failures.append("legacy migration task")
 
     if expected_runtime_config_sha256 is not None:
         if env.get("runtime_config_sha256") != str(expected_runtime_config_sha256) or (
@@ -644,7 +743,10 @@ def validate_checkpoint_artifacts(
             failures.append("runtime config hash")
 
     if expected_runtime_env is not None:
-        if env.get("env_version") != expected_runtime_env.get("env_version"):
+        if not legacy_migration and env.get("env_version") != expected_runtime_env.get("env_version"):
+            if config["task"] == "pick_place" and env.get("env_version") == 1:
+                raise ArtifactError("environment version changed; migrate with "
+                                    "scripts/migrate_pick_place_checkpoint.py or retrain the policy")
             raise ArtifactError("environment version changed; retrain the policy")
         saved_keys = runtime_env_contract_keys(env)
         expected_keys = runtime_env_contract_keys(expected_runtime_env)
@@ -653,11 +755,17 @@ def validate_checkpoint_artifacts(
         else:
             saved_contract = runtime_env_contract(env)
             expected_contract = runtime_env_contract(expected_runtime_env)
-            mismatched = [k for k in saved_keys if saved_contract.get(k) != expected_contract.get(k)]
+            ignored = {"env_version", "runtime_model_sha256"} if legacy_migration else set()
+            mismatched = [
+                k for k in saved_keys if k not in ignored and saved_contract.get(k) != expected_contract.get(k)
+            ]
             if mismatched:
                 failures.append(f"runtime config body ({', '.join(mismatched)})")
 
-    if int(env.get("num_obs", -1)) != manifest.observation_dim or int(env.get("num_actions", -1)) != manifest.action_dim:
+    if (
+        int(env.get("num_obs", -1)) != manifest.observation_dim
+        or int(env.get("num_actions", -1)) != manifest.action_dim
+    ):
         failures.append("observation/action dimensions")
 
     if failures:
@@ -675,6 +783,7 @@ def load_validated_ppo(
     expected_robot: str | None = None,
     expected_runtime_config_sha256: str | None = None,
     expected_runtime_env: Mapping[str, Any] | None = None,
+    model_path: str | Path | None = None,
 ) -> tuple[Any, dict[str, Any], CheckpointManifest]:
     """Validate checkpoint manifest and config hashes before calling SB3 ``PPO.load``."""
     checkpoint = Path(checkpoint_path)
@@ -686,6 +795,7 @@ def load_validated_ppo(
         expected_robot=expected_robot,
         expected_runtime_config_sha256=expected_runtime_config_sha256,
         expected_runtime_env=expected_runtime_env,
+        model_path=model_path,
     )
     _verify_sb3_zip_structure(checkpoint)
     from stable_baselines3 import PPO

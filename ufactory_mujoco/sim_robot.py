@@ -9,12 +9,23 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
+from .g2_controller import ControlOutput, G2Controller
+from .g2_model import (
+    GRIPPER_G2_SIM_CLOSE_DRIVE,
+    GRIPPER_G2_SIM_OPEN_DRIVE,
+    G2Model,
+    gripper_g2_gap_m_to_sim_drive,
+    gripper_g2_sim_drive_to_gap_m,
+)
 from .grippers import (
     GripperSpec,
-    bodies_in_contact,
     bilateral_finger_contact,
+    bodies_in_contact,
+    drive_to_gap,
     gap_to_position,
+    gripper_object_contact_forces_n,
     identify_gripper,
+    measured_g2_pad_gap_mm,
     position_to_gap,
     require_bilateral_contact,
 )
@@ -98,6 +109,11 @@ class SimRobot(RobotInterface):
                 self._gripper_close_ctrl = float(hi if abs(hi) > abs(lo) else lo)
 
         self._gripper_spec: GripperSpec | None = identify_gripper(self.model)
+        self._g2_model: G2Model | None = None
+        self._g2_controller: G2Controller | None = None
+        self._g2_driver_qpos_adr: int | None = None
+        self._g2_driver_dof_adr: int | None = None
+        self._g2_last_output: ControlOutput | None = None
 
         # --- Initialise state ---
         self._viewer = None
@@ -111,6 +127,29 @@ class SimRobot(RobotInterface):
                 adr = self.model.jnt_qposadr[j]
                 self.data.qpos[adr:adr + 7] = self.model.qpos0[adr:adr + 7]
         self.data.ctrl[:self._n_arm_actuators] = self.data.qpos[:self._n_arm_qpos]
+
+        if (
+            self._gripper_spec is not None
+            and self._gripper_spec.name == "gripper_g2"
+            and self._gripper_actuator_id is not None
+        ):
+            self._gripper_open_ctrl = GRIPPER_G2_SIM_OPEN_DRIVE
+            self._gripper_close_ctrl = GRIPPER_G2_SIM_CLOSE_DRIVE
+            drv_jnt = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, "left_driver_joint")
+            if drv_jnt >= 0:
+                self._g2_driver_qpos_adr = int(self.model.jnt_qposadr[drv_jnt])
+                self._g2_driver_dof_adr = int(self.model.jnt_dofadr[drv_jnt])
+                # Allow G2Controller's integral preload + velocity feedforward bias beyond nominal stroke range
+                self.model.actuator_ctrllimited[self._gripper_actuator_id] = 0
+                init_q = float(self.data.qpos[self._g2_driver_qpos_adr])
+                init_gap_mm = gripper_g2_sim_drive_to_gap_m(init_q) * 1000.0
+                self._g2_model = G2Model.load()
+                self._g2_controller = G2Controller(self._g2_model, initial_position_mm=init_gap_mm)
+                self._g2_controller.command(init_gap_mm, speed_percent=100.0, force_percent=100.0)
+                limit = float(self._g2_controller.torque_limit_nm[0])
+                self.model.actuator_forcerange[self._gripper_actuator_id] = (-limit, limit)
+                self.data.ctrl[self._gripper_actuator_id] = gripper_g2_gap_m_to_sim_drive(init_gap_mm / 1000.0)
+
         mujoco.mj_forward(self.model, self.data)
         if viewer:
             self._viewer = PassiveViewer(self.model, self.data)
@@ -155,6 +194,24 @@ class SimRobot(RobotInterface):
         """One physics step with gravity-compensation feedforward (like real
         xArm position mode, which has model-based compensation built in)."""
         self.data.qfrc_applied[:self._n_arm_dof] = self.data.qfrc_bias[:self._n_arm_dof]
+        if (
+            self._g2_controller is not None
+            and self._gripper_actuator_id is not None
+            and self._g2_driver_qpos_adr is not None
+            and self._g2_driver_dof_adr is not None
+        ):
+            q_drv = float(self.data.qpos[self._g2_driver_qpos_adr])
+            v_drv = float(self.data.qvel[self._g2_driver_dof_adr])
+            meas_gap_mm = measured_g2_pad_gap_mm(self.model, self.data)
+            dt = float(self.model.opt.timestep)
+            output = self._g2_controller.update(
+                q_drv, v_drv, dt, measured_gap_mm=meas_gap_mm
+            )
+            self._g2_last_output = output
+            limit = float(output.torque_limit_nm[0])
+            self.model.actuator_forcerange[self._gripper_actuator_id] = (-limit, limit)
+            vel_bias = (self._g2_controller.kv / self._g2_controller.kp) * float(output.velocity_rad_s[0])
+            self.data.ctrl[self._gripper_actuator_id] = float(output.position_rad[0]) + vel_bias
         mujoco.mj_step(self.model, self.data)
         self.data.qfrc_applied[:] = 0.0
         # real-time sync: sleep until wall-clock catches up with sim time
@@ -355,33 +412,101 @@ class SimRobot(RobotInterface):
             return "none"
         return self._gripper_spec.kind
 
+    @property
+    def g2_controller(self) -> G2Controller | None:
+        """Calibrated Gripper G2 controller instance when Gripper G2 is mounted."""
+        return self._g2_controller
+
+    def get_gripper_control_output(self) -> ControlOutput | None:
+        """Most recent ``ControlOutput`` from the Gripper G2 controller."""
+        return self._g2_last_output
+
     def get_gripper_position(self) -> float:
         """Current gripper target (0.0 = fully open, 1.0 = fully closed)."""
         if not self.has_gripper:
             raise NotImplementedError("This robot has no gripper")
+        if self._g2_controller is not None and self._gripper_spec is not None:
+            return gap_to_position(self._gripper_spec, self.get_gripper_gap())
         ctrl = self.data.ctrl[self._gripper_actuator_id]
         span = self._gripper_close_ctrl - self._gripper_open_ctrl
         if abs(span) < 1e-12:
             return 0.0
         return float(np.clip((ctrl - self._gripper_open_ctrl) / span, 0.0, 1.0))
 
-    def set_gripper(self, pos: float) -> None:
+    def set_gripper(
+        self,
+        pos: float,
+        *,
+        speed_percent: float | None = None,
+        force_percent: float | None = None,
+    ) -> None:
         """Set gripper target (0.0 = fully open, 1.0 = fully closed)."""
         if not self.has_gripper:
             raise NotImplementedError("This robot has no gripper")
         pos = float(np.clip(pos, 0.0, 1.0))
+        if self._g2_controller is not None and self._gripper_spec is not None:
+            gap_m = position_to_gap(self._gripper_spec, pos)
+            self.set_gripper_gap(gap_m, speed_percent=speed_percent, force_percent=force_percent)
+            return
         target_ctrl = self._gripper_open_ctrl + pos * (self._gripper_close_ctrl - self._gripper_open_ctrl)
         self.data.ctrl[self._gripper_actuator_id] = target_ctrl
 
     def get_gripper_gap(self) -> float:
         spec = self._require_jaw()
+        if self._g2_controller is not None:
+            return float(self._g2_controller.position_mm[0] / 1000.0)
         return position_to_gap(spec, self.get_gripper_position())
 
-    def set_gripper_gap(self, gap_m: float) -> None:
+    def get_measured_gripper_gap(self) -> float:
+        spec = self._require_jaw()
+        if self._g2_controller is not None:
+            return measured_g2_pad_gap_mm(self.model, self.data) / 1000.0
+        return drive_to_gap(
+            spec,
+            float(self.data.qpos[self._n_arm_qpos]),
+            open_ctrl=self._gripper_open_ctrl,
+            close_ctrl=self._gripper_close_ctrl,
+        )
+
+    def set_gripper_gap(
+        self,
+        gap_m: float,
+        *,
+        speed_percent: float | None = None,
+        force_percent: float | None = None,
+    ) -> None:
         if self.gripper_kind == "vacuum":
             raise NotImplementedError("真空吸盘没有开合间隙")
         spec = self._require_jaw()
-        self.set_gripper(gap_to_position(spec, gap_m))
+        norm_pos = gap_to_position(spec, gap_m)
+        if self._g2_controller is not None and self._gripper_actuator_id is not None:
+            spd = float(self._g2_controller.speed_percent[0]) if speed_percent is None else float(speed_percent)
+            frc = float(self._g2_controller.force_percent[0]) if force_percent is None else float(force_percent)
+            self._g2_controller.command(float(gap_m) * 1000.0, speed_percent=spd, force_percent=frc)
+            limit = float(self._g2_controller.torque_limit_nm[0])
+            self.model.actuator_forcerange[self._gripper_actuator_id] = (-limit, limit)
+            self.data.ctrl[self._gripper_actuator_id] = gripper_g2_gap_m_to_sim_drive(gap_m)
+            return
+        self.set_gripper(norm_pos)
+
+    def set_gripper_command(
+        self,
+        position_mm: float,
+        *,
+        speed_percent: float = 50.0,
+        force_percent: float = 50.0,
+    ) -> None:
+        """Command Gripper G2 opening in mm with speed (%) and force (%)."""
+        self.set_gripper_gap(
+            float(position_mm) / 1000.0,
+            speed_percent=speed_percent,
+            force_percent=force_percent,
+        )
+
+    def get_gripper_contact_forces(self, object_body: str) -> tuple[float, float]:
+        """Return net contact force magnitudes (N) on (left_finger, right_finger) for ``object_body``."""
+        spec = self._require_jaw()
+        return gripper_object_contact_forces_n(self.model, self.data, spec, object_body)
 
     def bilateral_finger_contact(self, object_body: str) -> bool:
         spec = self._require_jaw()
@@ -405,17 +530,44 @@ class SimRobot(RobotInterface):
             raise NotImplementedError("This robot has no jaw gripper")
         return self._gripper_spec
 
-    def open_gripper(self, wait: bool = True) -> None:
-        """Fully open the gripper."""
-        self.set_gripper(0.0)
-        if wait:
-            self.settle(0.5)
+    def _g2_wait_duration(self) -> float:
+        if self._g2_controller is None:
+            return 0.5
+        spd_mm_s = float(self._g2_controller.requested_speed_mm_s[0])
+        if spd_mm_s <= 0.0:
+            return 0.5
+        travel_mm = abs(float(self._g2_controller.position_mm[0] - self._g2_controller.reference_gap_mm[0]))
+        return max(0.5, travel_mm / spd_mm_s + 0.12)
 
-    def close_gripper(self, wait: bool = True) -> None:
-        """Fully close the gripper."""
-        self.set_gripper(1.0)
+    def open_gripper(
+        self,
+        wait: bool = True,
+        *,
+        speed_percent: float | None = None,
+        force_percent: float | None = None,
+    ) -> None:
+        """Fully open the gripper."""
+        if speed_percent is None and force_percent is None:
+            self.set_gripper(0.0)
+        else:
+            self.set_gripper(0.0, speed_percent=speed_percent, force_percent=force_percent)
         if wait:
-            self.settle(0.5)
+            self.settle(self._g2_wait_duration())
+
+    def close_gripper(
+        self,
+        wait: bool = True,
+        *,
+        speed_percent: float | None = None,
+        force_percent: float | None = None,
+    ) -> None:
+        """Fully close the gripper."""
+        if speed_percent is None and force_percent is None:
+            self.set_gripper(1.0)
+        else:
+            self.set_gripper(1.0, speed_percent=speed_percent, force_percent=force_percent)
+        if wait:
+            self.settle(self._g2_wait_duration())
 
     # -- misc --------------------------------------------------------------
     def solve_tcp(self, pos, quat=None, q_init=None):
