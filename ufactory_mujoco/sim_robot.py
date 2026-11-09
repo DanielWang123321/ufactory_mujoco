@@ -18,6 +18,7 @@ from .g2_model import (
     gripper_g2_sim_drive_to_gap_m,
 )
 from .grippers import (
+    GRIPPER_ACTUATOR_NAMES,
     GripperSpec,
     bilateral_finger_contact,
     bodies_in_contact,
@@ -37,8 +38,6 @@ from .viewer import PassiveViewer, configure_low_power_rendering
 
 _MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "xarm6" / "scene.xml"
 
-# Names recognised as gripper actuators (order = priority)
-_GRIPPER_ACTUATOR_NAMES = ("gripper", "gripper_motor", "finger_actuator")
 
 
 def _quintic(t: np.ndarray, q0: np.ndarray, q1: np.ndarray, T: float) -> np.ndarray:
@@ -74,7 +73,7 @@ class SimRobot(RobotInterface):
 
         for i in range(self.model.nu):
             name = self.model.actuator(i).name
-            if name in _GRIPPER_ACTUATOR_NAMES:
+            if name in GRIPPER_ACTUATOR_NAMES:
                 self._gripper_actuator_id = i
                 self._gripper_ctrl_range = self.model.actuator(i).ctrlrange.copy()
                 self._n_arm_actuators = i  # arm actuators are indices [0, i)

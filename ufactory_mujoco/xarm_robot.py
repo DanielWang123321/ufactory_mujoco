@@ -28,6 +28,7 @@ from .calibration import (
 )
 from .g2_model import checked, sdk_position_counts, sdk_speed_rpm, speed_mm_s
 from .grippers import (
+    GRIPPER_ACTUATOR_NAMES,
     GripperSpec,
     gap_to_position,
     identify_gripper,
@@ -44,7 +45,6 @@ from .safety import (
     read_arm_joint_positions,
     verify_hardware_identity_and_calibration,
 )
-from .sim_robot import _GRIPPER_ACTUATOR_NAMES
 from .trajectory import JointTrajectory, plan_cartesian_line, plan_ptp_quintic
 
 
@@ -131,7 +131,7 @@ class XArmRobot(RobotInterface):
             self._n_arm_qpos = ARMS[self.robot_key].dof
             self._gripper_actuator_id: int | None = None
             for i in range(self.model.nu):
-                if self.model.actuator(i).name in _GRIPPER_ACTUATOR_NAMES:
+                if self.model.actuator(i).name in GRIPPER_ACTUATOR_NAMES:
                     self._gripper_actuator_id = i
                     break
             self._gripper_spec: GripperSpec | None = identify_gripper(self.model)

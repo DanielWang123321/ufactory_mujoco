@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compatibility entry point for :mod:`ufactory_mujoco.tasks.pick_place`."""
+"""Example entry point for :mod:`ufactory_mujoco.tasks.pick_place`."""
 
 import sys
 from pathlib import Path
@@ -11,5 +11,5 @@ from ufactory_mujoco.tasks import pick_place as _task
 if __name__ == "__main__":
     _task.main()
 else:
-    # Keep legacy imports (including private helpers) bound to the implementation.
+    # Importing this example yields the packaged task module itself.
     sys.modules[__name__] = _task

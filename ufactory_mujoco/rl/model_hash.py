@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from pathlib import Path
 import xml.etree.ElementTree as ET
+
+from .._hashing import canonical_json_sha256, file_sha256
 
 
 class ModelHashError(ValueError):
@@ -14,11 +14,7 @@ class ModelHashError(ValueError):
 
 def _sha256(path: Path) -> str:
     try:
-        digest = hashlib.sha256()
-        with path.open("rb") as stream:
-            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-                digest.update(chunk)
-        return digest.hexdigest()
+        return file_sha256(path)
     except OSError as exc:
         raise ModelHashError(f"cannot read model dependency {path}: {exc}") from exc
 
@@ -97,7 +93,7 @@ def runtime_model_sha256(scene_path: str | Path) -> str:
         "documents": [{"name": name, "xml": _canonical_element(root)} for name, root in documents],
         "assets": assets,
     }
-    return hashlib.sha256(json.dumps(body, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    return canonical_json_sha256(body)
 
 
 def verify_runtime_model(scene_path: str | Path, expected_sha256: str) -> str:

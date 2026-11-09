@@ -17,14 +17,14 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
-from .sim_robot import _GRIPPER_ACTUATOR_NAMES  # shared gripper-actuator convention
+from .grippers import GRIPPER_ACTUATOR_NAMES
 
 
 def arm_joint_limits(model: mujoco.MjModel) -> tuple[int, np.ndarray, np.ndarray]:
     """(n_arm_qpos, q_lo, q_hi) for the arm joints, mirroring SimRobot boundaries."""
     n_arm_actuators = model.nu
     for i in range(model.nu):
-        if model.actuator(i).name in _GRIPPER_ACTUATOR_NAMES:
+        if model.actuator(i).name in GRIPPER_ACTUATOR_NAMES:
             n_arm_actuators = i
             break
     joints: list[int] = []

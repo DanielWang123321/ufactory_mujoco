@@ -11,7 +11,7 @@ import unittest
 import mujoco
 import numpy as np
 
-from examples.rl.pick_place.evaluate import (
+from ufactory_mujoco.rl.evaluation import (
     acceptance_passed,
     checkpoint_score,
     evaluate_policy,

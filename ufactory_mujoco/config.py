@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
 import yaml
 
+from ._hashing import canonical_json_sha256
 from .robots import resolve_arm_scene
 from .resource_paths import CONFIGS_ROOT
 
@@ -85,11 +84,7 @@ class TaskConfig:
 
 def config_sha256(payload: Mapping[str, Any]) -> str:
     """SHA-256 of canonical JSON. Callers pass only the hashed fields."""
-    encoded = json.dumps(
-        {key: payload[key] for key in _HASH_FIELDS},
-        sort_keys=True, separators=(",", ":"), ensure_ascii=True,
-    ).encode()
-    return hashlib.sha256(encoded).hexdigest()
+    return canonical_json_sha256({key: payload[key] for key in _HASH_FIELDS})
 
 
 def _read_yaml(path: Path) -> dict[str, Any]:

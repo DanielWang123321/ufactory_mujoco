@@ -46,6 +46,12 @@ def _checkpoint(path, env, reward, train, *, task="pick_place", contract=PICK_PL
     return checkpoint
 
 
+def test_shipped_pick_place_scene_hash_is_pinned():
+    """Trained v2 checkpoints record this digest; any asset change must be deliberate."""
+    scene = ROOT / "models/xarm6_with_gripper/scene_pick_place.xml"
+    assert runtime_model_sha256(scene) == "bfd917fb6ee8182b9b5e38a5d87ed70ae1cc3ed03ed118873812c69bfdf35a8c"
+
+
 def test_model_hash_recursive_dependencies_and_relocation(tmp_path):
     scene = _tiny_scene(tmp_path / "source")
     original = runtime_model_sha256(scene)

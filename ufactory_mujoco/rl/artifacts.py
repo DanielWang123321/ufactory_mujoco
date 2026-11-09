@@ -5,7 +5,6 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-import hashlib
 from importlib import metadata
 import json
 import math
@@ -18,6 +17,7 @@ import zipfile
 
 import yaml
 
+from .._hashing import canonical_json_sha256, file_sha256
 from ..config import load_task_config
 from ..resource_paths import CONFIGS_ROOT
 from ..robots import ROBOT_PROFILES
@@ -237,20 +237,6 @@ def _finite(value: Any, path: str = "config") -> None:
         raise ArtifactError(f"{path} must be finite")
 
 
-def _canonical_sha256(data: Mapping[str, Any]) -> str:
-    return hashlib.sha256(
-        json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
-    ).hexdigest()
-
-
-def _file_sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def runtime_env_contract_keys(env: Mapping[str, Any]) -> tuple[str, ...]:
     """Return the runtime environment contract keys for the given task."""
     if str(env.get("task_name", "")) == "reach":
@@ -452,7 +438,7 @@ def write_training_config(
         "train": _plain(train),
     }
     _finite(body)
-    body["config_sha256"] = _canonical_sha256(body)
+    body["config_sha256"] = canonical_json_sha256(body)
     target.write_text(yaml.safe_dump(body, sort_keys=False), encoding="utf-8")
     return str(body["config_sha256"])
 
@@ -471,7 +457,7 @@ def load_training_config(path: str | Path) -> dict[str, Any]:
         raise ArtifactError("unsupported training config schema")
     _finite(data)
     claimed = str(data.pop("config_sha256"))
-    actual = _canonical_sha256(data)
+    actual = canonical_json_sha256(data)
     data["config_sha256"] = claimed
     if claimed != actual:
         raise ArtifactError("training config hash mismatch")
@@ -534,7 +520,7 @@ def write_checkpoint_manifest(
         action_contract=str(action_contract),
         runtime_config_sha256=None if runtime_sha is None else str(runtime_sha),
         config_sha256=str(training_config["config_sha256"]),
-        checkpoint_sha256=_file_sha256(checkpoint),
+        checkpoint_sha256=file_sha256(checkpoint),
         code_version=_code_version(),
         checkpoint_file=checkpoint.name,
     )
@@ -577,7 +563,7 @@ def write_run_provenance(
         source = Path(source_path).resolve()
         if not source.is_file():
             raise ArtifactError(f"provenance source does not exist: {source}")
-        resolved_sources.append({"path": str(source), "sha256": _file_sha256(source)})
+        resolved_sources.append({"path": str(source), "sha256": file_sha256(source)})
 
     packages: dict[str, str | None] = {}
     for name in ("mujoco", "numpy", "scipy", "PyYAML", "gymnasium", "stable_baselines3", "torch"):
@@ -597,7 +583,7 @@ def write_run_provenance(
         "packages": packages,
         "code_version": _code_version(),
         "training_config_sha256": str(training_config["config_sha256"]),
-        "runtime_env_contract_sha256": _canonical_sha256(runtime_env_contract(training_config["env"])),
+        "runtime_env_contract_sha256": canonical_json_sha256(runtime_env_contract(training_config["env"])),
         "sources": resolved_sources,
     }
     target.write_text(json.dumps(body, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -640,7 +626,7 @@ def validate_checkpoint_artifacts(
     manifest = load_checkpoint_manifest(man_file)
 
     failures: list[str] = []
-    if _file_sha256(checkpoint) != manifest.checkpoint_sha256:
+    if file_sha256(checkpoint) != manifest.checkpoint_sha256:
         failures.append("checkpoint hash")
     if config["config_sha256"] != manifest.config_sha256:
         failures.append("config hash")

@@ -17,12 +17,11 @@ Usage:
 import mujoco
 import numpy as np
 
-from ufactory_mujoco import SimRobot, plan_joint_waypoints
-from ufactory_mujoco.config import load_task_config
+from ufactory_mujoco import SimRobot
 from ufactory_mujoco.preflight import preflight_pick_place
-from ufactory_mujoco.trajectory import JointTrajectory
 from ufactory_mujoco.resource_paths import CONFIGS_ROOT
-from ufactory_mujoco.task_geometry import (GRIP_DOWN_QUAT, _close_until_contact, tcp_task_heights)
+from ufactory_mujoco.task_geometry import GRIP_DOWN_QUAT, _close_until_contact, tcp_task_heights  # noqa: F401 (re-export)
+from . import _motion
 from ._reporting import task_report, write_report
 
 PICK_CONFIGS = CONFIGS_ROOT / "pick_place"
@@ -30,60 +29,27 @@ PICK_CONFIGS = CONFIGS_ROOT / "pick_place"
 
 def _cart_duration(dist: float, task) -> float:
     """Trapezoidal segment time from the configured Cartesian limits."""
-    return dist / task.cart_v_m_s + task.cart_v_m_s / task.cart_a_m_s2 + 0.1
+    return _motion.cart_duration(dist, task.cart_v_m_s, task.cart_a_m_s2)
 
 
 def _set_cube(robot: SimRobot, task) -> None:
-    joint_id = mujoco.mj_name2id(robot.model, mujoco.mjtObj.mjOBJ_JOINT, "cube")
-    if joint_id < 0:
-        raise ValueError("Scene has no 'cube' joint; load a pick-place scene")
-    adr = int(robot.model.jnt_qposadr[joint_id])
-    # Keep the authored height so a raised cube stays on its support.
-    authored_z = float(robot.model.qpos0[adr + 2])
-    robot.data.qpos[adr:adr + 3] = (task.cube_xy[0], task.cube_xy[1], authored_z)
-    robot.data.qpos[adr + 3:adr + 7] = (1.0, 0.0, 0.0, 0.0)
-    dof = int(robot.model.jnt_dofadr[joint_id])
-    robot.data.qvel[dof:dof + 6] = 0.0
-    mujoco.mj_forward(robot.model, robot.data)
+    _motion.set_cube(robot, "cube", task.cube_xy, "pick-place")
 
 
 def _move_pose(robot: SimRobot, config, pos: np.ndarray, duration: float,
                q_seed: np.ndarray) -> np.ndarray:
-    if config.executor == "servo_j":
-        task = config.pick_place
-        traj, ok = robot.plan_cartesian_trajectory(
-            pos, GRIP_DOWN_QUAT, max_lin_vel=task.cart_v_m_s, max_lin_acc=task.cart_a_m_s2)
-        if ok:
-            n = robot.n_arm
-            robot.execute_trajectory(JointTrajectory(
-                traj.times, traj.q[:, :n], traj.qd[:, :n], traj.qdd[:, :n]))
-            return robot.data.qpos.copy()
-        q, ok = robot.solve_tcp(pos, GRIP_DOWN_QUAT, q_init=q_seed)
-        if not ok:
-            raise RuntimeError(f"IK failed for joint move to {pos}")
-        robot.move_joints(q[:robot.n_arm], duration)
-        return q
-    robot.move_tcp(pos, GRIP_DOWN_QUAT, duration=duration)
-    return robot.data.qpos.copy()
-
-
-def _print_phases(report) -> None:
-    print("Preflight:")
-    for phase in report.phases:
-        reason = f" ({phase.reason})" if phase.reason else ""
-        print(f"  {phase.name}: {phase.status}{reason}")
+    task = config.pick_place
+    return _motion.move_pose(robot, config.executor, pos, duration, q_seed,
+                             max_lin_vel=task.cart_v_m_s, max_lin_acc=task.cart_a_m_s2)
 
 
 def _execute_segment(robot: SimRobot, config, name: str, pos: np.ndarray,
                      duration: float, q_seed: np.ndarray, report) -> np.ndarray:
-    segment = report.segments.get(name)
-    if segment is not None and segment.detour:
-        traj = plan_joint_waypoints(
-            segment.waypoints, max_vel=np.deg2rad(90.0), max_acc=3.5,
-            dt=robot.model.opt.timestep)
-        robot.execute_trajectory(traj)
-        return robot.data.qpos.copy()
-    return _move_pose(robot, config, pos, duration, q_seed)
+    task = config.pick_place
+    return _motion.execute_segment(
+        robot, config.executor, name, pos, duration, q_seed, report,
+        max_lin_vel=task.cart_v_m_s, max_lin_acc=task.cart_a_m_s2,
+        detour_max_vel=np.deg2rad(90.0), detour_max_acc=3.5)
 
 
 def run_pick_place(robot: SimRobot, config, cycles: int = 1, *,
@@ -95,7 +61,7 @@ def run_pick_place(robot: SimRobot, config, cycles: int = 1, *,
     if type(cycles) is not int or cycles <= 0:
         raise ValueError("cycles must be a positive integer")
     report = preflight_pick_place(robot, config)
-    _print_phases(report)
+    _motion.print_phases(report)
     if dry_run or not report.ok:
         write_report(report_path, task_report(report, config, dry_run, cycles))
         return report if dry_run else []
@@ -201,13 +167,7 @@ def run_pick_place(robot: SimRobot, config, cycles: int = 1, *,
 
 
 def _load(robot: str, gripper: str | None, executor: str | None, config: str | None):
-    overlay = config or (PICK_CONFIGS / f"{robot}.yaml")
-    overrides = {}
-    if gripper:
-        overrides["gripper"] = gripper
-    if executor:
-        overrides["executor"] = executor
-    return load_task_config(overlay, overrides or None)
+    return _motion.load_overlay(PICK_CONFIGS, robot, gripper, executor, config)
 
 
 def main(argv=None) -> None:

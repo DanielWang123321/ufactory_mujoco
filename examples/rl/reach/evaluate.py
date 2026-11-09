@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Strict checkpoint evaluation for the five-arm TCP reaching task (Batch 8).
+"""Strict checkpoint evaluation for the five-arm TCP reaching task.
 
 Validates the checkpoint manifest and config hashes before loading the SB3 PPO
 policy, evaluates on deterministic seeds, and writes a structured JSON summary.
@@ -22,78 +22,19 @@ from typing import Any
 _ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(_ROOT))
 
-import numpy as np  # noqa: E402
-
 from ufactory_mujoco.rl import (  # noqa: E402
     ROBOT_PROFILES,
     ReachEnv,
     build_reach_task_configs,
     load_validated_ppo,
 )
+from ufactory_mujoco.rl.evaluation import (  # noqa: E402
+    evaluate_reach_policy,
+    summarize_reach_reports,
+)
 
 DEFAULT_RECIPE = Path(__file__).resolve().with_name("recipe.yaml")
 _BUILD = _ROOT / "build" / "rl"
-
-
-def summarize_reach_reports(reports: list[dict[str, Any]]) -> dict[str, Any]:
-    if not reports:
-        raise RuntimeError("evaluation finished no episodes")
-    dists_m = np.asarray([float(r["terminal_distance_m"]) for r in reports], dtype=float)
-    steps = np.asarray([int(r["steps"]) for r in reports], dtype=float)
-    elapsed = np.asarray([float(r["elapsed_s"]) for r in reports], dtype=float)
-    successes = [r for r in reports if r["success"]]
-    return {
-        "episodes": len(reports),
-        "successes": len(successes),
-        "success_rate": float(len(successes) / len(reports)),
-        "mean_m": float(np.mean(dists_m)),
-        "median_m": float(np.median(dists_m)),
-        "p90_m": float(np.percentile(dists_m, 90)),
-        "p99_m": float(np.percentile(dists_m, 99)),
-        "max_m": float(np.max(dists_m)),
-        "mean_mm": float(np.mean(dists_m) * 1000.0),
-        "mean_steps": float(np.mean(steps)),
-        "mean_elapsed_s": float(np.mean(elapsed)),
-        "mean_success_elapsed_s": (
-            float(np.mean([float(r["elapsed_s"]) for r in successes])) if successes else None
-        ),
-    }
-
-
-def evaluate_reach_policy(
-    env: ReachEnv,
-    policy_fn,
-    *,
-    episodes: int,
-    seed: int,
-    options: dict[str, Any] | None = None,
-) -> list[dict[str, Any]]:
-    ctrl_dt = env._decimation * float(env.model.opt.timestep)
-    reports: list[dict[str, Any]] = []
-    for ep in range(episodes):
-        obs, info = env.reset(seed=seed + ep, options=options)
-        done = False
-        total_return = 0.0
-        while not done:
-            action = policy_fn(obs)
-            obs, reward, terminated, truncated, info = env.step(action)
-            total_return += float(reward)
-            done = bool(terminated or truncated)
-        reports.append(
-            {
-                "index": ep,
-                "seed": seed + ep,
-                "target_m": [float(x) for x in info["target"]],
-                "success": bool(info["success"]),
-                "timeout": not bool(info["success"]),
-                "terminal_distance_m": float(info["dist"]),
-                "dist_mm": float(info["dist"]) * 1000.0,
-                "steps": int(info["steps"]),
-                "elapsed_s": round(int(info["steps"]) * ctrl_dt, 4),
-                "return": float(total_return),
-            }
-        )
-    return reports
 
 
 def _evaluate_single_robot(
@@ -184,7 +125,8 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--min-success-rate", type=float, default=0.95)
     parser.add_argument("--max-mean-dist-mm", type=float, default=10.0)
-    parser.add_argument("--max-mean-distance-m", "--max-mean-dist-m", dest="max_mean_distance_m", type=float, default=None,
+    parser.add_argument("--max-mean-distance-m", "--max-mean-dist-m", dest="max_mean_distance_m", type=float,
+                        default=None,
                         help="optional bound in meters (overrides --max-mean-dist-mm when given)")
     parser.add_argument("--summary-json", "--report", "--out", dest="summary_json", type=Path, default=None,
                         help="save evaluation summary, episode records, and artifact hashes to JSON")

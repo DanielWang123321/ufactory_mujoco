@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Strict tabletop pick-and-place evaluation for PPO checkpoints, expert, or baselines (Batch 8).
+"""Strict tabletop pick-and-place evaluation for PPO checkpoints, the scripted expert, or baselines.
 
 Usage:
     python examples/rl/pick_place/evaluate.py --expert --episodes 10 --quiet-episodes
@@ -12,12 +12,9 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Callable
-import csv
-import hashlib
 import json
 from pathlib import Path
 import sys
-import time
 from typing import Any
 
 _ROOT = Path(__file__).resolve().parents[3]
@@ -27,204 +24,23 @@ import numpy as np  # noqa: E402
 
 from ufactory_mujoco.rl import (  # noqa: E402
     PICK_PLACE_NUM_ACTIONS,
-    SPAWN_XY_LOWER,
-    SPAWN_XY_UPPER,
     PickPlaceEnv,
-    PickPlaceExpert,
     build_pick_place_task_configs,
     load_validated_ppo,
 )
-from ufactory_mujoco.rl.model_hash import verify_runtime_model  # noqa: E402
+from ufactory_mujoco.rl.evaluation import (  # noqa: E402,F401  (re-exported for callers of this script)
+    acceptance_passed,
+    checkpoint_score,
+    evaluate_policy,
+    make_spawns,
+    pick_place_env_kwargs,
+    save_results,
+    spawn_sha256,
+    summarize,
+)
 
 DEFAULT_RECIPE = Path(__file__).resolve().with_name("recipe.yaml")
 DEFAULT_CHECKPOINT = _ROOT / "build" / "rl" / "pick_place" / "xarm6_g2_v2" / "ppo_pick_place.zip"
-
-
-def make_spawns(
-    episodes: int,
-    *,
-    seed: int = 17000,
-    lower: tuple[float, float] | list[float] | np.ndarray = SPAWN_XY_LOWER,
-    upper: tuple[float, float] | list[float] | np.ndarray = SPAWN_XY_UPPER,
-) -> np.ndarray:
-    """Deterministically sample ``(episodes, 2)`` cube XY spawns independent of policy RNG."""
-    if int(episodes) < 1:
-        raise ValueError("episodes must be positive")
-    lo = np.asarray(lower, dtype=np.float64).reshape(2)
-    hi = np.asarray(upper, dtype=np.float64).reshape(2)
-    if np.any(lo > hi):
-        raise ValueError("spawn lower bounds must not exceed upper bounds")
-    rng = np.random.default_rng(int(seed))
-    return lo + rng.random((int(episodes), 2)) * (hi - lo)
-
-
-def spawn_sha256(spawns: np.ndarray) -> str:
-    """Stable SHA-256 digest of an evaluation spawn matrix rounded to 1e-8 m."""
-    arr = np.ascontiguousarray(np.round(np.asarray(spawns, dtype=np.float64), 8))
-    return hashlib.sha256(arr.tobytes()).hexdigest()
-
-
-def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
-    """Aggregate boolean outcome rates and continuous metric distributions."""
-    if not records:
-        raise RuntimeError("evaluation finished no episodes")
-    summary: dict[str, Any] = {"episodes": len(records)}
-    for key in (
-        "success",
-        "drag_failed",
-        "tilt_failed",
-        "dropped",
-        "press_failed",
-        "high_release",
-        "collision_failed",
-        "timeout",
-        "release_confirmed",
-        "ever_carried",
-        "ever_lifted_clear",
-        "touchdown_seen",
-    ):
-        count = sum(int(bool(r[key])) for r in records)
-        summary[key] = count
-        summary[f"{key}_rate"] = float(count / len(records))
-    for key in (
-        "max_drag_mm",
-        "max_tilt_deg",
-        "target_error_mm",
-        "steps",
-        "press_mm",
-        "release_height_mm",
-        "max_held_clearance_mm",
-        "max_table_force_n",
-        "max_place_table_force_n",
-        "max_held_table_force_n",
-        "max_robot_table_force_n",
-        "return",
-    ):
-        values = [float(r[key]) for r in records]
-        summary[key] = {
-            "mean": float(np.mean(values)),
-            "median": float(np.median(values)),
-            "p95": float(np.percentile(values, 95)),
-            "max": float(np.max(values)),
-        }
-    return summary
-
-
-def checkpoint_score(summary: dict[str, Any]) -> tuple[float, float, float, float, float]:
-    """Rank checkpoints by strict success, low release, touchdown, low press, and landing error."""
-    no_high = 1.0 - float(summary.get("high_release_rate", 0.0))
-    low_release = float(summary.get("release_confirmed_rate", 0.0)) * no_high
-    target_touchdown = (
-        float(summary.get("touchdown_seen_rate", 1.0))
-        * no_high
-        * float(summary["target_error_mm"]["mean"] <= 20.0)
-    )
-    return (
-        float(summary["success_rate"]),
-        float(low_release),
-        float(target_touchdown),
-        -float(summary["press_mm"]["max"]),
-        -float(summary["target_error_mm"]["mean"]),
-        float(summary.get("ever_lifted_clear_rate", 0.0)),
-        float(summary.get("ever_carried_rate", 0.0)),
-        float(summary["return"]["mean"]),
-    )
-
-
-def acceptance_passed(
-    summary: dict[str, Any],
-    *,
-    min_success_rate: float = 0.90,
-    max_press_mm: float = 1.0,
-    max_target_error_mm: float | None = 20.0,
-) -> bool:
-    ok = bool(summary["success_rate"] >= min_success_rate and summary["press_mm"]["max"] <= max_press_mm)
-    if max_target_error_mm is not None:
-        ok = ok and bool(summary["target_error_mm"]["mean"] <= max_target_error_mm)
-    return ok
-
-
-def evaluate_policy(
-    env: PickPlaceEnv,
-    policy_fn: Callable[[np.ndarray], np.ndarray] | None,
-    *,
-    episodes: int = 10,
-    seed: int = 17000,
-    pace: bool = False,
-) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    verify_runtime_model(env.scene_path, env.runtime_model_sha256)
-    if policy_fn is None:
-        expert = PickPlaceExpert(env)
-        policy_fn = expert
-
-    spawns = make_spawns(
-        episodes,
-        seed=seed,
-        lower=env.spawn_xy_lower,
-        upper=env.spawn_xy_upper,
-    )
-    env.set_evaluation_spawns(spawns)
-    rows: list[dict[str, Any]] = []
-    start = time.monotonic()
-    total_steps = 0
-    try:
-        for ep in range(episodes):
-            obs, info = env.reset(seed=seed + ep)
-            done = False
-            while not done:
-                t0 = time.perf_counter()
-                action = policy_fn(obs)
-                obs, _reward, terminated, truncated, info = env.step(action)
-                total_steps += 1
-                done = bool(terminated or truncated)
-                if pace:
-                    time.sleep(max(0.0, env.ctrl_dt - (time.perf_counter() - t0)))
-            row = dict(info)
-            row["scenario_id"] = ep
-            row["seed"] = seed + ep
-            rows.append(row)
-    finally:
-        env.set_evaluation_spawns(None)
-
-    summary = summarize(rows)
-    elapsed = max(1e-9, time.monotonic() - start)
-    summary["seconds"] = round(elapsed, 3)
-    summary["transitions_per_second"] = round(total_steps / elapsed, 1)
-    summary["seed"] = int(seed)
-    summary["spawn_sha256"] = spawn_sha256(spawns)
-    summary["spawn_xy_lower"] = env.spawn_xy_lower.tolist()
-    summary["spawn_xy_upper"] = env.spawn_xy_upper.tolist()
-    summary["env_version"] = int(env.env_version)
-    summary["runtime_model_sha256"] = verify_runtime_model(env.scene_path, env.runtime_model_sha256)
-    return summary, rows
-
-
-def save_results(
-    path: str | Path,
-    summary: dict[str, Any],
-    rows: list[dict[str, Any]],
-    *,
-    extra_metadata: dict[str, Any] | None = None,
-) -> None:
-    target = Path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    payload = dict(summary)
-    if extra_metadata:
-        payload.update(extra_metadata)
-    payload["episodes_detail"] = rows
-    target.write_text(
-        json.dumps(payload, indent=2, ensure_ascii=False, allow_nan=False) + "\n",
-        encoding="utf-8",
-    )
-    if rows:
-        csv_rows = [
-            {k: (json.dumps(v) if isinstance(v, list | dict) else v) for k, v in row.items()}
-            for row in rows
-        ]
-        with target.with_suffix(".csv").open("w", encoding="utf-8", newline="") as stream:
-            writer = csv.DictWriter(stream, fieldnames=list(csv_rows[0]))
-            writer.writeheader()
-            writer.writerows(csv_rows)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -310,37 +126,8 @@ def main(argv: list[str] | None = None) -> None:
 
         policy_fn = _ppo_policy
 
-    env = PickPlaceEnv(
-        robot=args.robot,
-        config_path=args.runtime_config,
-        max_steps=int(expected_env["max_steps"]),
-        decimation=int(expected_env["decimation"]),
-        action_scale=float(expected_env["action_scale"]),
-        action_clip=float(expected_env["action_clip"]),
-        gap_action_scale=float(expected_env["gap_action_scale"]),
-        setpoint_leash_m=float(expected_env["setpoint_leash_m"]),
-        pre_grasp_gap_m=float(expected_env["pre_grasp_gap_m"]),
-        close_floor_gap_m=float(expected_env["close_floor_gap_m"]),
-        workspace_lower=expected_env["workspace_lower"],
-        workspace_upper=expected_env["workspace_upper"],
-        spawn_xy_lower=expected_env["spawn_xy_lower"],
-        spawn_xy_upper=expected_env["spawn_xy_upper"],
-        g2_speed_percent=float(expected_env["g2_speed_percent"]),
-        g2_force_percent=float(expected_env["g2_force_percent"]),
-        reward_gamma=float(expected_env["reward_gamma"]),
-        place_clearance_m=float(expected_env["place_clearance_m"]),
-        release_max_height_m=float(expected_env["release_max_height_m"]),
-        press_limit_m=float(expected_env["press_limit_m"]),
-        near_table_m=float(expected_env["near_table_m"]),
-        max_near_table_descent_m_s=float(expected_env["max_near_table_descent_m_s"]),
-        table_overload_margin_n=float(expected_env["table_overload_margin_n"]),
-        place_success_dist_m=float(expected_env["place_success_dist_m"]),
-        drag_limit_m=float(expected_env["drag_limit_m"]),
-        tilt_limit_deg=float(expected_env["tilt_limit_deg"]),
-        success_hold_steps=int(expected_env["success_hold_steps"]),
-        reward_scales=expected_reward,
-        expected_runtime_model_sha256=expected_env["runtime_model_sha256"],
-    )
+    env = PickPlaceEnv(**pick_place_env_kwargs(
+        expected_env, expected_reward, robot=args.robot, config_path=args.runtime_config))
     try:
         summary, rows = evaluate_policy(env, policy_fn, episodes=args.episodes, seed=args.seed)
     finally:

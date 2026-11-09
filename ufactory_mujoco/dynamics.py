@@ -34,7 +34,7 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
-_GRIPPER_ACTUATOR_NAMES = ("gripper", "gripper_motor", "finger_actuator")
+from .grippers import GRIPPER_ACTUATOR_NAMES
 
 
 def attach_payload(model_path: str | Path, mass: float, com,
@@ -79,7 +79,7 @@ def attach_payload(model_path: str | Path, mass: float, com,
 def _detect_arm_nv(model: mujoco.MjModel) -> int:
     """Number of arm DOFs: DOFs before the gripper actuator's joint targets."""
     for i in range(model.nu):
-        if model.actuator(i).name in _GRIPPER_ACTUATOR_NAMES:
+        if model.actuator(i).name in GRIPPER_ACTUATOR_NAMES:
             dofs = [model.jnt_dofadr[model.actuator_trnid[j, 0]] + 1
                     for j in range(i)
                     if model.actuator_trntype[j] == mujoco.mjtTrn.mjTRN_JOINT]

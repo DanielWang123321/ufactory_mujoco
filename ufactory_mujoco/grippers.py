@@ -21,6 +21,9 @@ from .g2_model import (
 
 _CONTACT_DIST_M = 1e-4
 
+# MJCF actuator names that drive a gripper (excluded from the arm joints).
+GRIPPER_ACTUATOR_NAMES = ("gripper", "gripper_motor", "finger_actuator")
+
 
 class GraspError(RuntimeError):
     """The gripper is not holding the object, so the arm must not lift."""

@@ -39,11 +39,6 @@ sys.path.insert(0, str(ROOT))
 
 import numpy as np  # noqa: E402
 
-from examples.rl.pick_place.evaluate import (  # noqa: E402
-    acceptance_passed,
-    checkpoint_score,
-    evaluate_policy,
-)
 from ufactory_mujoco.config import load_task_config  # noqa: E402
 from ufactory_mujoco.resource_paths import CONFIGS_ROOT  # noqa: E402
 from ufactory_mujoco.rl import (  # noqa: E402
@@ -55,6 +50,12 @@ from ufactory_mujoco.rl import (  # noqa: E402
     write_checkpoint_manifest,
     write_run_provenance,
     write_training_config,
+)
+from ufactory_mujoco.rl.evaluation import (  # noqa: E402
+    acceptance_passed,
+    checkpoint_score,
+    evaluate_policy,
+    pick_place_env_kwargs,
 )
 from ufactory_mujoco.rl.model_hash import verify_runtime_model  # noqa: E402
 
@@ -109,38 +110,9 @@ def _env_kwargs(
     *,
     fast_info: bool = False,
 ) -> dict[str, Any]:
-    return {
-        "robot": robot,
-        "config_path": runtime_config,
-        "max_steps": int(env_cfg["max_steps"]),
-        "decimation": int(env_cfg["decimation"]),
-        "action_scale": float(env_cfg["action_scale"]),
-        "action_clip": float(env_cfg["action_clip"]),
-        "gap_action_scale": float(env_cfg["gap_action_scale"]),
-        "setpoint_leash_m": float(env_cfg["setpoint_leash_m"]),
-        "pre_grasp_gap_m": float(env_cfg["pre_grasp_gap_m"]),
-        "close_floor_gap_m": float(env_cfg["close_floor_gap_m"]),
-        "workspace_lower": env_cfg["workspace_lower"],
-        "workspace_upper": env_cfg["workspace_upper"],
-        "spawn_xy_lower": env_cfg["spawn_xy_lower"],
-        "spawn_xy_upper": env_cfg["spawn_xy_upper"],
-        "g2_speed_percent": float(env_cfg["g2_speed_percent"]),
-        "g2_force_percent": float(env_cfg["g2_force_percent"]),
-        "reward_gamma": float(env_cfg["reward_gamma"]),
-        "place_clearance_m": float(env_cfg["place_clearance_m"]),
-        "release_max_height_m": float(env_cfg["release_max_height_m"]),
-        "press_limit_m": float(env_cfg["press_limit_m"]),
-        "near_table_m": float(env_cfg["near_table_m"]),
-        "max_near_table_descent_m_s": float(env_cfg["max_near_table_descent_m_s"]),
-        "table_overload_margin_n": float(env_cfg["table_overload_margin_n"]),
-        "place_success_dist_m": float(env_cfg["place_success_dist_m"]),
-        "drag_limit_m": float(env_cfg["drag_limit_m"]),
-        "tilt_limit_deg": float(env_cfg["tilt_limit_deg"]),
-        "success_hold_steps": int(env_cfg["success_hold_steps"]),
-        "reward_scales": reward_cfg,
-        "expected_runtime_model_sha256": env_cfg["runtime_model_sha256"],
-        "fast_info": bool(fast_info),
-    }
+    kwargs = pick_place_env_kwargs(env_cfg, reward_cfg, robot=robot, config_path=runtime_config)
+    kwargs["fast_info"] = bool(fast_info)
+    return kwargs
 
 
 def _provenance_sources(recipe_path: Path, runtime_config_path: Path) -> list[Path]:
@@ -150,6 +122,7 @@ def _provenance_sources(recipe_path: Path, runtime_config_path: Path) -> list[Pa
         runtime_config_path.resolve(),
         ROOT / "ufactory_mujoco" / "rl" / "pick_place_env.py",
         ROOT / "ufactory_mujoco" / "rl" / "artifacts.py",
+        ROOT / "ufactory_mujoco" / "rl" / "evaluation.py",
         ROOT / "ufactory_mujoco" / "g2_model.py",
         ROOT / "ufactory_mujoco" / "g2_controller.py",
         ROOT / "ufactory_mujoco" / "grippers.py",

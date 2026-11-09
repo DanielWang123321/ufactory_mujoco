@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""RL example 02: Tabletop cube pick-and-place on xArm6 + Gripper G2 (Batch 8).
+"""RL example: tabletop cube pick-and-place on xArm6 + Gripper G2.
 
 Loads a trained PPO policy (default: build/rl/pick_place/xarm6_g2_v2/ppo_pick_place.zip),
 the independent scripted expert (--expert), or an untrained baseline (--random /
@@ -30,13 +30,15 @@ from ufactory_mujoco.rl import (  # noqa: E402
     build_pick_place_task_configs,
     load_validated_ppo,
 )
-from examples.rl.pick_place.evaluate import (  # noqa: E402
-    DEFAULT_CHECKPOINT,
-    DEFAULT_RECIPE,
+from ufactory_mujoco.rl.evaluation import (  # noqa: E402
     acceptance_passed,
     evaluate_policy,
+    pick_place_env_kwargs,
     save_results,
 )
+
+DEFAULT_RECIPE = Path(__file__).resolve().with_name("recipe.yaml")
+DEFAULT_CHECKPOINT = _ROOT / "build" / "rl" / "pick_place" / "xarm6_g2_v2" / "ppo_pick_place.zip"
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -64,35 +66,8 @@ def main(argv: list[str] | None = None) -> None:
 
     expected_env, expected_reward, _ = build_pick_place_task_configs("xarm6", recipe_path=args.recipe)
     env = PickPlaceEnv(
-        robot="xarm6",
         render_mode=None if args.headless else "human",
-        max_steps=int(expected_env["max_steps"]),
-        decimation=int(expected_env["decimation"]),
-        action_scale=float(expected_env["action_scale"]),
-        action_clip=float(expected_env["action_clip"]),
-        gap_action_scale=float(expected_env["gap_action_scale"]),
-        setpoint_leash_m=float(expected_env["setpoint_leash_m"]),
-        pre_grasp_gap_m=float(expected_env["pre_grasp_gap_m"]),
-        close_floor_gap_m=float(expected_env["close_floor_gap_m"]),
-        workspace_lower=expected_env["workspace_lower"],
-        workspace_upper=expected_env["workspace_upper"],
-        spawn_xy_lower=expected_env["spawn_xy_lower"],
-        spawn_xy_upper=expected_env["spawn_xy_upper"],
-        g2_speed_percent=float(expected_env["g2_speed_percent"]),
-        g2_force_percent=float(expected_env["g2_force_percent"]),
-        reward_gamma=float(expected_env["reward_gamma"]),
-        place_clearance_m=float(expected_env["place_clearance_m"]),
-        release_max_height_m=float(expected_env["release_max_height_m"]),
-        press_limit_m=float(expected_env["press_limit_m"]),
-        near_table_m=float(expected_env["near_table_m"]),
-        max_near_table_descent_m_s=float(expected_env["max_near_table_descent_m_s"]),
-        table_overload_margin_n=float(expected_env["table_overload_margin_n"]),
-        place_success_dist_m=float(expected_env["place_success_dist_m"]),
-        drag_limit_m=float(expected_env["drag_limit_m"]),
-        tilt_limit_deg=float(expected_env["tilt_limit_deg"]),
-        success_hold_steps=int(expected_env["success_hold_steps"]),
-        reward_scales=expected_reward,
-        expected_runtime_model_sha256=expected_env["runtime_model_sha256"],
+        **pick_place_env_kwargs(expected_env, expected_reward, robot="xarm6"),
     )
 
     extra_meta = {"task": "pick_place", "robot": "xarm6"}
