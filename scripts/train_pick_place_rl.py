@@ -18,6 +18,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import multiprocessing as mp
@@ -69,6 +70,14 @@ def _available_memory_mb() -> int | None:
     except OSError:
         pass
     return None
+
+
+def _policy_state_sha256(policy: Any) -> str:
+    digest = hashlib.sha256()
+    for name, tensor in sorted(policy.state_dict().items()):
+        digest.update(name.encode("utf-8"))
+        digest.update(tensor.detach().cpu().contiguous().numpy().tobytes())
+    return digest.hexdigest()
 
 
 def auto_n_envs(cpu_count: int | None = None, avail_mb: int | None = None, reserve_mb: int = 2000) -> int:
@@ -153,11 +162,15 @@ def _grouped_worker_loop(
     parent_remote: Any,
     env_kwargs: dict[str, Any],
     seeds: list[int],
+    cpu_ids: list[int] | None = None,
 ) -> None:
     """Worker process hosting a batch of PickPlaceEnv instances to amortize IPC overhead."""
     parent_remote.close()
     for var in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS"):
         os.environ[var] = "1"
+    if cpu_ids:
+        os.sched_setaffinity(0, set(cpu_ids))
+        print(f"[worker] pid={os.getpid()} cpus={sorted(os.sched_getaffinity(0))} envs={len(seeds)}", flush=True)
     envs = [PickPlaceEnv(**env_kwargs) for _ in seeds]
     t_starts = [time.perf_counter() for _ in seeds]
     pending_seeds: list[int | None] = list(seeds)
@@ -236,6 +249,8 @@ def _make_grouped_vec_env(
     n_workers: int,
     seed: int,
     env_kwargs: dict[str, Any],
+    worker_env_counts: list[int] | None = None,
+    worker_cpu_ids: list[list[int]] | None = None,
 ) -> Any:
     """Build either a single-process DummyVecEnv or a multi-env-per-worker GroupedSubprocVecEnv."""
     from stable_baselines3.common.monitor import Monitor
@@ -255,7 +270,9 @@ def _make_grouped_vec_env(
         return DummyVecEnv([_make_single(i) for i in range(n_envs)])
 
     actual_workers = min(int(n_workers), int(n_envs))
-    counts = [n_envs // actual_workers + (1 if w < (n_envs % actual_workers) else 0) for w in range(actual_workers)]
+    counts = worker_env_counts or [n_envs // actual_workers + (1 if w < (n_envs % actual_workers) else 0) for w in range(actual_workers)]
+    if len(counts) != actual_workers or sum(counts) != n_envs or any(c < 1 for c in counts):
+        raise ValueError("worker-env-counts must provide one positive count per worker and sum to n-envs")
     slices: list[tuple[int, int]] = []
     cursor = 0
     for count in counts:
@@ -281,7 +298,8 @@ def _make_grouped_vec_env(
                 worker_seeds = [int(seed + idx) for idx in range(start_idx, end_idx)]
                 proc = ctx.Process(
                     target=_grouped_worker_loop,
-                    args=(work_remote, remote, worker_kw, worker_seeds),
+                    args=(work_remote, remote, worker_kw, worker_seeds,
+                          worker_cpu_ids[len(self.processes)] if worker_cpu_ids else None),
                     daemon=True,
                 )
                 proc.start()
@@ -462,6 +480,21 @@ def main(argv: list[str] | None = None) -> None:
                         help="parallel envs (default: auto from CPU cores and free memory)")
     parser.add_argument("--n-workers", type=int, default=None,
                         help="worker subprocesses for GroupedSubprocVecEnv (default: min(n_envs, cpu_count))")
+    parser.add_argument("--worker-env-counts", default=None,
+                        help="comma-separated env count per worker, e.g. 64,32,32")
+    parser.add_argument("--worker-cpu-sets", default=None,
+                        help="semicolon-separated CPU IDs per worker, e.g. 0,16;2,18;4,20")
+    parser.add_argument("--torch-threads", type=int, default=None)
+    parser.add_argument("--deterministic", action="store_true",
+                        help="enable deterministic PyTorch algorithms and disable cuDNN benchmark")
+    parser.add_argument("--checkpoint-steps", default=None,
+                        help="comma-separated exact checkpoint thresholds; saves at first complete PPO rollout >= each threshold")
+    parser.add_argument("--disable-periodic-eval", action="store_true",
+                        help="disable callback evaluation and checkpoint ranking; final evaluation still runs")
+    parser.add_argument("--no-final-eval", action="store_true",
+                        help="skip training-script final evaluation (for external fixed-scenario evaluation)")
+    parser.add_argument("--progress-json", type=Path, default=None,
+                        help="atomically write current step and throughput approximately every five seconds")
     parser.add_argument("--n-steps", type=int, default=None,
                         help="PPO rollout steps per env (default from recipe)")
     parser.add_argument("--batch-size", type=int, default=None,
@@ -506,6 +539,10 @@ def main(argv: list[str] | None = None) -> None:
                         help="output directory (default: build/rl/pick_place/xarm6_g2_v2)")
     args = parser.parse_args(argv)
 
+    # This must be set before CUDA is initialized, including during torch import.
+    if args.deterministic:
+        os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
+
     try:
         import gymnasium  # noqa: E402
         import stable_baselines3  # noqa: E402
@@ -514,6 +551,17 @@ def main(argv: list[str] | None = None) -> None:
         import torch  # noqa: E402
     except ImportError as exc:  # pragma: no cover
         sys.exit(f"training needs gymnasium + stable-baselines3 + torch (requirements-rl.txt): {exc}")
+
+    if args.torch_threads is not None:
+        if args.torch_threads < 1:
+            parser.error("--torch-threads must be positive")
+        torch.set_num_threads(args.torch_threads)
+        torch.set_num_interop_threads(args.torch_threads)
+    if args.deterministic:
+        torch.use_deterministic_algorithms(True)
+        if hasattr(torch.backends, "cudnn"):
+            torch.backends.cudnn.benchmark = False
+            torch.backends.cudnn.deterministic = True
 
     env_cfg, reward_cfg, train_cfg = build_pick_place_task_configs(
         args.model,
@@ -579,7 +627,23 @@ def main(argv: list[str] | None = None) -> None:
     n_envs = int(args.n_envs if args.n_envs is not None else auto_n_envs())
     default_workers = min(n_envs, max(1, (os.cpu_count() or 1) - 2)) if n_envs > 1 else 1
     n_workers = int(args.n_workers if args.n_workers is not None else default_workers)
+    worker_env_counts = [int(x) for x in args.worker_env_counts.split(",")] if args.worker_env_counts else None
+    if worker_env_counts:
+        n_workers = len(worker_env_counts)
+        if sum(worker_env_counts) != n_envs or any(count < 1 for count in worker_env_counts):
+            parser.error("--worker-env-counts must be positive and sum to --n-envs")
     n_workers = max(1, min(n_workers, n_envs))
+    worker_cpu_ids = None
+    if args.worker_cpu_sets:
+        worker_cpu_ids = [[int(cpu) for cpu in part.split(",") if cpu.strip()]
+                          for part in args.worker_cpu_sets.split(";")]
+        if len(worker_cpu_ids) != n_workers or any(not cpus or min(cpus) < 0 for cpus in worker_cpu_ids):
+            parser.error("--worker-cpu-sets must have one semicolon-separated set per worker")
+    checkpoint_steps = sorted({int(x) for x in args.checkpoint_steps.split(",")}) if args.checkpoint_steps else []
+    if any(x <= 0 or x > total_steps for x in checkpoint_steps):
+        parser.error("--checkpoint-steps values must be positive and not exceed --total-steps")
+    if args.resume is not None and checkpoint_steps:
+        parser.error("--checkpoint-steps currently requires training from scratch")
 
     if total_steps > 0:
         n_steps = max(16, min(n_steps, max(16, total_steps // max(n_envs, 1))))
@@ -604,6 +668,8 @@ def main(argv: list[str] | None = None) -> None:
         n_workers=n_workers,
         seed=seed,
         env_kwargs=env_kwargs,
+        worker_env_counts=worker_env_counts,
+        worker_cpu_ids=worker_cpu_ids,
     )
 
     if args.resume is not None:
@@ -632,7 +698,26 @@ def main(argv: list[str] | None = None) -> None:
             "activation_fn": activation_map[activation_name],
             "log_std_init": math.log(init_std),
         }
-        model = PPO(
+        class CheckpointPPO(PPO):
+            """Save requested budgets after the corresponding PPO update."""
+
+            def train(self) -> None:
+                super().train()
+                while self._budget_checkpoints and self.num_timesteps >= self._budget_checkpoints[0]:
+                    threshold = self._budget_checkpoints.pop(0)
+                    verify_runtime_model(scene_path, initial_model_hash)
+                    budget_dir = ckpt_dir / f"budget_{threshold}"
+                    budget_dir.mkdir(parents=True, exist_ok=True)
+                    checkpoint = budget_dir / f"ppo_pick_place_{threshold}_requested_{self.num_timesteps}_steps.zip"
+                    self.save(checkpoint)
+                    checkpoint.with_suffix(".state.json").write_text(
+                        json.dumps({"requested_steps": threshold, "actual_steps": int(self.num_timesteps),
+                                    "ppo_updates": int(self._n_updates),
+                                    "policy_state_sha256": _policy_state_sha256(self.policy)}, indent=2) + "\n",
+                        encoding="utf-8",
+                    )
+
+        model = CheckpointPPO(
             "MlpPolicy",
             vec_env,
             verbose=1,
@@ -651,6 +736,7 @@ def main(argv: list[str] | None = None) -> None:
             gae_lambda=gae_lambda,
             policy_kwargs=policy_kwargs,
         )
+        model._budget_checkpoints = list(checkpoint_steps)
 
     eval_env = PickPlaceEnv(**env_kwargs)
     candidates: list[tuple[tuple[float, float, float, float, float], Path, dict[str, Any]]] = []
@@ -665,14 +751,24 @@ def main(argv: list[str] | None = None) -> None:
             class PeriodicStrictEvalCallback(BaseCallback):
                 def __init__(self) -> None:
                     super().__init__(verbose=0)
-                    self.next_save_steps = max(1, save_interval)
-                    self.next_eval_steps = max(1, eval_interval) if eval_interval > 0 else 0
+                    self.next_save_steps = max(1, save_interval) if not checkpoint_steps else 0
+                    self.next_eval_steps = max(1, eval_interval) if eval_interval > 0 and not args.disable_periodic_eval else 0
                     self.best_score: tuple[float, float, float, float, float] | None = None
                     self.consecutive_passes = 0
+                    self.last_progress = 0.0
 
                 def _on_step(self) -> bool:
                     nonlocal early_stopped
-                    if save_interval > 0 and self.num_timesteps >= self.next_save_steps:
+                    now = time.perf_counter()
+                    if args.progress_json is not None and now - self.last_progress >= 5:
+                        args.progress_json.parent.mkdir(parents=True, exist_ok=True)
+                        tmp = args.progress_json.with_suffix(".tmp")
+                        tmp.write_text(json.dumps({"timesteps": int(self.num_timesteps),
+                                                   "elapsed_seconds": now - start,
+                                                   "fps": self.num_timesteps / max(now - start, 1e-9)}) + "\n")
+                        os.replace(tmp, args.progress_json)
+                        self.last_progress = now
+                    if save_interval > 0 and not checkpoint_steps and self.num_timesteps >= self.next_save_steps:
                         verify_runtime_model(scene_path, initial_model_hash)
                         step_path = ckpt_dir / f"ppo_pick_place_{self.num_timesteps}_steps.zip"
                         self.model.save(step_path)
@@ -774,23 +870,31 @@ def main(argv: list[str] | None = None) -> None:
         final_ckpt = ckpt_dir / "ppo_pick_place_final.zip"
         verify_runtime_model(scene_path, initial_model_hash)
         model.save(final_ckpt)
-        final_summary, _ = evaluate_policy(
-            eval_env,
-            lambda obs: model.predict(obs, deterministic=True)[0],
-            episodes=eval_episodes,
-            seed=17_000 + seed,
-        )
-        candidates.append((checkpoint_score(final_summary), final_ckpt, final_summary))
+        if not args.no_final_eval:
+            final_summary, _ = evaluate_policy(
+                eval_env,
+                lambda obs: model.predict(obs, deterministic=True)[0],
+                episodes=eval_episodes,
+                seed=17_000 + seed,
+            )
+            candidates.append((checkpoint_score(final_summary), final_ckpt, final_summary))
     finally:
         eval_env.close()
         vec_env.close()
 
     train_seconds = time.perf_counter() - start
     completed_steps = actual_steps if actual_steps > 0 else total_steps
-    best_score, best_ckpt_path, best_summary = max(candidates, key=lambda item: item[0])
+    if not candidates:
+        best_ckpt_path = final_ckpt
+        best_score = None
+        best_summary = {}
+    else:
+        best_score, best_ckpt_path, best_summary = max(candidates, key=lambda item: item[0])
     target_ckpt = out_dir / "ppo_pick_place.zip"
     verify_runtime_model(scene_path, initial_model_hash)
-    shutil.copy2(best_ckpt_path, target_ckpt)
+    policy_sha256 = _policy_state_sha256(model.policy)
+    if best_ckpt_path.resolve() != target_ckpt.resolve():
+        shutil.copy2(best_ckpt_path, target_ckpt)
 
     training_config, manifest = write_pick_place_artifacts(
         out_dir,
@@ -807,6 +911,8 @@ def main(argv: list[str] | None = None) -> None:
             "early_stopped": early_stopped,
             "n_envs": n_envs,
             "n_workers": n_workers,
+            "worker_env_counts": worker_env_counts,
+            "worker_cpu_ids": worker_cpu_ids,
             "n_steps": n_steps,
             "batch_size": batch_size,
             "n_epochs": n_epochs,
@@ -825,20 +931,35 @@ def main(argv: list[str] | None = None) -> None:
             "save_interval": save_interval,
             "seed": seed,
             "device": args.device,
+            "deterministic": bool(args.deterministic),
+            "torch_threads": args.torch_threads,
+            "checkpoint_steps": checkpoint_steps,
+            "disable_periodic_eval": bool(args.disable_periodic_eval),
         },
     )
+
+    if checkpoint_steps:
+        for checkpoint in ckpt_dir.glob("budget_*/ppo_pick_place_*_requested_*_steps.zip"):
+            details = json.loads(checkpoint.with_suffix(".state.json").read_text())
+            checkpoint_train = dict(training_config["train"], completed_steps=details["actual_steps"])
+            checkpoint_config = checkpoint.parent / "config.yaml"
+            write_training_config(checkpoint_config, task="pick_place", robot=args.model,
+                                  env=training_config["env"], reward=training_config["reward"],
+                                  train=checkpoint_train)
+            write_checkpoint_manifest(checkpoint, training_config=load_training_config(checkpoint_config),
+                                      action_contract=PICK_PLACE_ACTION_CONTRACT)
 
     metrics = dict(best_summary)
     metrics.update(
         {
-            "passed": _strict_gate_passed(
+            "passed": None if args.no_final_eval else _strict_gate_passed(
                 best_summary,
                 min_success_rate=min_success_rate,
                 max_press_mm=1.0,
                 max_target_error_mm=20.0,
             ),
             "selected_checkpoint": best_ckpt_path.name,
-            "checkpoint_score": list(best_score),
+            "checkpoint_score": list(best_score) if best_score is not None else None,
             "early_stopped": early_stopped,
             "completed_steps": completed_steps,
             "config": {
@@ -847,6 +968,8 @@ def main(argv: list[str] | None = None) -> None:
                 "completed_steps": completed_steps,
                 "n_envs": n_envs,
                 "n_workers": n_workers,
+                "worker_env_counts": worker_env_counts,
+                "worker_cpu_ids": worker_cpu_ids,
                 "n_steps": n_steps,
                 "batch_size": batch_size,
                 "n_epochs": n_epochs,
@@ -860,8 +983,12 @@ def main(argv: list[str] | None = None) -> None:
                 "init_std": init_std,
                 "seed": seed,
                 "device": args.device,
+                "deterministic": bool(args.deterministic),
+                "torch_threads": args.torch_threads,
+                "checkpoint_steps": checkpoint_steps,
                 "config_sha256": training_config["config_sha256"],
                 "checkpoint_sha256": manifest.checkpoint_sha256,
+                "policy_state_sha256": policy_sha256 if best_ckpt_path == final_ckpt else None,
                 "runtime_config_sha256": env_cfg["runtime_config_sha256"],
             },
             "train_seconds": round(train_seconds, 1),
@@ -881,13 +1008,14 @@ def main(argv: list[str] | None = None) -> None:
         encoding="utf-8",
     )
 
-    print(f"\n[train] {args.model} pick-and-place evaluation ({best_summary['episodes']} episodes):")
+    print(f"\n[train] {args.model} pick-and-place:")
     print(f"  selected_checkpoint : {best_ckpt_path.name}")
     print(f"  completed_steps     : {completed_steps:,} (early_stopped={early_stopped})")
-    print(f"  success_rate        : {best_summary['success_rate']:.2%}")
-    print(f"  max_press_mm        : {best_summary['press_mm']['max']:.3f}")
-    print(f"  mean_target_err_mm  : {best_summary['target_error_mm']['mean']:.2f}")
-    print(f"  mean_return         : {best_summary['return']['mean']:.2f}")
+    if best_summary:
+        print(f"  success_rate        : {best_summary['success_rate']:.2%}")
+        print(f"  max_press_mm        : {best_summary['press_mm']['max']:.3f}")
+        print(f"  mean_target_err_mm  : {best_summary['target_error_mm']['mean']:.2f}")
+        print(f"  mean_return         : {best_summary['return']['mean']:.2f}")
     print(f"[train] saved {target_ckpt}, config.yaml, checkpoint_manifest.json, and metrics.json")
 
 
