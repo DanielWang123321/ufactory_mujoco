@@ -277,7 +277,8 @@ def main() -> None:
         "--ref-dir",
         type=Path,
         default=default_ref,
-        help="Path to ufactory_genesis assets/urdf (default: $UFACTORY_GENESIS_ROOT/assets/urdf or ../ufactory_genesis/assets/urdf)",
+        help="Path to ufactory_genesis assets/urdf "
+             "(default: $UFACTORY_GENESIS_ROOT/assets/urdf or ../ufactory_genesis/assets/urdf)",
     )
     parser.add_argument(
         "--target",

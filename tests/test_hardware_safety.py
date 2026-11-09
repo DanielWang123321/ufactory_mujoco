@@ -1,4 +1,4 @@
-"""Batch 9 offline unit tests: XArmRobot, calibration SHA-256, FK/IK check, sdk-sim, and safety gate."""
+"""Offline hardware-safety tests: XArmRobot, calibration SHA-256, FK/IK check, sdk-sim, and safety gate."""
 
 from __future__ import annotations
 

@@ -31,7 +31,6 @@ from ufactory_mujoco.kinematics import (  # noqa: E402
     fk_pose,
     pose_jacobian,
     quat_error,
-    solve_joint_velocity,
 )
 from ufactory_mujoco.model_paths import MODELS_ROOT  # noqa: E402
 

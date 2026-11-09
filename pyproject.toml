@@ -28,6 +28,7 @@ classifiers = [
 # Install CPU torch first to avoid the large CUDA wheel: see requirements-rl.txt
 rl = ["gymnasium>=1.0,<2", "stable-baselines3>=2.4,<3"]
 assets = ["trimesh>=4", "xacro"]
+test = ["pytest>=8"]
 
 [project.scripts]
 ufactory-mujoco = "ufactory_mujoco.cli:main"
@@ -44,3 +45,15 @@ namespaces = false
 
 [tool.setuptools.package-data]
 ufactory_mujoco = ["data/**/*"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+
+[tool.ruff.lint.per-file-ignores]
+# configure_backend() must run before mujoco is imported.
+"ufactory_mujoco/__init__.py" = ["E402"]
+# Long lines are MJCF template text; editing them changes the generated models.
+"scripts/build_all_mjcf.py" = ["E501"]

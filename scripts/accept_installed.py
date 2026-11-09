@@ -109,6 +109,10 @@ def accept(args, summary):
     summary.update(python=sys.version, package=str(package), resource_root=str(RESOURCE_ROOT))
     compare_resources(strict_json(args.reference), resource_reference())
     summary["resources"] = "pass"
+    from ufactory_mujoco import SimRobot
+    with SimRobot() as robot:
+        assert robot.n_arm == 6, "SimRobot() must default to the bundled xArm6 scene"
+    summary["sim_robot_default"] = "pass"
     # Exercise commands with a read-only installation. JSON belongs in the
     # working directory, and Python can import without writing bytecode here.
     for path in package.parent.rglob("*"):

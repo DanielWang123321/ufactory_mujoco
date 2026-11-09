@@ -8,7 +8,7 @@ import numpy as np
 
 from ufactory_mujoco.collision import CollisionChecker
 from ufactory_mujoco.config import load_task_config
-from ufactory_mujoco.preflight import PHASES, make_checker, plan_segment, preflight_pick_place
+from ufactory_mujoco.preflight import PHASES, make_checker, plan_segment
 from ufactory_mujoco.sim_robot import SimRobot
 
 ROOT = Path(__file__).resolve().parent.parent

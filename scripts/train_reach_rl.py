@@ -227,7 +227,9 @@ def main(argv: list[str] | None = None) -> None:
     env_cfg, _reward_cfg, train_cfg = build_reach_task_configs(args.model, recipe_path=args.recipe)
     seed = int(args.seed if args.seed is not None else train_cfg.get("seed", 0))
     n_steps = int(args.n_steps if args.n_steps is not None else train_cfg.get("n_steps", 2048))
-    save_interval = int(args.save_interval if args.save_interval is not None else train_cfg.get("save_interval", 50_000))
+    save_interval = int(
+        args.save_interval if args.save_interval is not None else train_cfg.get("save_interval", 50_000)
+    )
     net_arch = [int(x) for x in args.net_arch.split(",")]
 
     if args.n_envs is None:

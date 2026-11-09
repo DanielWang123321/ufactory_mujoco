@@ -53,7 +53,8 @@ def main() -> None:
     ap.add_argument(
         "--model",
         default="xarm6_with_gripper",
-        help="Model name (e.g. 'xarm6_with_gripper', 'xarm6_with_bio_gripper', 'lite6_with_gripper', 'gripper_g2', 'bio_gripper_g2', 'lite6_gripper')",
+        help="Model name (e.g. 'xarm6_with_gripper', 'xarm6_with_bio_gripper', 'lite6_with_gripper', "
+             "'gripper_g2', 'bio_gripper_g2', 'lite6_gripper')",
     )
     ap.add_argument("--headless", action="store_true", help="no viewer, print metrics")
     ap.add_argument("--cycles", type=int, default=3, help="number of open/close cycles (default: 3)")
@@ -94,7 +95,8 @@ def main() -> None:
 
             # 1. Close gripper
             print(
-                f"  Action: Close gripper (target=1.0, speed={args.speed_percent:.0f}%, force={args.force_percent:.0f}%)..."
+                f"  Action: Close gripper (target=1.0, speed={args.speed_percent:.0f}%, "
+                f"force={args.force_percent:.0f}%)..."
             )
             robot.close_gripper(
                 wait=True,
@@ -109,7 +111,8 @@ def main() -> None:
                 else ""
             )
             print(
-                f"  Closed state: normalized={pos_close:.3f}, measured_gap={robot.get_measured_gripper_gap() * 1000:.2f} mm, "
+                f"  Closed state: normalized={pos_close:.3f}, "
+                f"measured_gap={robot.get_measured_gripper_gap() * 1000:.2f} mm, "
                 f"gripper_qpos={np.round(robot.data.qpos[robot._n_arm_qpos:], 4)}{tau_str}"
             )
 
@@ -122,7 +125,8 @@ def main() -> None:
             )
             pos_open = robot.get_gripper_position()
             print(
-                f"  Open state:   normalized={pos_open:.3f}, measured_gap={robot.get_measured_gripper_gap() * 1000:.2f} mm, "
+                f"  Open state:   normalized={pos_open:.3f}, "
+                f"measured_gap={robot.get_measured_gripper_gap() * 1000:.2f} mm, "
                 f"gripper_qpos={np.round(robot.data.qpos[robot._n_arm_qpos:], 4)}"
             )
 
@@ -136,7 +140,8 @@ def main() -> None:
             robot.settle(robot._g2_wait_duration())
             pos_half = robot.get_gripper_position()
             print(
-                f"  Half state:   normalized={pos_half:.3f}, measured_gap={robot.get_measured_gripper_gap() * 1000:.2f} mm, "
+                f"  Half state:   normalized={pos_half:.3f}, "
+                f"measured_gap={robot.get_measured_gripper_gap() * 1000:.2f} mm, "
                 f"gripper_qpos={np.round(robot.data.qpos[robot._n_arm_qpos:], 4)}"
             )
 

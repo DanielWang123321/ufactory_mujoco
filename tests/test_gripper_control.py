@@ -147,7 +147,6 @@ class GripperControlTest(unittest.TestCase):
         self.assertAlmostEqual(gripper_closed_pos, 1.0, places=3)
 
         # Move arm to a ready-like goal
-        q_arm_init = robot.get_joint_positions()
         q_arm_goal = np.array([0.2, -0.5, -0.8, 0.5, 0.2, 0.1])
         robot.move_joints(q_arm_goal, duration=1.0, wait=True)  # larger move from the IK home pose
 

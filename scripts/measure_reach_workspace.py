@@ -89,7 +89,7 @@ def candidate_box(pts: np.ndarray) -> np.ndarray:
 def ik_rate(model: mujoco.MjModel, box: np.ndarray, n: int = N_IK_SAMPLES) -> float:
     rng = np.random.default_rng(SEED + 1)
     data = mujoco.MjData(model)
-    site_id = model.site(TCP_SITE).id
+    model.site(TCP_SITE)  # fail early if the TCP site is missing
     targets = rng.uniform(box[0], box[1], size=(n, 3))
     ok = 0
     for t in targets:

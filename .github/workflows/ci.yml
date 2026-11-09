@@ -6,6 +6,20 @@ on:
   pull_request:
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Ruff
+        run: |
+          python -m pip install ruff==0.17.1
+          ruff check .
+
   test:
     runs-on: ubuntu-latest
     strategy:
@@ -23,13 +37,11 @@ jobs:
       - name: Install (pinned core deps + package)
         run: |
           python -m pip install --upgrade pip
-          pip install pytest -r requirements-lock.txt
-          pip install -e .
+          pip install -r requirements-lock.txt -e ".[test]"
       - name: Unit tests (headless)
         run: |
           mkdir -p build/ci
-          python -m unittest discover -s tests -v 2>&1 | tee build/ci/unittest.log
-          python -m pytest -q tests/test_g2_calibrated.py tests/test_g2_assets_v2.py tests/test_pick_place_model_contract.py 2>&1 | tee build/ci/g2-contract.log
+          python -m pytest tests -v 2>&1 | tee build/ci/pytest.log
       - name: Example smoke tests (headless)
         run: |
           set -e
@@ -151,13 +163,11 @@ jobs:
       - name: Install (CPU torch + RL extras)
         run: |
           pip install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install pytest -r requirements-lock.txt -e ".[rl]"
+          pip install -r requirements-lock.txt -e ".[rl,test]"
       - name: RL tests + tiny training smoke run
         run: |
           mkdir -p build/rl/ci build/rl/ci/pick_place
-          python -m unittest discover -s tests -p "test_*_env.py" -v 2>&1 | tee build/rl/ci/tests.log
-          python -m unittest discover -s tests -p "test_pick_place_rl.py" -v 2>&1 | tee -a build/rl/ci/tests.log
-          python -m pytest -q tests/test_g2_assets_v2.py tests/test_pick_place_model_contract.py 2>&1 | tee -a build/rl/ci/tests.log
+          python -m pytest -v tests/test_reach_env.py tests/test_pick_place_rl.py tests/test_g2_assets_v2.py tests/test_pick_place_model_contract.py 2>&1 | tee build/rl/ci/tests.log
           python scripts/train_reach_rl.py --model xarm6 --total-steps 4096 --n-envs 2 --n-steps 1024 --eval-episodes 2 --out-dir build/rl/ci 2>&1 | tee build/rl/ci/training.log
           test -f build/rl/ci/metrics.json
           test -f build/rl/ci/config.yaml

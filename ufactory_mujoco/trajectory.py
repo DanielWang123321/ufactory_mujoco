@@ -14,13 +14,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
-from typing import Any
 
 import mujoco
 import numpy as np
 from scipy.interpolate import CubicSpline
 
-from .ik import solve_ik, solve_ik_trajectory
+from .ik import solve_ik_trajectory
 
 _EPS = 1e-12
 

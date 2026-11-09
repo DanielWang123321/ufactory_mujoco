@@ -14,19 +14,15 @@ Usage:
 
 import argparse
 import sys
-import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
 
 from ufactory_mujoco import (  # noqa: E402
     SimRobot,
-    plan_cartesian_line,
     plan_joint_waypoints,
-    plan_ptp_quintic,
 )
 from ufactory_mujoco.dynamics import ArmDynamics  # noqa: E402
 
@@ -62,9 +58,11 @@ def main() -> None:
         # 1. PTP Quintic Trajectory with Analytical Time Parameterization
         # -----------------------------------------------------------------
         target_q = WAYPOINTS[-1]
-        print(f"\n[2] Planning PTP Quintic Trajectory (max_vel={args.speed:.1f} deg/s, max_acc={max_acc:.1f} rad/s^2)...")
+        print(f"\n[2] Planning PTP Quintic Trajectory (max_vel={args.speed:.1f} deg/s, "
+              f"max_acc={max_acc:.1f} rad/s^2)...")
         ptp_traj = robot.plan_joint_trajectory(target_q, max_vel=max_vel, max_acc=max_acc)
-        print(f"    Planned duration: {ptp_traj.duration:.3f} s ({ptp_traj.n_steps} steps, dt={ptp_traj.dt * 1000:.1f} ms)")
+        print(f"    Planned duration: {ptp_traj.duration:.3f} s "
+              f"({ptp_traj.n_steps} steps, dt={ptp_traj.dt * 1000:.1f} ms)")
         print(f"    Peak joint velocity: {np.rad2deg(np.max(np.abs(ptp_traj.qd))):.2f} deg/s (limit: {args.speed:.1f})")
         print(f"    Peak joint accel:    {np.max(np.abs(ptp_traj.qdd)):.2f} rad/s^2 (limit: {max_acc:.1f})")
 
@@ -78,11 +76,15 @@ def main() -> None:
         # 2. Continuous Multi-Waypoint Spline (Smooth vs Stop-and-Go)
         # -----------------------------------------------------------------
         print("\n[3] Multi-Waypoint Planning (4 waypoints)...")
-        spline_traj = plan_joint_waypoints(WAYPOINTS, max_vel=max_vel, max_acc=max_acc, dt=robot.model.opt.timestep, method="spline")
-        stop_traj = plan_joint_waypoints(WAYPOINTS, max_vel=max_vel, max_acc=max_acc, dt=robot.model.opt.timestep, method="stop")
+        spline_traj = plan_joint_waypoints(WAYPOINTS, max_vel=max_vel, max_acc=max_acc,
+                                           dt=robot.model.opt.timestep, method="spline")
+        stop_traj = plan_joint_waypoints(WAYPOINTS, max_vel=max_vel, max_acc=max_acc,
+                                         dt=robot.model.opt.timestep, method="stop")
 
         print(f"    Stop-and-go duration: {stop_traj.duration:.3f} s (velocity zeroes at each via-point)")
-        print(f"    Smooth spline duration: {spline_traj.duration:.3f} s ({100.0 * (stop_traj.duration - spline_traj.duration) / stop_traj.duration:.1f}% time saved, C2 continuous)")
+        saved_pct = 100.0 * (stop_traj.duration - spline_traj.duration) / stop_traj.duration
+        print(f"    Smooth spline duration: {spline_traj.duration:.3f} s "
+              f"({saved_pct:.1f}% time saved, C2 continuous)")
 
         print("    Executing continuous smooth spline trajectory...")
         robot.set_joint_positions(WAYPOINTS[0])
@@ -98,7 +100,8 @@ def main() -> None:
         robot.move_joints(READY, duration=1.5)
         p_now, quat_now = robot.get_tcp_pose()
         p_line_target = p_now + np.array([0.08, 0.0, -0.04])
-        print(f"\n[4] Planning Cartesian Straight Line: {np.round(p_now, 3)} -> {np.round(p_line_target, 3)} (dist: {np.linalg.norm(p_line_target - p_now) * 1000:.1f} mm)...")
+        print(f"\n[4] Planning Cartesian Straight Line: {np.round(p_now, 3)} -> {np.round(p_line_target, 3)} "
+              f"(dist: {np.linalg.norm(p_line_target - p_now) * 1000:.1f} mm)...")
 
         cart_traj, ok = robot.plan_cartesian_trajectory(p_line_target, quat_now, max_lin_vel=0.15, max_lin_acc=0.8)
         if not ok:
@@ -118,7 +121,8 @@ def main() -> None:
         dyn = ArmDynamics("models/xarm6/xarm6.xml")
         tau_ff = dyn.feedforward_traj(spline_traj.q, dt=spline_traj.dt)
         print(f"    Computed feedforward torques for {len(tau_ff)} trajectory frames.")
-        print(f"    Torque envelope across motion: min={np.round(np.min(tau_ff, axis=0), 2)} Nm, max={np.round(np.max(tau_ff, axis=0), 2)} Nm")
+        print(f"    Torque envelope across motion: min={np.round(np.min(tau_ff, axis=0), 2)} Nm, "
+              f"max={np.round(np.max(tau_ff, axis=0), 2)} Nm")
 
         print("\n=================================================================")
         print("                  All Trajectory Tests PASS!                     ")

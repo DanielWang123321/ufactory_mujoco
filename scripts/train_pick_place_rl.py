@@ -243,7 +243,9 @@ def _make_grouped_vec_env(
         return DummyVecEnv([_make_single(i) for i in range(n_envs)])
 
     actual_workers = min(int(n_workers), int(n_envs))
-    counts = worker_env_counts or [n_envs // actual_workers + (1 if w < (n_envs % actual_workers) else 0) for w in range(actual_workers)]
+    counts = worker_env_counts or [
+        n_envs // actual_workers + (1 if w < (n_envs % actual_workers) else 0) for w in range(actual_workers)
+    ]
     if len(counts) != actual_workers or sum(counts) != n_envs or any(c < 1 for c in counts):
         raise ValueError("worker-env-counts must provide one positive count per worker and sum to n-envs")
     slices: list[tuple[int, int]] = []
@@ -461,7 +463,8 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--deterministic", action="store_true",
                         help="enable deterministic PyTorch algorithms and disable cuDNN benchmark")
     parser.add_argument("--checkpoint-steps", default=None,
-                        help="comma-separated exact checkpoint thresholds; saves at first complete PPO rollout >= each threshold")
+                        help="comma-separated exact checkpoint thresholds; "
+                             "saves at first complete PPO rollout >= each threshold")
     parser.add_argument("--disable-periodic-eval", action="store_true",
                         help="disable callback evaluation and checkpoint ranking; final evaluation still runs")
     parser.add_argument("--no-final-eval", action="store_true",
@@ -725,7 +728,8 @@ def main(argv: list[str] | None = None) -> None:
                 def __init__(self) -> None:
                     super().__init__(verbose=0)
                     self.next_save_steps = max(1, save_interval) if not checkpoint_steps else 0
-                    self.next_eval_steps = max(1, eval_interval) if eval_interval > 0 and not args.disable_periodic_eval else 0
+                    periodic = eval_interval > 0 and not args.disable_periodic_eval
+                    self.next_eval_steps = max(1, eval_interval) if periodic else 0
                     self.best_score: tuple[float, float, float, float, float] | None = None
                     self.consecutive_passes = 0
                     self.last_progress = 0.0

@@ -32,11 +32,12 @@ from .grippers import (
 )
 from .ik import solve_ik, solve_ik_trajectory
 from .kinematics import manipulability, pose_jacobian, solve_joint_velocity
+from .resource_paths import MODELS_ROOT
 from .robot_interface import RobotInterface
 from .trajectory import JointTrajectory, plan_cartesian_line, plan_ptp_quintic
 from .viewer import PassiveViewer, configure_low_power_rendering
 
-_MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "xarm6" / "scene.xml"
+_MODEL_PATH = MODELS_ROOT / "xarm6" / "scene.xml"
 
 
 

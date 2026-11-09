@@ -158,5 +158,18 @@ class TaskPackagingTests(unittest.TestCase):
             self.assertEqual(sorted(actual), sorted(expected))
 
 
+class SimRobotDefaultModelTests(unittest.TestCase):
+    def test_default_model_follows_models_root(self):
+        """SimRobot() loads from MODELS_ROOT (wheel data or UFACTORY_MUJOCO_MODELS), not the source tree."""
+        with tempfile.TemporaryDirectory() as empty:
+            env = dict(os.environ, UFACTORY_MUJOCO_MODELS=empty, PYTHONPATH=str(ROOT))
+            result = subprocess.run(
+                [sys.executable, "-c", "from ufactory_mujoco import SimRobot; SimRobot()"],
+                cwd=ROOT, env=env, text=True, capture_output=True, timeout=120)
+            expected = str(Path(empty) / "xarm6" / "scene.xml")
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn(expected, result.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()
