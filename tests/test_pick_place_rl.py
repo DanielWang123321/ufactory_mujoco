@@ -8,6 +8,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
+import mujoco
 import numpy as np
 
 from examples.rl.pick_place.evaluate import (
@@ -17,6 +18,7 @@ from examples.rl.pick_place.evaluate import (
     make_spawns,
 )
 from ufactory_mujoco.config import load_task_config
+from ufactory_mujoco.ik import solve_ik
 from ufactory_mujoco.rl import (
     PICK_PLACE_ACTION_CONTRACT,
     PICK_PLACE_NUM_ACTIONS,
@@ -33,6 +35,8 @@ from ufactory_mujoco.rl import (
     load_validated_ppo,
     validate_checkpoint_artifacts,
 )
+from ufactory_mujoco.rl.pick_place_env import TCP_SITE
+from ufactory_mujoco.task_geometry import GRIP_DOWN_QUAT
 
 ROOT = Path(__file__).resolve().parent.parent
 RECIPE_PATH = ROOT / "examples" / "rl" / "pick_place" / "recipe.yaml"
@@ -172,6 +176,68 @@ class PickPlaceEnvContractTests(unittest.TestCase):
             )
         self.assertTrue(status["high_release"])
         self.assertTrue(metrics.release_confirmed)
+
+
+class PickPlaceEnvFastPathTests(unittest.TestCase):
+    """Per-step fast paths must match the reference computations bit for bit."""
+
+    def setUp(self):
+        self.env = PickPlaceEnv()
+
+    def tearDown(self):
+        self.env.close()
+
+    def test_grip_down_ik_matches_solve_ik(self):
+        env = self.env
+        env.reset(seed=3)
+        ref_data = mujoco.MjData(env.model)
+        rng = np.random.default_rng(7)
+        outcomes = set()
+        for i in range(60):
+            q_init = env.data.qpos.copy()
+            q_init[env._qpos_adr] = env._home_q + rng.normal(0.0, 0.2, env.n_joints)
+            if i % 3:
+                target = env.home_tcp + rng.normal(0.0, 0.05, 3)
+            else:  # mostly unreachable: covers non-convergence and rejected line searches
+                target = rng.uniform(env.workspace_lower - 0.3, env.workspace_upper + 0.3)
+            q_ref, ok_ref = solve_ik(
+                env.model, ref_data, TCP_SITE, target, GRIP_DOWN_QUAT, q_init=q_init,
+                pos_tol=1e-3, rot_tol=1e-2, max_iter=20, damping=0.01,
+            )
+            q_fast, ok_fast = env._ik.solve(target, q_init)
+            self.assertEqual(q_fast.tobytes(), q_ref.tobytes())
+            self.assertEqual(ok_fast, ok_ref)
+            outcomes.add(ok_ref)
+        self.assertEqual(outcomes, {True, False})
+
+    def test_cached_kinematics_and_potential_match_fresh_values(self):
+        env = self.env
+        expert = PickPlaceExpert(env)
+        rng = np.random.default_rng(11)
+        reused = 0
+        for policy in ("random", "expert"):
+            for episode in range(2):
+                obs, _ = env.reset(seed=200 + episode)
+                self.assertIsNone(env._cached_potential)
+                self._assert_snapshot_is_fresh()
+                done = False
+                while not done:
+                    if env._cached_potential is not None:
+                        self.assertEqual(env._cached_potential.hex(), env._potential().hex())
+                        reused += 1
+                    action = expert(obs) if policy == "expert" else rng.uniform(-1.0, 1.0, PICK_PLACE_NUM_ACTIONS)
+                    obs, _reward, terminated, truncated, _info = env.step(action)
+                    self._assert_snapshot_is_fresh()
+                    done = terminated or truncated
+        self.assertGreater(reused, 100)
+
+    def _assert_snapshot_is_fresh(self):
+        env = self.env
+        left, right = env.pad_centers()
+        self.assertEqual(env._tcp.tobytes(), env.tcp_position().tobytes())
+        self.assertEqual(env._left_pad.tobytes(), left.tobytes())
+        self.assertEqual(env._right_pad.tobytes(), right.tobytes())
+        self.assertEqual(env._gap.hex(), env.measured_gap().hex())
 
 
 class PickPlaceArtifactAndEvaluateTests(unittest.TestCase):

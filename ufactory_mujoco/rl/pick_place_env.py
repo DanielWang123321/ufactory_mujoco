@@ -4,7 +4,9 @@ xArm6 + Gripper G2 tabletop cube pick-and-place.
 Reuses project assets and calibrated Gripper G2 interfaces:
 - Scene: ``models/xarm6_with_gripper/scene_pick_place.xml`` via ``configs/pick_place/xarm6.yaml``
 - Calibrated Gripper G2 linkage & servo: ``ufactory_mujoco.g2_model`` / ``g2_controller``
-- Kinematics/IK: ``ufactory_mujoco.ik.solve_ik`` and ``ufactory_mujoco.task_geometry``
+  (``ScalarG2Controller``, bit-identical to ``G2Controller`` for one environment)
+- Kinematics/IK: ``ufactory_mujoco.ik.solve_ik`` (per-step IK runs the same algorithm with
+  precomputed constants in ``_GripDownIK``) and ``ufactory_mujoco.task_geometry``
 
 Requires only ``mujoco`` + ``numpy`` at runtime; ``gymnasium`` is optional
 (fallback base class for ``py314`` and baseline rollouts), and ``stable-baselines3``
@@ -21,7 +23,7 @@ import mujoco
 import numpy as np
 
 from ..config import load_task_config
-from ..g2_controller import G2Controller
+from ..g2_controller import ScalarG2Controller
 from ..g2_model import (
     G2_LINKAGE_GEOMETRY,
     G2Model,
@@ -376,8 +378,104 @@ def _extract_contact_loads(
     return np.array([f_left, f_right], dtype=float), table_force, robot_table_force
 
 
+class _GripDownIK:
+    """``solve_ik(model, data, site, target, GRIP_DOWN_QUAT, q_init, pos_tol=1e-3, rot_tol=1e-2,
+    max_iter=20, damping=0.01)`` with constants and buffers built once.
+
+    Same iterations, line search, and floating-point operations as ``ufactory_mujoco.ik.solve_ik``
+    (``tests/test_pick_place_rl.py`` compares both bit for bit). Joint ranges must not change after
+    construction.
+    """
+
+    POS_TOL = 1e-3
+    ROT_TOL = 1e-2
+    MAX_ITER = 20
+    DAMPING = 0.01
+
+    def __init__(self, model: mujoco.MjModel, data: mujoco.MjData, site_name: str) -> None:
+        self.model = model
+        self.data = data
+        self.site_id = model.site(site_name).id
+        self.tol_vec = np.array([self.POS_TOL] * 3 + [self.ROT_TOL] * 3)
+        jnt_types = model.jnt_type
+        clamp_mask = (jnt_types == int(mujoco.mjtJoint.mjJNT_HINGE)) | (
+            jnt_types == int(mujoco.mjtJoint.mjJNT_SLIDE)
+        )
+        self.clamp_adrs = model.jnt_qposadr[clamp_mask]
+        self.clamp_lo = model.jnt_range[clamp_mask, 0]
+        self.clamp_hi = model.jnt_range[clamp_mask, 1]
+        self.has_clamp = self.clamp_adrs.size > 0
+        self.eye_m = (self.DAMPING**2) * np.eye(6)
+        # Rows 0-2 = jacp, rows 3-5 = jacr: the same array np.vstack([jacp, jacr]) builds.
+        self.jac = np.zeros((6, model.nv))
+        self._quat = np.empty(4)
+        self._quat_conj = np.empty(4)
+        self._quat_err = np.empty(4)
+        self._err = np.empty(6)
+        self._err_trial = np.empty(6)
+
+    def _pose_error(self, target_pos: np.ndarray, out: np.ndarray) -> None:
+        """``concatenate([target_pos - site_pos, quat_error(site_quat, GRIP_DOWN_QUAT)])`` into ``out``."""
+        data, site_id = self.data, self.site_id
+        np.subtract(target_pos, data.site_xpos[site_id], out=out[:3])
+        quat, conj = self._quat, self._quat_conj
+        mujoco.mju_mat2Quat(quat, data.site_xmat[site_id])
+        conj[0] = quat[0]
+        np.negative(quat[1:], out=conj[1:])
+        mujoco.mju_mulQuat(self._quat_err, GRIP_DOWN_QUAT, conj)
+        mujoco.mju_quat2Vel(out[3:], self._quat_err, 1.0)
+
+    def solve(self, target_pos: np.ndarray, q_init: np.ndarray) -> tuple[np.ndarray, bool]:
+        model, data, site_id = self.model, self.data, self.site_id
+        tol_vec, jac = self.tol_vec, self.jac
+        err, err_trial = self._err, self._err_trial
+        q = q_init.astype(float).copy()
+        step = 0.5
+        for _ in range(self.MAX_ITER):
+            data.qpos[:] = q
+            mujoco.mj_kinematics(model, data)
+            self._pose_error(target_pos, err)
+            if np.all(np.abs(err) < tol_vec):
+                break
+            err_scaled = err / tol_vec
+            mujoco.mj_comPos(model, data)
+            mujoco.mj_jacSite(model, data, jac[:3], jac[3:], site_id)
+            jjt = jac @ jac.T + self.eye_m
+            dq = jac.T @ np.linalg.solve(jjt, err)
+            v_cur = float(np.sum(np.maximum(np.abs(err_scaled) - 1.0, 0.0)))
+            accepted = False
+            for _ in range(8):
+                q_trial = q.copy()
+                mujoco.mj_integratePos(model, q_trial, dq, step)
+                if self.has_clamp:
+                    q_trial[self.clamp_adrs] = np.clip(q_trial[self.clamp_adrs], self.clamp_lo, self.clamp_hi)
+                data.qpos[:] = q_trial
+                mujoco.mj_kinematics(model, data)
+                self._pose_error(target_pos, err_trial)
+                if float(np.sum(np.maximum(np.abs(err_trial / tol_vec) - 1.0, 0.0))) < v_cur:
+                    q = q_trial
+                    accepted = True
+                    break
+                step *= 0.5
+            if not accepted:
+                break
+            step = min(step * 1.5, 0.5)
+
+        data.qpos[:] = q
+        mujoco.mj_kinematics(model, data)
+        mujoco.mj_comPos(model, data)
+        self._pose_error(target_pos, err)
+        converged = bool(np.all(np.abs(err[:3]) < self.POS_TOL)) and bool(np.all(np.abs(err[3:]) < self.ROT_TOL))
+        return q.copy(), converged
+
+
 class PickPlaceEnv(_ENV_BASE):
-    """xArm6 + calibrated Gripper G2 tabletop pick-and-place Gymnasium environment."""
+    """xArm6 + calibrated Gripper G2 tabletop pick-and-place Gymnasium environment.
+
+    State changes only through ``reset`` and ``step``. TCP, pad centers, and measured gap are
+    cached once per physics state for internal use (the public accessors always read ``data``),
+    so writing ``env.data`` directly between steps is not supported.
+    """
 
     metadata = {"render_modes": ["human"], "render_fps": 50}
 
@@ -496,6 +594,7 @@ class PickPlaceEnv(_ENV_BASE):
         verify_runtime_model(scene_path, self.runtime_model_sha256)
         self.data = mujoco.MjData(self.model)
         self._ik_data = mujoco.MjData(self.model)
+        self._ik = _GripDownIK(self.model, self._ik_data, TCP_SITE)
 
         self._gripper_spec = identify_gripper(self.model)
         if self._gripper_spec is None or self._gripper_spec.name != "gripper_g2":
@@ -503,6 +602,8 @@ class PickPlaceEnv(_ENV_BASE):
         self.open_gap_m = float(self._gripper_spec.open_gap_m)
 
         self._n_arm = 6
+        self._arm_qfrc_applied = self.data.qfrc_applied[: self._n_arm]
+        self._arm_qfrc_bias = self.data.qfrc_bias[: self._n_arm]
         self._joint_ids = np.array(
             [mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, f"joint{i + 1}") for i in range(self._n_arm)]
         )
@@ -529,10 +630,10 @@ class PickPlaceEnv(_ENV_BASE):
             ]
         )
 
-        # Calibrated 0.0.9 Gripper G2 servo (matches SimRobot & ufactory_genesis)
+        # Calibrated 0.0.9 Gripper G2 servo (matches SimRobot & ufactory_genesis), single-env scalar form
         self.model.actuator_ctrllimited[self._gripper_act_id] = 0
         self.g2_model = G2Model.load()
-        self.g2_controller = G2Controller(
+        self.g2_controller = ScalarG2Controller(
             self.g2_model,
             initial_position_mm=self.pre_grasp_gap_m * 1000.0,
         )
@@ -541,7 +642,8 @@ class PickPlaceEnv(_ENV_BASE):
             self.g2_speed_percent,
             self.g2_force_percent,
         )
-        init_limit = float(self.g2_controller.torque_limit_nm[0])
+        self._g2_kv_over_kp = self.g2_controller.kv / self.g2_controller.kp
+        init_limit = self.g2_controller.torque_limit_nm
         self.model.actuator_forcerange[self._gripper_act_id] = (-init_limit, init_limit)
 
         self._qpos_adr = self.model.jnt_qposadr[self._joint_ids]
@@ -599,6 +701,8 @@ class PickPlaceEnv(_ENV_BASE):
         self.ep_return = 0.0
         self._prev_tcp_pos = self.home_tcp.copy()
         self._viewer = None
+        self._cached_potential: float | None = None  # potential of the current state, set at the end of step()
+        self._refresh_kinematics()
 
         obs_low = np.full(PICK_PLACE_NUM_OBS, -10.0, dtype=np.float32)
         obs_high = np.full(PICK_PLACE_NUM_OBS, 10.0, dtype=np.float32)
@@ -709,26 +813,23 @@ class PickPlaceEnv(_ENV_BASE):
 
     def measured_gap(self) -> float:
         """Measured fingertip pad separation in meters via 4-bar linkage geometry."""
-        left_center, right_center = self.pad_centers()
+        return self._pad_gap(*self.pad_centers())
+
+    def _pad_gap(self, left_center: np.ndarray, right_center: np.ndarray) -> float:
         l_mat = self.data.xmat[self._left_finger_id].reshape(3, 3)
         normal = l_mat @ _PAD_NORMAL_LOCAL
         return float(abs(np.dot(right_center - left_center, normal)))
 
+    def _refresh_kinematics(self) -> None:
+        """Cache TCP, pad centers, and measured gap of the current physics state for internal use."""
+        self._tcp = self.tcp_position()
+        self._left_pad, self._right_pad = self.pad_centers()
+        self._gap = self._pad_gap(self._left_pad, self._right_pad)
+
     def _solve_ik(self, target_pos: np.ndarray) -> tuple[np.ndarray, bool]:
         q_init = self.data.qpos.copy()
         q_init[self._qpos_adr] = self.q_target
-        q_sol, converged = solve_ik(
-            self.model,
-            self._ik_data,
-            TCP_SITE,
-            target_pos,
-            GRIP_DOWN_QUAT,
-            q_init=q_init,
-            pos_tol=1e-3,
-            rot_tol=1e-2,
-            max_iter=20,
-            damping=0.01,
-        )
+        q_sol, converged = self._ik.solve(target_pos, q_init)
         q_arm = q_sol[self._qpos_adr].copy()
         reject = (
             (not converged)
@@ -745,7 +846,7 @@ class PickPlaceEnv(_ENV_BASE):
     def _apply_action(self, action: np.ndarray, current_measured_gap: float) -> None:
         """Integrate 4D increments [dx, dy, dz, dgap] with near-table safety guardrails."""
         act = np.asarray(action, dtype=float).reshape(PICK_PLACE_NUM_ACTIONS).copy()
-        ee = self.tcp_position()
+        ee = self._tcp
         base_setpoint = self.ee_setpoint.copy()
 
         obj_pos = self.cube_position()
@@ -838,10 +939,9 @@ class PickPlaceEnv(_ENV_BASE):
             self.ctrl_dt,
             measured_gap_mm=current_measured_gap * 1000.0,
         )
-        limit = float(out.torque_limit_nm[0])
+        limit = out.torque_limit_nm
         self.model.actuator_forcerange[self._gripper_act_id] = (-limit, limit)
-        kv_over_kp = self.g2_controller.kv / self.g2_controller.kp
-        self.data.ctrl[self._gripper_act_id] = float(out.position_rad[0]) + kv_over_kp * float(out.velocity_rad_s[0])
+        self.data.ctrl[self._gripper_act_id] = out.position_rad + self._g2_kv_over_kp * out.velocity_rad_s
 
     # ------------------------------------------------------------------ gym API
     def reset(self, *, seed: int | None = None, options: dict | None = None):
@@ -878,7 +978,7 @@ class PickPlaceEnv(_ENV_BASE):
             self.g2_speed_percent,
             self.g2_force_percent,
         )
-        limit = float(self.g2_controller.torque_limit_nm[0])
+        limit = self.g2_controller.torque_limit_nm
         self.model.actuator_forcerange[self._gripper_act_id] = (-limit, limit)
         self.data.ctrl[self._gripper_act_id] = drv_rad
 
@@ -889,11 +989,13 @@ class PickPlaceEnv(_ENV_BASE):
         ]
         self.data.qpos[self._cube_qpos_adr + 3 : self._cube_qpos_adr + 7] = [1.0, 0.0, 0.0, 0.0]
         mujoco.mj_forward(self.model, self.data)
+        self._refresh_kinematics()
+        self._cached_potential = None
 
         self._step_count = 0
         self.episode_id += 1
         self.q_target = self._home_q.copy()
-        self.ee_setpoint = self.tcp_position()
+        self.ee_setpoint = self._tcp.copy()
         self._prev_tcp_pos = self.ee_setpoint.copy()
         self.gap_cmd = self.pre_grasp_gap_m
         self.forces = np.zeros(2, dtype=float)
@@ -926,14 +1028,14 @@ class PickPlaceEnv(_ENV_BASE):
     def _potential(self) -> float:
         obj = self.cube_position()
         quat = self.cube_quat()
-        left, right = self.pad_centers()
+        left, right = self._left_pad, self._right_pad
         pad_mid = 0.5 * (left + right)
         distance = grasp_distance(pad_mid, obj, self.cube_half_m)
         pad_xy_err = float(math.hypot(float(pad_mid[0] - obj[0]), float(pad_mid[1] - obj[1])))
         dz_band = max(0.0, abs(float(pad_mid[2] - obj[2])) - CUBE_SIZE * 0.4)
         height = max(0.0, cube_clearance(obj, quat, self.cube_half_m))
         target_error = float(math.hypot(float(obj[0] - self.target_xy[0]), float(obj[1] - self.target_xy[1])))
-        current_gap = self.measured_gap()
+        current_gap = self._gap
         grasp_near = math.exp(-distance / 0.025)
         placed = self.place_rewarded
 
@@ -994,7 +1096,7 @@ class PickPlaceEnv(_ENV_BASE):
         smooth_clear = math.exp(-max(float(self.forces[0]), float(self.forces[1])) / 10.0)
         meas_open = min(1.0, max(0.0, (current_gap - CUBE_SIZE) / gap_span_cube))
 
-        ee_z = float(self.tcp_position()[2])
+        ee_z = float(self._tcp[2])
         ref_ee_z = self.metrics.touchdown_ee_z if self.metrics.touchdown_ee_z > 0.0 else self._heights["grasp_z"]
         has_td_ref = (self.metrics.touchdown_ee_z > 0.0 or self.metrics.release_confirmed) and at_table
         ee_sink = max(0.0, ref_ee_z - ee_z - 0.0025) if has_td_ref else 0.0
@@ -1058,19 +1160,21 @@ class PickPlaceEnv(_ENV_BASE):
         act_pen = self._action_penalty(raw_action)
         clipped = np.clip(raw_action, -self.action_clip, self.action_clip)
 
-        old_potential = self._potential()
-        self._prev_tcp_pos = self.tcp_position()
-        self._apply_action(clipped, self.measured_gap())
+        old_potential = self._potential() if self._cached_potential is None else self._cached_potential
+        self._prev_tcp_pos = self._tcp.copy()
+        self._apply_action(clipped, self._gap)
 
+        qfrc_applied, qfrc_bias = self._arm_qfrc_applied, self._arm_qfrc_bias
         for _ in range(self._decimation):
-            self.data.qfrc_applied[: self._n_arm] = self.data.qfrc_bias[: self._n_arm]
+            qfrc_applied[:] = qfrc_bias
             mujoco.mj_step(self.model, self.data)
         self.data.qfrc_applied[:] = 0.0
+        self._refresh_kinematics()
 
         self._step_count += 1
         self.last_action = clipped.astype(np.float32)
 
-        ee = self.tcp_position()
+        ee = self._tcp
         obj = self.cube_position()
         obj_quat = self.cube_quat()
         obj_vel = self.cube_velocity()
@@ -1097,7 +1201,7 @@ class PickPlaceEnv(_ENV_BASE):
             obj_quat,
             self.forces,
             obj_vel,
-            self.measured_gap(),
+            self._gap,
             ee_z=float(ee[2]),
             table_force=self.table_force,
             robot_table_force=self.robot_table_force,
@@ -1117,7 +1221,7 @@ class PickPlaceEnv(_ENV_BASE):
         truncated = bool(timeout)
 
         s = self.reward_scales
-        left, right = self.pad_centers()
+        left, right = self._left_pad, self._right_pad
         pad_mid_z = 0.5 * float(left[2] + right[2])
         in_vertical_grasp_band = abs(pad_mid_z - float(obj[2])) <= CUBE_SIZE * 0.4 + 1e-4
         first_contact = bool(
@@ -1146,6 +1250,8 @@ class PickPlaceEnv(_ENV_BASE):
         # Zero terminal potential on failure so failing early can never harvest shaping;
         # keep terminal potential on timeout/success so finite-horizon PBRS telescopes cleanly.
         new_potential = 0.0 if failed else self._potential()
+        # Its inputs stay unchanged until the next step(), which reuses it as old_potential; reset() clears it.
+        self._cached_potential = None if failed else new_potential
         reward = self.reward_gamma * new_potential - old_potential - float(s.get("step_penalty", 0.005))
         if first_contact:
             reward += float(s.get("first_contact", 2.0))
@@ -1169,7 +1275,7 @@ class PickPlaceEnv(_ENV_BASE):
             and (status["any_contact"] or at_release_table)
         )
         if near_held:
-            ee_vel = self.tcp_velocity()
+            ee_vel = (self._tcp - self._prev_tcp_pos) / self.ctrl_dt
             descent_limit = 0.005 if at_release_table else (self.max_near_table_descent_m_s + 0.010)
             fast_descent = max(0.0, -float(ee_vel[2]) - descent_limit)
             lateral_excess = max(0.0, float(np.linalg.norm(ee_vel[:2])) - 0.02) if at_release_table else 0.0
@@ -1250,16 +1356,16 @@ class PickPlaceEnv(_ENV_BASE):
         """70 policy inputs aligned with ufactory_genesis: measured state, contacts, and safety margins."""
         q = self.data.qpos[self._qpos_adr] / math.pi  # 6
         qd = self.data.qvel[self._qvel_adr] / 2.0  # 6
-        ee = self.tcp_position()
-        ee_vel = self.tcp_velocity() / 0.2  # 3
+        ee = self._tcp
+        ee_vel = ((self._tcp - self._prev_tcp_pos) / self.ctrl_dt) / 0.2  # 3
         obj = self.cube_position()
         quat = self.cube_quat()
         q_norm = float(np.linalg.norm(quat))
         quat_unit = quat / q_norm if q_norm > 0.0 else np.array([1.0, 0.0, 0.0, 0.0])  # 4
         obj_vel = self.cube_velocity() / 0.2  # 3
         obj_ang = self.cube_angular_velocity() / 2.0  # 3
-        left, right = self.pad_centers()
-        meas_gap = self.measured_gap()
+        left, right = self._left_pad, self._right_pad
+        meas_gap = self._gap
         m = self.metrics
 
         if m.ever_lifted_clear:

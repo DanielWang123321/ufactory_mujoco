@@ -11,7 +11,7 @@ import unittest
 import mujoco
 import numpy as np
 
-from ufactory_mujoco.g2_controller import G2Controller
+from ufactory_mujoco.g2_controller import G2Controller, ScalarG2Controller
 from ufactory_mujoco.g2_model import (
     G2_ARMATURE,
     G2_DAMPING,
@@ -423,6 +423,120 @@ def test_invalid_command_is_atomic(model, command):
             np.testing.assert_array_equal(value, before[key])
         else:
             assert value == before[key], key
+
+
+# ---------------------------------------------------------------------------
+# 2b. ScalarG2Controller: bit-exact parity with G2Controller(num_envs=1)
+# ---------------------------------------------------------------------------
+
+G2_STATE = (
+    "reference_gap_mm",
+    "position_mm",
+    "speed_percent",
+    "force_percent",
+    "last_nonzero_speed_percent",
+    "integral_torque_nm",
+    "_pause_pending",
+    "_reverse_pending",
+    "_pause_start_limit_nm",
+    "_pause_start_integral_nm",
+    "_paused_hold_sign",
+)
+
+
+def _bits(value) -> str | bool:
+    """Bit-level token of a scalar or shape-(1,) value; -0.0 and 0.0 differ."""
+    if isinstance(value, np.ndarray):
+        value = value[0]
+    if isinstance(value, (bool, np.bool_)):
+        return bool(value)
+    return float(value).hex()
+
+
+def _assert_scalar_matches(batch, scalar, batch_out=None, scalar_out=None):
+    for name in G2_STATE:
+        assert _bits(getattr(scalar, name)) == _bits(getattr(batch, name)), name
+    assert _bits(scalar.torque_limit_nm) == _bits(batch.torque_limit_nm)
+    if batch_out is not None:
+        for field in OUTPUTS:
+            assert _bits(getattr(scalar_out, field)) == _bits(getattr(batch_out, field)), field
+
+
+@pytest.mark.parametrize("case", REFERENCE["cases"], ids=[case["name"] for case in REFERENCE["cases"]])
+def test_scalar_controller_matches_array_controller_on_reference_cases(model, case):
+    batch = G2Controller(model, initial_position_mm=case["initial_position_mm"])
+    scalar = ScalarG2Controller(model, initial_position_mm=case["initial_position_mm"])
+    if case["reset"] is not None:
+        batch.reset(**case["reset"])
+        scalar.reset(**case["reset"])
+    _assert_scalar_matches(batch, scalar)
+    for event in case["commands"]:
+        batch.command(*event["command"])
+        scalar.command(*event["command"])
+        _assert_scalar_matches(batch, scalar)
+        for step in event["steps"]:
+            row = dict(zip(FIELDS, step, strict=True))
+            args = (row["q"], row["velocity"], REFERENCE["dt"])
+            batch_out = batch.update(*args, measured_gap_mm=row["measured_gap_mm"])
+            scalar_out = scalar.update(*args, measured_gap_mm=row["measured_gap_mm"])
+            _assert_scalar_matches(batch, scalar, batch_out, scalar_out)
+
+
+def test_scalar_controller_matches_array_controller_on_random_sequences(model):
+    """Covers pause, reversal, preload, force limits, measured_gap_mm=None, and signed zeros."""
+    rng = np.random.default_rng(20261109)
+    lo, hi = model.linkage.drive_lower_rad, model.linkage.drive_upper_rad
+    for _ in range(500):
+        initial = float(rng.choice([0.0, -0.0, 84.0, rng.uniform(0, 84)]))
+        batch = G2Controller(model, initial_position_mm=initial)
+        scalar = ScalarG2Controller(model, initial_position_mm=initial)
+        for _ in range(int(rng.integers(5, 40))):
+            r = rng.random()
+            if r < 0.3:
+                speed = float(rng.choice([0.0, 100.0, rng.uniform(0, 100), rng.uniform(0, 5)]))
+                args = (float(rng.choice([0.0, -0.0, rng.uniform(0, 84)])), speed, float(rng.uniform(1, 100)))
+                batch.command(*args)
+                scalar.command(*args)
+                _assert_scalar_matches(batch, scalar)
+            elif r < 0.35:
+                kwargs = {"position_mm": float(rng.uniform(0, 84)), "prime": bool(rng.random() < 0.5)}
+                if rng.random() < 0.5:
+                    kwargs["target_mm"] = float(rng.uniform(0, 84))
+                batch.reset(**kwargs)
+                scalar.reset(**kwargs)
+                _assert_scalar_matches(batch, scalar)
+            else:
+                q = float(rng.uniform(lo - 0.05, hi + 0.05))
+                velocity = float(rng.choice([0.0, rng.uniform(-0.02, 0.02), rng.uniform(-3, 3)]))
+                measured = None if rng.random() < 0.3 else float(rng.choice([-0.0, rng.uniform(-5, 90)]))
+                batch_out = batch.update(q, velocity, 0.02, measured_gap_mm=measured)
+                scalar_out = scalar.update(q, velocity, 0.02, measured_gap_mm=measured)
+                _assert_scalar_matches(batch, scalar, batch_out, scalar_out)
+
+
+@pytest.mark.parametrize(
+    "method,args,kwargs",
+    [
+        ("command", (85.0, 50.0, 50.0), {}),
+        ("command", (50.0, -1.0, 50.0), {}),
+        ("command", (50.0, 50.0, 0.5), {}),
+        ("command", (math.nan, 50.0, 50.0), {}),
+        ("command", ([1.0, 2.0], 50.0, 50.0), {}),
+        ("reset", (), {"position_mm": -1.0}),
+        ("reset", (), {"position_mm": 10.0, "target_mm": 90.0}),
+        ("update", (math.inf, 0.0), {}),
+        ("update", (0.5, 0.0, 0.0), {}),
+        ("update", (0.5, 0.0), {"measured_gap_mm": math.nan}),
+    ],
+)
+def test_scalar_controller_rejects_invalid_inputs_like_array_controller(model, method, args, kwargs):
+    batch, scalar = G2Controller(model), ScalarG2Controller(model)
+    with pytest.raises(ValueError) as batch_error:
+        getattr(batch, method)(*args, **kwargs)
+    with pytest.raises(ValueError) as scalar_error:
+        getattr(scalar, method)(*args, **kwargs)
+    assert str(scalar_error.value) == str(batch_error.value)
+    _assert_scalar_matches(batch, scalar)
 
 
 # ---------------------------------------------------------------------------

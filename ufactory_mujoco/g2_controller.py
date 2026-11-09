@@ -3,12 +3,15 @@
 Pure NumPy implementation matching ``ufactory_genesis``'s ``G2Controller`` reference
 trajectory within ``1e-10`` in ``float64``. Supports both single-environment
 (``num_envs=1``) and vectorized batch (``(num_envs,)``) execution without requiring PyTorch.
+``ScalarG2Controller`` is a faster single-environment version with identical ``float64`` results.
 """
 
 from __future__ import annotations
 
+import bisect
 from dataclasses import dataclass
-from typing import Any
+import math
+from typing import Any, NamedTuple
 
 import numpy as np
 
@@ -284,3 +287,233 @@ class G2Controller:
             limit.copy(),
         )
 
+
+
+class ScalarControlOutput(NamedTuple):
+    """``ControlOutput`` of one environment, as Python floats."""
+
+    position_rad: float
+    velocity_rad_s: float
+    reference_gap_mm: float
+    integral_torque_nm: float
+    torque_limit_nm: float
+
+
+def _clip(value: float, lower: float, upper: float) -> float:
+    """``np.clip`` on one ``float64``: NaN in any argument propagates and ties keep ``value``."""
+    if value != value:
+        return value
+    if lower != lower:
+        return lower
+    if upper != upper:
+        return upper
+    if value < lower:
+        value = lower
+    if value > upper:
+        value = upper
+    return value
+
+
+def _sign(value: float) -> float:
+    """``np.sign`` on one ``float64`` (``-0.0`` -> ``0.0``, NaN -> NaN)."""
+    if value > 0.0:
+        return 1.0
+    if value < 0.0:
+        return -1.0
+    return 0.0 if value == 0.0 else value
+
+
+class ScalarG2Controller:
+    """Single-environment ``float64`` G2 servo with Python-float state.
+
+    Same formulas, operation order, and input validation as ``G2Controller(num_envs=1)``, so
+    outputs and state match bit for bit. ``arccos``/``cos``/``sin`` run through the same NumPy
+    ufuncs on one-element arrays, keeping results identical where NumPy uses SIMD math libraries.
+    """
+
+    def __init__(
+        self,
+        model: G2Model | None = None,
+        *,
+        initial_position_mm: float = 84.0,
+        kp: float = G2_KP,
+        kv: float = G2_KV,
+        ki: float = G2_KI,
+    ) -> None:
+        self.model = G2Model.load() if model is None else model
+        self.kp = checked(kp, 1e-9, 1e6, "kp")
+        self.kv = checked(kv, 0, 1e6, "kv")
+        self.ki = checked(ki, 0, 1e6, "ki")
+        initial = checked(initial_position_mm, 0, 84, "initial_position_mm")
+        self.reference_gap_mm = initial
+        self.position_mm = initial
+        self.speed_percent = 50.0
+        self.force_percent = 50.0
+        self.last_nonzero_speed_percent = 50.0
+        self.integral_torque_nm = 0.0
+        self._pause_pending = False
+        self._reverse_pending = False
+        self._pause_start_limit_nm = 0.0
+        self._pause_start_integral_nm = 0.0
+        self._paused_hold_sign = 0.0
+
+        # Force table built exactly as in G2Controller, then held as Python floats.
+        currents = sorted({c for points in self.model.curve.points.values() for c in points})
+        self._speeds = np.asarray(self.model.curve.speeds, dtype=np.float64).tolist()
+        self._currents = np.asarray(currents, dtype=np.float64).tolist()
+        self._forces = np.asarray(
+            [[self.model.curve._at_speed(rpm, current) for current in currents] for rpm in self.model.curve.speeds],
+            dtype=np.float64,
+        ).tolist()
+        self._force_key: tuple[float, float] | None = None
+        self._force_value = 0.0
+
+        g = self.model.linkage
+        self._base_y, self._pad_y = g.base_joint_y_m, g.pad_inner_y_m
+        self._finger_y, self._finger_z = g.finger_joint_y_m, g.finger_joint_z_m
+        self._radius, self._phase = g.radius_m, g.phase_rad
+        self._drive_lower, self._drive_upper = g.drive_lower_rad, g.drive_upper_rad
+        self._reference_jacobian = self.model.reference_jacobian_m_rad
+        self._ufunc_in = np.empty(1, dtype=np.float64)
+        self._ufunc_out = np.empty(1, dtype=np.float64)
+
+    @staticmethod
+    def _value(value: Any, name: str, bounds: tuple[float, float] | None = None) -> float:
+        if type(value) is float:
+            result = value
+        else:
+            arr = np.asarray(value, dtype=np.float64)
+            if arr.shape not in ((), (1,)):
+                raise ValueError(f"{name} must be finite with shape (1,) or scalar")
+            result = arr.item()
+        if not math.isfinite(result):
+            raise ValueError(f"{name} must be finite with shape (1,) or scalar")
+        if bounds is not None and not bounds[0] <= result <= bounds[1]:
+            raise ValueError(f"{name} must be within {bounds}")
+        return result
+
+    def _ufunc(self, func: np.ufunc, value: float) -> float:
+        self._ufunc_in[0] = value
+        func(self._ufunc_in, out=self._ufunc_out)
+        return self._ufunc_out.item(0)
+
+    @staticmethod
+    def speed_mm_s(percent: float) -> float:
+        return max(2.25 * percent, 15.0) if percent > 0 else 0.0
+
+    @staticmethod
+    def sdk_speed_rpm(speed_mm_s: float) -> float:
+        return float(math.trunc((speed_mm_s * 60.0 / 9.88235 + 140.0) / 0.4)) if speed_mm_s > 0 else 0.0
+
+    def force_n(self) -> float:
+        key = (self.last_nonzero_speed_percent, self.force_percent)
+        if key != self._force_key:
+            speed_percent, force_percent = key
+            rpm = min(self.sdk_speed_rpm(self.speed_mm_s(speed_percent)), 3500.0)
+            speeds, currents, forces = self._speeds, self._currents, self._forces
+            hi = min(max(bisect.bisect_left(speeds, rpm), 1), len(speeds) - 1)
+            lo = hi - 1
+            ratio = (rpm - speeds[lo]) / (speeds[hi] - speeds[lo])
+            chi = min(max(bisect.bisect_left(currents, force_percent), 1), len(currents) - 1)
+            clo = chi - 1
+            cr = (force_percent - currents[clo]) / (currents[chi] - currents[clo])
+            a = forces[lo][clo] + cr * (forces[lo][chi] - forces[lo][clo])
+            b = forces[hi][clo] + cr * (forces[hi][chi] - forces[hi][clo])
+            self._force_key, self._force_value = key, a + ratio * (b - a)
+        return self._force_value
+
+    @property
+    def torque_limit_nm(self) -> float:
+        return self.force_n() * self._reference_jacobian
+
+    def drive_for_gap_mm(self, gap_mm: float) -> float:
+        clamped_gap = _clip(gap_mm / 1000.0, 0.0, GRIPPER_G2_OPEN_GAP_M)
+        cosine = (clamped_gap / 2.0 - self._base_y - self._pad_y) / self._radius
+        angle = self._ufunc(np.arccos, _clip(cosine, -1.0, 1.0)) - self._phase
+        return _clip(angle, self._drive_lower, self._drive_upper)
+
+    def gap_mm(self, q: float) -> float:
+        cos_q = self._ufunc(np.cos, q)
+        sin_q = self._ufunc(np.sin, q)
+        return 1000.0 * (2.0 * (self._base_y + self._finger_y * cos_q - self._finger_z * sin_q + self._pad_y))
+
+    def command(self, position_mm: Any, speed_percent: Any = 50.0, force_percent: Any = 50.0) -> None:
+        position = self._value(position_mm, "position_mm", (0.0, 84.0))
+        speed = self._value(speed_percent, "speed_percent", (0.0, 100.0))
+        force = self._value(force_percent, "force_percent", (1.0, 100.0))
+        old_limit = self.torque_limit_nm
+        old_direction = self.position_mm - self.reference_gap_mm
+        new_direction = position - self.reference_gap_mm
+        reverse = speed > 0 and (old_direction * new_direction < 0 or new_direction * self.integral_torque_nm > 0)
+        pause = speed == 0 and self.speed_percent > 0
+        self._reverse_pending = self._reverse_pending or reverse
+        if reverse:
+            self.integral_torque_nm = 0.0
+        self._pause_pending = self._pause_pending or pause
+        if pause:
+            self._pause_start_limit_nm = old_limit
+            self._pause_start_integral_nm = self.integral_torque_nm
+        if speed > 0:
+            self.last_nonzero_speed_percent = speed
+            self._paused_hold_sign = 0.0
+        self.position_mm, self.speed_percent, self.force_percent = position, speed, force
+        limit = self.torque_limit_nm
+        self.integral_torque_nm = _clip(self.integral_torque_nm, -limit, limit)
+
+    def reset(self, *, position_mm: Any = 84.0, target_mm: Any = None, prime: bool = False) -> None:
+        """Reset the reference; optionally seed a saturated pre-held grasp."""
+        position = self._value(position_mm, "position_mm", (0.0, 84.0))
+        target = position if target_mm is None else self._value(target_mm, "target_mm", (0.0, 84.0))
+        self.reference_gap_mm, self.position_mm = position, target
+        self.integral_torque_nm = -_sign(target - position) * self.torque_limit_nm if prime else 0.0
+        self._pause_pending = False
+        self._reverse_pending = False
+        self._pause_start_limit_nm = 0.0
+        self._pause_start_integral_nm = 0.0
+        self._paused_hold_sign = 0.0
+
+    def update(
+        self,
+        position_rad: Any,
+        velocity_rad_s: Any,
+        dt: float = 0.02,
+        *,
+        measured_gap_mm: Any = None,
+    ) -> ScalarControlOutput:
+        q = self._value(position_rad, "position_rad")
+        velocity = self._value(velocity_rad_s, "velocity_rad_s")
+        dt_val = checked(dt, 1e-12, 1e6, "dt")
+        measured = self.gap_mm(q) if measured_gap_mm is None else self._value(measured_gap_mm, "measured_gap_mm")
+        measured = _clip(measured, 0.0, 84.0)
+        limit = self.torque_limit_nm
+        old_q_ref = self.drive_for_gap_mm(self.reference_gap_mm)
+        if self._reverse_pending:
+            self.reference_gap_mm = measured
+            self.integral_torque_nm = 0.0
+        self._reverse_pending = False
+        if self._pause_pending:
+            preload = self._pause_start_integral_nm + self.kp * (old_q_ref - q)
+            self.integral_torque_nm = preload
+            hold = abs(velocity) <= 0.02 and abs(preload) >= 0.95 * self._pause_start_limit_nm
+            self._paused_hold_sign = _sign(preload) if hold else 0.0
+            self.reference_gap_mm = measured if abs(velocity) > 0.02 else _clip(self.gap_mm(q), 0.0, 84.0)
+        self._pause_pending = False
+        previous_q_ref = self.drive_for_gap_mm(self.reference_gap_mm)
+        travel = self.speed_mm_s(self.speed_percent) * dt_val
+        self.reference_gap_mm = self.reference_gap_mm + _clip(
+            self.position_mm - self.reference_gap_mm, -travel, travel
+        )
+        q_ref = self.drive_for_gap_mm(self.reference_gap_mm)
+        v_ref = (q_ref - previous_q_ref) / dt_val
+        error = q_ref - q
+        integral = _clip(self.integral_torque_nm, -limit, limit)
+        candidate = _clip(integral + self.ki * error * dt_val, -limit, limit)
+        candidate_total = self.kp * error + self.kv * (v_ref - velocity) + candidate
+        if abs(candidate_total) <= limit or error * candidate_total <= 0:
+            integral = candidate
+        holding = self.speed_percent == 0 and self._paused_hold_sign != 0
+        self.integral_torque_nm = self._paused_hold_sign * limit if holding else integral
+        target = (q if holding else q_ref) + self.integral_torque_nm / self.kp
+        return ScalarControlOutput(
+            target, 0.0 if holding else v_ref, self.reference_gap_mm, self.integral_torque_nm, limit
+        )

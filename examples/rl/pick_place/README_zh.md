@@ -6,12 +6,12 @@
 
 ## 1. 环境与 MDP 规格
 
-- **场景、标定 G2 与模型契约（`env_version: 2`）**：使用 `models/xarm6_with_gripper/scene_pick_place.xml`、`configs/pick_place/xarm6.yaml`，以及标定 Gripper G2 四连杆几何与力曲线（`ufactory_mujoco.g2_model.G2Model`）和限速位置/速度伺服（条件积分抗饱和、按力控百分比限幅力矩；`ufactory_mujoco.g2_controller.G2Controller`，`50 Hz`，`50%` 速度 / `50%` 力控）。版本 2 通过 `runtime_model_sha256` 将场景、递归包含的 MJCF 和引用网格绑定到检查点。
+- **场景、标定 G2 与模型契约（`env_version: 2`）**：使用 `models/xarm6_with_gripper/scene_pick_place.xml`、`configs/pick_place/xarm6.yaml`，以及标定 Gripper G2 四连杆几何与力曲线（`ufactory_mujoco.g2_model.G2Model`）和限速位置/速度伺服（条件积分抗饱和、按力控百分比限幅力矩；`ufactory_mujoco.g2_controller.ScalarG2Controller`，即 `G2Controller` 的单环境实现，结果逐位相同；`50 Hz`，`50%` 速度 / `50%` 力控）。版本 2 通过 `runtime_model_sha256` 将场景、递归包含的 MJCF 和引用网格绑定到检查点。
 - **回合与初始状态**：每回合最多 `400` 步（$8\text{ s}$，超时截断）。机械臂从固定 home 位出发（TCP $(0.30, 0.00, 0.1265)\text{ m}$，垂直向下），夹爪预张 $50\text{ mm}$；物块边长 $30\text{ mm}$、质量 $17\text{ g}$。
 - **随机出生域**：物块在 $x \in [0.30, 0.50]\text{ m}$、$y \in [-0.20, 0.20]\text{ m}$（$z = 15\text{ mm}$）内均匀随机生成，目标放置点为 $[0.30, 0.30]\text{ m}$。确定性评测使用 `make_spawns(episodes, seed=...)`（`evaluate.py`）生成可复现出生序列并记录 `spawn_sha256`。
 - **动作空间**：`Box(-1.0, 1.0, (4,), float32)`（`cartesian_and_g2_gap_increment`）：
   - `action[0:3]`：末端笛卡尔设定点增量 $\Delta p \in [-5, 5]\text{ mm}$（每控制步 $20\text{ ms} = 10 \times 2\text{ ms}$ 物理步），经工作空间盒裁剪与 $25\text{ mm}$ 末端牵引半径限制后，由阻尼最小二乘 IK（`attachment_site`，垂直向下抓取姿态）求解；IK 失败时保持原设定点。
-  - `action[3]`：爪间开口增量 $\Delta g \in [-3, 3]\text{ mm}$，指令开口限幅在 $[12, 84]\text{ mm}$，由 `G2Controller` 闭环跟踪。零动作保持当前末端设定点与夹爪开口。
+  - `action[3]`：爪间开口增量 $\Delta g \in [-3, 3]\text{ mm}$，指令开口限幅在 $[12, 84]\text{ mm}$，由该伺服闭环跟踪。零动作保持当前末端设定点与夹爪开口。
   - 安全护栏：起升前 TCP 设定点不低于 $5.5\text{ mm}$，夹住物块后禁止下压；起升后物块离桌 $\le 20\text{ mm}$ 时下降速度限制在 $20\text{ mm/s}$，末端设定点不低于估计触桌高度下方 $0.4\text{ mm}$。
 - **观测空间**：`Box(-10, 10, (70,), float32)`，按顺序为：
   - 归一化关节角（`6`）、缩放关节角速度（`6`）、门控末端位置（`3`，起升前仅高度，起升后为相对目标点的水平偏差与高度）、缩放末端线速度（`3`）；
@@ -92,6 +92,7 @@ python scripts/train_pick_place_rl.py --total-steps 256 --n-envs 4 --n-workers 2
 - `--seed 18001` 的 `spawn_sha256` 为 `7a2ebbc7...ec608`。1000 回合中失败 19 次：倾覆 16、掉落 2、拖拽 1，无碰撞、下压超限或高位释放。\*平均落点误差含失败回合，不能与 64 回合结果直接比较。
 - 以上结果在 `py313`（Python 3.13.13、MuJoCo 3.10.0、SB3 2.9.0、torch 2.10.0+cu128）下复现。`py314`（MuJoCo 3.15.0）下脚本专家结果略有差异（最大释放高度 1.799 mm、平均误差 0.35 mm、最大净空 97.72 mm、平均 294.8 步）。
 - 正式权重在本机（`i7-14700F` + `RTX 4060 Ti`，`128` 并行环境 / `24` 进程）以种子 `1` 训练，`9,000,064` 步时连续两次通过门禁早停，耗时 `19.5 min`（约 `7,689 FPS`）。
+- 环境 CPU 开销优化后（G2 标量控制器、几何缓存、势函数复用、IK 预计算；环境行为逐位不变），同机同配置的训练稳态吞吐（不含周期评测）由约 `9,700` 提升到约 `14,700` 步/s（约 `1.5` 倍）。
 
 ## 5. 训练稳定性（种子敏感性）
 
