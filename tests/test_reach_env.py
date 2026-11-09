@@ -18,7 +18,6 @@ from ufactory_mujoco.rl import (
     ROBOT_PROFILES,
     ArtifactError,
     ReachEnv,
-    XArm6ReachEnv,
     build_reach_task_configs,
     load_training_config,
     validate_checkpoint_artifacts,
@@ -49,14 +48,14 @@ def _greedy_action(env: ReachEnv) -> np.ndarray:
     return np.clip((q_ik - q) / env._delta, -1.0, 1.0)
 
 
-def _max_penetration(env: XArm6ReachEnv) -> float:
+def _max_penetration(env: ReachEnv) -> float:
     data = env.data
     return max((0.0, *[float(-data.contact[i].dist) for i in range(data.ncon)]))
 
 
 class ReachEnvContractTests(unittest.TestCase):
     def setUp(self):
-        self.env = XArm6ReachEnv()
+        self.env = ReachEnv()
 
     def tearDown(self):
         self.env.close()
@@ -109,7 +108,7 @@ class ReachEnvContractTests(unittest.TestCase):
         self.assertTrue(np.all(np.isfinite(self.env.data.qpos)))
 
     def test_commands_clamp_to_joint_limits(self):
-        env = XArm6ReachEnv(q0_noise=0.0, validate_targets=False)
+        env = ReachEnv(q0_noise=0.0, validate_targets=False)
         try:
             env.reset(seed=0, options={"target": [0.35, 0.0, 0.20]})
             q_before = env.joint_positions()
@@ -138,7 +137,7 @@ class ReachEnvContractTests(unittest.TestCase):
 
 class ReachEnvRewardTests(unittest.TestCase):
     def setUp(self):
-        self.env = XArm6ReachEnv(q0_noise=0.0, max_steps=200)
+        self.env = ReachEnv(q0_noise=0.0, max_steps=200)
         self.target = np.array([0.35, 0.15, 0.25])
 
     def tearDown(self):
@@ -179,7 +178,7 @@ class ReachEnvRewardTests(unittest.TestCase):
         self.assertTrue(info["success"])
 
     def test_timeout_truncates_episode(self):
-        env = XArm6ReachEnv(q0_noise=0.0, max_steps=5, validate_targets=False)
+        env = ReachEnv(q0_noise=0.0, max_steps=5, validate_targets=False)
         try:
             env.reset(seed=0, options={"target": [0.4, 0.2, 0.3]})
             for _ in range(4):
@@ -197,7 +196,7 @@ class ReachEnvRewardTests(unittest.TestCase):
 class ReachEnvGymTests(unittest.TestCase):
     def test_gymnasium_env_checker(self):
         from gymnasium.utils.env_checker import check_env
-        env = XArm6ReachEnv()
+        env = ReachEnv()
         try:
             check_env(env, skip_render_check=True)
         finally:
@@ -205,7 +204,7 @@ class ReachEnvGymTests(unittest.TestCase):
 
     def test_registered_spaces_are_gymnasium_boxes(self):
         from gymnasium import spaces
-        env = XArm6ReachEnv()
+        env = ReachEnv()
         try:
             self.assertIsInstance(env.observation_space, spaces.Box)
             self.assertIsInstance(env.action_space, spaces.Box)
@@ -219,7 +218,7 @@ class ReachEnvTrainingSmokeTests(unittest.TestCase):
         from stable_baselines3 import PPO
         from stable_baselines3.common.env_util import make_vec_env
 
-        vec_env = make_vec_env(XArm6ReachEnv, n_envs=1, seed=0)
+        vec_env = make_vec_env(ReachEnv, n_envs=1, seed=0)
         try:
             model = PPO("MlpPolicy", vec_env, n_steps=64, batch_size=64,
                         n_epochs=2, verbose=0, seed=0, device="cpu")
@@ -232,7 +231,7 @@ class ReachEnvTrainingSmokeTests(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# 0.0.7: multi-robot coverage (docs/internal/plan_0.0.7_rl.md §6)
+# Multi-robot coverage
 
 ALL_ROBOTS = ("lite6", "xarm5", "xarm6", "xarm7", "uf850")
 

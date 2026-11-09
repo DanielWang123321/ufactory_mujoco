@@ -1,15 +1,14 @@
 """Gymnasium environment: TCP position reaching for the UFACTORY arms
-(roadmap 0.0.5: xArm 6; roadmap 0.0.7: lite6 / xarm5 / xarm6 / xarm7 / uf850).
+(lite6 / xarm5 / xarm6 / xarm7 / uf850).
 
 Task: drive the robot TCP (``attachment_site``) to a randomly sampled target
 point using joint-position increment actions on top of the model's position
 servo actuators. The environment follows the standard Gymnasium API and only
 requires mujoco + numpy at runtime; gymnasium itself is optional (a minimal
-fallback base keeps random rollouts possible in environments without it,
-e.g. the py314 project default), while training additionally needs
-stable-baselines3 (see requirements-rl.txt).
+fallback base keeps random rollouts possible without it), while training
+additionally needs stable-baselines3 (see requirements-rl.txt).
 
-MDP summary (docs/internal/plan_0.0.5_rl.md; n = robot joint count):
+MDP summary (n = robot joint count):
     action   Box(-1, 1, (n,))  joint increments, |dq| <= delta per step
     obs      float32 (3+3n,)   TCP-target delta (3), normalized joints (n),
                                scaled joint velocities (n), last action (n)
@@ -30,14 +29,14 @@ import mujoco
 import numpy as np
 
 from ..model_paths import MODELS_ROOT
-from ..robots import ROBOT_PROFILES, RobotProfile
+from ..robots import ROBOT_PROFILES
 
 try:  # gymnasium is optional: core env logic must stay importable without it
     import gymnasium as gym
     from gymnasium import spaces
 
     _ENV_BASE = gym.Env
-except ImportError:  # pragma: no cover - exercised on py314 (no gymnasium)
+except ImportError:  # pragma: no cover - exercised without gymnasium
     gym = None
     spaces = None
     _ENV_BASE = object
@@ -45,11 +44,7 @@ except ImportError:  # pragma: no cover - exercised on py314 (no gymnasium)
 TCP_SITE = "attachment_site"
 TARGET_BODY = "target_mocap"
 
-# xArm 6 production defaults, kept as module constants for compatibility
-TARGET_LOW = np.array(ROBOT_PROFILES["xarm6"].target_low)
-TARGET_HIGH = np.array(ROBOT_PROFILES["xarm6"].target_high)
-
-# Reward shaping constants (docs/internal/plan_0.0.5_rl.md §3)
+# Reward shaping constants
 _K_SHAPE = 2.0 / 0.01     # per meter of distance reduction (= 2.0 per cm)
 _SUCCESS_BONUS = 10.0
 _STEP_COST = 0.02
@@ -359,7 +354,3 @@ class ReachEnv(_ENV_BASE):
                                 q_init=q_ref, pos_tol=2e-3, max_iter=80)
         self._ik_data.qpos[:] = self.data.qpos  # keep scratch state neutral
         return bool(converged)
-
-
-# Compatibility alias (docs/internal/plan_0.0.7_rl.md): removed at 0.1.0.
-XArm6ReachEnv = ReachEnv

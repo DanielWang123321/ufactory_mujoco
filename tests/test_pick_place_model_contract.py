@@ -1,17 +1,14 @@
-"""Model fingerprint and legacy checkpoint migration contracts."""
+"""Model fingerprint and pick-place checkpoint contracts."""
 
 import json
 from pathlib import Path
 import shutil
-import sys
-import types
 import unittest
 import zipfile
 
-from scripts import migrate_pick_place_checkpoint as migration
 from scripts.train_pick_place_rl import write_pick_place_artifacts
 from ufactory_mujoco.rl import (
-    ArtifactError, PICK_PLACE_ACTION_CONTRACT, PICK_PLACE_NUM_OBS, REACH_ACTION_CONTRACT,
+    ArtifactError, PICK_PLACE_ACTION_CONTRACT, REACH_ACTION_CONTRACT,
     build_pick_place_task_configs, build_reach_task_configs, load_training_config,
     validate_checkpoint_artifacts, write_checkpoint_manifest, write_training_config,
 )
@@ -86,6 +83,8 @@ def test_v2_checkpoint_rejects_changed_or_missing_model_and_v1(tmp_path):
     old = _checkpoint(tmp_path / "v1", old_env, reward, train)
     with pytest.raises(ArtifactError, match="env_version|model hash"):
         validate_checkpoint_artifacts(old, model_path=scene)
+    with pytest.raises(ArtifactError, match="environment version changed; retrain the policy"):
+        validate_checkpoint_artifacts(old, model_path=scene, expected_runtime_env=env)
     missing_hash = dict(env)
     missing_hash.pop("runtime_model_sha256")
     checkpoint_without_hash = _checkpoint(tmp_path / "missing_hash", missing_hash, reward, train)
@@ -106,53 +105,3 @@ def test_reach_checkpoint_does_not_require_pick_place_model_hash(tmp_path):
     env, reward, train = build_reach_task_configs("xarm6", recipe_path=ROOT / "examples/rl/reach/recipe.yaml")
     checkpoint = _checkpoint(tmp_path / "reach", env, reward, train, task="reach", contract=REACH_ACTION_CONTRACT)
     validate_checkpoint_artifacts(checkpoint, expected_task="reach", expected_runtime_env=env)
-
-
-@pytest.mark.parametrize("passed", [True, False])
-def test_migration_preserves_original_and_only_pass_creates_checkpoint(tmp_path, monkeypatch, passed):
-    env, reward, train = build_pick_place_task_configs(recipe_path=RECIPE)
-    old_env = dict(env, env_version=1)
-    old_env.pop("runtime_model_sha256")
-    old = _checkpoint(tmp_path / "old", old_env, reward, train)
-    before = {p.name: p.read_bytes() for p in old.parent.iterdir()}
-
-    class DummyModel:
-        observation_space = types.SimpleNamespace(shape=(PICK_PLACE_NUM_OBS,))
-        action_space = types.SimpleNamespace(shape=(4,))
-        @staticmethod
-        def load(*args, **kwargs):
-            return DummyModel()
-        def predict(self, *args, **kwargs):
-            return ([0, 0, 0, 0], None)
-
-    class DummyEnv:
-        scene_path = ROOT / "models/xarm6_with_gripper/scene_pick_place.xml"
-        def close(self):
-            pass
-
-    monkeypatch.setitem(sys.modules, "stable_baselines3", types.SimpleNamespace(PPO=DummyModel))
-    monkeypatch.setattr(migration, "PickPlaceEnv", lambda **kwargs: DummyEnv())
-    summary = {"episodes": 20, "success_rate": 0.95 if passed else 0.0,
-               "press_mm": {"max": 0.3}, "target_error_mm": {"mean": 2.0}}
-    monkeypatch.setattr(migration, "evaluate_policy", lambda *args, **kwargs: (summary, [{}] * 20))
-    out = tmp_path / "migrated"
-    assert migration.migrate(old, out) is passed
-    assert {p.name: p.read_bytes() for p in old.parent.iterdir()} == before
-    assert json.loads((out / "migration_eval.json").read_text())["passed"] is passed
-    if passed:
-        assert (out / "ppo_pick_place.zip").read_bytes() == old.read_bytes()
-        assert (out / "legacy_source/provenance.json").read_bytes() == before["provenance.json"]
-        saved, _ = validate_checkpoint_artifacts(out / "ppo_pick_place.zip", expected_runtime_env=env)
-        assert saved["train"] == train and saved["reward"] == reward
-        assert saved["env"]["runtime_model_sha256"] == env["runtime_model_sha256"]
-    else:
-        assert sorted(p.name for p in out.iterdir()) == ["migration_eval.json"]
-
-
-def test_migration_rejects_incompatible_46_dim_legacy_checkpoint(tmp_path):
-    env, reward, train = build_pick_place_task_configs(recipe_path=RECIPE)
-    old_46_env = dict(env, env_version=1, num_obs=46)
-    old_46_env.pop("runtime_model_sha256")
-    old = _checkpoint(tmp_path / "old46", old_46_env, reward, train)
-    with pytest.raises(ArtifactError, match="space contract|num_obs"):
-        migration.migrate(old, tmp_path / "out46")

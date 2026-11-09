@@ -22,7 +22,6 @@ GRIPPER_G2_OPEN_GAP_M = GRIPPER_G2_OPEN_GAP_MM / 1000.0
 
 GRIPPER_G2_SIM_OPEN_DRIVE = 0.057210812728026743
 GRIPPER_G2_SIM_CLOSE_DRIVE = 0.86509464599328212
-GRIPPER_G2_JOINT_VELOCITY_RAD_S = 2.608067454724
 
 G2_KP, G2_KV, G2_KI = 40.0, 5.0, 40.0
 G2_ARMATURE = 0.01
@@ -447,11 +446,6 @@ def gripper_g2_sim_drive_to_gap_m(drive: float) -> float:
     return clamp_gripper_g2_gap_m(G2_LINKAGE_GEOMETRY.pad_gap_m(clipped))
 
 
-def gripper_g2_gap_m_to_sdk_pos_mm(gap_m: float) -> float:
-    """Map a physical gap in metres to ``set_gripper_g2_position`` millimetres."""
-    return clamp_gripper_g2_gap_m(gap_m) * 1000.0
-
-
 def checked(value: float, low: float, high: float, name: str) -> float:
     value = float(value)
     if not math.isfinite(value) or not low <= value <= high:
@@ -490,9 +484,6 @@ class ForceLookup:
     requested_rpm: float
     calibration_rpm: float
     outside_calibration: bool
-
-
-ForceCurvePoint = ForceLookup
 
 
 class ForceCurve:

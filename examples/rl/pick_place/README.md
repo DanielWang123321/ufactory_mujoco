@@ -77,7 +77,7 @@ python scripts/train_pick_place_rl.py --total-steps 256 --n-envs 4 --n-workers 2
 - `provenance.json`, `metrics.json`, `eval_history.json`: Source file hashes and package versions, final evaluation metrics and training time, periodic evaluation history
 - `checkpoints/`: Snapshots every `1M` steps, `ppo_pick_place_best.zip`, gate-passing snapshots `ppo_pick_place_pass_<N>.zip`, and `ppo_pick_place_final.zip`
 
-**Load Validation**: Before loading, `load_validated_ppo` checks the zip and `config.yaml` hashes and observation/action dimensions, re-resolves the environment config from the current `recipe.yaml` and `configs/pick_place/xarm6.yaml` and compares it field by field, and recomputes `runtime_model_sha256` from the current scene; any mismatch raises `ArtifactError`. Legacy v1 (`46`-dim observation) checkpoints lack `runtime_model_sha256` and do not match the v2 `70`-dim observation; both normal loading and `scripts/migrate_pick_place_checkpoint.py` reject them.
+**Load Validation**: Before loading, `load_validated_ppo` checks the zip and `config.yaml` hashes and observation/action dimensions, re-resolves the environment config from the current `recipe.yaml` and `configs/pick_place/xarm6.yaml` and compares it field by field, and recomputes `runtime_model_sha256` from the current scene; any mismatch raises `ArtifactError`. Legacy v1 (`46`-dim observation) checkpoints lack `runtime_model_sha256` and do not match the v2 `70`-dim observation; loading rejects them; retrain with the current recipe.
 
 ## 4. Benchmark Results
 

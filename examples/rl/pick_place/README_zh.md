@@ -77,7 +77,7 @@ python scripts/train_pick_place_rl.py --total-steps 256 --n-envs 4 --n-workers 2
 - `provenance.json`、`metrics.json`、`eval_history.json`：源码文件哈希与依赖版本、最终评测指标与训练耗时、周期评测历史
 - `checkpoints/`：每 `1M` 步快照、`ppo_pick_place_best.zip`、门禁通过快照 `ppo_pick_place_pass_<N>.zip` 与 `ppo_pick_place_final.zip`
 
-**加载校验**：`load_validated_ppo` 在加载前校验 zip 与 `config.yaml` 哈希及观测/动作维度，用当前 `recipe.yaml` 与 `configs/pick_place/xarm6.yaml` 重新解析环境配置并逐项比对，同时按当前场景重算 `runtime_model_sha256`；任一不符即抛出 `ArtifactError`。旧版 v1（`46` 维观测）检查点缺少 `runtime_model_sha256` 且与 v2 的 `70` 维观测不兼容，常规加载与 `scripts/migrate_pick_place_checkpoint.py` 均会拒绝。
+**加载校验**：`load_validated_ppo` 在加载前校验 zip 与 `config.yaml` 哈希及观测/动作维度，用当前 `recipe.yaml` 与 `configs/pick_place/xarm6.yaml` 重新解析环境配置并逐项比对，同时按当前场景重算 `runtime_model_sha256`；任一不符即抛出 `ArtifactError`。旧版 v1（`46` 维观测）检查点缺少 `runtime_model_sha256` 且与 v2 的 `70` 维观测不兼容，加载时会被拒绝，需用当前配方重新训练。
 
 ## 4. 基准验收结果
 

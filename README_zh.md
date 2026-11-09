@@ -151,7 +151,7 @@ examples/
   rl/pick_place/        强化学习 pick-and-place 示例与评测（详见 examples/rl/pick_place/README_zh.md）
 scripts/                资产转换、单机标定提取、真机动力学回放比对与 RL 训练脚本
 tests/                  单元测试与回归测试套件
-docs/internal/          内部设计与路线图记录（非用户文档）
+docs/                   按机械臂分类的命令速查
 ```
 
 ## 模型规范

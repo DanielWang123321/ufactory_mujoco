@@ -563,34 +563,6 @@ def load_checkpoint_manifest(path: str | Path) -> CheckpointManifest:
     return manifest
 
 
-def write_artifact_inventory(
-    path: str | Path,
-    *,
-    training_config: Mapping[str, Any],
-    checkpoints: list[Path],
-    selected_checkpoint: Path | None = None,
-) -> Path:
-    """Write deterministic checkpoint inventory YAML."""
-    body = {
-        "schema_version": 1,
-        "training_config": _plain(training_config),
-        "checkpoints": [
-            {
-                "file": ckpt.name,
-                "sha256": _file_sha256(ckpt),
-                "manifest": ckpt.with_suffix(".checkpoint_manifest.json").name,
-            }
-            for ckpt in checkpoints
-        ],
-        "selected_checkpoint": None if selected_checkpoint is None else selected_checkpoint.name,
-    }
-    _finite(body)
-    target = Path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(yaml.safe_dump(body, sort_keys=False), encoding="utf-8")
-    return target
-
-
 def write_run_provenance(
     path: str | Path,
     *,
@@ -659,25 +631,6 @@ def validate_checkpoint_artifacts(
     model_path: str | Path | None = None,
 ) -> tuple[dict[str, Any], CheckpointManifest]:
     """Validate config and manifest hashes and task contracts before deserializing a checkpoint."""
-    return _validate_checkpoint_artifacts(
-        checkpoint_path, config_path, manifest_path, expected_task=expected_task,
-        expected_robot=expected_robot, expected_runtime_config_sha256=expected_runtime_config_sha256,
-        expected_runtime_env=expected_runtime_env, model_path=model_path, legacy_migration=False,
-    )
-
-
-def _validate_checkpoint_artifacts(
-    checkpoint_path: str | Path,
-    config_path: str | Path | None = None,
-    manifest_path: str | Path | None = None,
-    *,
-    expected_task: str | None = None,
-    expected_robot: str | None = None,
-    expected_runtime_config_sha256: str | None = None,
-    expected_runtime_env: Mapping[str, Any] | None = None,
-    model_path: str | Path | None = None,
-    legacy_migration: bool = False,
-) -> tuple[dict[str, Any], CheckpointManifest]:
     checkpoint = Path(checkpoint_path)
     if not checkpoint.is_file():
         raise ArtifactError(f"checkpoint does not exist: {checkpoint}")
@@ -714,27 +667,20 @@ def _validate_checkpoint_artifacts(
                 or manifest.dof != 6 or manifest.observation_dim != PICK_PLACE_NUM_OBS
                 or manifest.action_dim != PICK_PLACE_NUM_ACTIONS):
             failures.append("pick-place robot or space contract")
-        required_version = 1 if legacy_migration else PICK_PLACE_ENV_VERSION
-        if int(env.get("env_version", 0)) != required_version:
+        if int(env.get("env_version", 0)) != PICK_PLACE_ENV_VERSION:
             failures.append("pick-place env_version (retrain the policy)")
         if manifest.action_contract != PICK_PLACE_ACTION_CONTRACT:
             failures.append("pick-place action contract (retrain the policy)")
-        if legacy_migration:
-            if "runtime_model_sha256" in env:
-                failures.append("legacy checkpoint already contains a model hash")
+        saved_model_hash = env.get("runtime_model_sha256")
+        if not isinstance(saved_model_hash, str) or len(saved_model_hash) != 64:
+            failures.append("missing or invalid runtime model hash (retrain the policy)")
         else:
-            saved_model_hash = env.get("runtime_model_sha256")
-            if not isinstance(saved_model_hash, str) or len(saved_model_hash) != 64:
-                failures.append("missing or invalid runtime model hash (migration required)")
-            else:
-                scene = model_path or load_task_config(CONFIGS_ROOT / "pick_place" / "xarm6.yaml").scene_path
-                try:
-                    if saved_model_hash != runtime_model_sha256(scene):
-                        failures.append("runtime model hash")
-                except ModelHashError as exc:
-                    raise ArtifactError(str(exc)) from exc
-    elif legacy_migration:
-        failures.append("legacy migration task")
+            scene = model_path or load_task_config(CONFIGS_ROOT / "pick_place" / "xarm6.yaml").scene_path
+            try:
+                if saved_model_hash != runtime_model_sha256(scene):
+                    failures.append("runtime model hash")
+            except ModelHashError as exc:
+                raise ArtifactError(str(exc)) from exc
 
     if expected_runtime_config_sha256 is not None:
         if env.get("runtime_config_sha256") != str(expected_runtime_config_sha256) or (
@@ -743,10 +689,7 @@ def _validate_checkpoint_artifacts(
             failures.append("runtime config hash")
 
     if expected_runtime_env is not None:
-        if not legacy_migration and env.get("env_version") != expected_runtime_env.get("env_version"):
-            if config["task"] == "pick_place" and env.get("env_version") == 1:
-                raise ArtifactError("environment version changed; migrate with "
-                                    "scripts/migrate_pick_place_checkpoint.py or retrain the policy")
+        if env.get("env_version") != expected_runtime_env.get("env_version"):
             raise ArtifactError("environment version changed; retrain the policy")
         saved_keys = runtime_env_contract_keys(env)
         expected_keys = runtime_env_contract_keys(expected_runtime_env)
@@ -755,10 +698,7 @@ def _validate_checkpoint_artifacts(
         else:
             saved_contract = runtime_env_contract(env)
             expected_contract = runtime_env_contract(expected_runtime_env)
-            ignored = {"env_version", "runtime_model_sha256"} if legacy_migration else set()
-            mismatched = [
-                k for k in saved_keys if k not in ignored and saved_contract.get(k) != expected_contract.get(k)
-            ]
+            mismatched = [k for k in saved_keys if saved_contract.get(k) != expected_contract.get(k)]
             if mismatched:
                 failures.append(f"runtime config body ({', '.join(mismatched)})")
 

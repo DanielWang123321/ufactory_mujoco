@@ -1551,6 +1551,3 @@ class PickPlaceExpert:
         else:
             action[3] = 1.0
         return np.clip(action, -1.0, 1.0)
-
-
-XArm6PickPlaceEnv = PickPlaceEnv

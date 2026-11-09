@@ -97,7 +97,7 @@ python examples/simulation/08_dynamics.py --robot all --headless --report build/
 
 home→ready→target→ready 约运行 8.4 秒仿真时间：部署 1.5 秒、往返各 3 秒，每段后收敛 0.3 秒。执行前按物理步长检查全部命令；执行时每个物理步积分后，用独立 checker 检查实际关节状态。最大穿透/关节超限分别须 ≤1e-6 m/rad，各阶段收敛后到位误差 <0.01 rad。非有限状态、MuJoCo 警告、提前结束或未完成前关闭视窗均判失败。`--robot all` 保留每臂结果，单臂失败后继续其余机型。
 
-`--report` 输出严格 JSON，记录版本、环境、路径、采样参数、阈值、指标和失败原因。退出码：全部通过 0，失败或未完成 1，参数非法 2；入口不需要 xArm SDK。xArm6 保留 3 kg 负载及前馈演示，并对六轴重力固定基线检查 ≤1e-6 Nm 回归误差；J2/J3 沿用历史参考值与 5% 容差。历史静态 ≤2.5% 实采结论不代表本批重新完成真机验证。固定姿态和基线见[批次 6 计划](../../docs/internal/plan_batch6_dynamics.md)。
+`--report` 输出严格 JSON，记录版本、环境、路径、采样参数、阈值、指标和失败原因。退出码：全部通过 0，失败或未完成 1，参数非法 2；入口不需要 xArm SDK。xArm6 保留 3 kg 负载及前馈演示，并对六轴重力固定基线检查 ≤1e-6 Nm 回归误差；J2/J3 沿用历史参考值与 5% 容差。历史静态 ≤2.5% 实采结论不代表本批重新完成真机验证。固定姿态、阈值和重力基线定义在 [`ufactory_mujoco/tasks/dynamics.py`](../../ufactory_mujoco/tasks/dynamics.py)（`PRESETS`、`COLLISION_POSES`、`THRESHOLDS`、`PAYLOAD_GRAVITY_BASELINE`）。
 
 #### 动力学模块编程接口 (`ufactory_mujoco/dynamics.py`)
 

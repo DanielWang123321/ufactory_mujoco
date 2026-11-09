@@ -16,7 +16,6 @@ from .g2_model import (
     GRIPPER_G2_SIM_CLOSE_DRIVE,
     GRIPPER_G2_SIM_OPEN_DRIVE,
     G2LinkageGeometry,
-    gripper_g2_gap_m_to_sim_drive,
     gripper_g2_sim_drive_to_gap_m,
 )
 
@@ -112,22 +111,6 @@ def position_to_gap(spec: GripperSpec, position: float) -> float:
         raise NotImplementedError("真空吸盘没有开合间隙")
     pos = float(np.clip(position, 0.0, 1.0))
     return spec.open_gap_m - pos * (spec.open_gap_m - spec.closed_gap_m)
-
-
-def gap_to_drive(
-    spec: GripperSpec,
-    gap_m: float,
-    *,
-    open_ctrl: float | None = None,
-    close_ctrl: float | None = None,
-) -> float:
-    """Map a physical jaw gap (m) to the drive joint/actuator coordinate."""
-    norm_pos = gap_to_position(spec, gap_m)
-    if spec.name == "gripper_g2":
-        return gripper_g2_gap_m_to_sim_drive(gap_m)
-    lo = spec.drive_range_rad[0] if open_ctrl is None else float(open_ctrl)
-    hi = spec.drive_range_rad[1] if close_ctrl is None else float(close_ctrl)
-    return float(lo + norm_pos * (hi - lo))
 
 
 def drive_to_gap(

@@ -151,7 +151,7 @@ examples/
   rl/pick_place/        RL tabletop pick-and-place example & evaluator (see examples/rl/pick_place/README.md)
 scripts/                Asset conversion, calibration extraction, dynamics replay & RL training
 tests/                  Unit and regression test suite
-docs/internal/          Internal design/roadmap notes (not user documentation)
+docs/                   Per-robot command guide (Chinese)
 ```
 
 ## Model Notes

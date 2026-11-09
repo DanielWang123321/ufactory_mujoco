@@ -29,7 +29,6 @@ from ufactory_mujoco.rl import (
     PickPlaceEnv,
     PickPlaceExpert,
     PickPlaceMetrics,
-    XArm6PickPlaceEnv,
     build_pick_place_task_configs,
     load_training_recipe,
     load_validated_ppo,
@@ -48,7 +47,7 @@ _HAS_SB3 = importlib.util.find_spec("stable_baselines3") is not None
 
 class PickPlaceEnvContractTests(unittest.TestCase):
     def setUp(self):
-        self.env = XArm6PickPlaceEnv()
+        self.env = PickPlaceEnv()
 
     def tearDown(self):
         self.env.close()

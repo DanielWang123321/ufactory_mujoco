@@ -70,11 +70,6 @@ def canonical_robot_key(raw_key: str) -> str:
     return mapped
 
 
-def sha256_file(path: str | Path) -> str:
-    """Compute SHA-256 hex digest of a file."""
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
-
-
 def parse_sn_model_code(sn: str) -> int | None:
     """Extract 4-digit model code from SN characters [2:6], or None if non-numeric."""
     text = (sn or "").strip()

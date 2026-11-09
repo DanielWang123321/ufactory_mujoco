@@ -23,7 +23,6 @@ from .dynamics import ArmDynamics, attach_payload
 from .g2_controller import ControlOutput, G2Controller
 from .g2_model import (
     ForceCurve,
-    ForceCurvePoint,
     ForceLookup,
     G2LinkageGeometry,
     G2Model,
@@ -34,7 +33,6 @@ from .grippers import (
     bilateral_finger_contact,
     bodies_in_contact,
     drive_to_gap,
-    gap_to_drive,
     gap_to_position,
     gripper_object_contact_forces_n,
     identify_gripper,
@@ -109,7 +107,6 @@ __all__ = [
     "ControlOutput",
     "EXECUTORS",
     "ForceCurve",
-    "ForceCurvePoint",
     "ForceLookup",
     "G2Controller",
     "G2LinkageGeometry",
@@ -147,7 +144,6 @@ __all__ = [
     "config_sha256",
     "drive_to_gap",
     "fk_pose",
-    "gap_to_drive",
     "gap_to_position",
     "gripper_object_contact_forces_n",
     "identify_gripper",
