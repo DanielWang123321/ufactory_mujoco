@@ -48,10 +48,14 @@ def make_policy(args):
         )
     try:
         from stable_baselines3 import PPO
-    except ImportError:
+    except ModuleNotFoundError as exc:
+        if exc.name != "stable_baselines3":
+            raise
         sys.exit(
-            "stable-baselines3 not installed (requirements-rl.txt); "
-            "use --random for the untrained baseline"
+            "stable-baselines3 is not installed in the active Python environment.\n"
+            "Install PyTorch and the RL dependencies (see examples/rl/reach/README.md), "
+            "or switch to an environment where they are installed.\n"
+            "Use --random for the untrained baseline."
         )
     policy_path = Path(args.policy)
     if not policy_path.is_file():

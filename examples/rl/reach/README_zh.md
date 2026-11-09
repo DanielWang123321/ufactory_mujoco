@@ -23,7 +23,18 @@
 
 > **仓库不附带预训练权重**（`build/` 已被 git 忽略），需先按第 3 节训练，结果（`ppo_reach.zip` 和 `metrics.json`）保存在 `build/rl/<model>/`。训练环境加载“轻量可视”模型（去掉可视网格、显示碰撞网格，物理完全一致），每个进程约 **0.3 GB 内存**（原约 1.5 GB），`--n-envs` 默认按 CPU 核数和可用内存自动设置。实测（8 核 CPU、15 GB 内存、无 GPU；xArm 6，8 个环境，共约 2.9 GB）：快速配方（30 万步）约 **65 秒**，成功率仅约 54%；完整配方（200 万步，`256,256,128`）约 **16 分钟**，200 回合**成功率 100%、平均误差 3.9 mm**。
 
-> **环境说明**：加载 PPO 权重回放需安装 `stable-baselines3`（见 `requirements-rl.txt`）。未训练基线 `--random` 只需核心依赖。
+训练及 PPO 回放需要 PyTorch、Gymnasium 和 Stable-Baselines3。以下命令从仓库根目录运行；已有这些依赖的环境可跳过安装。RL 测试使用 Python 3.13，以下示例在项目内创建虚拟环境并安装 CPU 版 PyTorch：
+
+```bash
+python3.13 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+python -m pip install -r requirements-rl.txt
+python -c "import torch, gymnasium, stable_baselines3; print('RL dependencies OK')"
+```
+
+若默认权重 `build/rl/xarm6/ppo_reach.zip` 不存在，先执行 `python scripts/train_reach_rl.py --model xarm6`（见第 3 节）。未训练的随机策略 `--random` 只需核心依赖，但不能展示训练后的到达效果。
 
 ```bash
 # 交互式 GUI 演示（默认 xArm 6，运行 10 个回合）

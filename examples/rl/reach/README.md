@@ -23,7 +23,18 @@ Reinforcement learning example for 3D TCP position reaching across all five UFAC
 
 > **Weights are not shipped with the repo** (`build/` is git-ignored). Train a policy first (Section 3); it is saved to `build/rl/<model>/ppo_reach.zip` together with `metrics.json`. Training envs load a *lite-visual* model (visual meshes dropped, collision meshes shown; physics identical), so each worker uses about **0.3 GB RAM** instead of ~1.5 GB, and `--n-envs` defaults to an automatic value from CPU cores and free memory. Measured on an 8-core CPU / 15 GB RAM machine without GPU (xArm 6, 8 envs, ~2.9 GB total): the quick recipe (300k steps) takes **~65 s** and reaches only ~54% success; the production recipe (2M steps, `256,256,128`) takes **~16 min** and reaches **100% success, 3.9 mm mean error** over 200 episodes.
 
-> **Environment Note**: Rolling out trained PPO policies requires `stable-baselines3` (see `requirements-rl.txt`). The untrained `--random` baseline only requires the core dependencies.
+Training and PPO rollout require PyTorch, Gymnasium, and Stable-Baselines3. Run the commands below from the repository root; skip installation if your active environment already has these dependencies. RL CI uses Python 3.13. This example creates a virtual environment inside the project and installs CPU PyTorch:
+
+```bash
+python3.13 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+python -m pip install -r requirements-rl.txt
+python -c "import torch, gymnasium, stable_baselines3; print('RL dependencies OK')"
+```
+
+If the default checkpoint `build/rl/xarm6/ppo_reach.zip` is absent, first run `python scripts/train_reach_rl.py --model xarm6` (see Section 3). The untrained `--random` baseline needs only the core dependencies but does not demonstrate trained reaching.
 
 ```bash
 # Interactive GUI rollout (10 episodes, xArm 6 by default)
