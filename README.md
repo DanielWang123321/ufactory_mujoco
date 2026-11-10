@@ -1,165 +1,172 @@
 # ufactory_mujoco
 
-[English](README.md) | [中文](README_zh.md)
+[English](README.md) | [中文](README_zh.md) · [Changelog](CHANGELOG.md) · [![CI](https://github.com/DanielWang123321/ufactory_mujoco/actions/workflows/ci.yml/badge.svg)](https://github.com/DanielWang123321/ufactory_mujoco/actions/workflows/ci.yml)
 
-MuJoCo simulation and reinforcement learning suite for UFACTORY robots — featuring high-fidelity visual assets, kinematics/dynamics toolkits, motion planning, and Gymnasium RL environments.
-
-## Features
-
-- **High-Fidelity Visuals**: Smooth-normal, multi-material OBJ visual meshes (PBR white shell, silver metal joints, black accents) paired with dedicated collision STLs.
-- **Full Asset Ecosystem**: All UFACTORY robot arms (`lite6`, `xarm5`, `xarm6`, `xarm7`, `uf850`) and grippers (`gripper_g2`, `bio_gripper_g2`, `lite6_gripper`, `lite6_vacuum_gripper`) converted from [ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis), including calibrated Gripper G2 4-bar linkage kinematics, empirical speed-current force lookup, and rate-limited PI+PD position-torque hybrid servo control (`ufactory_mujoco/g2_model.py`, `ufactory_mujoco/g2_controller.py`).
-- **Kinematics & Motion Planning**: Per-site FK, analytical Jacobian, damped least-squares (DLS) IK (`ufactory_mujoco/kinematics.py`, `ufactory_mujoco/ik.py`), PTP quintic/C2 spline trajectories (`ufactory_mujoco/trajectory.py`), and RRT-Connect obstacle avoidance (`ufactory_mujoco/collision.py`, `ufactory_mujoco/path_planning.py`).
-- **Rigid-Body Dynamics**: Mass matrix $M(q)$, gravity/Coriolis terms, inverse/forward dynamics, and TCP payload injection (`ufactory_mujoco/dynamics.py`), with xArm 6 hardware cross-validation. Example `08_dynamics.py` validates all five bare arms, including collision preflight, monitored motion and JSON reports.
-- **Reinforcement Learning**: Gymnasium TCP-reaching (`ufactory_mujoco/rl/reach_env.py`, $\ge 96\%$ success at $< 5\text{ mm}$ across all five arms) and tabletop cube pick-and-place (`ufactory_mujoco/rl/pick_place_env.py` for `xarm6 + gripper_g2`; both the pure-PPO v2 policy trained from scratch and `PickPlaceExpert` achieve $100\%$ across 64 randomized-spawn episodes with touchdown press $\le 1\text{ mm}$). Checkpoint contracts bind the pick-place scene and meshes as well as the training configuration (`ufactory_mujoco/rl/artifacts.py`).
-- **Real-Robot Interface & Safety Gate**: `XArmRobot` (`ufactory_mujoco/xarm_robot.py`) implements `RobotInterface` with read-only observation by default, per-unit kinematic calibration (`ufactory_mujoco/calibration.py`), controller FK/IK cross-validation (`ufactory_mujoco/kinematics_validation.py`), `sdk-sim` controller internal simulation, and a `--confirm-real` single-cycle safety gate (`ufactory_mujoco/safety.py`).
-- **Robust Viewer**: Passive viewer with real-time clock sync, graceful exit handling, and Linux Wayland/X11 compatibility (`ufactory_mujoco/viewer.py`).
+MuJoCo simulation and reinforcement-learning suite for UFACTORY robots (Lite 6, xArm 5/6/7, UF850 and their grippers): detailed models, kinematics and dynamics tools, motion planning, scripted manipulation tasks, Gymnasium RL environments, and a gated interface to a real xArm.
 
 ## Quick Start
 
-### 1. Installation
-
-Core simulation supports Python **3.12, 3.13 and 3.14**. RL CI uses **Python 3.13 + CPU PyTorch**.
-
-Install a built wheel without cloning the repository:
-
 ```bash
-python -m pip install /path/to/ufactory_mujoco-0.1.0.dev0-py3-none-any.whl
-ufactory-mujoco pick-place --robot xarm6 --headless
-ufactory-mujoco box-pack --robot lite6 --cycles 1 --headless
-ufactory-mujoco dynamics --robot all --samples 32 --seed 0 --headless --report reports/dynamics.json
-```
-
-The wheel includes all models, scenes, default/robot YAML and licenses (about 89 MiB compressed, 533 MiB of resources). It runs from any directory, with no resource downloads or writes to the installation. Core installation needs no RL, asset conversion tools or xArm SDK.
-
-For development:
-
-```bash
-# The meshes are large; use a shallow clone
-git clone --depth 1 https://github.com/DanielWang123321/ufactory_mujoco.git
-cd ufactory_mujoco
-
-python3.13 -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -e .                   # installs the ufactory_mujoco package + core deps
-
-# Optional: RL training & PPO rollout (install CPU torch first, see requirements-rl.txt)
-pip install torch --index-url https://download.pytorch.org/whl/cpu
-pip install -e ".[rl]"
-```
-
-> Exact versions verified in CI: `pip install -r requirements-lock.txt`.
-
-Build both distributions with setuptools:
-
-```bash
-python -m pip install build twine
-python -m build                 # sdist first, then wheel rebuilt from that sdist
-python -m twine check dist/*
-# Optional asset regeneration only:
-python -m pip install -e ".[assets]"
-```
-
-`ufactory-mujoco pick-place` and `box-pack` accept `--robot`, `--gripper`, `--executor`, `--config`, `--cycles`, `--headless`, `--dry-run`, `--mode {sim,dry-run,sdk-sim,real}`, `--ip`, `--calibration`, `--confirm-real` and `--report`; `box-pack` also accepts `--speed`. `ufactory-mujoco dynamics` accepts `--mode {sim,real-read-only,sdk-sim,real}`, `--ip`, `--calibration` and `--confirm-real`. Use `COMMAND --help` for details. Lite6 box packing keeps its existing `servo_cartesian` executor requirement for reliable transport. The three original simulation scripts remain compatible wrappers around `ufactory_mujoco.tasks`.
-
-Exit codes: **0** success, **1** runtime/preflight/safety-gate/report failure, **2** invalid arguments or configuration. Reports resolve relative to the current directory and create parent directories. `--dry-run` never steps physics; `--mode sdk-sim` and `--mode real` enforce `cycles == 1`, require a matching `--calibration` YAML, and require `--confirm-real` before physical motion. Set `UFACTORY_MUJOCO_MODELS` to override the model tree; otherwise wheels use bundled resources and source/editable installs use repository resources. Configuration hashes depend on content, not installation paths.
-
-CI covers editable core installs and source-free wheel acceptance on Python 3.12/3.13/3.14, plus Python 3.13 CPU Reach and Pick-and-Place RL tests and training/evaluation smoke runs. Logs and JSON reports are retained on failure.
-
-### macOS and Windows
-
-- **macOS**: the interactive viewer (`launch_passive`) must run on the main thread, so start GUI examples with `mjpython` (shipped with the `mujoco` package): `mjpython examples/simulation/01_load_and_view.py`. `--headless` runs work with plain `python`.
-- **Windows**: activate the venv with `.venv\Scripts\activate`; the viewer works with plain `python`. `MUJOCO_GL` and Xvfb are Linux-only concerns. Paths in examples are resolved relative to the repo, so run them from any directory.
-
-### Headless / remote machines
-
-- `--headless` (examples `01`–`10`, `01_reach.py`, `01_pick_place.py`) runs physics only and needs no display or GL; do **not** set `MUJOCO_GL` for it.
-- If you set `MUJOCO_GL=egl`, the system must provide `libEGL` (e.g. `apt install libegl1`), otherwise `import mujoco` fails. `MUJOCO_GL=osmesa` needs `libosmesa6`.
-- To open the interactive viewer on a server without a display, use Xvfb: `xvfb-run -a python examples/simulation/01_load_and_view.py`.
-
-### 2. Documentation & Examples
-
-| Category | Documentation | Description |
-| :--- | :--- | :--- |
-| **Simulation (`01`–`10`)** | [examples/simulation/README.md](examples/simulation/README.md) ([中文](examples/simulation/README_zh.md)) | Model viewer, joint/Cartesian control, grippers, pick-and-place, box-packing, trajectory/RRT planning, kinematics & dynamics |
-| **RL Reach (`01_reach`)** | [examples/rl/reach/README.md](examples/rl/reach/README.md) ([中文](examples/rl/reach/README_zh.md)) | Multi-robot TCP position reaching environment, PPO policy evaluation & training |
-| **RL Pick and Place (`01_pick_place`)** | [examples/rl/pick_place/README.md](examples/rl/pick_place/README.md) ([中文](examples/rl/pick_place/README_zh.md)) | Tabletop cube pick-and-place (`xArm 6 + Gripper G2`), scripted expert & PPO checkpoint evaluation |
-| **Command Matrix** | [docs/visual_command_guide.md](docs/visual_command_guide.md) | Model-by-model launch commands for all arms, grippers, and combinations |
-
-```bash
-# Interactive model viewer
+git clone --depth 1 https://github.com/DanielWang123321/ufactory_mujoco.git && cd ufactory_mujoco
+python -m pip install -e .
 python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose ready
-
-# Joint control / Cube pick-and-place / RRT-Connect obstacle avoidance / Box packing
-python examples/simulation/02_joint_control.py --model xarm6
-python examples/simulation/05_pick_place.py
-python examples/simulation/09_obstacle_avoidance.py
-python examples/simulation/10_box_pack.py
-
-# RL TCP reaching & tabletop pick-and-place (use --random / --expert if stable-baselines3 is not installed)
-python examples/rl/reach/01_reach.py --model xarm6
-python examples/rl/pick_place/01_pick_place.py --expert --headless
 ```
 
-> Pass `--headless` to any motion or RL example (`01`–`10`, `01_reach.py`, `01_pick_place.py`) for offscreen execution and metric verification.
+Without a display, run a task headless: `ufactory-mujoco pick-place --robot xarm6 --headless`.
 
-### 3. Running Tests
+## Features
+
+- **Models**: all five arms and four grippers converted from [ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis), with separate visual meshes and collision meshes. Gripper G2 uses a calibrated 4-bar linkage, a measured force table, and a rate-limited servo (`g2_model.py`, `g2_controller.py`).
+- **Kinematics and planning**: FK, Jacobians, damped least-squares IK, quintic/LSPB/spline trajectories, Cartesian lines, collision checking, and RRT-Connect (`kinematics.py`, `ik.py`, `trajectory.py`, `collision.py`, `path_planning.py`).
+- **Dynamics**: mass matrix, gravity/Coriolis, inverse/forward dynamics, payloads, and a five-arm validation command (`dynamics.py`, `tasks/dynamics.py`).
+- **Scripted tasks**: cube pick-and-place and box packing for five arm/gripper pairs, with preflight (joint limits, penetration, RRT-Connect detours) and JSON reports (`tasks/`, `preflight.py`).
+- **Reinforcement learning**: TCP reaching for all five arms and cube pick-and-place for xArm 6 + Gripper G2, with checkpoints bound to their config and scene by SHA-256 (`rl/`). Results: [reach](examples/rl/reach/README.md#4-benchmark-results), [pick-and-place](examples/rl/pick_place/README.md#4-benchmark-results).
+- **Real robot**: `XArmRobot` is read-only by default; motion needs a per-unit calibration, controller checks, and `--confirm-real`. `sdk-sim` replays trajectories in the controller's built-in simulator (`xarm_robot.py`, `calibration.py`, `safety.py`).
+
+## Supported Robots and Tasks
+
+| Arm | Built gripper models | `pick-place` / `box-pack` | `dynamics` | RL reach | RL pick-and-place |
+| :--- | :--- | :--- | :---: | :---: | :---: |
+| `lite6` | `lite6_gripper`, `lite6_vacuum_gripper` | with `lite6_gripper` | yes | yes | — |
+| `xarm5` | `gripper_g2` | with `gripper_g2` | yes | yes | — |
+| `xarm6` | `gripper_g2`, `bio_gripper_g2` | with `gripper_g2` | yes | yes | with `gripper_g2` |
+| `xarm7` | `gripper_g2` | with `gripper_g2` | yes | yes | — |
+| `uf850` | `gripper_g2` | with `gripper_g2` | yes | yes | — |
+
+Every arm and gripper can also be loaded on its own (`01_load_and_view.py --model <name>`). The command for each model is listed in [docs/visual_command_guide.md](docs/visual_command_guide.md) (Chinese).
+
+## Installation
+
+Python **3.12–3.14** and MuJoCo **≥ 3.15, < 4** (tested with 3.15.0 and 3.16.0). The meshes are large, so clone with `--depth 1`.
 
 ```bash
-# Unit tests and full MJCF asset validation
-python -m unittest discover -s tests -v
+python3.13 -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+python -m pip install -e .       # package + core dependencies (mujoco, numpy, scipy, pyyaml)
 ```
 
-*(Tests requiring `trimesh` or `gymnasium`/`stable-baselines3` skip automatically when those optional packages are absent.)*
+| Extra | Install | Needed for |
+| :--- | :--- | :--- |
+| `rl` | `pip install torch --index-url https://download.pytorch.org/whl/cpu` (or a CUDA build), then `pip install -e ".[rl]"` | PPO training and rolling out trained policies |
+| `test` | `pip install -e ".[test]"` | the test suite |
+| `assets` | `pip install -e ".[assets]"` | asset regeneration only (see [models/gripper_g2/source/README.md](models/gripper_g2/source/README.md)) |
+
+`requirements-lock.txt` pins the versions CI tests with.
+
+**Wheel**: [GitHub Releases](https://github.com/DanielWang123321/ufactory_mujoco/releases) from v0.1.0 on include a wheel with all models, scenes, task configs and licenses (about 89 MiB download, 532 MiB of resources once installed). Install it with `pip install ufactory_mujoco-0.1.0-py3-none-any.whl`; the `ufactory-mujoco` commands then run from any directory. Build one yourself with `python -m build`.
+
+## Command-Line Tasks
+
+```bash
+ufactory-mujoco pick-place --robot xarm6 --headless
+ufactory-mujoco box-pack --robot lite6 --cycles 3 --headless
+ufactory-mujoco dynamics --robot all --headless --report reports/dynamics.json
+```
+
+- `python -m ufactory_mujoco <command>` is equivalent. Examples `05`, `08` and `10` run the same code.
+- `COMMAND --help` lists the options. The full table is in [examples/simulation/README.md](examples/simulation/README.md#3-cli-options-summary).
+- `--dry-run` only runs the preflight and never steps physics.
+- Exit codes: `0` success, `1` runtime, preflight, safety-gate or report failure, `2` invalid arguments or configuration.
+- `--report` paths are relative to the current directory; parent directories are created.
+- Hardware modes (`--mode sdk-sim` / `real`, and `real-read-only` for `dynamics`) need `--ip` (or `XARM_IP`) and a matching `--calibration` YAML. `real` also needs `--confirm-real`. `sdk-sim` and `real` run one cycle only.
+
+| Environment variable | Effect |
+| :--- | :--- |
+| `UFACTORY_MUJOCO_MODELS` | Use another model tree instead of the bundled or repository models |
+| `XARM_IP` | Default controller IP for hardware modes |
+| `MUJOCO_GL` | Linux OpenGL backend (`egl`, `osmesa`); not needed for `--headless` |
+| `UFACTORY_GENESIS_ROOT` | `ufactory_genesis` checkout used by the asset conversion script |
+
+## Trained RL Policies
+
+Trained weights are **not** included in the repository or in the releases. Train them locally (the `rl` extra is required):
+
+```bash
+python scripts/train_reach_rl.py --model xarm6 --total-steps 2000000 --net-arch 256,256,128 --ent-coef 0.001 --eval-episodes 200
+python scripts/train_pick_place_rl.py --n-envs 128 --n-workers 24 --device cuda --seed 1
+```
+
+The examples load `build/rl/<arm>/ppo_reach.zip` and `build/rl/pick_place/xarm6_g2_v2/ppo_pick_place.zip` by default. Without weights, use the untrained `--random` baseline (reach) or the scripted `--expert` (pick-and-place); both run without the `rl` extra. Training times, seed sensitivity and results are in the [reach](examples/rl/reach/README.md) and [pick-and-place](examples/rl/pick_place/README.md) READMEs.
+
+## Platform Notes
+
+- **macOS**: start GUI examples with `mjpython` (shipped with `mujoco`), e.g. `mjpython examples/simulation/01_load_and_view.py`. `--headless` works with plain `python`.
+- **Windows**: the viewer works with plain `python`.
+- **Headless Linux**: `--headless` needs no display or OpenGL; do not set `MUJOCO_GL` for it. With `01_load_and_view.py` it only loads the model and prints a summary. `MUJOCO_GL=egl` needs `libegl1`, `MUJOCO_GL=osmesa` needs `libosmesa6`. To open the viewer on a server without a display, use `xvfb-run -a python examples/simulation/01_load_and_view.py`.
+
+## Documentation
+
+| Topic | Document |
+| :--- | :--- |
+| Simulation examples `01`–`10`, CLI options, hardware commands | [examples/simulation/README.md](examples/simulation/README.md) ([中文](examples/simulation/README_zh.md)) |
+| RL TCP reaching | [examples/rl/reach/README.md](examples/rl/reach/README.md) ([中文](examples/rl/reach/README_zh.md)) |
+| RL cube pick-and-place | [examples/rl/pick_place/README.md](examples/rl/pick_place/README.md) ([中文](examples/rl/pick_place/README_zh.md)) |
+| Commands for every model (Chinese) | [docs/visual_command_guide.md](docs/visual_command_guide.md) |
+| Release history | [CHANGELOG.md](CHANGELOG.md) |
+
+## Running Tests
+
+```bash
+python -m pip install -e ".[test]"
+python -m pytest tests
+ruff check .                      # lint as in CI (pip install ruff)
+```
+
+Tests that need optional packages (`gymnasium`/`stable-baselines3`, `trimesh`, `DracoPy`/`pygltflib`) or locally trained weights are skipped when those are missing.
+
+## Known Limitations
+
+- Trained RL weights are not distributed; see [Trained RL Policies](#trained-rl-policies).
+- RL pick-and-place covers xArm 6 + Gripper G2 only. Training with the current recipe depends strongly on the seed and does not reproduce across machines ([details](examples/rl/pick_place/README.md#5-training-stability-seed-sensitivity)).
+- Hardware modes were validated on one xArm 6 (firmware v2.8.0). The static torque comparison (≤ 2.5 % with a 3 kg payload) is a single historical measurement.
+- Bio Gripper G2 is built only for xArm 6. `lite6_vacuum_gripper` has no jaw gap, so `04_gripper_control.py` rejects it.
+- Lite 6 box packing is reliable only with the default `servo_cartesian` executor.
 
 ## Project Structure
 
 ```text
-calibrations/           Per-unit controller kinematic calibration YAML files (SHA-256 verified)
-configs/                Strict YAML task configurations (default, pick_place, box_pack)
-models/                 Robot and accessory MJCF models & visual/collision meshes
-  xarm6/, lite6/, ...   xArm 5/6/7, UF850, Lite6, and grippers (standalone & combined scenes)
-ufactory_mujoco/        Core simulation, control, planning, hardware, and RL library
-  sim_robot.py          SimRobot: physics stepping, joint/TCP control, viewer sync
-  xarm_robot.py         XArmRobot: read-only session by default + gated real-robot execution
-  robot_interface.py    Abstract base class aligning sim and real robot interfaces
-  robots.py             Typed registry for the 5 UFACTORY arms, combo paths & reach workspaces
-  config.py             Strict YAML task config loader, validation & content hashing
-  calibration.py        Per-unit kinematic calibration loader, model patcher & TCP/flange transforms
-  safety.py             Hardware safety gate, single-cycle enforcement & sdk-sim trajectory replay
-  kinematics_validation.py Read-only FK/IK cross-validation against xArm controller firmware
-  g2_model.py           Gripper G2 4-bar linkage geometry, force lookup table & SDK unit helpers
-  g2_controller.py      Gripper G2 rate-limited PI+PD position-torque hybrid servo controller
-  grippers.py           Physical gap <-> actuator mapping, bilateral contact & finger contact forces
-  preflight.py          Static IK/collision preflight for pick-and-place and box-packing
-  ik.py                 Damped least-squares (DLS) Cartesian IK solver
-  kinematics.py         FK, TCP Jacobian, velocity-level DLS IK, manipulability metrics
-  trajectory.py         JointTrajectory, PTP quintic/LSPB, C2 spline, Cartesian SLERP line
-  dynamics.py           Mass matrix, gravity/Coriolis, inverse/forward dynamics, payload injection
-  collision.py          CollisionChecker: clearance and contact queries
-  path_planning.py      RRT-Connect + path shortcutting for collision-free joint trajectories
-  rl/reach_env.py       Gymnasium TCP-reaching environment (all 5 arms)
-  rl/pick_place_env.py  Gymnasium tabletop cube pick-and-place environment & scripted expert
-  rl/artifacts.py       Declarative RL recipes, config hashing & checkpoint-manifest contracts
-  rl/model_hash.py      Recursive MJCF scene & mesh SHA-256 content fingerprinting
-  tasks/                Installed pick-place, box-pack and dynamics commands
-  resource_paths.py     Repository/editable and bundled resource roots
-  model_paths.py        Model name -> MJCF XML path resolution
-  viewer.py             GLFW/X11 passive viewer lifecycle wrapper
-examples/
-  simulation/           Simulation examples 01–10 (see examples/simulation/README.md)
-  rl/reach/             RL TCP reaching example & evaluator (see examples/rl/reach/README.md)
-  rl/pick_place/        RL tabletop pick-and-place example & evaluator (see examples/rl/pick_place/README.md)
-scripts/                Asset conversion, calibration extraction, dynamics replay & RL training
-tests/                  Unit and regression test suite
-docs/                   Per-robot command guide (Chinese)
+calibrations/              Per-unit kinematic calibration YAML (SHA-256 checked)
+configs/                   Task configs: default.yaml, pick_place/<arm>.yaml, box_pack/<arm>.yaml
+models/                    MJCF models and meshes: arms, grippers, arm+gripper combinations;
+                           scene variants scene, scene_reach, scene_pick_place, scene_box_pack, scene_obstacles
+ufactory_mujoco/
+  sim_robot.py             SimRobot: physics stepping, joint/TCP/gripper control, viewer
+  xarm_robot.py            XArmRobot: real xArm, read-only unless motion is approved
+  robot_interface.py       Common interface of SimRobot and XArmRobot
+  robots.py                Registry of the five arms, gripper combinations, reach workspaces
+  config.py                Strict YAML task configs and their content hash
+  calibration.py           Per-unit calibration, model patching, TCP/flange transforms
+  safety.py                Hardware safety gate and sdk-sim replay
+  kinematics_validation.py Read-only FK/IK comparison with the controller
+  g2_model.py              Gripper G2 linkage geometry, force table, SDK unit conversions
+  g2_controller.py         Gripper G2 servo (vectorized and scalar forms)
+  grippers.py              Gripper specs, gap mapping, finger contact checks and forces
+  preflight.py             Pick-place/box-pack preflight with RRT-Connect detours
+  task_geometry.py         Grasp heights and orientation shared by tasks, preflight and RL
+  ik.py, kinematics.py     DLS IK; FK, Jacobians, manipulability
+  trajectory.py            JointTrajectory, quintic/LSPB, spline, Cartesian line
+  dynamics.py              Mass matrix, gravity/Coriolis, inverse/forward dynamics, payload
+  collision.py             Collision and clearance queries
+  path_planning.py         RRT-Connect and shortcutting
+  rl/                      Reach and pick-place environments, evaluation, checkpoint contracts, model hash
+  tasks/                   pick-place, box-pack and dynamics commands
+  cli.py, __main__.py      `ufactory-mujoco` / `python -m ufactory_mujoco` entry point
+  viewer.py                Passive viewer with Linux GLFW/X11 handling
+  resource_paths.py, model_paths.py  Resource roots and model name lookup
+examples/simulation/       Examples 01–10
+examples/rl/               reach/ and pick_place/: rollout, evaluation, recipe.yaml
+scripts/                   RL training, asset conversion and MJCF generation, calibration and
+                           hardware comparison, packaging checks
+tests/                     Test suite (pytest)
+docs/                      Commands for every model (Chinese)
 ```
 
 ## Model Notes
 
-- Kinematics and inertial tensors are preserved from official UFACTORY definitions ([xarm_ros](https://github.com/xArm-Developer/xarm_ros) / [ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis)).
+- Kinematics and inertia come from the official UFACTORY definitions ([xarm_ros](https://github.com/xArm-Developer/xarm_ros), [ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis)).
 - Actuator parameters follow [MuJoCo Menagerie](https://github.com/google-deepmind/mujoco_menagerie) conventions.
-- Visual meshes (`group=2`, `contype=0 conaffinity=0`) and collision meshes (`group=3`) are strictly decoupled.
+- Visual meshes (`group=2`, `contype=0 conaffinity=0`) and collision meshes (`group=3`) are kept separate.
 
 ## License
 
-Code: MIT (see `LICENSE`). Robot models are derived from UFACTORY assets (xarm_ros, BSD-3-Clause; ufactory_genesis, MIT) — see `NOTICE`.
+Code: MIT (see `LICENSE`). Robot models are derived from UFACTORY assets (xarm_ros, BSD-3-Clause; ufactory_genesis, MIT); see `NOTICE`.

@@ -1,12 +1,12 @@
 # 仿真示例 (`examples/simulation`)
 
-安装后可直接运行 `ufactory-mujoco pick-place`、`ufactory-mujoco box-pack`、`ufactory-mujoco dynamics`，资源随 wheel 提供，可脱离源码目录运行。下文对应脚本保留为兼容包装，详见[安装说明](../../README_zh.md#1-环境安装)。
+示例 `05`、`08`、`10` 运行的是已安装命令 `ufactory-mujoco pick-place`、`box-pack`、`dynamics`，这些命令通过 wheel 安装后也可脱离源码目录运行。详见[安装说明](../../README_zh.md#安装)。
 
 [English](README.md) | [中文](README_zh.md)
 
 基于 MuJoCo 的机器人运动控制与仿真示例集（`01`–`10`），涵盖模型交互预览、关节/笛卡尔空间控制、夹爪开闭、方块抓放、时间参数化轨迹规划、RRT-Connect 避障规划、装箱展示以及运动学/刚体动力学工具链演示。
 
-> 📖 按产品型号（Lite 6、xArm 5/6/7、UF850）与组件状态（独立/组合、静态/可动）分类的完整指令速查矩阵，请查阅 **[docs/visual_command_guide.md](../../docs/visual_command_guide.md)**。
+> 各模型（Lite 6、xArm 5/6/7、UF850、夹爪及组合）的启动命令见 [docs/visual_command_guide.md](../../docs/visual_command_guide.md)。
 
 ## 1. 示例概览
 
@@ -25,7 +25,7 @@
 
 ## 2. 运行指南
 
-所有仿真示例均在默认的 `py314` 环境（仅需 `mujoco` + `numpy`）下运行。`02`–`10` 均支持添加 `--headless` 参数以关闭视窗并在终端输出量化验收指标。
+所有脚本只需核心安装。`--headless` 让 `02`–`10` 不开视窗运行并输出验收指标；`01 --headless` 只加载模型并打印摘要。
 
 ### 2.1 模型预览与基础运动控制 (`01`–`04`)
 
@@ -90,14 +90,14 @@ python examples/simulation/07_kinematics.py --headless
 python examples/simulation/08_dynamics.py
 python examples/simulation/08_dynamics.py --headless
 python examples/simulation/08_dynamics.py --robot lite6 --headless --samples 32 --seed 0
-python examples/simulation/08_dynamics.py --robot all --headless --report build/dynamics/batch6.json
+python examples/simulation/08_dynamics.py --robot all --headless --report build/dynamics/report.json
 ```
 
 `08` 检查 home/ready/target 与限位内 32 个随机姿态（默认 seed 0，每次验收独立初始化）。五臂共同检查使用无附加负载的普通裸臂场景，覆盖质量矩阵有限/对称正定、重力有限、静止科氏项为零、正逆动力学往返及执行器力矩范围内的前馈包络。同时验证固定安全/碰撞夹具；随机姿态的碰撞仅分类记录。
 
 home→ready→target→ready 约运行 8.4 秒仿真时间：部署 1.5 秒、往返各 3 秒，每段后收敛 0.3 秒。执行前按物理步长检查全部命令；执行时每个物理步积分后，用独立 checker 检查实际关节状态。最大穿透/关节超限分别须 ≤1e-6 m/rad，各阶段收敛后到位误差 <0.01 rad。非有限状态、MuJoCo 警告、提前结束或未完成前关闭视窗均判失败。`--robot all` 保留每臂结果，单臂失败后继续其余机型。
 
-`--report` 输出严格 JSON，记录版本、环境、路径、采样参数、阈值、指标和失败原因。退出码：全部通过 0，失败或未完成 1，参数非法 2；入口不需要 xArm SDK。xArm6 保留 3 kg 负载及前馈演示，并对六轴重力固定基线检查 ≤1e-6 Nm 回归误差；J2/J3 沿用历史参考值与 5% 容差。历史静态 ≤2.5% 实采结论不代表本批重新完成真机验证。固定姿态、阈值和重力基线定义在 [`ufactory_mujoco/tasks/dynamics.py`](../../ufactory_mujoco/tasks/dynamics.py)（`PRESETS`、`COLLISION_POSES`、`THRESHOLDS`、`PAYLOAD_GRAVITY_BASELINE`）。
+`--report` 输出严格 JSON，记录版本、环境、路径、采样参数、阈值、指标和失败原因。退出码：全部通过 0，失败或未完成 1，参数非法 2；入口不需要 xArm SDK。xArm6 保留 3 kg 负载及前馈演示，并对六轴重力固定基线检查 ≤1e-6 Nm 回归误差；J2/J3 沿用历史参考值与 5% 容差。历史静态 ≤2.5% 为既有实测结论，本命令不做真机验证。固定姿态、阈值和重力基线定义在 [`ufactory_mujoco/tasks/dynamics.py`](../../ufactory_mujoco/tasks/dynamics.py)（`PRESETS`、`COLLISION_POSES`、`THRESHOLDS`、`PAYLOAD_GRAVITY_BASELINE`）。
 
 #### 动力学模块编程接口 (`ufactory_mujoco/dynamics.py`)
 
@@ -114,15 +114,17 @@ qdd = dyn.forward_dynamics(q, qd, tau)
 tau_ff = dyn.feedforward_traj(q_traj, dt)  # 沿关节轨迹的前馈力矩序列
 ```
 
-与真机 xArm 6（`xarm-python-sdk`）标定、只读比对与安全门验证命令：
+#### xArm 6 真机（`xarm-python-sdk`）
+
+将 IP 换成自己的控制器地址。`gen_kinematics_params.py` 生成 `calibrations/xarm6_kinematics_<SN>.yaml`；真机模式会拒绝序列号与机械臂不符的标定文件。以下命令都不会让物理机械臂运动（`sdk-sim` 在控制器内置仿真中运行）。
 
 ```bash
-python scripts/gen_kinematics_params.py 192.168.1.60                          # 提取单机运动学标定 YAML
-python -m ufactory_mujoco.kinematics_validation --robot xarm6 --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_L56A01.yaml
-python scripts/compare_torque_xarm6.py --no-move --calibration calibrations/xarm6_kinematics_L56A01.yaml
-python scripts/compare_dynamics_xarm6.py --replay build/dynamics/run_xxx.csv  # 从 .meta.json 恢复负载回放（零运动）
-python examples/simulation/05_pick_place.py --robot xarm6 --mode sdk-sim --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_L56A01.yaml
-python examples/simulation/08_dynamics.py --robot xarm6 --mode real-read-only --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_L56A01.yaml
+python scripts/gen_kinematics_params.py 192.168.1.60                          # 提取单机运动学标定
+python -m ufactory_mujoco.kinematics_validation --robot xarm6 --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
+python scripts/compare_torque_xarm6.py --ip 192.168.1.60 --no-move --calibration calibrations/xarm6_kinematics_<SN>.yaml
+python scripts/compare_dynamics_xarm6.py --replay build/dynamics/run_xxx.csv  # 离线回放已录制的扫描数据
+python examples/simulation/05_pick_place.py --robot xarm6 --mode sdk-sim --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
+python examples/simulation/08_dynamics.py --robot xarm6 --mode real-read-only --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
 ```
 
 ## 3. 命令行参数汇总
@@ -136,22 +138,22 @@ python examples/simulation/08_dynamics.py --robot xarm6 --mode real-read-only --
 | `--config <path>` | `05`, `10` | `configs/<task>/<robot>.yaml` | 自定义任务 overlay YAML 路径 |
 | `--dry-run` | `05`, `10` | `False` | 仅执行关节限位与碰撞预检并输出阶段状态，不步进物理仿真 |
 | `--mode <mode>` | `05`, `08`, `10` | `sim` | 运行模式：`sim`、`dry-run`（`05`/`10`）、`real-read-only`（`08`）、`sdk-sim` 或 `real` |
-| `--ip <addr>` | `05`, `08`, `10` | `192.168.1.60` | xArm 控制器 IP 地址（用于 `sdk-sim`、`real`、`real-read-only`） |
+| `--ip <addr>` | `05`, `08`, `10` | `XARM_IP` | `sdk-sim`、`real`、`real-read-only` 使用的控制器 IP；未设置 `XARM_IP` 时必填 |
 | `--calibration <path>` | `05`, `08`, `10` | `None` | 真机/内部仿真模式必需的单机运动学标定 YAML 路径 |
 | `--confirm-real` | `05`, `08`, `10` | `False` | `--mode real` 真机运动必需的显式安全确认标志 |
 | `--report <path>` | `05`, `08`, `10` | `None` | 将预检、动力学验收或周期执行报告导出为 JSON 文件 |
 | `--samples <N>` | `08` | `32` | 每臂随机动力学姿态数，须为正整数 |
 | `--pose <home\|ready>` | `01` | `home` | 初始加载关键帧姿态 |
-| `--headless` | `01`–`10` | `False` | 无头模式（关闭视窗，终端输出精度与验收指标） |
+| `--headless` | `01`–`10` | `False` | 不开视窗运行并输出验收指标（`01` 只加载模型并打印摘要） |
 | `--speed <deg/s>` | `02`, `06` | `90.0` | 关节峰值目标速度（度/秒） |
 | `--motion <mode>` | `02` | `auto` | 动作模式：`auto`、`dynamics`（20 姿态）或 `demo` |
 | `--duration <s>` | `02` | `None` | 固定单段运动时长（秒，优先级高于 `--speed`） |
 | `--sync-hz <Hz>` | `02` | `30.0` | 查看器状态同步频率（Hz） |
 | `--render-quality` | `02` | `fast` | 渲染质量：`fast`（关闭阴影/反射）或 `full` |
 | `--cycles <N>` | `04`, `05`, `10` | `3` (`04`) / `1` (`05`, `10`) | 动作执行循环次数（`10`：每周期一块供料方块，至多 3 块） |
-| `--speed-percent <pct>` | `04` | `50.0` | Gripper G2 速度百分比（`0..100`） |
-| `--force-percent <pct>` | `04` | `50.0` | Gripper G2 力控百分比（`1..100`） |
-| `--speed <x>` | `10` | `1.0` | 运动速度倍率（`>1` 加快；自由落体不缩放） |
+| `--speed-percent <pct>` | `04` | `100.0` | Gripper G2 速度百分比（`0..100`） |
+| `--force-percent <pct>` | `04` | `100.0` | Gripper G2 力控百分比（`1..100`） |
+| `--speed <x>` | `10` | YAML 中的 `speed_scale`（`1.0`） | 运动速度倍率（`>1` 加快；自由落体不缩放） |
 | `--seed <N>` | `08`, `09` | `0` | 动力学采样（`08`，非负）或 RRT-Connect/路径剪枝（`09`）随机种子 |
 | `--safety-margin <m>` | `09` | `0.002` | 规划安全间隙阈值（米） |
 | `--step <rad>` | `09` | `0.15` | RRT-Connect 关节空间扩展步长（rad） |

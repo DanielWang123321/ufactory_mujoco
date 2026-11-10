@@ -8,7 +8,7 @@
 
 - **场景资产**：`models/<robot>/scene_reach.xml`（机械臂本体 + 视觉目标球 `target_mocap`，末端跟踪点为 `attachment_site`）。
 - **动作空间**：`Box(-1.0, 1.0, (n,), float32)` —— 关节位置增量控制，每控制步（$20\text{ ms} = 10 \times 2\text{ ms}$ 物理步）最大增量为 $\Delta q \in [-0.05, 0.05]\text{ rad}$，自动钳制于关节限位内。
-- **观测空间**：`Box((3 + 3n,), float32)`，$n$ 为关节数（`xarm5` 为 `18` 维，`lite6`/`xarm6`/`uf850` 为 `21` 维，`xarm7` 为 `24` 维）：
+- **观测空间**：`Box((3 + 3n,), float32)`，$n$ 为关节数，即 `xarm5` 为 `18` 维，`lite6`/`xarm6`/`uf850` 为 `21` 维，`xarm7` 为 `24` 维：
   - `obs[0:3]`：TCP 相对目标位置偏差 $p_{\text{tcp}} - p_{\text{target}}$（m）
   - `obs[3:3+n]`：按限位中点归一化的关节角度 $q_{\text{norm}} \in [-1.5, 1.5]$
   - `obs[3+n:3+2n]`：缩放关节角速度 $\dot{q} / 3.0 \in [-5.0, 5.0]$
@@ -21,16 +21,11 @@
 
 ## 2. 快速运行（评估与回放）
 
-> **仓库不附带预训练权重**（`build/` 已被 git 忽略），需先按第 3 节训练，结果（`ppo_reach.zip` 和 `metrics.json`）保存在 `build/rl/<model>/`。训练环境加载“轻量可视”模型（去掉可视网格、显示碰撞网格，物理完全一致），每个进程约 **0.3 GB 内存**（原约 1.5 GB），`--n-envs` 默认按 CPU 核数和可用内存自动设置。实测（8 核 CPU、15 GB 内存、无 GPU；xArm 6，8 个环境，共约 2.9 GB）：快速配方（30 万步）约 **65 秒**，成功率仅约 54%；完整配方（200 万步，`256,256,128`）约 **16 分钟**，200 回合**成功率 100%、平均误差 3.9 mm**。
+> **仓库和 Release 均不附带预训练权重**（`build/` 已被 git 忽略），需先按第 3 节训练，结果（`ppo_reach.zip` 和 `metrics.json`）保存在 `build/rl/<model>/`。训练环境加载“轻量可视”模型（去掉可视网格、显示碰撞网格，物理完全一致），每个进程约 **0.3 GB 内存**（原约 1.5 GB），`--n-envs` 默认按 CPU 核数和可用内存自动设置。实测（8 核 CPU、15 GB 内存、无 GPU；xArm 6，8 个环境，共约 2.9 GB）：快速配方（30 万步）约 **65 秒**，成功率仅约 54%；完整配方（200 万步，`256,256,128`）约 **16 分钟**，200 回合**成功率 100%、平均误差 3.9 mm**。
 
-训练及 PPO 回放需要 PyTorch、Gymnasium 和 Stable-Baselines3。以下命令从仓库根目录运行；已有这些依赖的环境可跳过安装。RL 测试使用 Python 3.13，以下示例在项目内创建虚拟环境并安装 CPU 版 PyTorch：
+训练及 PPO 回放需要 `rl` 可选依赖（PyTorch、Gymnasium、Stable-Baselines3），安装见[安装说明](../../../README_zh.md#安装)。可用以下命令检查：
 
 ```bash
-python3.13 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
-python -m pip install -r requirements-rl.txt
 python -c "import torch, gymnasium, stable_baselines3; print('RL dependencies OK')"
 ```
 
@@ -72,8 +67,27 @@ python examples/rl/reach/01_reach.py --random --headless
 | `--headless` | `False` | 关闭交互视窗，纯终端输出评测指标 |
 | `--random` | `False` | 使用均匀随机动作基线（不加载策略权重） |
 | `--target X Y Z` | `None` | 固定目标点基座坐标（米），不指定则随机采样 |
+| `--recipe` | `examples/rl/reach/recipe.yaml` | 用于校验检查点契约的配方 |
 | `--min-success-rate` | `0.95` | 验收通过的最低成功率阈值 |
 | `--max-mean-dist-mm` | `10.0` | 验收通过的最大平均终止距离上限（mm） |
+| `--report`、`--summary-json` | `None` | 将汇总与逐回合结果写入 JSON |
+
+### 命令行参数说明 (`evaluate.py`)
+
+| 参数 | 默认值 | 说明 |
+| :--- | :--- | :--- |
+| `--model` | `xarm6` | 机械臂型号，或 `all` 评测全部 5 款 |
+| `--checkpoint`、`--policy` | `build/rl/<model>/ppo_reach.zip` | 待评测的检查点（不能与 `--model all` 同用） |
+| `--recipe` | `examples/rl/reach/recipe.yaml` | 用于校验检查点契约的配方 |
+| `--episodes` | `32` | 每款机械臂的回合数 |
+| `--seed` | `17000` | 起始种子（`seed + 回合序号`） |
+| `--device` | `cpu` | PyTorch 设备 |
+| `--min-success-rate` | `0.95` | 要求的最低成功率 |
+| `--max-mean-dist-mm` | `10.0` | 要求的最大平均终止距离（mm）；`--max-mean-dist-m` 以米为单位设置 |
+| `--summary-json`、`--report`、`--out` | `None` | 将汇总、逐回合记录与产物哈希写入 JSON |
+| `--quiet-episodes` | `False` | 只打印汇总 |
+
+任一机械臂未达阈值时，`evaluate.py` 以退出码 `1` 结束。
 
 ## 3. 策略训练
 
@@ -100,8 +114,10 @@ python scripts/train_reach_rl.py --model all --backfill-manifest
 | 机型 | 成功率（组1 / 组2） | 平均终止距离（组1 / 组2） | 平均步数 | 训练步数 |
 | :--- | ---: | ---: | ---: | ---: |
 | `lite6` | 99.8% / 99.4% | 4.3 / 4.4 mm | 82 | 2M |
-| `xarm5` | 99.4% / 99.0% | 4.2 / 4.2 mm | 95 | 2M |
+| `xarm5` | 99.2% / 99.0% | 4.2 / 4.2 mm | 95 | 2M |
 | `xarm6` | 100.0% / 99.8% | 4.1 / 4.1 mm | 72 | 2M |
 | `xarm7` | 99.6% / 99.0% | 4.3 / 4.3 mm | 88 | 2M |
-| `uf850` | 98.1% / 96.3% | 4.4 / 4.9 mm | 110 | 4M |
+| `uf850` | 98.0% / 96.3% | 4.4 / 4.9 mm | 110 | 4M |
+
+测试环境：Python 3.13.13、MuJoCo 3.16.0、Stable-Baselines3 2.9.0、PyTorch 2.10.0（CPU 推理）。0.1.0 之前同一批权重在 MuJoCo 3.10.0 下测得的结果仅 `xarm5` 组 1（99.4%）与 `uf850` 组 1（98.1%）不同。
 

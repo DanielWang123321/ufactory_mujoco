@@ -459,7 +459,8 @@ def main(argv: list[str] | None = None) -> None:
                         help="comma-separated env count per worker, e.g. 64,32,32")
     parser.add_argument("--worker-cpu-sets", default=None,
                         help="semicolon-separated CPU IDs per worker, e.g. 0,16;2,18;4,20")
-    parser.add_argument("--torch-threads", type=int, default=None)
+    parser.add_argument("--torch-threads", type=int, default=None,
+                        help="PyTorch intra-op and inter-op threads (default: PyTorch default)")
     parser.add_argument("--deterministic", action="store_true",
                         help="enable deterministic PyTorch algorithms and disable cuDNN benchmark")
     parser.add_argument("--checkpoint-steps", default=None,

@@ -8,7 +8,7 @@ Reinforcement learning example for 3D TCP position reaching across all five UFAC
 
 - **Scene**: `models/<robot>/scene_reach.xml` (arm + visual target sphere `target_mocap`; TCP tracked at `attachment_site`).
 - **Action Space**: `Box(-1.0, 1.0, (n,), float32)` — joint position increments $\Delta q \in [-0.05, 0.05]\text{ rad}$ per $20\text{ ms}$ control step ($10 \times 2\text{ ms}$ physics steps), clamped to joint limits.
-- **Observation Space**: `Box((3 + 3n,), float32)` where $n$ is the joint count (`18` for `xarm5`, `21` for `lite6`/`xarm6`/`uf850`, `24` for `xarm7`):
+- **Observation Space**: `Box((3 + 3n,), float32)` where $n$ is the joint count, i.e. `18` dimensions for `xarm5`, `21` for `lite6`/`xarm6`/`uf850` and `24` for `xarm7`:
   - `obs[0:3]`: TCP-to-target position error $p_{\text{tcp}} - p_{\text{target}}$ (m)
   - `obs[3:3+n]`: midpoint-normalized joint positions $q_{\text{norm}} \in [-1.5, 1.5]$
   - `obs[3+n:3+2n]`: scaled joint velocities $\dot{q} / 3.0 \in [-5.0, 5.0]$
@@ -21,16 +21,11 @@ Reinforcement learning example for 3D TCP position reaching across all five UFAC
 
 ## 2. Quick Start (Evaluation & Rollout)
 
-> **Weights are not shipped with the repo** (`build/` is git-ignored). Train a policy first (Section 3); it is saved to `build/rl/<model>/ppo_reach.zip` together with `metrics.json`. Training envs load a *lite-visual* model (visual meshes dropped, collision meshes shown; physics identical), so each worker uses about **0.3 GB RAM** instead of ~1.5 GB, and `--n-envs` defaults to an automatic value from CPU cores and free memory. Measured on an 8-core CPU / 15 GB RAM machine without GPU (xArm 6, 8 envs, ~2.9 GB total): the quick recipe (300k steps) takes **~65 s** and reaches only ~54% success; the production recipe (2M steps, `256,256,128`) takes **~16 min** and reaches **100% success, 3.9 mm mean error** over 200 episodes.
+> **Weights are not shipped with the repo or the releases** (`build/` is git-ignored). Train a policy first (Section 3); it is saved to `build/rl/<model>/ppo_reach.zip` together with `metrics.json`. Training envs load a *lite-visual* model (visual meshes dropped, collision meshes shown; physics identical), so each worker uses about **0.3 GB RAM** instead of ~1.5 GB, and `--n-envs` defaults to an automatic value from CPU cores and free memory. Measured on an 8-core CPU / 15 GB RAM machine without GPU (xArm 6, 8 envs, ~2.9 GB total): the quick recipe (300k steps) takes **~65 s** and reaches only ~54% success; the production recipe (2M steps, `256,256,128`) takes **~16 min** and reaches **100% success, 3.9 mm mean error** over 200 episodes.
 
-Training and PPO rollout require PyTorch, Gymnasium, and Stable-Baselines3. Run the commands below from the repository root; skip installation if your active environment already has these dependencies. RL CI uses Python 3.13. This example creates a virtual environment inside the project and installs CPU PyTorch:
+Training and PPO rollout need the `rl` extra (PyTorch, Gymnasium, Stable-Baselines3); see the [installation guide](../../../README.md#installation). Check it with:
 
 ```bash
-python3.13 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
-python -m pip install -r requirements-rl.txt
 python -c "import torch, gymnasium, stable_baselines3; print('RL dependencies OK')"
 ```
 
@@ -72,8 +67,27 @@ python examples/rl/reach/01_reach.py --random --headless
 | `--headless` | `False` | Disable MuJoCo viewer and run at maximum speed |
 | `--random` | `False` | Use uniform random actions instead of a trained policy |
 | `--target X Y Z` | `None` | Fixed target position in base frame (m) |
+| `--recipe` | `examples/rl/reach/recipe.yaml` | Recipe used to check the checkpoint contract |
 | `--min-success-rate` | `0.95` | Acceptance threshold for success rate |
 | `--max-mean-dist-mm` | `10.0` | Acceptance bound for mean final TCP error (mm) |
+| `--report`, `--summary-json` | `None` | Write the summary and per-episode results to JSON |
+
+### CLI Options (`evaluate.py`)
+
+| Option | Default | Description |
+| :--- | :--- | :--- |
+| `--model` | `xarm6` | Robot model, or `all` for the five arms |
+| `--checkpoint`, `--policy` | `build/rl/<model>/ppo_reach.zip` | Checkpoint to evaluate (not allowed with `--model all`) |
+| `--recipe` | `examples/rl/reach/recipe.yaml` | Recipe used to check the checkpoint contract |
+| `--episodes` | `32` | Episodes per robot |
+| `--seed` | `17000` | Base seed (`seed + episode`) |
+| `--device` | `cpu` | PyTorch device |
+| `--min-success-rate` | `0.95` | Required success rate |
+| `--max-mean-dist-mm` | `10.0` | Required mean final distance (mm); `--max-mean-dist-m` sets it in meters |
+| `--summary-json`, `--report`, `--out` | `None` | Write the summary, episode records and artifact hashes to JSON |
+| `--quiet-episodes` | `False` | Print only the aggregate summary |
+
+`evaluate.py` exits with `1` if any robot misses a threshold.
 
 ## 3. Policy Training
 
@@ -100,8 +114,10 @@ Evaluated against the `ufactory_genesis` reach standard (success strictly `< 5 m
 | Model | Success Rate (Group 1 / Group 2) | Mean Final Distance (Group 1 / Group 2) | Mean Steps | Training Steps |
 | :--- | ---: | ---: | ---: | ---: |
 | `lite6` | 99.8% / 99.4% | 4.3 / 4.4 mm | 82 | 2M |
-| `xarm5` | 99.4% / 99.0% | 4.2 / 4.2 mm | 95 | 2M |
+| `xarm5` | 99.2% / 99.0% | 4.2 / 4.2 mm | 95 | 2M |
 | `xarm6` | 100.0% / 99.8% | 4.1 / 4.1 mm | 72 | 2M |
 | `xarm7` | 99.6% / 99.0% | 4.3 / 4.3 mm | 88 | 2M |
-| `uf850` | 98.1% / 96.3% | 4.4 / 4.9 mm | 110 | 4M |
+| `uf850` | 98.0% / 96.3% | 4.4 / 4.9 mm | 110 | 4M |
+
+Measured with Python 3.13.13, MuJoCo 3.16.0, Stable-Baselines3 2.9.0 and PyTorch 2.10.0 (CPU inference). Before 0.1.0 the same checkpoints were measured on MuJoCo 3.10.0; only `xarm5` group 1 (99.4%) and `uf850` group 1 (98.1%) differed.
 

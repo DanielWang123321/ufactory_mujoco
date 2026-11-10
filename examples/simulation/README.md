@@ -1,12 +1,12 @@
 # Simulation Examples (`examples/simulation`)
 
-Installed commands: `ufactory-mujoco pick-place`, `ufactory-mujoco box-pack`, and `ufactory-mujoco dynamics`. These three tasks include all resources in the wheel and run outside a checkout. The corresponding scripts below remain compatible wrappers. See the [installation guide](../../README.md#1-installation).
+Examples `05`, `08` and `10` run the installed commands `ufactory-mujoco pick-place`, `box-pack` and `dynamics`, which also work from a wheel outside a checkout. See the [installation guide](../../README.md#installation).
 
 [English](README.md) | [中文](README_zh.md)
 
 MuJoCo simulation examples (`01`–`10`) covering interactive model inspection, joint/Cartesian motion control, gripper actuation, pick-and-place manipulation, time-parameterized trajectory planning, RRT-Connect obstacle avoidance, box-packing showcase, and kinematics/dynamics toolkits.
 
-> 📖 For a model-by-model command matrix (Lite 6, xArm 5/6/7, UF850; standalone and combined with grippers), see **[docs/visual_command_guide.md](../../docs/visual_command_guide.md)**.
+> Commands for every model (Lite 6, xArm 5/6/7, UF850, grippers and combinations): [docs/visual_command_guide.md](../../docs/visual_command_guide.md) (Chinese).
 
 ## 1. Examples Overview
 
@@ -25,7 +25,7 @@ MuJoCo simulation examples (`01`–`10`) covering interactive model inspection, 
 
 ## 2. Running the Examples
 
-All scripts run in the default `py314` environment (`mujoco` + `numpy`). Pass `--headless` to `02`–`10` to run offscreen and print quantitative verification metrics.
+All scripts need only the core install. `--headless` runs `02`–`10` without a viewer and prints verification metrics; `01 --headless` only loads the model and prints a summary.
 
 ### 2.1 Model Viewing & Basic Control (`01`–`04`)
 
@@ -90,7 +90,7 @@ python examples/simulation/07_kinematics.py --headless
 python examples/simulation/08_dynamics.py
 python examples/simulation/08_dynamics.py --headless
 python examples/simulation/08_dynamics.py --robot lite6 --headless --samples 32 --seed 0
-python examples/simulation/08_dynamics.py --robot all --headless --report build/dynamics/batch6.json
+python examples/simulation/08_dynamics.py --robot all --headless --report build/dynamics/report.json
 ```
 
 `08` checks home/ready/target and 32 random poses within joint limits (default seed 0, reset on each validation). All five arms use their ordinary bare-arm scenes without an added payload. Checks cover finite, symmetric positive-definite mass matrices, finite gravity, zero Coriolis at rest, ID/FD reciprocity, and feedforward torque within actuator force ranges. Fixed safe/colliding fixtures are also checked; random collisions are classified separately.
@@ -114,15 +114,17 @@ qdd = dyn.forward_dynamics(q, qd, tau)
 tau_ff = dyn.feedforward_traj(q_traj, dt)  # feedforward torques along a trajectory
 ```
 
-Cross-validation and hardware safety-gate commands against a real xArm 6 (`xarm-python-sdk`):
+#### Real xArm 6 (`xarm-python-sdk`)
+
+Replace the IP with your controller's. `gen_kinematics_params.py` writes `calibrations/xarm6_kinematics_<SN>.yaml`; hardware modes refuse a calibration whose serial number does not match the robot. None of the commands below move the physical arm (`sdk-sim` runs in the controller's built-in simulator).
 
 ```bash
-python scripts/gen_kinematics_params.py 192.168.1.60                          # extract per-unit calibration YAML
-python -m ufactory_mujoco.kinematics_validation --robot xarm6 --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_L56A01.yaml
-python scripts/compare_torque_xarm6.py --no-move --calibration calibrations/xarm6_kinematics_L56A01.yaml
-python scripts/compare_dynamics_xarm6.py --replay build/dynamics/run_xxx.csv  # replay from .meta.json (no motion)
-python examples/simulation/05_pick_place.py --robot xarm6 --mode sdk-sim --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_L56A01.yaml
-python examples/simulation/08_dynamics.py --robot xarm6 --mode real-read-only --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_L56A01.yaml
+python scripts/gen_kinematics_params.py 192.168.1.60                          # extract the per-unit calibration
+python -m ufactory_mujoco.kinematics_validation --robot xarm6 --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
+python scripts/compare_torque_xarm6.py --ip 192.168.1.60 --no-move --calibration calibrations/xarm6_kinematics_<SN>.yaml
+python scripts/compare_dynamics_xarm6.py --replay build/dynamics/run_xxx.csv  # offline replay of a recorded sweep
+python examples/simulation/05_pick_place.py --robot xarm6 --mode sdk-sim --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
+python examples/simulation/08_dynamics.py --robot xarm6 --mode real-read-only --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
 ```
 
 ## 3. CLI Options Summary
@@ -136,22 +138,22 @@ python examples/simulation/08_dynamics.py --robot xarm6 --mode real-read-only --
 | `--config <path>` | `05`, `10` | `configs/<task>/<robot>.yaml` | Custom task overlay YAML path |
 | `--dry-run` | `05`, `10` | `False` | Run joint-limit/collision preflight only without stepping physics |
 | `--mode <mode>` | `05`, `08`, `10` | `sim` | Execution mode: `sim`, `dry-run` (`05`/`10`), `real-read-only` (`08`), `sdk-sim`, or `real` |
-| `--ip <addr>` | `05`, `08`, `10` | `192.168.1.60` | xArm controller IP address (`sdk-sim`, `real`, `real-read-only`) |
+| `--ip <addr>` | `05`, `08`, `10` | `XARM_IP` | xArm controller IP for `sdk-sim`, `real`, `real-read-only`; required if `XARM_IP` is unset |
 | `--calibration <path>` | `05`, `08`, `10` | `None` | Required per-unit kinematic calibration YAML for hardware modes |
 | `--confirm-real` | `05`, `08`, `10` | `False` | Explicit safety confirmation required before `--mode real` motion |
 | `--report <path>` | `05`, `08`, `10` | `None` | Write preflight, dynamics validation or cycle execution report as JSON |
 | `--samples <N>` | `08` | `32` | Positive number of random dynamics poses per arm |
 | `--pose <home\|ready>` | `01` | `home` | Initial keyframe pose |
-| `--headless` | `01`–`10` | `False` | Run offscreen and print verification metrics |
+| `--headless` | `01`–`10` | `False` | Run without a viewer and print verification metrics (`01`: load and print a summary only) |
 | `--speed <deg/s>` | `02`, `06` | `90.0` | Peak joint speed in degrees/s |
 | `--motion <mode>` | `02` | `auto` | Motion preset: `auto`, `dynamics` (20 poses), or `demo` |
 | `--duration <s>` | `02` | `None` | Fixed segment duration (overrides `--speed`) |
 | `--sync-hz <Hz>` | `02` | `30.0` | Viewer state-sync rate |
 | `--render-quality` | `02` | `fast` | `fast` (no shadows/reflections) or `full` |
 | `--cycles <N>` | `04`, `05`, `10` | `3` (`04`) / `1` (`05`, `10`) | Number of execution cycles (`10`: one feed cube per cycle, at most 3) |
-| `--speed-percent <pct>` | `04` | `50.0` | Gripper G2 speed percentage (`0..100`) |
-| `--force-percent <pct>` | `04` | `50.0` | Gripper G2 force percentage (`1..100`) |
-| `--speed <x>` | `10` | `1.0` | Motion speed multiplier (`>1` is faster; free fall is not scaled) |
+| `--speed-percent <pct>` | `04` | `100.0` | Gripper G2 speed percentage (`0..100`) |
+| `--force-percent <pct>` | `04` | `100.0` | Gripper G2 force percentage (`1..100`) |
+| `--speed <x>` | `10` | YAML `speed_scale` (`1.0`) | Motion speed multiplier (`>1` is faster; free fall is not scaled) |
 | `--seed <N>` | `08`, `09` | `0` | RNG seed for dynamics sampling (`08`, nonnegative) or RRT-Connect/path shortcutting (`09`) |
 | `--safety-margin <m>` | `09` | `0.002` | Minimum allowed obstacle clearance in meters |
 | `--step <rad>` | `09` | `0.15` | RRT-Connect joint-space steer step size (rad) |

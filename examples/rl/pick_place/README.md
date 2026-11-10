@@ -8,7 +8,7 @@ Reinforcement learning example for tabletop cube pick-and-place with `xArm 6 + G
 
 - **Scene, Calibrated G2 & Model Contract (`env_version: 2`)**: Uses `models/xarm6_with_gripper/scene_pick_place.xml`, `configs/pick_place/xarm6.yaml`, the calibrated Gripper G2 4-bar linkage geometry and force curve (`ufactory_mujoco.g2_model.G2Model`), and a rate-limited position/velocity servo with conditional PI anti-windup and force-percent torque limiting (`ufactory_mujoco.g2_controller.ScalarG2Controller`, the bit-identical single-environment form of `G2Controller`; `50 Hz`, `50%` speed / `50%` force). Version 2 binds the scene, recursively included MJCFs, and referenced meshes to the checkpoint via `runtime_model_sha256`.
 - **Episode & Initial State**: At most `400` steps per episode ($8\text{ s}$, truncated on timeout). The arm starts at a fixed home pose (TCP $(0.30, 0.00, 0.1265)\text{ m}$, pointing down) with the gripper pre-opened to $50\text{ mm}$; the cube is $30\text{ mm}$ wide and weighs $17\text{ g}$.
-- **Randomized Spawn Domain**: Cube spawns uniformly in $x \in [0.30, 0.50]\text{ m}$, $y \in [-0.20, 0.20]\text{ m}$ ($z = 15\text{ mm}$) and must be placed at target $[0.30, 0.30]\text{ m}$. Deterministic evaluation uses `make_spawns(episodes, seed=...)` (`evaluate.py`) and records `spawn_sha256`.
+- **Randomized Spawn Domain**: Cube spawns uniformly in $x \in [0.30, 0.50]\text{ m}$, $y \in [-0.20, 0.20]\text{ m}$ ($z = 15\text{ mm}$) and must be placed at target $[0.30, 0.30]\text{ m}$. Deterministic evaluation uses `make_spawns(episodes, seed=...)` (`ufactory_mujoco.rl.evaluation`) and records `spawn_sha256`.
 - **Action Space**: `Box(-1.0, 1.0, (4,), float32)` (`cartesian_and_g2_gap_increment`):
   - `action[0:3]`: Cartesian TCP setpoint increments $\Delta p \in [-5, 5]\text{ mm}$ per $20\text{ ms}$ control step ($10 \times 2\text{ ms}$ physics steps), clipped to the workspace box and a $25\text{ mm}$ TCP leash, then solved by damped least-squares IK (`attachment_site`, downward grasp orientation). The previous setpoint is kept if IK fails.
   - `action[3]`: Gripper G2 jaw gap increment $\Delta g \in [-3, 3]\text{ mm}$; the commanded gap is clamped to $[12, 84]\text{ mm}$ and tracked by this servo. Zero action holds the current TCP setpoint and jaw gap.
@@ -27,7 +27,7 @@ Reinforcement learning example for tabletop cube pick-and-place with `xArm 6 + G
 
 ## 2. Quick Start (Evaluation & Rollout)
 
-> **Environment Note**: PPO checkpoints require `stable-baselines3` (`requirements-rl.txt`). The local `py314` env does not have it; benchmark results were produced in `py313`. The scripted expert and baselines (`--expert`, `--zero-policy`, `--random`) need core dependencies only.
+> **Dependencies**: PPO checkpoints need the `rl` extra (Stable-Baselines3); see the [installation guide](../../../README.md#installation). The scripted expert and the baselines (`--expert`, `--zero-policy`, `--random`) need the core install only. Trained weights are not distributed; train them as in Section 3.
 
 ```bash
 # Evaluate the pure-PPO v2 checkpoint on 64 held-out spawns (validates config.yaml, checkpoint_manifest.json, and model hash first)
@@ -52,6 +52,26 @@ python examples/rl/pick_place/01_pick_place.py --expert --headless --episodes 5
 - `evaluate.py` PASS checks only three items: success rate $\ge$ `--min-success-rate` (default `0.90`), max press $\le$ `--max-press-mm`, and mean target error $\le$ `--max-target-error-mm` (default `20 mm`). Collision, drag, tilt, drop, and high-release counts are reported in the output JSON.
 - `PickPlaceExpert` (`--expert`) is a scripted expert: a closed-loop state machine on privileged simulator state (ground-truth cube and pad poses, internal `PickPlaceMetrics` state). It is not used for training; it only shows the task is solvable under the same constraints and gates.
 
+### CLI Options (`evaluate.py`, `01_pick_place.py`)
+
+| Option | Default | Description |
+| :--- | :--- | :--- |
+| `--checkpoint`, `--policy` | `build/rl/pick_place/xarm6_g2_v2/ppo_pick_place.zip` | PPO checkpoint (`evaluate.py` also accepts `--ckpt`) |
+| `--expert` / `--zero-policy` / `--random` | off | Scripted expert, all-zero or uniform-random baseline instead of a checkpoint |
+| `--episodes` | `10` (`01`: `5`) | Evaluation episodes |
+| `--seed` | `17000` | Spawn seed; episode `i` uses `seed + i` |
+| `--recipe` | `examples/rl/pick_place/recipe.yaml` | Recipe used to check the checkpoint contract |
+| `--runtime-config` | `configs/pick_place/xarm6.yaml` | Task config override (`evaluate.py` only) |
+| `--device` | `cpu` | PyTorch device |
+| `--min-success-rate` | `0.90` (baselines: `0`) | PASS threshold for success rate |
+| `--max-press-mm` | `1.0` | PASS threshold for maximum press depth |
+| `--max-target-error-mm` | `20.0` | PASS threshold for mean target error |
+| `--report`, `--summary-json`, `--out` | `None` | Write the summary and per-episode rows to JSON (and CSV) |
+| `--quiet-episodes` | `False` | Print only the summary (`evaluate.py`) |
+| `--headless` | `False` | Run without the viewer (`01_pick_place.py`) |
+
+Both scripts exit with `1` when the PASS check fails; baselines are not judged.
+
 ## 3. Pure-PPO Training from Scratch & Artifact Contract
 
 Declarative parameters live in `examples/rl/pick_place/recipe.yaml`. `scripts/train_pick_place_rl.py` trains Stable-Baselines3 PPO from random initialization, with no expert demonstrations or behavior-cloning warmstart:
@@ -60,7 +80,12 @@ Declarative parameters live in `examples/rl/pick_place/recipe.yaml`. `scripts/tr
 # Full multi-worker training (writes to build/rl/pick_place/xarm6_g2_v2/ by default, overwriting existing weights)
 python scripts/train_pick_place_rl.py --n-envs 128 --n-workers 24 --device cuda --seed 1
 
-# Quick CPU smoke run (separate output directory, keeps the published weights intact)
+# Setup of the seed-sensitivity runs (Section 5): fixed worker layout, one PyTorch thread, no periodic evaluation
+python scripts/train_pick_place_rl.py --n-envs 128 --n-workers 3 --worker-env-counts 64,32,32 \
+    --torch-threads 1 --device cuda --seed 1 --total-steps 10000000 --disable-periodic-eval \
+    --out-dir build/rl/pick_place/seed_1
+
+# Quick CPU smoke run (separate output directory, keeps the default weights intact)
 python scripts/train_pick_place_rl.py --total-steps 256 --n-envs 4 --n-workers 2 --n-steps 32 --batch-size 64 --eval-episodes 2 --device cpu --out-dir build/rl/pick_place/smoke
 ```
 
@@ -68,7 +93,26 @@ python scripts/train_pick_place_rl.py --total-steps 256 --n-envs 4 --n-workers 2
 - **Reward**: Potential-based shaping $r = \Phi(s') - \Phi(s) - 0.015$ (`reward_gamma: 1.0`). $\Phi$ is a weighted sum of approach, pre-grasp, grasp, lift (largest weight, based on the highest held height so far), transit, place, release, and hold terms; on failure $\Phi(s')$ is set to 0, taking back the accumulated potential. One-time milestone bonuses (first contact, carry, lift, touchdown, place; success `+40`) and safety penalties (press, fast near-table descent, high release, robot-table contact, table overload, action magnitude; failure `-10`) are added.
 - **PPO**: MLP `[256, 256]` (ELU), `n_steps 128`, `batch_size 2048`, `gamma 0.995`, etc. in `recipe.yaml`; the number of parallel envs is set by `--n-envs`.
 - **Evaluation & Early Stop**: Every `1M` steps, a deterministic 64-episode evaluation runs on spawns from `seed = 17000 + training seed`. The gate requires success rate $\ge 95\%$, max press $\le 1.0\text{ mm}$, mean target error $\le 20\text{ mm}$, and zero collision, drag, tilt, and high-release failures. Training stops after 2 consecutive passes, otherwise runs to `total_steps` (`50M`).
-- **Checkpoint Selection**: `checkpoint_score` (`evaluate.py`) compares success rate, low-release rate, target touchdown rate, max press, mean target error, etc. in order; the best checkpoint is copied to `ppo_pick_place.zip`.
+- **Checkpoint Selection**: `checkpoint_score` (`ufactory_mujoco.rl.evaluation`) compares success rate, low-release rate, target touchdown rate, max press, mean target error, etc. in order; the best checkpoint is copied to `ppo_pick_place.zip`.
+
+**Training Options** (unset values come from `recipe.yaml`; `--help` lists all):
+
+| Option | Default | Description |
+| :--- | :--- | :--- |
+| `--total-steps`, `--seed` | `50000000`, `1` | Training budget and seed |
+| `--n-envs`, `--n-workers` | auto from CPU cores and memory; `min(n_envs, CPUs)` | Parallel environments and worker processes |
+| `--worker-env-counts`, `--worker-cpu-sets` | even split, no pinning | Environments per worker (e.g. `64,32,32`) and CPU IDs per worker (e.g. `0,16;2,18`) |
+| `--device`, `--torch-threads` | `cpu`, PyTorch default | PyTorch device and thread count |
+| `--deterministic` | off | Deterministic PyTorch algorithms, cuDNN benchmark off |
+| `--eval-interval`, `--eval-episodes`, `--early-stop-evaluations`, `--min-success-rate` | `1000000`, `64`, `2`, `0.95` | Periodic evaluation and early stop |
+| `--disable-periodic-eval`, `--no-final-eval` | off | Skip periodic or final evaluation (for external evaluation) |
+| `--save-interval`, `--checkpoint-steps` | `1000000`, none | Periodic checkpoints; extra checkpoints at given step counts |
+| `--progress-json` | none | Write the step count and throughput about every 5 s |
+| `--resume` | none | Continue from an SB3 checkpoint |
+| `--recipe`, `--runtime-config` | `recipe.yaml`, `configs/pick_place/xarm6.yaml` | Recipe and task config |
+| `--spawn-xy-lower`, `--spawn-xy-upper` | recipe | Spawn domain override, `x,y` |
+| `--n-steps`, `--batch-size`, `--n-epochs`, `--learning-rate`, `--clip-range`, `--vf-coef`, `--ent-coef`, `--max-grad-norm`, `--net-arch`, `--activation`, `--init-std` | recipe | PPO overrides |
+| `--out-dir` | `build/rl/pick_place/xarm6_g2_v2` | Output directory; the default overwrites the weights the examples load |
 
 **Artifacts** (default `build/rl/pick_place/xarm6_g2_v2/`):
 - `ppo_pick_place.zip`: Selected best policy checkpoint
@@ -81,24 +125,24 @@ python scripts/train_pick_place_rl.py --total-steps 256 --n-envs 4 --n-workers 2
 
 ## 4. Benchmark Results
 
-Published checkpoint `ppo_pick_place.zip` (trained locally with seed `1`) and the scripted expert on held-out spawns (spawn domain $x \in [0.30, 0.50]\text{ m}$, $y \in [-0.20, 0.20]\text{ m} \to [0.30, 0.30]\text{ m}$, `examples/rl/pick_place/evaluate.py`):
+Reference checkpoint `ppo_pick_place.zip` (trained locally with seed `1`; not distributed) and the scripted expert on held-out spawns (spawn domain $x \in [0.30, 0.50]\text{ m}$, $y \in [-0.20, 0.20]\text{ m} \to [0.30, 0.30]\text{ m}$, `examples/rl/pick_place/evaluate.py`):
 
 | Policy | Evaluation Set | Success Rate | Max Press (`<= 1.0 mm`) | Max Release Height (`<= 3.0 mm`) | Mean Target Error (`<= 20.0 mm`) | Max Clearance (`>= 65.0 mm`) | Mean Steps |
 | :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: |
-| **Pure-PPO v2** (`ppo_pick_place.zip`) | 64 episodes, `--seed 18001` | **100.0% (64/64)** | 0.124 mm | 0.105 mm | 4.71 mm | 70.98 mm | 196.0 |
-| **Pure-PPO v2** (`ppo_pick_place.zip`) | 1000 episodes, `--seed 30001–34001`, 200 each | **98.1% (981/1000)** | 0.181 mm | 0.258 mm | 12.12 mm\* | 72.54 mm | 193.4 |
-| `PickPlaceExpert` scripted expert (`--expert`) | 64 episodes, `--seed 18001` | **100.0% (64/64)** | 0.000 mm | 1.797 mm | 0.23 mm | 97.75 mm | 294.7 |
+| **Pure-PPO v2** (`ppo_pick_place.zip`) | 64 episodes, `--seed 18001` | **100.0% (64/64)** | 0.132 mm | 0.112 mm | 5.17 mm | 71.60 mm | 195.4 |
+| **Pure-PPO v2** (`ppo_pick_place.zip`) | 1000 episodes, `--seed 30001–34001`, 200 each | **98.1% (981/1000)** | 0.186 mm | 0.462 mm | 12.93 mm\* | 71.92 mm | 191.9 |
+| `PickPlaceExpert` scripted expert (`--expert`) | 64 episodes, `--seed 18001` | **100.0% (64/64)** | 0.000 mm | 1.799 mm | 0.35 mm | 97.72 mm | 294.8 |
 
-- `spawn_sha256` for `--seed 18001` is `7a2ebbc7...ec608`. The 1000-episode run had 19 failures: 16 tilt, 2 drop, 1 drag; no collision, press, or high-release failures. \*Mean target error includes failed episodes and is not directly comparable with the 64-episode result.
-- Reproduced in `py313` (Python 3.13.13, MuJoCo 3.10.0, SB3 2.9.0, torch 2.10.0+cu128). In `py314` (MuJoCo 3.15.0), the scripted expert differs slightly (max release height 1.799 mm, mean error 0.35 mm, max clearance 97.72 mm, 294.8 mean steps).
-- The published checkpoint was trained locally (`i7-14700F` + `RTX 4060 Ti`, `128` envs / `24` workers) with seed `1` and early-stopped after two consecutive gate passes at `9,000,064` steps in `19.5 min` (`~7,689 FPS`).
+- `spawn_sha256` for `--seed 18001` is `7a2ebbc7...ec608`. The 1000-episode run had 19 failures: 18 tilt, 1 drop; no collision, drag, press, or high-release failures. \*Mean target error includes failed episodes and is not directly comparable with the 64-episode result.
+- Measured with Python 3.13.13, MuJoCo 3.16.0, SB3 2.9.0 and PyTorch 2.10.0 (CPU inference); the scripted expert gives the same numbers on MuJoCo 3.15.0. Before 0.1.0 the checkpoint was measured on MuJoCo 3.10.0 with the same success rates (64/64 and 98.1%).
+- The reference checkpoint was trained locally (`i7-14700F` + `RTX 4060 Ti`, `128` envs / `24` workers) with seed `1` and early-stopped after two consecutive gate passes at `9,000,064` steps in `19.5 min` (`~7,689 FPS`).
 - After the environment CPU-overhead optimizations (scalar G2 controller, cached kinematics, potential reuse, precomputed IK; bit-identical environment behavior), steady-state training throughput on the same machine and setup (excluding periodic evaluation) rose from about `9,700` to `14,700` steps/s (about `1.5x`).
 
 ## 5. Training Stability (Seed Sensitivity)
 
-Training outcomes with the current recipe depend strongly on the random seed; the published checkpoint does not mean every seed reaches the same result.
+Training outcomes with the current recipe depend strongly on the random seed; the reference checkpoint does not mean every seed reaches the same result. The experiments below were run on MuJoCo 3.10.0 before 0.1.0.
 
-On a server (`i9-14900K` + `RTX 5090`, same software versions), 20 seeds (`10001–29001`) were each trained for `50M` steps (periodic evaluation and early stop disabled) and evaluated at 10M / 20M / 50M steps on 1000 held-out episodes (evaluation seeds `50001–54001`):
+On a server (`i9-14900K` + `RTX 5090`, same software versions; setup as in the Section 3 command), 20 seeds (`10001–29001`) were each trained for `50M` steps (periodic evaluation and early stop disabled) and evaluated at 10M / 20M / 50M steps on 1000 held-out episodes (evaluation seeds `50001–54001`):
 
 | Training Steps | Seeds with `>= 95%` Success | Seeds with 0% Success | Mean Success Rate |
 | :--- | ---: | ---: | ---: |
@@ -106,7 +150,7 @@ On a server (`i9-14900K` + `RTX 5090`, same software versions), 20 seeds (`10001
 | 20M | 14/20 | 6/20 | 69.6% |
 | 50M | 14/20 | 3/20 | 79.9% |
 
-- **Bit-reproducible on one machine**: Each seed was trained 3 times; policy parameter hashes and per-episode evaluation records were identical.
+- **Bit-reproducible on one machine**: With a fixed worker layout (`--n-envs 128 --n-workers 3 --worker-env-counts 64,32,32`, pinned CPUs) and `--torch-threads 1`, each seed was trained 3 times with identical policy parameter hashes and per-episode evaluation records. Adding `--deterministic` gave the same results.
 - **Seed outcomes do not transfer across machines**: With the same recipe at 10M steps, seed `1` reached 100% locally but 0% on the server; seeds `3001` / `4001` reached 0% locally but about 97% on the server. The cause is not yet isolated (the machines differ in GPU and worker layout).
 - **Longer training is not always better**: Seeds `12001`, `15001`, and `21001` regressed from 20M to 50M (86.4%, 86.7%, 43.2%).
 - **The training gate is optimistic**: Over 1000 episodes, most models with $\ge 95\%$ success still show a few tilt, drag, or high-release failures; judged by the training gate (Section 3), only 3/20 (10M), 6/20 (20M), and 3/20 (50M) seeds pass.
