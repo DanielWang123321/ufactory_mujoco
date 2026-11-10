@@ -32,6 +32,7 @@ def drive_for_gap_m(
     gap_m: np.ndarray,
     geometry: G2LinkageGeometry = G2_LINKAGE_GEOMETRY,
 ) -> np.ndarray:
+    """Vectorized inverse linkage: pad gap (m, clipped to 0..84 mm) to drive angle (rad, clipped to the joint range)."""
     g = geometry
     clamped_gap = np.clip(gap_m, 0.0, GRIPPER_G2_OPEN_GAP_M)
     cosine = (clamped_gap / 2.0 - g.base_joint_y_m - g.pad_inner_y_m) / g.radius_m
@@ -43,6 +44,7 @@ def pad_gap_m(
     drive_rad: np.ndarray,
     geometry: G2LinkageGeometry = G2_LINKAGE_GEOMETRY,
 ) -> np.ndarray:
+    """Vectorized forward linkage: drive angle (rad) to pad gap (m)."""
     g = geometry
     gap = 2.0 * (
         g.base_joint_y_m
@@ -55,6 +57,10 @@ def pad_gap_m(
 
 @dataclass(frozen=True)
 class ControlOutput:
+    """One controller step per environment.
+
+    Position and velocity targets, reference gap, integral torque and torque limit.
+    """
     position_rad: np.ndarray
     velocity_rad_s: np.ndarray
     reference_gap_mm: np.ndarray
@@ -129,26 +135,31 @@ class G2Controller:
 
     @staticmethod
     def speed_mm_s(percent: np.ndarray) -> np.ndarray:
+        """Map speed percent to jaw speed in mm/s (0 stays 0, otherwise at least 15 mm/s)."""
         return np.where(percent > 0, np.maximum(2.25 * percent, 15.0), 0.0).astype(percent.dtype, copy=False)
 
     @staticmethod
     def sdk_speed_rpm(speed_mm_s: np.ndarray) -> np.ndarray:
+        """Map jaw speed in mm/s to the SDK motor speed in rpm (truncated)."""
         return np.where(speed_mm_s > 0, np.trunc((speed_mm_s * 60.0 / 9.88235 + 140.0) / 0.4), 0.0).astype(
             speed_mm_s.dtype, copy=False
         )
 
     @property
     def requested_speed_mm_s(self) -> np.ndarray:
+        """Jaw speed in mm/s for the current speed command."""
         return self.speed_mm_s(self.speed_percent)
 
     @property
     def requested_speed_rpm(self) -> np.ndarray:
+        """SDK motor speed in rpm for the current speed command."""
         return self.sdk_speed_rpm(self.requested_speed_mm_s)
 
     def _force_rpm(self) -> np.ndarray:
         return self.sdk_speed_rpm(self.speed_mm_s(self.last_nonzero_speed_percent))
 
     def force_n(self) -> np.ndarray:
+        """Static pinch force (N) from the calibration table at the last non-zero speed and the force command."""
         rpm = np.minimum(self._force_rpm(), self.dtype.type(3500.0))
         hi = np.clip(np.searchsorted(self._speeds, rpm, side="left"), 1, len(self._speeds) - 1)
         lo = hi - 1
@@ -166,13 +177,16 @@ class G2Controller:
 
     @property
     def torque_limit_nm(self) -> np.ndarray:
+        """Drive torque limit (N*m): calibrated force times the reference linkage Jacobian."""
         return (self.force_n() * self.model.reference_jacobian_m_rad).astype(self.dtype, copy=False)
 
     def drive_for_gap_mm(self, gap: Any) -> np.ndarray:
+        """Drive angle (rad) for a pad gap given in mm."""
         arr = np.asarray(gap, dtype=self.dtype)
         return drive_for_gap_m(arr / self.dtype.type(1000.0), self.model.linkage)
 
     def gap_mm(self, q: Any) -> np.ndarray:
+        """Pad gap (mm) for a drive angle in rad."""
         arr = np.asarray(q, dtype=self.dtype)
         return (self.dtype.type(1000.0) * pad_gap_m(arr, self.model.linkage)).astype(self.dtype, copy=False)
 
@@ -184,6 +198,10 @@ class G2Controller:
         *,
         envs_idx: Any = None,
     ) -> None:
+        """Set target gap (mm), speed (%) and force (%) for all or selected environments.
+
+        Reversing direction or pausing (speed 0) resets the integral term.
+        """
         idx = slice(None) if envs_idx is None else envs_idx
         size = int(self.position_mm[idx].size)
         position = self._vector(position_mm, "position_mm", size=size, bounds=(0.0, 84.0))
@@ -238,6 +256,7 @@ class G2Controller:
         *,
         measured_gap_mm: Any = None,
     ) -> ControlOutput:
+        """Advance the rate-limited reference by ``dt`` and return PI+PD position targets for the drive joint."""
         q = self._vector(position_rad, "position_rad")
         velocity = self._vector(velocity_rad_s, "velocity_rad_s")
         dt_val = self.dtype.type(checked(dt, 1e-12, 1e6, "dt"))
@@ -399,13 +418,16 @@ class ScalarG2Controller:
 
     @staticmethod
     def speed_mm_s(percent: float) -> float:
+        """Map speed percent to jaw speed in mm/s (0 stays 0, otherwise at least 15 mm/s)."""
         return max(2.25 * percent, 15.0) if percent > 0 else 0.0
 
     @staticmethod
     def sdk_speed_rpm(speed_mm_s: float) -> float:
+        """Map jaw speed in mm/s to the SDK motor speed in rpm (truncated)."""
         return float(math.trunc((speed_mm_s * 60.0 / 9.88235 + 140.0) / 0.4)) if speed_mm_s > 0 else 0.0
 
     def force_n(self) -> float:
+        """Static pinch force (N) from the calibration table; cached per speed/force command."""
         key = (self.last_nonzero_speed_percent, self.force_percent)
         if key != self._force_key:
             speed_percent, force_percent = key
@@ -424,20 +446,24 @@ class ScalarG2Controller:
 
     @property
     def torque_limit_nm(self) -> float:
+        """Drive torque limit (N*m): calibrated force times the reference linkage Jacobian."""
         return self.force_n() * self._reference_jacobian
 
     def drive_for_gap_mm(self, gap_mm: float) -> float:
+        """Drive angle (rad) for a pad gap given in mm."""
         clamped_gap = _clip(gap_mm / 1000.0, 0.0, GRIPPER_G2_OPEN_GAP_M)
         cosine = (clamped_gap / 2.0 - self._base_y - self._pad_y) / self._radius
         angle = self._ufunc(np.arccos, _clip(cosine, -1.0, 1.0)) - self._phase
         return _clip(angle, self._drive_lower, self._drive_upper)
 
     def gap_mm(self, q: float) -> float:
+        """Pad gap (mm) for a drive angle in rad."""
         cos_q = self._ufunc(np.cos, q)
         sin_q = self._ufunc(np.sin, q)
         return 1000.0 * (2.0 * (self._base_y + self._finger_y * cos_q - self._finger_z * sin_q + self._pad_y))
 
     def command(self, position_mm: Any, speed_percent: Any = 50.0, force_percent: Any = 50.0) -> None:
+        """Set target gap (mm), speed (%) and force (%); reversing or pausing resets the integral term."""
         position = self._value(position_mm, "position_mm", (0.0, 84.0))
         speed = self._value(speed_percent, "speed_percent", (0.0, 100.0))
         force = self._value(force_percent, "force_percent", (1.0, 100.0))
@@ -480,6 +506,7 @@ class ScalarG2Controller:
         *,
         measured_gap_mm: Any = None,
     ) -> ScalarControlOutput:
+        """Advance the rate-limited reference by ``dt`` and return the PI+PD position target for the drive joint."""
         q = self._value(position_rad, "position_rad")
         velocity = self._value(velocity_rad_s, "velocity_rad_s")
         dt_val = checked(dt, 1e-12, 1e6, "dt")

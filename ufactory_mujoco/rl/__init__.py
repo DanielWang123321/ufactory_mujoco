@@ -1,4 +1,4 @@
-"""Reinforcement-learning task environments, recipes, and checkpoint contracts (Batch 8).
+"""Reinforcement-learning task environments, recipes, and checkpoint contracts.
 
 Requires only mujoco + numpy at import time; gymnasium is optional (fallback base
 class) and stable-baselines3 is required for training / checkpoint loading only.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Calibrate per-robot reach-workspace profiles for the RL reach task (0.0.7 M0).
+"""Calibrate per-robot reach-workspace profiles for the RL reach task.
 
 For every supported arm this derives the values frozen in
 ufactory_mujoco/robots.py::ROBOT_PROFILES:

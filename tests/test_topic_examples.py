@@ -1,4 +1,4 @@
-"""Headless smoke tests for the simulation topic examples (roadmap 0.0.6 M4)."""
+"""Headless smoke tests for the simulation topic examples."""
 
 import importlib
 import sys

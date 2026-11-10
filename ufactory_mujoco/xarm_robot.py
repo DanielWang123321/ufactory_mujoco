@@ -165,14 +165,17 @@ class XArmRobot(RobotInterface):
 
     @property
     def calibration(self) -> KinematicsCalibration | None:
+        """Kinematic calibration bound to this session, if any."""
         return self._calibration
 
     @property
     def motion_unlocked(self) -> bool:
+        """True only when the session is writable and holds a verified ``MotionApproval``."""
         return (not self.read_only) and (self._approval is not None)
 
     @property
     def tcp_offset(self) -> np.ndarray:
+        """Controller TCP offset as reported by the SDK."""
         return read_tcp_offset(self._arm)
 
     def unlock_motion(self, approval: MotionApproval) -> None:
@@ -387,6 +390,7 @@ class XArmRobot(RobotInterface):
 
     # -- planning helpers ---------------------------------------------------
     def solve_tcp(self, pos, quat=None, q_init=None):
+        """Solve IK for a TCP pose on the local (calibrated) model; returns ``(q, converged)``."""
         seed = self.data.qpos.copy() if q_init is None else np.asarray(q_init, dtype=float)
         return solve_ik(
             self.model,
@@ -404,6 +408,7 @@ class XArmRobot(RobotInterface):
         max_acc: float | np.ndarray = 4.0,
         duration: float | None = None,
     ) -> JointTrajectory:
+        """Plan a quintic joint move from the current measured joints."""
         q0 = self.get_joint_positions()
         return plan_ptp_quintic(
             q0, q_goal, max_vel=max_vel, max_acc=max_acc, duration=duration, dt=self.model.opt.timestep
@@ -417,6 +422,7 @@ class XArmRobot(RobotInterface):
         max_lin_acc: float = 1.0,
         site_name: str | None = None,
     ) -> tuple[JointTrajectory, bool]:
+        """Plan a straight TCP line from the current pose; returns ``(trajectory, ok)``."""
         site = site_name if site_name is not None else self._tcp_site_name()
         p0, quat0 = self.get_tcp_pose()
         return plan_cartesian_line(
@@ -446,7 +452,7 @@ class XArmRobot(RobotInterface):
 
     def _require_jaw(self) -> GripperSpec:
         if self.gripper_kind == "vacuum":
-            raise NotImplementedError("真空吸盘没有开合间隙")
+            raise NotImplementedError("vacuum gripper has no jaw gap")
         if self._gripper_spec is None or self._gripper_spec.kind != "jaw":
             raise NotImplementedError("This robot has no jaw gripper")
         return self._gripper_spec
@@ -543,16 +549,19 @@ class XArmRobot(RobotInterface):
             self.set_gripper(norm_pos, speed_percent=speed_percent, force_percent=force_percent)
 
     def bilateral_finger_contact(self, object_body: str) -> bool:
+        """No pad contact sensing on hardware: returns True only while motion is unlocked."""
         del object_body
         _ = self._require_jaw()
         # Real hardware verified via gripper position/stall feedback once unlocked
         return self.motion_unlocked
 
     def settle(self, duration: float = 1.0) -> None:
+        """Sleep up to 0.5 s while motion is unlocked; read-only sessions return immediately."""
         if self.motion_unlocked and duration > 0:
             time.sleep(min(float(duration), 0.5))
 
     def close(self) -> None:
+        """Disconnect the SDK session if this object opened it."""
         if self._owns_connection and self._arm is not None:
             try:
                 self._arm.disconnect()

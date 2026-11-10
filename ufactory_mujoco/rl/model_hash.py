@@ -97,6 +97,7 @@ def runtime_model_sha256(scene_path: str | Path) -> str:
 
 
 def verify_runtime_model(scene_path: str | Path, expected_sha256: str) -> str:
+    """Return the scene hash, raising ModelHashError unless it equals ``expected_sha256``."""
     actual = runtime_model_sha256(scene_path)
     if actual != expected_sha256:
         raise ModelHashError(f"runtime model hash mismatch for {scene_path}: expected {expected_sha256}, got {actual}")

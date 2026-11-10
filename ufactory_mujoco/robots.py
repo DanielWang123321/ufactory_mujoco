@@ -36,7 +36,7 @@ _PICK_PLACE_DIRS: dict[tuple[str, str], str] = {
 
 @dataclass(frozen=True)
 class ReachWorkspace:
-    """Frozen reach-workspace calibration (0.0.7). YAML cannot override this."""
+    """Frozen reach-workspace calibration. YAML cannot override this."""
 
     target_low: tuple[float, float, float]
     target_high: tuple[float, float, float]
@@ -74,7 +74,7 @@ def _arm(key: str, dof: int, grippers: tuple[str, ...], reach: ReachWorkspace) -
 
 
 # Values produced by scripts/measure_reach_workspace.py (FK cloud + IK
-# reachability >= 90%). The xArm 6 entry keeps the production 0.0.5 box;
+# reachability >= 90%). The xArm 6 entry keeps its original training box;
 # its reach_max was raised 0.55 -> 0.56 so the radial band covers every box
 # corner (the far bottom corner is 0.5586 m from the shoulder).
 ARMS: dict[str, ArmSpec] = {
@@ -128,37 +128,37 @@ def _config_error(message: str) -> Exception:
 def resolve_arm_scene(robot: str, gripper: str | None, scene: str) -> Path:
     """Return an existing MJCF. Incompatible and missing assets raise ConfigError."""
     if robot not in ARMS:
-        raise _config_error(f"未知机械臂 {robot!r}")
+        raise _config_error(f"unknown robot {robot!r}")
     if scene not in SCENES:
-        raise _config_error(f"未知场景 {scene!r}")
+        raise _config_error(f"unknown scene {scene!r}")
     arm = ARMS[robot]
     if gripper is not None and gripper not in arm.grippers:
-        raise _config_error(f"{robot} 与夹爪 {gripper} 不兼容")
+        raise _config_error(f"{robot} does not support gripper {gripper}")
 
     if scene == "reach":
         if gripper is not None:
-            raise _config_error(f"场景 {scene!r} 不能同时指定夹爪")
+            raise _config_error(f"scene {scene!r} cannot be combined with a gripper")
         path = MODELS_ROOT / robot / "scene_reach.xml"
     elif scene == "obstacles":
         if robot != "xarm6" or gripper is not None:
-            raise _config_error(f"场景 {scene!r} 仅适用于 xarm6 裸臂")
+            raise _config_error(f"scene {scene!r} is only available for the bare xarm6")
         path = MODELS_ROOT / "xarm6" / "scene_obstacles.xml"
     elif scene in ("pick_place", "box_pack"):
         combo = _PICK_PLACE_DIRS.get((robot, gripper or ""))
         if combo is None:
-            raise _config_error(f"场景 {scene!r} 没有 {robot} + {gripper} 的任务场景")
+            raise _config_error(f"scene {scene!r} has no task scene for {robot} + {gripper}")
         path = MODELS_ROOT / combo / f"scene_{scene}.xml"
     elif gripper is None:
         path = MODELS_ROOT / robot / "scene.xml"
     else:
         combo = _COMBO_DIRS.get((robot, gripper))
         if combo is None:
-            raise _config_error(f"{robot} 与夹爪 {gripper} 兼容但 MJCF 尚未构建")
+            raise _config_error(f"{robot} + {gripper} MJCF is not built yet")
         path = MODELS_ROOT / combo / "scene.xml"
 
     if not path.is_file():
         if gripper is not None and (robot, gripper) not in _COMBO_DIRS:
-            raise _config_error(f"{robot} 与夹爪 {gripper} 兼容但 MJCF 尚未构建")
+            raise _config_error(f"{robot} + {gripper} MJCF is not built yet")
         from .config import ModelResourceError
-        raise ModelResourceError(f"场景文件不存在: {path}")
+        raise ModelResourceError(f"scene file does not exist: {path}")
     return path

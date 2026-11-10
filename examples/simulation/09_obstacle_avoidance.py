@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Example 09: collision-free joint-space planning around obstacles (roadmap 0.0.6).
+"""Example 09: collision-free joint-space planning around obstacles.
 
 Scene (models/xarm6/scene_obstacles.xml): xArm 6 with a vertical pillar in the
 sweep between keyframes 'start' and 'goal' plus a horizontal board overhead.

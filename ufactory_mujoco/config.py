@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -91,9 +92,9 @@ def _read_yaml(path: Path) -> dict[str, Any]:
     try:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError) as exc:
-        raise ConfigError(f"无法读取配置 {path}: {exc}") from exc
+        raise ConfigError(f"cannot read config {path}: {exc}") from exc
     if not isinstance(raw, dict):
-        raise ConfigError(f"配置根节点必须是 mapping: {path}")
+        raise ConfigError(f"config root must be a mapping: {path}")
     return raw
 
 
@@ -101,11 +102,11 @@ def _merge_strict(base: dict[str, Any], overlay: Mapping[str, Any], *, path: str
     for key, value in overlay.items():
         dotted = f"{path}.{key}" if path else str(key)
         if key not in base:
-            raise ConfigError(f"未知配置字段: {dotted}")
+            raise ConfigError(f"unknown config field: {dotted}")
         original = base[key]
         if isinstance(original, dict):
             if not isinstance(value, Mapping):
-                raise ConfigError(f"{dotted} 必须是 mapping")
+                raise ConfigError(f"{dotted} must be a mapping")
             _merge_strict(original, value, path=dotted)
         else:
             base[key] = value
@@ -113,27 +114,23 @@ def _merge_strict(base: dict[str, Any], overlay: Mapping[str, Any], *, path: str
 
 def _vec2(value: Any, field: str) -> tuple[float, float]:
     if not isinstance(value, list | tuple) or len(value) != 2:
-        raise ConfigError(f"{field} 必须是长度为 2 的数组")
+        raise ConfigError(f"{field} must be an array of length 2")
     xy = tuple(float(item) for item in value)
-    if not all(np_isfinite(item) for item in xy):
-        raise ConfigError(f"{field} 必须是有限数值")
+    if not all(math.isfinite(item) for item in xy):
+        raise ConfigError(f"{field} must contain finite numbers")
     return xy
-
-
-def np_isfinite(value: float) -> bool:
-    return value == value and value not in (float("inf"), float("-inf"))
 
 
 def _positive(value: Any, field: str, *, allow_zero: bool = False) -> float:
     number = float(value)
-    if not np_isfinite(number) or (number < 0.0 if allow_zero else number <= 0.0):
-        raise ConfigError(f"{field} 必须是{'非负' if allow_zero else '正'}数")
+    if not math.isfinite(number) or (number < 0.0 if allow_zero else number <= 0.0):
+        raise ConfigError(f"{field} must be a {'non-negative' if allow_zero else 'positive'} number")
     return number
 
 
 def _require_pick_place(data: Mapping[str, Any]) -> PickPlaceConfig:
     if not isinstance(data, Mapping):
-        raise ConfigError("pick_place 必须是 mapping")
+        raise ConfigError("pick_place must be a mapping")
     return PickPlaceConfig(
         cube_xy=_vec2(data["cube_xy"], "pick_place.cube_xy"),
         target_xy=_vec2(data["target_xy"], "pick_place.target_xy"),
@@ -150,17 +147,17 @@ def _require_pick_place(data: Mapping[str, Any]) -> PickPlaceConfig:
 
 def _vec2_list(value: Any, field: str) -> tuple[tuple[float, float], ...]:
     if not isinstance(value, list | tuple) or len(value) == 0:
-        raise ConfigError(f"{field} 必须是非空数组")
+        raise ConfigError(f"{field} must be a non-empty array")
     return tuple(_vec2(item, f"{field}[{i}]") for i, item in enumerate(value))
 
 
 def _require_box_pack(data: Mapping[str, Any]) -> BoxPackConfig:
     if not isinstance(data, Mapping):
-        raise ConfigError("box_pack 必须是 mapping")
+        raise ConfigError("box_pack must be a mapping")
     feed_xy = _vec2_list(data["feed_xy"], "box_pack.feed_xy")
     drop_xy = _vec2_list(data["drop_xy"], "box_pack.drop_xy")
     if len(feed_xy) != len(drop_xy):
-        raise ConfigError("box_pack.feed_xy 与 box_pack.drop_xy 长度必须一致")
+        raise ConfigError("box_pack.feed_xy and box_pack.drop_xy must have the same length")
     return BoxPackConfig(
         feed_xy=feed_xy,
         drop_xy=drop_xy,
@@ -238,15 +235,15 @@ def load_task_config(overlay: str | Path | None = None,
     scene = base["scene"]
     executor = base["executor"]
     if type(schema_version) is not int or schema_version != 1:
-        raise ConfigError("schema_version 必须为 1")
+        raise ConfigError("schema_version must be 1")
     if not isinstance(robot, str) or not robot:
-        raise ConfigError("robot 必须是非空字符串")
+        raise ConfigError("robot must be a non-empty string")
     if gripper is not None and (not isinstance(gripper, str) or not gripper):
-        raise ConfigError("gripper 必须是非空字符串或 null")
+        raise ConfigError("gripper must be a non-empty string or null")
     if not isinstance(scene, str) or not scene:
-        raise ConfigError("scene 必须是非空字符串")
+        raise ConfigError("scene must be a non-empty string")
     if executor not in EXECUTORS:
-        raise ConfigError(f"未知执行器 {executor!r}")
+        raise ConfigError(f"unknown executor {executor!r}")
     pick_place = _require_pick_place(base["pick_place"])
     box_pack = _require_box_pack(base["box_pack"])
     scene_path = resolve_arm_scene(robot, gripper, scene)

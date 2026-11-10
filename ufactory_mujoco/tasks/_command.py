@@ -34,6 +34,7 @@ MODES = ("sim", "dry-run", "sdk-sim", "real")
 
 
 def positive_int(value):
+    """argparse type for positive integers."""
     number = int(value)
     if number <= 0:
         raise argparse.ArgumentTypeError("must be positive")
@@ -41,6 +42,7 @@ def positive_int(value):
 
 
 def positive_float(value):
+    """argparse type for finite positive floats."""
     number = float(value)
     if not math.isfinite(number) or number <= 0:
         raise argparse.ArgumentTypeError("must be finite and positive")
@@ -172,6 +174,7 @@ def _run_hardware_manipulation(command: str, args, config) -> tuple[int, dict]:
 
 
 def manipulation_main(command, argv=None):
+    """Shared CLI for ``pick-place`` and ``box-pack``: parse arguments, run the mode, return the exit code."""
     task = importlib.import_module(f"ufactory_mujoco.tasks.{command.replace('-', '_')}")
     parser = argparse.ArgumentParser(prog=f"ufactory-mujoco {command}", description=task.__doc__)
     parser.add_argument("--robot", choices=tuple(ARMS), default="xarm6")

@@ -1,4 +1,4 @@
-"""Pick-and-place preflight: joint limits, penetration checks, and detours.
+"""Pick-and-place and box-packing preflight: joint limits, penetration checks, and detours.
 
 Waypoint IK uses the robot's evaluation data and does not step physics.
 Expected table, cube, stand, and Lite6 finger-finger contacts are ignored.
@@ -15,6 +15,8 @@ from .collision import CollisionChecker
 from .path_planning import PlanningError, plan_collision_free
 from .task_geometry import tcp_task_heights, box_task_heights
 
+# Phase names are report data keys (approach, close/grasp, lift, transport, place/release,
+# return); they stay unchanged so existing reports and tooling keep matching.
 PHASES = ("接近", "闭合", "抬起", "运送", "放置", "回位")
 PACK_PHASES = ("接近", "抓取", "抬起", "运送", "释放", "回位")
 _IGNORED_BODIES = ("world", "cube", "pick_stand", "place_stand")
@@ -25,6 +27,7 @@ _CHECK_RES = 0.08
 
 @dataclass
 class PhaseResult:
+    """Preflight result for one task phase: name, ``ok``/``fail`` status and failure reason."""
     name: str
     status: str
     reason: str | None = None
@@ -42,11 +45,13 @@ class SegmentPlan:
 
 @dataclass
 class PreflightReport:
+    """Overall preflight verdict, per-phase results and the planned arm segments."""
     ok: bool
     phases: list[PhaseResult]
     segments: dict[str, SegmentPlan] = field(default_factory=dict)
 
     def as_dict(self, mode: str) -> dict:
+        """JSON-ready summary of the verdict and phases for report ``mode``."""
         return {
             "mode": mode,
             "ok": self.ok,
@@ -238,7 +243,7 @@ def preflight_box_pack(robot, config, cycles: int = 1) -> PreflightReport:
     task = config.box_pack
     n_blocks = len(task.feed_xy)
     if not 1 <= cycles <= n_blocks:
-        raise ValueError(f"cycles 必须在 1..{n_blocks} 之间, 得到 {cycles}")
+        raise ValueError(f"cycles must be within 1..{n_blocks}, got {cycles}")
     checker = make_box_pack_checker(config.scene_path)
     # An unreachable probe point fails every phase instead of raising.
     try:

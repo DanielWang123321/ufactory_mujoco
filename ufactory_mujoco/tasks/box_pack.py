@@ -226,6 +226,7 @@ def _load(robot: str, gripper: str | None, executor: str | None, config: str | N
 
 
 def main(argv=None) -> None:
+    """``ufactory-mujoco box-pack`` command line entry point."""
     from ._command import manipulation_main
     raise SystemExit(manipulation_main("box-pack", argv))
 

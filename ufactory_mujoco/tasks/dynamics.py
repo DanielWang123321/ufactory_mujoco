@@ -3,7 +3,7 @@
 
     ufactory-mujoco dynamics --headless
     ufactory-mujoco dynamics --robot all --headless \
-        --samples 32 --seed 0 --report build/dynamics/batch6.json
+        --samples 32 --seed 0 --report build/dynamics/report.json
 
 All modes execute home -> ready -> target -> ready. No robot SDK is required.
 The xArm6 additionally retains the historical 3 kg payload checks.
@@ -35,6 +35,7 @@ from ufactory_mujoco.trajectory import plan_ptp_quintic
 from ufactory_mujoco.xarm_robot import XArmRobot
 from ._reporting import write_report
 
+# Report format identifier written to every JSON report; kept stable for report consumers.
 VALIDATION_VERSION = "batch6-v1"
 THRESHOLDS = {
     "mass_asymmetry": 1e-12,              # strict <
@@ -93,12 +94,14 @@ class ValidationFailure(RuntimeError):
 
 @dataclass(frozen=True)
 class MotionSegment:
+    """One monitored joint move: name, goal joints (rad) and duration (s)."""
     name: str
     goal: np.ndarray
     duration: float
 
 
 def motion_segments(ready, target) -> tuple[MotionSegment, ...]:
+    """Deploy to ``ready``, move to ``target`` and return to ``ready``."""
     return (
         MotionSegment("deploy", np.asarray(ready), 1.5),
         MotionSegment("outbound", np.asarray(target), 3.0),
@@ -119,11 +122,13 @@ def command_phases(home, segments, dt):
 
 
 def make_checker(scene) -> CollisionChecker:
+    """Collision checker that only ignores contact between the base link and the world."""
     # Do not ignore world contacts involving any moving link.
     return CollisionChecker(scene, ignore_pairs=[("link_base", "world")])
 
 
 def finite_array(value, shape, name) -> np.ndarray:
+    """Return ``value`` as a float array, raising ValidationFailure unless it is finite with ``shape``."""
     array = np.asarray(value, dtype=float)
     if array.shape != shape or not np.all(np.isfinite(array)):
         raise ValidationFailure(f"{name}: expected finite array of shape {shape}")
@@ -131,6 +136,7 @@ def finite_array(value, shape, name) -> np.ndarray:
 
 
 def pose_metrics(checker: CollisionChecker, q) -> dict:
+    """Minimum distance, penetration, joint-limit excess and collision flags for joint pose ``q``."""
     q = finite_array(q, (checker.n_arm_qpos,), "joint position")
     contacts = checker._contacts(q)
     if any(not np.isfinite(distance) for _, _, distance in contacts):
@@ -149,6 +155,7 @@ def pose_metrics(checker: CollisionChecker, q) -> dict:
 
 
 def safety_failures(metrics) -> list[str]:
+    """Threshold violations (penetration, joint-limit excess) for one ``pose_metrics`` result."""
     failures = []
     if metrics["penetration_m"] > THRESHOLDS["penetration_m"]:
         failures.append(f"penetration {metrics['penetration_m']:.9g} m")
@@ -200,6 +207,7 @@ def check_dynamics(dyn: ArmDynamics, poses, rng) -> dict:
 
 
 def check_feedforward(dyn: ArmDynamics, q, dt: float) -> dict:
+    """Check that inverse-dynamics feedforward along ``q`` stays inside the actuator force ranges."""
     tau = finite_array(dyn.feedforward_traj(q, dt), (len(q), dyn.n_arm), "feedforward")
     ranges = finite_array(dyn.model.actuator_forcerange, (dyn.n_arm, 2), "actuator ranges")
     if (not np.all(dyn.model.actuator_forcelimited)
@@ -218,6 +226,7 @@ def check_feedforward(dyn: ArmDynamics, q, dt: float) -> dict:
 
 
 def check_collision_fixtures(checker, robot, ready, random_q) -> dict:
+    """Check the known safe pose, the known colliding pose and the random poses for collisions."""
     safe = pose_metrics(checker, ready)
     collision = pose_metrics(checker, COLLISION_POSES[robot])
     failures = []
@@ -272,6 +281,7 @@ def preflight_motion(checker, home, segments) -> dict:
 
 
 def empty_motion_report() -> dict:
+    """Motion report skeleton used before or without a run."""
     return {
         "success": False, "completed": False, "steps": 0,
         "observations": 0, "simulated_seconds": 0.0,
@@ -310,6 +320,7 @@ class MonitoredSimRobot(SimRobot):
             raise ValidationFailure("viewer closed before validation completed")
 
     def inspect_position(self):
+        """Record collision and joint-limit metrics for the current integrated joint positions."""
         metrics = pose_metrics(self.checker, self.get_joint_positions())
         report = self.motion_report
         report["observations"] += 1
@@ -336,6 +347,7 @@ class MonitoredSimRobot(SimRobot):
 
 
 def execute_motion(robot: MonitoredSimRobot, segments) -> dict:
+    """Run all segments with settling phases, checking every physics step; returns the motion report."""
     report = robot.motion_report
     try:
         robot._check_state()
@@ -373,6 +385,7 @@ def execute_motion(robot: MonitoredSimRobot, segments) -> dict:
 
 
 def check_payload_regression() -> dict:
+    """Compare the xArm6 3 kg payload gravity torques at the ready pose with the frozen baseline."""
     dyn = ArmDynamics(XARM6, payload=PAYLOAD, site=ARMS["xarm6"].tcp_site)
     gravity = finite_array(dyn.gravity(READY), (6,), "payload gravity")
     baseline = np.asarray(PAYLOAD_GRAVITY_BASELINE)
@@ -401,6 +414,7 @@ def check_payload_regression() -> dict:
 
 
 def empty_robot_report(robot) -> dict:
+    """Per-robot report skeleton marked as failed and not completed."""
     arm = ARMS.get(robot)
     return {
         "robot": robot, "success": False, "completed": False,
@@ -472,6 +486,7 @@ def run_checks(robot="xarm6", samples=32, seed=0, *, viewer=False) -> dict:
 
 
 def run_validation(robot="xarm6", samples=32, seed=0, *, headless=True) -> dict:
+    """Validate one robot or ``all``; returns the full JSON-serializable report."""
     if robot not in (*ARMS, "all"):
         raise ValueError(f"unknown robot: {robot}")
     if not isinstance(samples, int) or isinstance(samples, bool) or samples <= 0:
@@ -526,6 +541,7 @@ def json_safe(value):
 
 
 def integer_argument(value, *, positive=False):
+    """argparse type for integers, optionally requiring a positive value."""
     try:
         number = int(value)
     except ValueError as exc:
@@ -682,6 +698,7 @@ def run_hardware_dynamics_validation(
 
 
 def main(argv=None) -> None:
+    """``ufactory-mujoco dynamics`` command line entry point."""
     parser = argparse.ArgumentParser(prog="ufactory-mujoco dynamics", description=__doc__)
     parser.add_argument("--robot", choices=(*ARMS, "all"), default="xarm6")
     parser.add_argument("--headless", action="store_true", help="validate without a viewer")

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Train a PPO policy for the TCP reaching task (roadmap 0.0.5, 0.0.7, batch 8).
+"""Train a PPO policy for the TCP reaching task.
 
 Supports lite6 / xarm5 / xarm6 / xarm7 / uf850 (--model). Reads defaults from
 examples/rl/reach/recipe.yaml (--recipe) and writes:

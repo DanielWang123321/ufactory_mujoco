@@ -1,4 +1,4 @@
-"""Unit tests for RRT-Connect planning and shortcutting (roadmap 0.0.6 M2).
+"""Unit tests for RRT-Connect planning and shortcutting.
 
 Fixture: tests/fixtures/planar_arm.xml. The straight joint interpolation
 between FREE_A=[1.2,-0.6] and FREE_B=[-1.2,0.6] passes through q=[0,0], which

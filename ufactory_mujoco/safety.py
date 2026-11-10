@@ -96,6 +96,7 @@ class SdkSimEvidence:
     failures: tuple[str, ...] = ()
 
     def as_dict(self) -> dict[str, Any]:
+        """JSON-ready copy of the evidence."""
         return {
             "schema_version": self.schema_version,
             "passed": self.passed,

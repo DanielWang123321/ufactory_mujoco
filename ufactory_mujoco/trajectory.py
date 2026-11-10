@@ -73,10 +73,12 @@ class JointTrajectory:
 
     @property
     def n_steps(self) -> int:
+        """Number of samples."""
         return len(self.times)
 
     @property
     def n_joints(self) -> int:
+        """Number of joints per sample."""
         return self.q.shape[1]
 
     def sample(self, t: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:

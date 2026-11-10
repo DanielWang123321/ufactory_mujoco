@@ -5,6 +5,7 @@ from pathlib import Path
 
 
 def write_report(path, payload):
+    """Write ``payload`` as strict JSON to ``path``; ``None`` skips writing."""
     if path is None:
         return
     text = json.dumps(payload, ensure_ascii=False, allow_nan=False, indent=2)
@@ -14,6 +15,7 @@ def write_report(path, payload):
 
 
 def task_report(preflight, config, dry_run, requested_cycles, cycles=None):
+    """Build the task report from preflight results, config and per-cycle results."""
     payload = preflight.as_dict("dry-run" if dry_run else "sim")
     payload.update(robot=config.robot, gripper=config.gripper, executor=config.executor,
                    config_sha256=config.sha256, preflight_ok=preflight.ok,

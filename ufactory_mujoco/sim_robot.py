@@ -49,6 +49,11 @@ def _quintic(t: np.ndarray, q0: np.ndarray, q1: np.ndarray, T: float) -> np.ndar
 
 
 class SimRobot(RobotInterface):
+    """MuJoCo implementation of ``RobotInterface``.
+
+    Arm position servos, an optional gripper (calibrated G2 servo when present), IK helpers
+    and an optional passive viewer. ``model_path`` defaults to the bundled xArm6 scene.
+    """
     def __init__(self, model_path: str | Path = _MODEL_PATH, timestep: float | None = None,
                  viewer: bool = False, *, viewer_hz: float = 30.0,
                  low_power_rendering: bool = False):
@@ -161,6 +166,7 @@ class SimRobot(RobotInterface):
     # -- arm state ---------------------------------------------------------
     @property
     def n_arm(self) -> int:
+        """Arm joint count, excluding gripper joints."""
         return self._n_arm_qpos
 
     def _tcp_site_name(self) -> str:
@@ -177,6 +183,7 @@ class SimRobot(RobotInterface):
         return self.data.qpos[:self._n_arm_qpos].copy()
 
     def get_tcp_pose(self) -> tuple[np.ndarray, np.ndarray]:
+        """TCP pose: (position (3,), orientation quaternion wxyz (4,))."""
         pos = self.data.site_xpos[self._site].copy()
         quat = np.empty(4)
         mujoco.mju_mat2Quat(quat, self.data.site_xmat[self._site])
@@ -256,6 +263,7 @@ class SimRobot(RobotInterface):
         self.data.ctrl[:self.n_arm] = q
 
     def move_joints(self, q_goal: np.ndarray, duration: float, wait: bool = True) -> None:
+        """Move the arm to ``q_goal`` with quintic interpolation over ``duration`` s, from the last command."""
         if not np.isfinite(duration) or duration <= 0:
             raise ValueError("duration must be finite and positive")
         q_goal = self._require_arm_q(q_goal, "q_goal")
@@ -404,10 +412,12 @@ class SimRobot(RobotInterface):
     # -- gripper control ---------------------------------------------------
     @property
     def has_gripper(self) -> bool:
+        """Whether a gripper actuator is present."""
         return self._gripper_actuator_id is not None
 
     @property
     def gripper_kind(self) -> str:
+        """``none``, ``jaw``, or ``vacuum``."""
         if self._gripper_spec is None:
             return "none"
         return self._gripper_spec.kind
@@ -452,12 +462,14 @@ class SimRobot(RobotInterface):
         self.data.ctrl[self._gripper_actuator_id] = target_ctrl
 
     def get_gripper_gap(self) -> float:
+        """Commanded finger gap in meters."""
         spec = self._require_jaw()
         if self._g2_controller is not None:
             return float(self._g2_controller.position_mm[0] / 1000.0)
         return position_to_gap(spec, self.get_gripper_position())
 
     def get_measured_gripper_gap(self) -> float:
+        """Measured finger gap in meters (G2: distance between the pad collision boxes)."""
         spec = self._require_jaw()
         if self._g2_controller is not None:
             return measured_g2_pad_gap_mm(self.model, self.data) / 1000.0
@@ -475,8 +487,9 @@ class SimRobot(RobotInterface):
         speed_percent: float | None = None,
         force_percent: float | None = None,
     ) -> None:
+        """Command a finger gap in meters, with optional speed/force percent for Gripper G2."""
         if self.gripper_kind == "vacuum":
-            raise NotImplementedError("真空吸盘没有开合间隙")
+            raise NotImplementedError("vacuum gripper has no jaw gap")
         spec = self._require_jaw()
         norm_pos = gap_to_position(spec, gap_m)
         if self._g2_controller is not None and self._gripper_actuator_id is not None:
@@ -509,14 +522,17 @@ class SimRobot(RobotInterface):
         return gripper_object_contact_forces_n(self.model, self.data, spec, object_body)
 
     def bilateral_finger_contact(self, object_body: str) -> bool:
+        """Whether both finger pads touch ``object_body``."""
         spec = self._require_jaw()
         return bilateral_finger_contact(self.model, self.data, spec, object_body)
 
     def require_bilateral_contact(self, object_body: str) -> None:
+        """Raise GraspError unless both finger pads touch ``object_body``."""
         spec = self._require_jaw()
         require_bilateral_contact(self.model, self.data, spec, object_body)
 
     def cup_contact(self, object_body: str) -> bool:
+        """Whether the vacuum cup touches ``object_body``."""
         if self.gripper_kind != "vacuum" or self._gripper_spec is None:
             raise NotImplementedError("This robot has no vacuum cup")
         return bodies_in_contact(
@@ -525,7 +541,7 @@ class SimRobot(RobotInterface):
 
     def _require_jaw(self) -> GripperSpec:
         if self.gripper_kind == "vacuum":
-            raise NotImplementedError("真空吸盘没有开合间隙")
+            raise NotImplementedError("vacuum gripper has no jaw gap")
         if self._gripper_spec is None or self._gripper_spec.kind != "jaw":
             raise NotImplementedError("This robot has no jaw gripper")
         return self._gripper_spec
@@ -578,6 +594,7 @@ class SimRobot(RobotInterface):
                         q_init=q_init)
 
     def close(self) -> None:
+        """Close the viewer if one is open."""
         if self._viewer is not None:
             self._viewer.close()
             self._viewer = None

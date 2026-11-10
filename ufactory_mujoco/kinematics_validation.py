@@ -217,6 +217,7 @@ def validate_fk_ik_with_controller(
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Command line entry point; returns 0 when every FK/IK check passes."""
     parser = argparse.ArgumentParser(
         prog="python -m ufactory_mujoco.kinematics_validation",
         description=__doc__,

@@ -13,7 +13,7 @@ except ImportError:
 from scripts.convert_glb_to_obj import orient_mesh_outward
 
 
-@unittest.skipIf(trimesh is None, "trimesh is available in the py313 conversion environment")
+@unittest.skipIf(trimesh is None, "requires trimesh (asset conversion extra)")
 class MeshOrientationTests(unittest.TestCase):
     def cube(self, *, hard_edges=False):
         box = trimesh.creation.box()

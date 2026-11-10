@@ -133,7 +133,7 @@ class RobotInterface(ABC):
         """Raise GraspError unless both finger pads touch ``object_body``."""
         if not self.bilateral_finger_contact(object_body):
             from .grippers import GraspError
-            raise GraspError(f"无双侧指垫接触，拒绝抬起: {object_body}")
+            raise GraspError(f"no bilateral finger-pad contact with {object_body}; refusing to lift")
 
     def cup_contact(self, object_body: str) -> bool:
         """Whether the vacuum cup touches ``object_body``."""

@@ -1,4 +1,4 @@
-"""Integration tests for the obstacle-avoidance example (roadmap 0.0.6 M3).
+"""Integration tests for the obstacle-avoidance example.
 
 Scene: models/xarm6/scene_obstacles.xml (pillar + board). The straight joint
 interpolation between keyframes 'start' and 'goal' penetrates the pillar, so a

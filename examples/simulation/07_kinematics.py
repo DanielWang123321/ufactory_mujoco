@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Example 07: kinematics toolkit on the xArm 6 (roadmap 0.0.6).
+"""Example 07: kinematics toolkit on the xArm 6.
 
 Demonstrates ufactory_mujoco/kinematics.py / SimRobot kinematics helpers:
 1. Forward kinematics cross-checked against the SimRobot FK/pose API.

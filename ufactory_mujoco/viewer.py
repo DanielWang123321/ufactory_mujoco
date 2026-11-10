@@ -88,12 +88,15 @@ class PassiveViewer:
         self._handle = result
 
     def is_running(self) -> bool:
+        """Whether the viewer window is still open."""
         return self._handle.is_running()
 
     def sync(self) -> None:
+        """Push the current simulation state to the viewer."""
         self._handle.sync()
 
     def close(self) -> None:
+        """Close the viewer window and join its thread."""
         try:
             self._handle.close()
         finally:

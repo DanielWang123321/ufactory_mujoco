@@ -20,7 +20,7 @@ from .config import (
     load_task_config,
 )
 from .dynamics import ArmDynamics, attach_payload
-from .g2_controller import ControlOutput, G2Controller
+from .g2_controller import ControlOutput, G2Controller, ScalarG2Controller
 from .g2_model import (
     ForceCurve,
     ForceLookup,
@@ -129,6 +129,7 @@ __all__ = [
     "RobotProfile",
     "SCENES",
     "SafetyGateError",
+    "ScalarG2Controller",
     "SdkSimEvidence",
     "SegmentPlan",
     "SimRobot",

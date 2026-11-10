@@ -1,4 +1,4 @@
-"""Batch 6: five-arm dynamics acceptance and monitored failure paths, offline."""
+"""Five-arm dynamics acceptance and monitored failure paths, offline."""
 
 from contextlib import redirect_stderr, redirect_stdout
 from copy import deepcopy

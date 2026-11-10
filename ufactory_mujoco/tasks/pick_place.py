@@ -171,6 +171,7 @@ def _load(robot: str, gripper: str | None, executor: str | None, config: str | N
 
 
 def main(argv=None) -> None:
+    """``ufactory-mujoco pick-place`` command line entry point."""
     from ._command import manipulation_main
     raise SystemExit(manipulation_main("pick-place", argv))
 

@@ -1,4 +1,4 @@
-"""Unit tests for CollisionChecker (roadmap 0.0.6 M2).
+"""Unit tests for CollisionChecker.
 
 Scene constants are calibrated against the planar 2-joint arm in
 ``tests/fixtures/planar_arm.xml``: q=[0, 0] drives both links through the disk

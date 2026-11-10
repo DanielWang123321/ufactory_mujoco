@@ -1,8 +1,8 @@
-"""Unit tests for the TCP reaching RL environment (roadmap 0.0.5, 0.0.7).
+"""Unit tests for the TCP reaching RL environment.
 
 Covers the full UFACTORY lineup (lite6 / xarm5 / xarm6 / xarm7 / uf850).
 Gymnasium / stable-baselines3 specifics are skipped when those packages are
-absent (e.g. the py314 project default), mirroring the trimesh skip pattern.
+absent, mirroring the trimesh skip pattern.
 """
 
 import importlib.util
@@ -369,7 +369,7 @@ class AutoNEnvsTests(unittest.TestCase):
 
 
 class ReachRecipeAndArtifactTests(unittest.TestCase):
-    """Batch 8: Reach recipe.yaml + config.yaml + checkpoint_manifest.json contract."""
+    """Reach recipe.yaml + config.yaml + checkpoint_manifest.json contract."""
 
     def test_reach_recipe_builds_valid_configs_for_all_robots(self):
         recipe_path = ROOT / "examples" / "rl" / "reach" / "recipe.yaml"

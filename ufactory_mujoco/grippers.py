@@ -93,7 +93,7 @@ def identify_gripper(model: mujoco.MjModel) -> GripperSpec | None:
 def gap_to_position(spec: GripperSpec, gap_m: float) -> float:
     """Map a commanded gap onto 0 (open) .. 1 (closed)."""
     if spec.kind != "jaw":
-        raise NotImplementedError("真空吸盘没有开合间隙")
+        raise NotImplementedError("vacuum gripper has no jaw gap")
     gap = float(gap_m)
     span = spec.open_gap_m - spec.closed_gap_m
     if (
@@ -111,7 +111,7 @@ def gap_to_position(spec: GripperSpec, gap_m: float) -> float:
 def position_to_gap(spec: GripperSpec, position: float) -> float:
     """Inverse of ``gap_to_position`` for the current command."""
     if spec.kind != "jaw":
-        raise NotImplementedError("真空吸盘没有开合间隙")
+        raise NotImplementedError("vacuum gripper has no jaw gap")
     pos = float(np.clip(position, 0.0, 1.0))
     return spec.open_gap_m - pos * (spec.open_gap_m - spec.closed_gap_m)
 
@@ -125,7 +125,7 @@ def drive_to_gap(
 ) -> float:
     """Map a drive joint/actuator coordinate back to the physical jaw gap (m)."""
     if spec.kind != "jaw":
-        raise NotImplementedError("真空吸盘没有开合间隙")
+        raise NotImplementedError("vacuum gripper has no jaw gap")
     if spec.name == "gripper_g2":
         return gripper_g2_sim_drive_to_gap_m(float(drive_qpos))
     lo = spec.drive_range_rad[0] if open_ctrl is None else float(open_ctrl)
@@ -190,7 +190,7 @@ def gripper_object_contact_forces_n(
 ) -> tuple[float, float]:
     """Return net contact force magnitudes (N) carried by (left_finger, right_finger) on ``object_body``."""
     if spec.kind != "jaw":
-        raise NotImplementedError("真空吸盘没有双侧指垫")
+        raise NotImplementedError("vacuum gripper has no finger pads")
     left_id = _body_id(model, spec.left_body)
     right_id = _body_id(model, spec.right_body)
     obj_id = _body_id(model, object_body)
@@ -250,7 +250,7 @@ def bilateral_finger_contact(
 ) -> bool:
     """Both finger bodies touch ``object_body``."""
     if spec.kind != "jaw":
-        raise NotImplementedError("真空吸盘没有双侧指垫")
+        raise NotImplementedError("vacuum gripper has no finger pads")
     return bodies_in_contact(model, data, spec.left_body, object_body) and bodies_in_contact(
         model, data, spec.right_body, object_body
     )
@@ -262,5 +262,6 @@ def require_bilateral_contact(
     spec: GripperSpec,
     object_body: str,
 ) -> None:
+    """Raise GraspError unless both finger pads touch ``object_body``."""
     if not bilateral_finger_contact(model, data, spec, object_body):
-        raise GraspError(f"无双侧指垫接触，拒绝抬起: {object_body}")
+        raise GraspError(f"no bilateral finger-pad contact with {object_body}; refusing to lift")

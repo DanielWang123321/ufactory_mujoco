@@ -1,4 +1,4 @@
-"""Tests for the xArm 6 + Gripper G2 cube pick-and-place example (roadmap 0.0.4)."""
+"""Tests for the xArm 6 + Gripper G2 cube pick-and-place example."""
 
 from pathlib import Path
 import unittest

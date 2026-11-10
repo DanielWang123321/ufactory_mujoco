@@ -396,13 +396,16 @@ class G2LinkageGeometry:
 
     @property
     def radius_m(self) -> float:
+        """Distance from the base joint to the finger joint (m)."""
         return math.hypot(self.finger_joint_y_m, self.finger_joint_z_m)
 
     @property
     def phase_rad(self) -> float:
+        """Angle of the finger joint offset in the linkage plane (rad)."""
         return math.atan2(self.finger_joint_z_m, self.finger_joint_y_m)
 
     def pad_gap_m(self, drive_rad: float) -> float:
+        """Pad gap (m) for a drive angle (rad)."""
         q = float(drive_rad)
         return 2.0 * (
             self.base_joint_y_m
@@ -417,6 +420,7 @@ class G2LinkageGeometry:
         return abs(2.0 * (self.finger_joint_y_m * math.sin(q) + self.finger_joint_z_m * math.cos(q)))
 
     def drive_for_gap_m(self, gap_m: float) -> float:
+        """Drive angle (rad) for a pad gap (m); raises if the gap is outside the physical range."""
         gap = float(gap_m)
         if not math.isfinite(gap) or not self.pad_gap_m(self.drive_upper_rad) <= gap <= self.pad_gap_m(
             self.drive_lower_rad
@@ -447,6 +451,7 @@ def gripper_g2_sim_drive_to_gap_m(drive: float) -> float:
 
 
 def checked(value: float, low: float, high: float, name: str) -> float:
+    """Return ``value`` as float, raising ValueError unless it is finite and within ``[low, high]``."""
     value = float(value)
     if not math.isfinite(value) or not low <= value <= high:
         raise ValueError(f"{name} must be finite and within {low:g}–{high:g}")
@@ -454,11 +459,13 @@ def checked(value: float, low: float, high: float, name: str) -> float:
 
 
 def sdk_position_counts(position_mm: float) -> int:
+    """Convert a gap in mm to the SDK raw position counts."""
     position = checked(position_mm, 0, 84, "position_mm")
     return int((math.degrees(math.asin((position - 16) / 110)) + 8.33) * 18.28)
 
 
 def sdk_position_mm(raw_position: float) -> float:
+    """Convert SDK raw position counts to a gap in mm."""
     raw_position = float(raw_position)
     if not math.isfinite(raw_position):
         raise ValueError("raw_position must be finite")
@@ -469,17 +476,20 @@ REFERENCE_GAP_MM = sdk_position_mm(REFERENCE_RAW_POSITION)
 
 
 def speed_mm_s(speed_percent: float) -> float:
+    """Map speed percent (0..100) to jaw speed in mm/s (0 stays 0, otherwise at least 15 mm/s)."""
     speed = checked(speed_percent, 0, 100, "speed_percent")
     return max(15.0, 225.0 * speed / 100.0) if speed else 0.0
 
 
 def sdk_speed_rpm(speed_mm_s_val: float) -> int:
+    """Map jaw speed in mm/s (0..225) to the SDK motor speed in rpm."""
     speed = checked(speed_mm_s_val, 0, 225, "speed_mm_s")
     return int(((speed * 60) / 9.88235 + 140) / 0.4) if speed else 0
 
 
 @dataclass(frozen=True)
 class ForceLookup:
+    """Force-curve result: force (N), requested and table speeds (rpm), and whether the request exceeded the table."""
     force_n: float
     requested_rpm: float
     calibration_rpm: float
@@ -516,6 +526,7 @@ class ForceCurve:
 
     @property
     def maximum_force_n(self) -> float:
+        """Largest calibrated pinch force (N)."""
         return max(force for curve in self.points.values() for force in curve.values())
 
     @staticmethod
@@ -533,6 +544,7 @@ class ForceCurve:
         return a + ratio * (b - a)
 
     def lookup(self, rpm: float, force_percent: float) -> ForceLookup:
+        """Interpolate the pinch force at ``rpm`` and ``force_percent``; speeds above the table are clamped."""
         current = checked(force_percent, 1, 100, "force_percent")
         rpm = checked(rpm, 0, 1e9, "rpm")
         calibration_rpm = min(rpm, self.speeds[-1])
@@ -565,27 +577,34 @@ class G2Model:
     @classmethod
     @lru_cache(maxsize=1)
     def load(cls) -> G2Model:
+        """Shared default model (cached)."""
         return cls(G2_LINKAGE_GEOMETRY, ForceCurve())
 
     @property
     def reference_gap_mm(self) -> float:
+        """Gap (mm) at the calibration reference position."""
         return sdk_position_mm(self.reference_raw_position)
 
     @property
     def reference_jacobian_m_rad(self) -> float:
+        """|d gap / d q| (m/rad) at the calibration reference position."""
         q = self.linkage.drive_for_gap_m(self.reference_gap_mm / 1000)
         return self.linkage.gap_jacobian_m_per_rad(q)
 
     @property
     def effective_torque_gain(self) -> float:
+        """Drive-torque per motor-torque gain implied by the peak force and peak motor torque."""
         return self.curve.maximum_force_n * self.reference_jacobian_m_rad / self.peak_motor_torque_nm
 
     def torque_limit_nm(self, lookup: ForceLookup) -> float:
+        """Drive torque limit (N*m) for a force lookup."""
         return lookup.force_n * self.reference_jacobian_m_rad
 
     def static_force_n(self, lookup: ForceLookup, gap_mm: float) -> float:
+        """Static pinch force (N) at ``gap_mm`` for the torque limit of ``lookup``."""
         q = self.linkage.drive_for_gap_m(checked(gap_mm, 0, 84, "gap_mm") / 1000)
         return self.torque_limit_nm(lookup) / self.linkage.gap_jacobian_m_per_rad(q)
 
     def motor_torque_estimate_nm(self, drive_torque_nm: float) -> float:
+        """Estimate motor torque (N*m) from a drive-joint torque."""
         return float(drive_torque_nm) / self.effective_torque_gain

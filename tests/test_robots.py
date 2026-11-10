@@ -46,13 +46,13 @@ class ArmRegistryTests(unittest.TestCase):
     def test_incompatible_gripper(self):
         with self.assertRaises(ConfigError) as caught:
             resolve_arm_scene("lite6", "gripper_g2", "scene")
-        self.assertIn("不兼容", str(caught.exception))
+        self.assertIn("does not support", str(caught.exception))
 
     def test_compatible_gripper_without_mjcf(self):
         with self.assertRaises(ConfigError) as caught:
             resolve_arm_scene("xarm5", "bio_gripper_g2", "scene")
-        self.assertIn("尚未构建", str(caught.exception))
-        self.assertNotIn("不兼容", str(caught.exception))
+        self.assertIn("not built yet", str(caught.exception))
+        self.assertNotIn("does not support", str(caught.exception))
 
     def test_reach_rejects_gripper(self):
         with self.assertRaises(ConfigError):

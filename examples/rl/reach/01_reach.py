@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""RL example 01: TCP reaching with a trained PPO policy (roadmap 0.0.5, 0.0.7, batch 8).
+"""RL example 01: TCP reaching with a trained PPO policy.
 
 Loads the policy trained by scripts/train_reach_rl.py and rolls out episodes
 in the ReachEnv task: the TCP chases a randomly sampled target point.

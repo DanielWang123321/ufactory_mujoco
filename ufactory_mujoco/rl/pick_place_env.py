@@ -9,7 +9,7 @@ Reuses project assets and calibrated Gripper G2 interfaces:
   precomputed constants in ``_GripDownIK``) and ``ufactory_mujoco.task_geometry``
 
 Requires only ``mujoco`` + ``numpy`` at runtime; ``gymnasium`` is optional
-(fallback base class for ``py314`` and baseline rollouts), and ``stable-baselines3``
+(fallback base class for core-only installs and baseline rollouts), and ``stable-baselines3``
 is required only for PPO training/checkpoint loading.
 """
 
@@ -143,6 +143,7 @@ class PickPlaceMetrics:
         spawn_xy: np.ndarray | tuple[float, float] | None = None,
         ee_z: float = 0.1266,
     ) -> None:
+        """Clear all episode metrics for a new cube spawn."""
         if spawn_xy is not None:
             self.spawn_xy = np.asarray(spawn_xy, dtype=float).reshape(2).copy()
         self.finger_contact[:] = False
@@ -187,6 +188,7 @@ class PickPlaceMetrics:
         table_force: float,
         robot_table_force: float,
     ) -> dict[str, Any]:
+        """Update drag, tilt, press, release and contact metrics from one control step; returns the per-step flags."""
         pos = np.asarray(pos, dtype=float).reshape(3)
         quat = np.asarray(quat, dtype=float).reshape(4)
         forces = np.asarray(forces, dtype=float).reshape(2)
@@ -630,7 +632,7 @@ class PickPlaceEnv(_ENV_BASE):
             ]
         )
 
-        # Calibrated 0.0.9 Gripper G2 servo (matches SimRobot & ufactory_genesis), single-env scalar form
+        # Calibrated Gripper G2 servo (matches SimRobot & ufactory_genesis), single-env scalar form
         self.model.actuator_ctrllimited[self._gripper_act_id] = 0
         self.g2_model = G2Model.load()
         self.g2_controller = ScalarG2Controller(
@@ -780,31 +782,40 @@ class PickPlaceEnv(_ENV_BASE):
     # ------------------------------------------------------------------ state
     @property
     def n_joints(self) -> int:
+        """Number of arm joints."""
         return self._n_arm
 
     @property
     def step_count(self) -> int:
+        """Control steps taken in the current episode."""
         return self._step_count
 
     def tcp_position(self) -> np.ndarray:
+        """TCP site position in the world frame (m)."""
         return self.data.site_xpos[self._site_id].copy()
 
     def tcp_velocity(self) -> np.ndarray:
+        """TCP velocity over the last control step (m/s)."""
         return (self.tcp_position() - self._prev_tcp_pos) / self.ctrl_dt
 
     def cube_position(self) -> np.ndarray:
+        """Cube position in the world frame (m)."""
         return self.data.qpos[self._cube_qpos_adr : self._cube_qpos_adr + 3].copy()
 
     def cube_quat(self) -> np.ndarray:
+        """Cube orientation quaternion (w, x, y, z)."""
         return self.data.qpos[self._cube_qpos_adr + 3 : self._cube_qpos_adr + 7].copy()
 
     def cube_velocity(self) -> np.ndarray:
+        """Cube linear velocity (m/s)."""
         return self.data.qvel[self._cube_dof_adr : self._cube_dof_adr + 3].copy()
 
     def cube_angular_velocity(self) -> np.ndarray:
+        """Cube angular velocity (rad/s)."""
         return self.data.qvel[self._cube_dof_adr + 3 : self._cube_dof_adr + 6].copy()
 
     def pad_centers(self) -> tuple[np.ndarray, np.ndarray]:
+        """World positions of the left and right finger-pad centers."""
         l_pos = self.data.xpos[self._left_finger_id]
         l_mat = self.data.xmat[self._left_finger_id].reshape(3, 3)
         r_pos = self.data.xpos[self._right_finger_id]
@@ -945,6 +956,10 @@ class PickPlaceEnv(_ENV_BASE):
 
     # ------------------------------------------------------------------ gym API
     def reset(self, *, seed: int | None = None, options: dict | None = None):
+        """Gymnasium reset.
+
+        ``options={'cube_xy': ...}`` fixes the spawn; otherwise evaluation spawns or a random spawn are used.
+        """
         if gym is not None:
             super().reset(seed=seed)
         if seed is not None:
@@ -1154,6 +1169,7 @@ class PickPlaceEnv(_ENV_BASE):
         )
 
     def step(self, action):
+        """Gymnasium step with a 4-D action: Cartesian TCP increment (3) and G2 gap increment (1), all in [-1, 1]."""
         raw_action = np.asarray(action, dtype=float).reshape(PICK_PLACE_NUM_ACTIONS)
         if not np.all(np.isfinite(raw_action)):
             raise ValueError("action must be finite")
@@ -1470,12 +1486,14 @@ class PickPlaceEnv(_ENV_BASE):
         return np.clip(obs, -10.0, 10.0)
 
     def render(self):
+        """Sync the passive viewer when ``render_mode='human'``."""
         if self.render_mode == "human":
             self._ensure_viewer()
             self._viewer.sync()
         return None
 
     def close(self) -> None:
+        """Close the viewer if one is open."""
         if self._viewer is not None:
             self._viewer.close()
             self._viewer = None

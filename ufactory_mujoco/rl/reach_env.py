@@ -217,27 +217,34 @@ class ReachEnv(_ENV_BASE):
     # ------------------------------------------------------------------ state
     @property
     def n_joints(self) -> int:
+        """Number of arm joints."""
         return self._n
 
     @property
     def target_position(self) -> np.ndarray:
+        """Current target position in the world frame (m)."""
         return self._target.copy()
 
     @property
     def step_count(self) -> int:
+        """Control steps taken in the current episode."""
         return self._step_count
 
     def tcp_position(self) -> np.ndarray:
+        """TCP site position in the world frame (m)."""
         return self.data.site_xpos[self._site_id].copy()
 
     def joint_positions(self) -> np.ndarray:
+        """Arm joint positions (rad)."""
         return self.data.qpos[self._qpos_adr].copy()
 
     def distance_to_target(self) -> float:
+        """Euclidean TCP-to-target distance (m)."""
         return float(np.linalg.norm(self.tcp_position() - self._target))
 
     # ------------------------------------------------------------------ gym API
     def reset(self, *, seed: int | None = None, options: dict | None = None):
+        """Gymnasium reset: sample start joints and a target; ``options={'target': xyz}`` fixes the target."""
         if gym is not None:
             super().reset(seed=seed)
         self._rng = np.random.default_rng(seed)
@@ -262,6 +269,7 @@ class ReachEnv(_ENV_BASE):
         return obs, info
 
     def step(self, action):
+        """Gymnasium step with joint increments in [-1, 1]; terminates once the TCP is within the success distance."""
         action = np.asarray(action, dtype=float).reshape(self._n)
         if not np.all(np.isfinite(action)):
             raise ValueError("action must be finite")
@@ -291,12 +299,14 @@ class ReachEnv(_ENV_BASE):
         return obs, float(reward), terminated, truncated, info
 
     def render(self):
+        """Sync the passive viewer when ``render_mode='human'``."""
         if self.render_mode == "human":
             self._ensure_viewer()
             self._viewer.sync()
         return None
 
     def close(self):
+        """Close the viewer if one is open."""
         if self._viewer is not None:
             self._viewer.close()
             self._viewer = None

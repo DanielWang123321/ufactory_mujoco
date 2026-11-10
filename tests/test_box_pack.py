@@ -1,4 +1,4 @@
-"""Tests for the five-arm box-packing showcase (batch 5)."""
+"""Tests for the five-arm box-packing showcase."""
 
 from pathlib import Path
 import tempfile

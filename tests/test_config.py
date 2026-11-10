@@ -20,7 +20,7 @@ class TaskConfigTests(unittest.TestCase):
         with self._overlay("speed: 1\n"):
             with self.assertRaises(ConfigError) as caught:
                 load_task_config(self.overlay_path)
-        self.assertIn("未知配置字段", str(caught.exception))
+        self.assertIn("unknown config field", str(caught.exception))
 
     def test_schema_version_must_be_one(self):
         with self._overlay("schema_version: 2\n"):

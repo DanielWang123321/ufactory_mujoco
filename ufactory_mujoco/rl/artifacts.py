@@ -469,6 +469,7 @@ def load_training_config(path: str | Path) -> dict[str, Any]:
 
 @dataclass(frozen=True)
 class CheckpointManifest:
+    """Hashes and task/space contract stored next to a saved SB3 checkpoint."""
     schema_version: int
     task: str
     robot: str

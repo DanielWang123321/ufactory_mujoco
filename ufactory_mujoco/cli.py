@@ -8,6 +8,7 @@ _COMMANDS = {"pick-place": "pick_place", "box-pack": "box_pack", "dynamics": "dy
 
 
 def main(argv=None):
+    """Dispatch ``ufactory-mujoco <command>`` to the task module and return its exit code."""
     argv = list(sys.argv[1:] if argv is None else argv)
     parser = argparse.ArgumentParser(
         prog="ufactory-mujoco", description="UFACTORY MuJoCo simulation tasks")
