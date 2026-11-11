@@ -1,0 +1,384 @@
+<mujoco model="camera_stand_with_gemini_305">
+  <!-- UFACTORY camera mounting bracket assembled with Orbbec Gemini 305 (mass=0; Roadmap 0.1.2). -->
+  <compiler angle="radian" autolimits="true" meshdir="assets" />
+  <option integrator="implicitfast" />
+  <asset>
+    <material name="stand_anodized_aluminum" rgba="0.72 0.74 0.76 1" specular="0.5" shininess="0.35" />
+    <mesh name="stand_visual_mesh" file="camera_stand/visual/stand_mm.stl" scale="0.001 0.001 0.001" />
+    <mesh name="stand_collision_mesh_000" file="camera_stand/collision/piece_000.stl" />
+    <mesh name="stand_collision_mesh_001" file="camera_stand/collision/piece_001.stl" />
+    <mesh name="stand_collision_mesh_002" file="camera_stand/collision/piece_002.stl" />
+    <mesh name="stand_collision_mesh_003" file="camera_stand/collision/piece_003.stl" />
+    <mesh name="stand_collision_mesh_004" file="camera_stand/collision/piece_004.stl" />
+    <mesh name="stand_collision_mesh_005" file="camera_stand/collision/piece_005.stl" />
+    <mesh name="stand_collision_mesh_006" file="camera_stand/collision/piece_006.stl" />
+    <mesh name="stand_collision_mesh_007" file="camera_stand/collision/piece_007.stl" />
+    <mesh name="stand_collision_mesh_008" file="camera_stand/collision/piece_008.stl" />
+    <mesh name="stand_collision_mesh_009" file="camera_stand/collision/piece_009.stl" />
+    <mesh name="stand_collision_mesh_010" file="camera_stand/collision/piece_010.stl" />
+    <mesh name="stand_collision_mesh_011" file="camera_stand/collision/piece_011.stl" />
+    <mesh name="stand_collision_mesh_012" file="camera_stand/collision/piece_012.stl" />
+    <mesh name="stand_collision_mesh_013" file="camera_stand/collision/piece_013.stl" />
+    <mesh name="stand_collision_mesh_014" file="camera_stand/collision/piece_014.stl" />
+    <mesh name="stand_collision_mesh_015" file="camera_stand/collision/piece_015.stl" />
+    <mesh name="stand_collision_mesh_016" file="camera_stand/collision/piece_016.stl" />
+    <mesh name="stand_collision_mesh_017" file="camera_stand/collision/piece_017.stl" />
+    <mesh name="stand_collision_mesh_018" file="camera_stand/collision/piece_018.stl" />
+    <mesh name="stand_collision_mesh_019" file="camera_stand/collision/piece_019.stl" />
+    <mesh name="stand_collision_mesh_020" file="camera_stand/collision/piece_020.stl" />
+    <mesh name="stand_collision_mesh_021" file="camera_stand/collision/piece_021.stl" />
+    <mesh name="stand_collision_mesh_022" file="camera_stand/collision/piece_022.stl" />
+    <mesh name="stand_collision_mesh_023" file="camera_stand/collision/piece_023.stl" />
+    <mesh name="stand_collision_mesh_024" file="camera_stand/collision/piece_024.stl" />
+    <mesh name="stand_collision_mesh_025" file="camera_stand/collision/piece_025.stl" />
+    <mesh name="stand_collision_mesh_026" file="camera_stand/collision/piece_026.stl" />
+    <mesh name="stand_collision_mesh_027" file="camera_stand/collision/piece_027.stl" />
+    <mesh name="stand_collision_mesh_028" file="camera_stand/collision/piece_028.stl" />
+    <mesh name="stand_collision_mesh_029" file="camera_stand/collision/piece_029.stl" />
+    <mesh name="stand_collision_mesh_030" file="camera_stand/collision/piece_030.stl" />
+    <mesh name="stand_collision_mesh_031" file="camera_stand/collision/piece_031.stl" />
+    <mesh name="stand_collision_mesh_032" file="camera_stand/collision/piece_032.stl" />
+    <mesh name="stand_collision_mesh_033" file="camera_stand/collision/piece_033.stl" />
+    <mesh name="stand_collision_mesh_034" file="camera_stand/collision/piece_034.stl" />
+    <mesh name="stand_collision_mesh_035" file="camera_stand/collision/piece_035.stl" />
+    <mesh name="stand_collision_mesh_036" file="camera_stand/collision/piece_036.stl" />
+    <mesh name="stand_collision_mesh_037" file="camera_stand/collision/piece_037.stl" />
+    <mesh name="stand_collision_mesh_038" file="camera_stand/collision/piece_038.stl" />
+    <mesh name="stand_collision_mesh_039" file="camera_stand/collision/piece_039.stl" />
+    <mesh name="stand_collision_mesh_040" file="camera_stand/collision/piece_040.stl" />
+    <mesh name="stand_collision_mesh_041" file="camera_stand/collision/piece_041.stl" />
+    <mesh name="stand_collision_mesh_042" file="camera_stand/collision/piece_042.stl" />
+    <mesh name="stand_collision_mesh_043" file="camera_stand/collision/piece_043.stl" />
+    <mesh name="stand_collision_mesh_044" file="camera_stand/collision/piece_044.stl" />
+    <mesh name="stand_collision_mesh_045" file="camera_stand/collision/piece_045.stl" />
+    <mesh name="stand_collision_mesh_046" file="camera_stand/collision/piece_046.stl" />
+    <mesh name="stand_collision_mesh_047" file="camera_stand/collision/piece_047.stl" />
+    <mesh name="stand_collision_mesh_048" file="camera_stand/collision/piece_048.stl" />
+    <mesh name="stand_collision_mesh_049" file="camera_stand/collision/piece_049.stl" />
+    <mesh name="stand_collision_mesh_050" file="camera_stand/collision/piece_050.stl" />
+    <mesh name="stand_collision_mesh_051" file="camera_stand/collision/piece_051.stl" />
+    <mesh name="stand_collision_mesh_052" file="camera_stand/collision/piece_052.stl" />
+    <mesh name="stand_collision_mesh_053" file="camera_stand/collision/piece_053.stl" />
+    <mesh name="stand_collision_mesh_054" file="camera_stand/collision/piece_054.stl" />
+    <mesh name="stand_collision_mesh_055" file="camera_stand/collision/piece_055.stl" />
+    <mesh name="stand_collision_mesh_056" file="camera_stand/collision/piece_056.stl" />
+    <mesh name="stand_collision_mesh_057" file="camera_stand/collision/piece_057.stl" />
+    <mesh name="stand_collision_mesh_058" file="camera_stand/collision/piece_058.stl" />
+    <mesh name="stand_collision_mesh_059" file="camera_stand/collision/piece_059.stl" />
+    <mesh name="stand_collision_mesh_060" file="camera_stand/collision/piece_060.stl" />
+    <mesh name="stand_collision_mesh_061" file="camera_stand/collision/piece_061.stl" />
+    <mesh name="stand_collision_mesh_062" file="camera_stand/collision/piece_062.stl" />
+    <mesh name="stand_collision_mesh_063" file="camera_stand/collision/piece_063.stl" />
+    <mesh name="stand_collision_mesh_064" file="camera_stand/collision/piece_064.stl" />
+    <mesh name="stand_collision_mesh_065" file="camera_stand/collision/piece_065.stl" />
+    <mesh name="stand_collision_mesh_066" file="camera_stand/collision/piece_066.stl" />
+    <mesh name="stand_collision_mesh_067" file="camera_stand/collision/piece_067.stl" />
+    <mesh name="stand_collision_mesh_068" file="camera_stand/collision/piece_068.stl" />
+    <mesh name="stand_collision_mesh_069" file="camera_stand/collision/piece_069.stl" />
+    <mesh name="stand_collision_mesh_070" file="camera_stand/collision/piece_070.stl" />
+    <mesh name="stand_collision_mesh_071" file="camera_stand/collision/piece_071.stl" />
+    <mesh name="stand_collision_mesh_072" file="camera_stand/collision/piece_072.stl" />
+    <mesh name="stand_collision_mesh_073" file="camera_stand/collision/piece_073.stl" />
+    <mesh name="stand_collision_mesh_074" file="camera_stand/collision/piece_074.stl" />
+    <mesh name="stand_collision_mesh_075" file="camera_stand/collision/piece_075.stl" />
+    <mesh name="stand_collision_mesh_076" file="camera_stand/collision/piece_076.stl" />
+    <mesh name="stand_collision_mesh_077" file="camera_stand/collision/piece_077.stl" />
+    <mesh name="stand_collision_mesh_078" file="camera_stand/collision/piece_078.stl" />
+    <mesh name="stand_collision_mesh_079" file="camera_stand/collision/piece_079.stl" />
+    <mesh name="stand_collision_mesh_080" file="camera_stand/collision/piece_080.stl" />
+    <mesh name="stand_collision_mesh_081" file="camera_stand/collision/piece_081.stl" />
+    <mesh name="stand_collision_mesh_082" file="camera_stand/collision/piece_082.stl" />
+    <mesh name="stand_collision_mesh_083" file="camera_stand/collision/piece_083.stl" />
+    <mesh name="stand_collision_mesh_084" file="camera_stand/collision/piece_084.stl" />
+    <mesh name="stand_collision_mesh_085" file="camera_stand/collision/piece_085.stl" />
+    <mesh name="stand_collision_mesh_086" file="camera_stand/collision/piece_086.stl" />
+    <mesh name="stand_collision_mesh_087" file="camera_stand/collision/piece_087.stl" />
+    <mesh name="stand_collision_mesh_088" file="camera_stand/collision/piece_088.stl" />
+    <mesh name="stand_collision_mesh_089" file="camera_stand/collision/piece_089.stl" />
+    <mesh name="stand_collision_mesh_090" file="camera_stand/collision/piece_090.stl" />
+    <mesh name="stand_collision_mesh_091" file="camera_stand/collision/piece_091.stl" />
+    <mesh name="stand_collision_mesh_092" file="camera_stand/collision/piece_092.stl" />
+    <mesh name="stand_collision_mesh_093" file="camera_stand/collision/piece_093.stl" />
+    <mesh name="stand_collision_mesh_094" file="camera_stand/collision/piece_094.stl" />
+    <mesh name="stand_collision_mesh_095" file="camera_stand/collision/piece_095.stl" />
+    <mesh name="stand_collision_mesh_096" file="camera_stand/collision/piece_096.stl" />
+    <mesh name="stand_collision_mesh_097" file="camera_stand/collision/piece_097.stl" />
+    <mesh name="stand_collision_mesh_098" file="camera_stand/collision/piece_098.stl" />
+    <mesh name="stand_collision_mesh_099" file="camera_stand/collision/piece_099.stl" />
+    <mesh name="stand_collision_mesh_100" file="camera_stand/collision/piece_100.stl" />
+    <mesh name="stand_collision_mesh_101" file="camera_stand/collision/piece_101.stl" />
+    <mesh name="stand_collision_mesh_102" file="camera_stand/collision/piece_102.stl" />
+    <mesh name="stand_collision_mesh_103" file="camera_stand/collision/piece_103.stl" />
+    <mesh name="stand_collision_mesh_104" file="camera_stand/collision/piece_104.stl" />
+    <mesh name="stand_collision_mesh_105" file="camera_stand/collision/piece_105.stl" />
+    <mesh name="stand_collision_mesh_106" file="camera_stand/collision/piece_106.stl" />
+    <mesh name="stand_collision_mesh_107" file="camera_stand/collision/piece_107.stl" />
+    <mesh name="stand_collision_mesh_108" file="camera_stand/collision/piece_108.stl" />
+    <mesh name="stand_collision_mesh_109" file="camera_stand/collision/piece_109.stl" />
+    <mesh name="stand_collision_mesh_110" file="camera_stand/collision/piece_110.stl" />
+    <mesh name="stand_collision_mesh_111" file="camera_stand/collision/piece_111.stl" />
+    <mesh name="stand_collision_mesh_112" file="camera_stand/collision/piece_112.stl" />
+    <mesh name="stand_collision_mesh_113" file="camera_stand/collision/piece_113.stl" />
+    <mesh name="stand_collision_mesh_114" file="camera_stand/collision/piece_114.stl" />
+    <mesh name="stand_collision_mesh_115" file="camera_stand/collision/piece_115.stl" />
+    <mesh name="stand_collision_mesh_116" file="camera_stand/collision/piece_116.stl" />
+    <mesh name="stand_collision_mesh_117" file="camera_stand/collision/piece_117.stl" />
+    <mesh name="stand_collision_mesh_118" file="camera_stand/collision/piece_118.stl" />
+    <mesh name="stand_collision_mesh_119" file="camera_stand/collision/piece_119.stl" />
+    <mesh name="stand_collision_mesh_120" file="camera_stand/collision/piece_120.stl" />
+    <mesh name="stand_collision_mesh_121" file="camera_stand/collision/piece_121.stl" />
+    <mesh name="stand_collision_mesh_122" file="camera_stand/collision/piece_122.stl" />
+    <mesh name="stand_collision_mesh_123" file="camera_stand/collision/piece_123.stl" />
+    <mesh name="stand_collision_mesh_124" file="camera_stand/collision/piece_124.stl" />
+    <mesh name="stand_collision_mesh_125" file="camera_stand/collision/piece_125.stl" />
+    <mesh name="stand_collision_mesh_126" file="camera_stand/collision/piece_126.stl" />
+    <mesh name="stand_collision_mesh_127" file="camera_stand/collision/piece_127.stl" />
+    <mesh name="stand_collision_mesh_128" file="camera_stand/collision/piece_128.stl" />
+    <mesh name="stand_collision_mesh_129" file="camera_stand/collision/piece_129.stl" />
+    <mesh name="stand_collision_mesh_130" file="camera_stand/collision/piece_130.stl" />
+    <mesh name="stand_collision_mesh_131" file="camera_stand/collision/piece_131.stl" />
+    <mesh name="stand_collision_mesh_132" file="camera_stand/collision/piece_132.stl" />
+    <mesh name="stand_collision_mesh_133" file="camera_stand/collision/piece_133.stl" />
+    <mesh name="stand_collision_mesh_134" file="camera_stand/collision/piece_134.stl" />
+    <mesh name="stand_collision_mesh_135" file="camera_stand/collision/piece_135.stl" />
+    <mesh name="stand_collision_mesh_136" file="camera_stand/collision/piece_136.stl" />
+    <mesh name="stand_collision_mesh_137" file="camera_stand/collision/piece_137.stl" />
+    <mesh name="stand_collision_mesh_138" file="camera_stand/collision/piece_138.stl" />
+    <mesh name="stand_collision_mesh_139" file="camera_stand/collision/piece_139.stl" />
+    <mesh name="stand_collision_mesh_140" file="camera_stand/collision/piece_140.stl" />
+    <mesh name="stand_collision_mesh_141" file="camera_stand/collision/piece_141.stl" />
+    <mesh name="stand_collision_mesh_142" file="camera_stand/collision/piece_142.stl" />
+    <mesh name="stand_collision_mesh_143" file="camera_stand/collision/piece_143.stl" />
+    <mesh name="stand_collision_mesh_144" file="camera_stand/collision/piece_144.stl" />
+    <mesh name="stand_collision_mesh_145" file="camera_stand/collision/piece_145.stl" />
+    <mesh name="stand_collision_mesh_146" file="camera_stand/collision/piece_146.stl" />
+    <mesh name="stand_collision_mesh_147" file="camera_stand/collision/piece_147.stl" />
+    <mesh name="stand_collision_mesh_148" file="camera_stand/collision/piece_148.stl" />
+    <mesh name="stand_collision_mesh_149" file="camera_stand/collision/piece_149.stl" />
+    <mesh name="stand_collision_mesh_150" file="camera_stand/collision/piece_150.stl" />
+    <mesh name="stand_collision_mesh_151" file="camera_stand/collision/piece_151.stl" />
+    <mesh name="stand_collision_mesh_152" file="camera_stand/collision/piece_152.stl" />
+    <mesh name="stand_collision_mesh_153" file="camera_stand/collision/piece_153.stl" />
+    <mesh name="stand_collision_mesh_154" file="camera_stand/collision/piece_154.stl" />
+    <mesh name="stand_collision_mesh_155" file="camera_stand/collision/piece_155.stl" />
+    <mesh name="stand_collision_mesh_156" file="camera_stand/collision/piece_156.stl" />
+    <mesh name="stand_collision_mesh_157" file="camera_stand/collision/piece_157.stl" />
+    <mesh name="stand_collision_mesh_158" file="camera_stand/collision/piece_158.stl" />
+    <mesh name="stand_collision_mesh_159" file="camera_stand/collision/piece_159.stl" />
+    <mesh name="stand_collision_mesh_160" file="camera_stand/collision/piece_160.stl" />
+    <mesh name="stand_collision_mesh_161" file="camera_stand/collision/piece_161.stl" />
+    <mesh name="stand_collision_mesh_162" file="camera_stand/collision/piece_162.stl" />
+    <mesh name="stand_collision_mesh_163" file="camera_stand/collision/piece_163.stl" />
+    <mesh name="stand_collision_mesh_164" file="camera_stand/collision/piece_164.stl" />
+    <mesh name="stand_collision_mesh_165" file="camera_stand/collision/piece_165.stl" />
+    <mesh name="stand_collision_mesh_166" file="camera_stand/collision/piece_166.stl" />
+    <mesh name="stand_collision_mesh_167" file="camera_stand/collision/piece_167.stl" />
+    <mesh name="stand_collision_mesh_168" file="camera_stand/collision/piece_168.stl" />
+    <mesh name="stand_collision_mesh_169" file="camera_stand/collision/piece_169.stl" />
+    <mesh name="stand_collision_mesh_170" file="camera_stand/collision/piece_170.stl" />
+    <mesh name="stand_collision_mesh_171" file="camera_stand/collision/piece_171.stl" />
+    <mesh name="stand_collision_mesh_172" file="camera_stand/collision/piece_172.stl" />
+    <mesh name="stand_collision_mesh_173" file="camera_stand/collision/piece_173.stl" />
+    <mesh name="stand_collision_mesh_174" file="camera_stand/collision/piece_174.stl" />
+    <material name="gemini_305_anodized_aluminum" rgba="0.68 0.70 0.73 1" specular="0.55" shininess="0.35" />
+    <material name="gemini_305_optical_glass" rgba="0.025 0.03 0.035 1" specular="0.8" shininess="0.75" />
+    <mesh name="gemini_305_visual_mesh_00" file="gemini_305/visual/visual_body_00.stl" scale="0.001 0.001 0.001" />
+    <mesh name="gemini_305_visual_mesh_01" file="gemini_305/visual/visual_body_01.stl" scale="0.001 0.001 0.001" />
+    <mesh name="gemini_305_visual_mesh_02" file="gemini_305/visual/visual_glass_00.stl" scale="0.001 0.001 0.001" inertia="shell" />
+  </asset>
+  <worldbody>
+    <body name="camera_stand">
+      <geom name="stand_visual" type="mesh" mesh="stand_visual_mesh" group="2" contype="0" conaffinity="0" mass="0" material="stand_anodized_aluminum" />
+      <geom name="stand_collision_000" type="mesh" mesh="stand_collision_mesh_000" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_001" type="mesh" mesh="stand_collision_mesh_001" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_002" type="mesh" mesh="stand_collision_mesh_002" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_003" type="mesh" mesh="stand_collision_mesh_003" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_004" type="mesh" mesh="stand_collision_mesh_004" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_005" type="mesh" mesh="stand_collision_mesh_005" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_006" type="mesh" mesh="stand_collision_mesh_006" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_007" type="mesh" mesh="stand_collision_mesh_007" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_008" type="mesh" mesh="stand_collision_mesh_008" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_009" type="mesh" mesh="stand_collision_mesh_009" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_010" type="mesh" mesh="stand_collision_mesh_010" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_011" type="mesh" mesh="stand_collision_mesh_011" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_012" type="mesh" mesh="stand_collision_mesh_012" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_013" type="mesh" mesh="stand_collision_mesh_013" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_014" type="mesh" mesh="stand_collision_mesh_014" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_015" type="mesh" mesh="stand_collision_mesh_015" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_016" type="mesh" mesh="stand_collision_mesh_016" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_017" type="mesh" mesh="stand_collision_mesh_017" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_018" type="mesh" mesh="stand_collision_mesh_018" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_019" type="mesh" mesh="stand_collision_mesh_019" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_020" type="mesh" mesh="stand_collision_mesh_020" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_021" type="mesh" mesh="stand_collision_mesh_021" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_022" type="mesh" mesh="stand_collision_mesh_022" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_023" type="mesh" mesh="stand_collision_mesh_023" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_024" type="mesh" mesh="stand_collision_mesh_024" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_025" type="mesh" mesh="stand_collision_mesh_025" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_026" type="mesh" mesh="stand_collision_mesh_026" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_027" type="mesh" mesh="stand_collision_mesh_027" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_028" type="mesh" mesh="stand_collision_mesh_028" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_029" type="mesh" mesh="stand_collision_mesh_029" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_030" type="mesh" mesh="stand_collision_mesh_030" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_031" type="mesh" mesh="stand_collision_mesh_031" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_032" type="mesh" mesh="stand_collision_mesh_032" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_033" type="mesh" mesh="stand_collision_mesh_033" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_034" type="mesh" mesh="stand_collision_mesh_034" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_035" type="mesh" mesh="stand_collision_mesh_035" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_036" type="mesh" mesh="stand_collision_mesh_036" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_037" type="mesh" mesh="stand_collision_mesh_037" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_038" type="mesh" mesh="stand_collision_mesh_038" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_039" type="mesh" mesh="stand_collision_mesh_039" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_040" type="mesh" mesh="stand_collision_mesh_040" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_041" type="mesh" mesh="stand_collision_mesh_041" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_042" type="mesh" mesh="stand_collision_mesh_042" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_043" type="mesh" mesh="stand_collision_mesh_043" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_044" type="mesh" mesh="stand_collision_mesh_044" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_045" type="mesh" mesh="stand_collision_mesh_045" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_046" type="mesh" mesh="stand_collision_mesh_046" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_047" type="mesh" mesh="stand_collision_mesh_047" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_048" type="mesh" mesh="stand_collision_mesh_048" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_049" type="mesh" mesh="stand_collision_mesh_049" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_050" type="mesh" mesh="stand_collision_mesh_050" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_051" type="mesh" mesh="stand_collision_mesh_051" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_052" type="mesh" mesh="stand_collision_mesh_052" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_053" type="mesh" mesh="stand_collision_mesh_053" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_054" type="mesh" mesh="stand_collision_mesh_054" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_055" type="mesh" mesh="stand_collision_mesh_055" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_056" type="mesh" mesh="stand_collision_mesh_056" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_057" type="mesh" mesh="stand_collision_mesh_057" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_058" type="mesh" mesh="stand_collision_mesh_058" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_059" type="mesh" mesh="stand_collision_mesh_059" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_060" type="mesh" mesh="stand_collision_mesh_060" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_061" type="mesh" mesh="stand_collision_mesh_061" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_062" type="mesh" mesh="stand_collision_mesh_062" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_063" type="mesh" mesh="stand_collision_mesh_063" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_064" type="mesh" mesh="stand_collision_mesh_064" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_065" type="mesh" mesh="stand_collision_mesh_065" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_066" type="mesh" mesh="stand_collision_mesh_066" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_067" type="mesh" mesh="stand_collision_mesh_067" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_068" type="mesh" mesh="stand_collision_mesh_068" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_069" type="mesh" mesh="stand_collision_mesh_069" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_070" type="mesh" mesh="stand_collision_mesh_070" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_071" type="mesh" mesh="stand_collision_mesh_071" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_072" type="mesh" mesh="stand_collision_mesh_072" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_073" type="mesh" mesh="stand_collision_mesh_073" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_074" type="mesh" mesh="stand_collision_mesh_074" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_075" type="mesh" mesh="stand_collision_mesh_075" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_076" type="mesh" mesh="stand_collision_mesh_076" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_077" type="mesh" mesh="stand_collision_mesh_077" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_078" type="mesh" mesh="stand_collision_mesh_078" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_079" type="mesh" mesh="stand_collision_mesh_079" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_080" type="mesh" mesh="stand_collision_mesh_080" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_081" type="mesh" mesh="stand_collision_mesh_081" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_082" type="mesh" mesh="stand_collision_mesh_082" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_083" type="mesh" mesh="stand_collision_mesh_083" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_084" type="mesh" mesh="stand_collision_mesh_084" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_085" type="mesh" mesh="stand_collision_mesh_085" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_086" type="mesh" mesh="stand_collision_mesh_086" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_087" type="mesh" mesh="stand_collision_mesh_087" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_088" type="mesh" mesh="stand_collision_mesh_088" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_089" type="mesh" mesh="stand_collision_mesh_089" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_090" type="mesh" mesh="stand_collision_mesh_090" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_091" type="mesh" mesh="stand_collision_mesh_091" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_092" type="mesh" mesh="stand_collision_mesh_092" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_093" type="mesh" mesh="stand_collision_mesh_093" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_094" type="mesh" mesh="stand_collision_mesh_094" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_095" type="mesh" mesh="stand_collision_mesh_095" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_096" type="mesh" mesh="stand_collision_mesh_096" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_097" type="mesh" mesh="stand_collision_mesh_097" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_098" type="mesh" mesh="stand_collision_mesh_098" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_099" type="mesh" mesh="stand_collision_mesh_099" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_100" type="mesh" mesh="stand_collision_mesh_100" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_101" type="mesh" mesh="stand_collision_mesh_101" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_102" type="mesh" mesh="stand_collision_mesh_102" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_103" type="mesh" mesh="stand_collision_mesh_103" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_104" type="mesh" mesh="stand_collision_mesh_104" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_105" type="mesh" mesh="stand_collision_mesh_105" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_106" type="mesh" mesh="stand_collision_mesh_106" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_107" type="mesh" mesh="stand_collision_mesh_107" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_108" type="mesh" mesh="stand_collision_mesh_108" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_109" type="mesh" mesh="stand_collision_mesh_109" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_110" type="mesh" mesh="stand_collision_mesh_110" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_111" type="mesh" mesh="stand_collision_mesh_111" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_112" type="mesh" mesh="stand_collision_mesh_112" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_113" type="mesh" mesh="stand_collision_mesh_113" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_114" type="mesh" mesh="stand_collision_mesh_114" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_115" type="mesh" mesh="stand_collision_mesh_115" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_116" type="mesh" mesh="stand_collision_mesh_116" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_117" type="mesh" mesh="stand_collision_mesh_117" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_118" type="mesh" mesh="stand_collision_mesh_118" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_119" type="mesh" mesh="stand_collision_mesh_119" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_120" type="mesh" mesh="stand_collision_mesh_120" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_121" type="mesh" mesh="stand_collision_mesh_121" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_122" type="mesh" mesh="stand_collision_mesh_122" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_123" type="mesh" mesh="stand_collision_mesh_123" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_124" type="mesh" mesh="stand_collision_mesh_124" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_125" type="mesh" mesh="stand_collision_mesh_125" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_126" type="mesh" mesh="stand_collision_mesh_126" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_127" type="mesh" mesh="stand_collision_mesh_127" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_128" type="mesh" mesh="stand_collision_mesh_128" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_129" type="mesh" mesh="stand_collision_mesh_129" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_130" type="mesh" mesh="stand_collision_mesh_130" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_131" type="mesh" mesh="stand_collision_mesh_131" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_132" type="mesh" mesh="stand_collision_mesh_132" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_133" type="mesh" mesh="stand_collision_mesh_133" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_134" type="mesh" mesh="stand_collision_mesh_134" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_135" type="mesh" mesh="stand_collision_mesh_135" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_136" type="mesh" mesh="stand_collision_mesh_136" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_137" type="mesh" mesh="stand_collision_mesh_137" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_138" type="mesh" mesh="stand_collision_mesh_138" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_139" type="mesh" mesh="stand_collision_mesh_139" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_140" type="mesh" mesh="stand_collision_mesh_140" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_141" type="mesh" mesh="stand_collision_mesh_141" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_142" type="mesh" mesh="stand_collision_mesh_142" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_143" type="mesh" mesh="stand_collision_mesh_143" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_144" type="mesh" mesh="stand_collision_mesh_144" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_145" type="mesh" mesh="stand_collision_mesh_145" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_146" type="mesh" mesh="stand_collision_mesh_146" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_147" type="mesh" mesh="stand_collision_mesh_147" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_148" type="mesh" mesh="stand_collision_mesh_148" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_149" type="mesh" mesh="stand_collision_mesh_149" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_150" type="mesh" mesh="stand_collision_mesh_150" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_151" type="mesh" mesh="stand_collision_mesh_151" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_152" type="mesh" mesh="stand_collision_mesh_152" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_153" type="mesh" mesh="stand_collision_mesh_153" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_154" type="mesh" mesh="stand_collision_mesh_154" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_155" type="mesh" mesh="stand_collision_mesh_155" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_156" type="mesh" mesh="stand_collision_mesh_156" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_157" type="mesh" mesh="stand_collision_mesh_157" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_158" type="mesh" mesh="stand_collision_mesh_158" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_159" type="mesh" mesh="stand_collision_mesh_159" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_160" type="mesh" mesh="stand_collision_mesh_160" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_161" type="mesh" mesh="stand_collision_mesh_161" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_162" type="mesh" mesh="stand_collision_mesh_162" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_163" type="mesh" mesh="stand_collision_mesh_163" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_164" type="mesh" mesh="stand_collision_mesh_164" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_165" type="mesh" mesh="stand_collision_mesh_165" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_166" type="mesh" mesh="stand_collision_mesh_166" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_167" type="mesh" mesh="stand_collision_mesh_167" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_168" type="mesh" mesh="stand_collision_mesh_168" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_169" type="mesh" mesh="stand_collision_mesh_169" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_170" type="mesh" mesh="stand_collision_mesh_170" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_171" type="mesh" mesh="stand_collision_mesh_171" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_172" type="mesh" mesh="stand_collision_mesh_172" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_173" type="mesh" mesh="stand_collision_mesh_173" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <geom name="stand_collision_174" type="mesh" mesh="stand_collision_mesh_174" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
+      <site name="stand_flange" pos="0 0 0" quat="0.707106781 0.707106781 0 0" size="0.002" rgba="0.2 0.7 1 1" group="4" />
+      <site name="stand_camera_mount" pos="0.0675 0.003 0" quat="0.707106781 -0.707106781 0 0" size="0.002" rgba="1 0.4 0 1" group="4" />
+      <site name="stand_hole_20_0" pos="0.0675 0.003 -0.01" quat="0.707106781 -0.707106781 0 0" size="0.001" group="4" />
+      <site name="stand_hole_20_1" pos="0.0675 0.003 0.01" quat="0.707106781 -0.707106781 0 0" size="0.001" group="4" />
+      <site name="stand_hole_45_0" pos="0.0675 0.003 -0.0225" quat="0.707106781 -0.707106781 0 0" size="0.001" group="4" />
+      <site name="stand_hole_45_1" pos="0.0675 0.003 0.0225" quat="0.707106781 -0.707106781 0 0" size="0.001" group="4" />
+      <body name="gemini_305_body" pos="0.084677002 0.026076703 -0.018348755" quat="0 0.7071067812 0 0.7071067812">
+        <geom name="gemini_305_visual_00" type="mesh" mesh="gemini_305_visual_mesh_00" group="2" contype="0" conaffinity="0" mass="0" material="gemini_305_anodized_aluminum" />
+        <geom name="gemini_305_visual_01" type="mesh" mesh="gemini_305_visual_mesh_01" group="2" contype="0" conaffinity="0" mass="0" material="gemini_305_anodized_aluminum" />
+        <geom name="gemini_305_visual_02" type="mesh" mesh="gemini_305_visual_mesh_02" group="2" contype="0" conaffinity="0" mass="0" material="gemini_305_optical_glass" />
+        <geom name="gemini_305_collision_00" type="box" pos="0.018345856 0.011576704 -0.017181074" size="0.021014405 0.0115 0.0210143" group="3" mass="0" rgba="0.8 0.15 0.1 0.3" />
+        <site name="gemini_305_mount" pos="0.018348755 0.023076703 -0.017177002" quat="0.707106781 -0.707106781 0 0" size="0.002" rgba="1 0.4 0 1" group="4" />
+        <site name="gemini_305_hole_0" pos="0.008348767 0.023076703 -0.017190216" quat="0.707106781 -0.707106781 0 0" size="0.001" group="4" />
+        <site name="gemini_305_hole_1" pos="0.028348746 0.023076703 -0.017161645" quat="0.707106781 -0.707106781 0 0" size="0.001" group="4" />
+      </body>
+    </body>
+  </worldbody>
+</mujoco>

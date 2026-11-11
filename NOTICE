@@ -29,5 +29,19 @@ licenses/ (and in ufactory_mujoco/data/licenses/ in installed distributions).
    ufactory_lite6 / ufactory_xarm7 models are BSD-3-Clause (Copyright (c) 2018,
    UFACTORY Inc.).
 
-Trademarks: xArm, UF850, Lite 6 and UFACTORY are trademarks of UFACTORY. Their use
+4. Depth Camera and Camera Bracket Models (models/{d405,d435,gemini_305,zed_x_nano,camera_stand}*)
+   - RealSense D405 and D435 visual meshes are derived (split into housing and
+     front optical-window STL parts) from realsense2_description in
+     realsenseai/realsense-ros (https://github.com/realsenseai/realsense-ros),
+     licensed under Apache-2.0 (Copyright 2023 Intel Corporation; see
+     licenses/realsense_ros.LICENSE).
+   - Orbbec Gemini 305, Stereolabs ZED X Nano, and UFACTORY camera_stand meshes
+     are tessellated and split from publicly published vendor mechanical STEP
+     files; collision shapes (box approximations and 175-piece convex-prism
+     decomposition) and mass="0" MJCF definitions are authored in this project
+     for visual and mounting-clearance simulation only.
+
+Trademarks: xArm, UF850, Lite 6 and UFACTORY are trademarks of UFACTORY;
+RealSense is a trademark of Intel Corporation; Orbbec and Gemini are trademarks
+of Orbbec Inc.; Stereolabs and ZED are trademarks of Stereolabs Inc. Their use
 here describes hardware compatibility only and does not imply endorsement.

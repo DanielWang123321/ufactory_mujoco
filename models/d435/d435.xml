@@ -1,0 +1,25 @@
+<mujoco model="d435">
+  <!-- RealSense D435 depth camera (visual, mount sites, box collision; mass=0, no optical sensor; Roadmap 0.1.2). -->
+  <compiler angle="radian" autolimits="true" meshdir="assets" />
+  <option integrator="implicitfast" />
+  <asset>
+    <material name="d435_anodized_aluminum" rgba="0.68 0.70 0.73 1" specular="0.55" shininess="0.35" />
+    <material name="d435_optical_glass" rgba="0.025 0.03 0.035 1" specular="0.8" shininess="0.75" />
+    <mesh name="d435_visual_mesh_00" file="d435/visual/visual_body_00.stl" scale="1 1 1" />
+    <mesh name="d435_visual_mesh_01" file="d435/visual/visual_body_01.stl" scale="1 1 1" />
+    <mesh name="d435_visual_mesh_02" file="d435/visual/visual_body_02.stl" scale="1 1 1" />
+    <mesh name="d435_visual_mesh_03" file="d435/visual/visual_glass_00.stl" scale="1 1 1" inertia="shell" />
+  </asset>
+  <worldbody>
+    <body name="d435_body">
+      <geom name="d435_visual_00" type="mesh" mesh="d435_visual_mesh_00" group="2" contype="0" conaffinity="0" mass="0" material="d435_anodized_aluminum" />
+      <geom name="d435_visual_01" type="mesh" mesh="d435_visual_mesh_01" group="2" contype="0" conaffinity="0" mass="0" material="d435_anodized_aluminum" />
+      <geom name="d435_visual_02" type="mesh" mesh="d435_visual_mesh_02" group="2" contype="0" conaffinity="0" mass="0" material="d435_anodized_aluminum" />
+      <geom name="d435_visual_03" type="mesh" mesh="d435_visual_mesh_03" group="2" contype="0" conaffinity="0" mass="0" material="d435_optical_glass" />
+      <geom name="d435_collision_00" type="box" pos="0 0 -0.0125" size="0.045 0.0125 0.0125" group="3" mass="0" rgba="0.8 0.15 0.1 0.3" />
+      <site name="d435_mount" pos="0 0 -0.025" quat="0 1 0 0" size="0.002" rgba="1 0.4 0 1" group="4" />
+      <site name="d435_hole_0" pos="-0.0225 0 -0.025" quat="0 1 0 0" size="0.001" group="4" />
+      <site name="d435_hole_1" pos="0.0225 0 -0.025" quat="0 1 0 0" size="0.001" group="4" />
+    </body>
+  </worldbody>
+</mujoco>

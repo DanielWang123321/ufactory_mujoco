@@ -69,8 +69,8 @@ def resource_reference():
         path = RESOURCE_ROOT / name
         if path.is_file():
             result["licenses"][name] = digest(path)
-    assert len(result["models"]) >= 48 and len(result["meshes"]) >= 135
-    assert len(result["configs"]) == 11 and len(result["licenses"]) == 5
+    assert len(result["models"]) >= 74 and len(result["meshes"]) >= 324
+    assert len(result["configs"]) == 11 and len(result["licenses"]) == 6
     return result
 
 
