@@ -59,6 +59,10 @@ jobs:
           set -e
           exec > >(tee build/ci/examples.log) 2>&1
           python examples/simulation/01_load_and_view.py --headless --model xarm6_with_gripper --pose ready
+          for m in d405 d435 gemini_305 zed_x_nano camera_stand camera_stand_with_d405 xarm6_with_gripper_and_d405; do
+            python examples/simulation/01_load_and_view.py --headless --model $m
+          done
+          python examples/simulation/04_gripper_control.py --headless --model xarm6_with_gripper_and_d405 --cycles 1
           for s in 02_joint_control 03_cartesian_ik 05_pick_place 06_trajectory_planning 07_kinematics 08_dynamics 09_obstacle_avoidance; do
             echo "::group::$s"; python examples/simulation/$s.py --headless; echo "::endgroup::"
           done

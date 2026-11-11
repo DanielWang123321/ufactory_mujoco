@@ -24,6 +24,19 @@ ALL_MODELS = [
     "xarm6_with_bio_gripper",
     "lite6_with_gripper",
     "lite6_with_vacuum_gripper",
+    "d405",
+    "d435",
+    "gemini_305",
+    "zed_x_nano",
+    "camera_stand",
+    "camera_stand_with_d405",
+    "camera_stand_with_d435",
+    "camera_stand_with_gemini_305",
+    "camera_stand_with_zed_x_nano",
+    "xarm6_with_gripper_and_d405",
+    "xarm6_with_gripper_and_d435",
+    "xarm6_with_gripper_and_gemini_305",
+    "xarm6_with_gripper_and_zed_x_nano",
 ]
 
 

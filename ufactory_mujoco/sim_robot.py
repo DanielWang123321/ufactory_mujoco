@@ -122,7 +122,10 @@ class SimRobot(RobotInterface):
 
         # --- Initialise state ---
         self._viewer = None
-        mujoco.mj_resetDataKeyframe(self.model, self.data, 0)  # home
+        if self.model.nkey > 0:
+            mujoco.mj_resetDataKeyframe(self.model, self.data, 0)  # home
+        else:
+            mujoco.mj_resetData(self.model, self.data)
         # MuJoCo < 3.15 pads incomplete keyframe qpos vectors with zeros while
         # >= 3.15 pads with qpos0, which would drop free-joint scene props
         # (e.g. the pick-place cube) to the world origin. Keyframes define the

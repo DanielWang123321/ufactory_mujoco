@@ -52,13 +52,13 @@ class ConvertedAssetsTest(unittest.TestCase):
 
     def test_mujoco_loads_all_visual_objs(self) -> None:
         """Verify each OBJ mesh can be parsed and loaded into MuJoCo without error."""
-        all_objs = list(MODELS_DIR.glob("*/assets/*/visual/*.obj"))
+        all_objs = sorted({p.resolve() for p in MODELS_DIR.glob("*/assets/*/visual/*.obj")})
         self.assertGreater(len(all_objs), 80, "Expected at least 80 converted OBJs")
 
         for obj_path in all_objs:
             xml = f"""<mujoco>
   <asset>
-    <mesh name="m" file="{obj_path.resolve()}"/>
+    <mesh name="m" file="{obj_path}"/>
   </asset>
   <worldbody>
     <geom type="mesh" mesh="m" contype="0" conaffinity="0" group="2"/>
@@ -74,13 +74,13 @@ class ConvertedAssetsTest(unittest.TestCase):
 
     def test_mujoco_loads_all_collision_stls(self) -> None:
         """Verify each STL collision mesh can be loaded into MuJoCo without error."""
-        all_stls = list(MODELS_DIR.glob("*/assets/*/collision/*.stl"))
-        self.assertGreater(len(all_stls), 45, "Expected at least 45 collision STLs")
+        all_stls = sorted({p.resolve() for p in MODELS_DIR.glob("*/assets/*/collision/*.stl")})
+        self.assertGreater(len(all_stls), 200, "Expected at least 200 unique collision STLs")
 
         for stl_path in all_stls:
             xml = f"""<mujoco>
   <asset>
-    <mesh name="m" file="{stl_path.resolve()}"/>
+    <mesh name="m" file="{stl_path}"/>
   </asset>
   <worldbody>
     <geom type="mesh" mesh="m" group="3"/>
