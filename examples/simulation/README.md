@@ -12,7 +12,7 @@ MuJoCo simulation examples (`01`–`10`) covering interactive model inspection, 
 
 | Script | Core Module(s) | Supported Models | Description |
 | :--- | :--- | :--- | :--- |
-| `01_load_and_view.py` | `ufactory_mujoco.viewer`, `ufactory_mujoco.model_paths` | All arms, grippers & combos | Load MJCF scene at `home` or `ready` keyframe in the interactive viewer |
+| `01_load_and_view.py` | `ufactory_mujoco.viewer`, `ufactory_mujoco.model_paths` | All arms, grippers, cameras, brackets & combos | Load MJCF scene at `home` or `ready` keyframe in the interactive viewer |
 | `02_joint_control.py` | `ufactory_mujoco.sim_robot` | All arms & arm+gripper combos | Speed-based quintic joint interpolation (`xarm6` runs 20 dynamics poses by default) |
 | `03_cartesian_ik.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.ik` | `xarm6` | Cartesian straight-line (`move_tcp`) and X-Z circle tracking via DLS IK |
 | `04_gripper_control.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.g2_controller` | Standalone grippers & combos | Open/close cycles (`0.0` = open, `1.0` = closed); Gripper G2 supports calibrated speed & force control (`--speed-percent`, `--force-percent`) |
@@ -30,10 +30,12 @@ All scripts need only the core install. `--headless` runs `02`–`10` without a 
 ### 2.1 Model Viewing & Basic Control (`01`–`04`)
 
 ```bash
-# 01: Interactive viewer (all arms, grippers, and combinations)
+# 01: Interactive viewer (all arms, grippers, cameras, brackets, and combinations)
 python examples/simulation/01_load_and_view.py
 python examples/simulation/01_load_and_view.py --model lite6 --pose ready
 python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose ready
+python examples/simulation/01_load_and_view.py --model camera_stand_with_d405
+python examples/simulation/01_load_and_view.py --model xarm6_with_gripper_and_d405 --pose ready
 
 # 02: Joint-space quintic trajectory control
 python examples/simulation/02_joint_control.py --model lite6

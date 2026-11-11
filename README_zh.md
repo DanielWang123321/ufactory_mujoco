@@ -16,7 +16,7 @@ python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose
 
 ## 功能
 
-- **模型**：由 [ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis) 转换的全部 5 款机械臂与 4 款夹爪，视觉网格与碰撞网格分离。Gripper G2 采用标定的四连杆几何、实测夹持力表和限速伺服（`g2_model.py`、`g2_controller.py`）。
+- **模型**：由 [ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis) 转换的全部 5 款机械臂与 4 款夹爪，以及 4 款深度相机（`d405`、`d435`、`gemini_305`、`zed_x_nano`）、UFACTORY 相机支架（`camera_stand`）及其支架组合与 `xarm6` + Gripper G2 组合，视觉网格与碰撞体分离。Gripper G2 采用标定的四连杆几何、实测夹持力表和限速伺服（`g2_model.py`、`g2_controller.py`）。
 - **运动学与规划**：正运动学、雅可比、阻尼最小二乘逆解、五次/LSPB/样条轨迹、笛卡尔直线、碰撞检测与 RRT-Connect（`kinematics.py`、`ik.py`、`trajectory.py`、`collision.py`、`path_planning.py`）。
 - **动力学**：质量矩阵、重力/科氏力、正逆动力学、负载，以及五臂验收命令（`dynamics.py`、`tasks/dynamics.py`）。
 - **脚本化任务**：5 组机械臂/夹爪的方块抓放与装箱，含预检（关节限位、穿透、RRT-Connect 绕行）和 JSON 报告（`tasks/`、`preflight.py`）。
@@ -33,7 +33,7 @@ python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose
 | `xarm7` | `gripper_g2` | 配 `gripper_g2` | 支持 | 支持 | — |
 | `uf850` | `gripper_g2` | 配 `gripper_g2` | 支持 | 支持 | — |
 
-每款机械臂和夹爪也可单独加载（`01_load_and_view.py --model <名称>`）。各模型的启动命令见 [docs/visual_command_guide.md](docs/visual_command_guide.md)。
+每款机械臂、夹爪、深度相机（`d405`、`d435`、`gemini_305`、`zed_x_nano`）及相机支架组合（`camera_stand`、`camera_stand_with_<相机>`、`xarm6_with_gripper_and_<相机>`）均可通过 `01_load_and_view.py --model <名称>` 加载。各模型的启动命令见 [docs/visual_command_guide.md](docs/visual_command_guide.md)。
 
 ## 安装
 
@@ -61,7 +61,7 @@ pip uninstall -y mujoco && pip install "mujoco>=4,<5"
 
 环境已经损坏时，用 `pip install --force-reinstall --no-deps mujoco mujoco-core mujoco-studio` 修复。新建的环境不受影响。
 
-**wheel**：自 v0.1.0 起，[GitHub Release](https://github.com/DanielWang123321/ufactory_mujoco/releases) 附带 wheel，内含全部模型、场景、任务配置和许可证（下载约 89 MiB，安装后资源约 532 MiB）。用 `pip install ufactory_mujoco-0.1.1-py3-none-any.whl` 安装后，`ufactory-mujoco` 命令可在任意目录运行。也可用 `python -m build` 自行构建。
+**wheel**：自 v0.1.0 起，[GitHub Release](https://github.com/DanielWang123321/ufactory_mujoco/releases) 附带 wheel，内含全部模型、场景、任务配置和许可证（下载约 102 MiB，安装后资源约 566 MiB）。用 `pip install ufactory_mujoco-0.1.2-py3-none-any.whl` 安装后，`ufactory-mujoco` 命令可在任意目录运行。也可用 `python -m build` 自行构建。
 
 ## 命令行任务
 
@@ -127,7 +127,8 @@ ruff check .                      # 与 CI 相同的静态检查（pip install r
 - 不发布训练好的强化学习权重，见[强化学习权重](#强化学习权重)。
 - 强化学习抓放仅支持 xArm 6 + Gripper G2。当前配方的训练结果强烈依赖随机种子，且不能跨机器复现（[详情](examples/rl/pick_place/README_zh.md#5-训练稳定性种子敏感性)）。
 - 真机模式仅在一台 xArm 6（固件 v2.8.0）上验证。静态力矩比对（3 kg 负载，≤ 2.5 %）为单次历史实测。
-- Bio Gripper G2 仅有 xArm 6 组合。`lite6_vacuum_gripper` 没有开合间隙，`04_gripper_control.py` 会拒绝该模型。
+- Bio Gripper G2 仅有 xArm 6 组合。`lite6_vacuum_gripper`、独立相机及 `camera_stand*` 没有夹爪执行器，`04_gripper_control.py` 会拒绝该模型（退出码 `2`）。
+- 深度相机与 `camera_stand` 模型提供外观几何、安装面/螺钉孔 `<site>`（`group=4`）与近似碰撞体（`group=3`），`mass=0` 且不含 MuJoCo `<camera>` 光学成像传感器；动力学场景请通过 `attach_payload` 注入相机与支架负载。
 - Lite 6 装箱仅在默认的 `servo_cartesian` 执行器下可靠。
 - 不同 MuJoCo 版本的仿真结果不完全相同：在 3.16、3.17 与 4.0 之间，脚本化抓放的放置误差最多相差 4 mm，任务成败不变。基准结果均注明测量时的版本。
 
@@ -173,8 +174,8 @@ docs/                      各模型启动命令
 
 - 运动学与惯量来自 UFACTORY 官方定义（[xarm_ros](https://github.com/xArm-Developer/xarm_ros)、[ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis)）。
 - 执行器参数遵循 [MuJoCo Menagerie](https://github.com/google-deepmind/mujoco_menagerie) 规范。
-- 视觉网格（`group=2`，`contype=0 conaffinity=0`）与碰撞网格（`group=3`）分离。
+- 视觉网格（`group=2`，`contype=0 conaffinity=0`）与碰撞网格（`group=3`）分离；相机与支架安装基准及螺钉孔以 `group=4` 的 `<site>` 提供（D435 含 `0.055 mm` 法向间隙以避免 ROS 视觉网格越过支架安装面）。
 
 ## 许可
 
-代码采用 MIT（见 `LICENSE`）。机器人模型源自 UFACTORY 资产（xarm_ros，BSD-3-Clause；ufactory_genesis，MIT），详见 `NOTICE`。
+代码采用 MIT（见 `LICENSE`）。机器人与相机模型源自 UFACTORY 资产（`xarm_ros`，BSD-3-Clause；`ufactory_genesis`，MIT）、Intel RealSense ROS（`realsense-ros`，Apache-2.0）以及奥比中光 / Stereolabs / UFACTORY 公开机械 CAD，详见 `NOTICE`。

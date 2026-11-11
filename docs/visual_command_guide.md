@@ -111,6 +111,33 @@ python examples/simulation/05_pick_place.py --robot xarm7
 python examples/simulation/10_box_pack.py --robot xarm7 --cycles 3
 ```
 
+### 2.4 深度相机与相机支架
+
+提供 RealSense D405 / D435、奥比中光 Gemini 305、Stereolabs ZED X Nano 4 款深度相机，以及 UFACTORY 相机支架（`camera_stand`）、支架组合与 `xarm6` + Gripper G2 + 支架 + 相机组合（`mass=0`，不含光学成像传感器；在查看器右侧面板开启 Site Group `4` 可显示安装面与螺钉孔位）：
+
+```bash
+# 独立深度相机与独立相机支架（静态预览）
+python examples/simulation/01_load_and_view.py --model d405
+python examples/simulation/01_load_and_view.py --model d435
+python examples/simulation/01_load_and_view.py --model gemini_305
+python examples/simulation/01_load_and_view.py --model zed_x_nano
+python examples/simulation/01_load_and_view.py --model camera_stand
+
+# 相机支架 + 深度相机组合（静态预览）
+python examples/simulation/01_load_and_view.py --model camera_stand_with_d405
+python examples/simulation/01_load_and_view.py --model camera_stand_with_d435
+python examples/simulation/01_load_and_view.py --model camera_stand_with_gemini_305
+python examples/simulation/01_load_and_view.py --model camera_stand_with_zed_x_nano
+
+# xArm 6 + Gripper G2 + 相机支架 + 深度相机（静态预览、关节运动、夹爪开合）
+python examples/simulation/01_load_and_view.py --model xarm6_with_gripper_and_d405 --pose ready
+python examples/simulation/01_load_and_view.py --model xarm6_with_gripper_and_d435 --pose ready
+python examples/simulation/01_load_and_view.py --model xarm6_with_gripper_and_gemini_305 --pose ready
+python examples/simulation/01_load_and_view.py --model xarm6_with_gripper_and_zed_x_nano --pose ready
+python examples/simulation/02_joint_control.py --model xarm6_with_gripper_and_d405
+python examples/simulation/04_gripper_control.py --model xarm6_with_gripper_and_d405
+```
+
 ## 3. 视窗操作
 
 以下按 MuJoCo 查看器的内置帮助（`F1`）整理：

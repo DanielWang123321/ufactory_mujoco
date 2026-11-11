@@ -12,7 +12,7 @@
 
 | 脚本 | 核心模块 | 支持模型 | 功能说明 |
 | :--- | :--- | :--- | :--- |
-| `01_load_and_view.py` | `ufactory_mujoco.viewer`, `ufactory_mujoco.model_paths` | 全系机械臂、夹爪及组合 | 载入 MJCF 场景（支持 `home` / `ready` 关键帧）并启动交互视窗 |
+| `01_load_and_view.py` | `ufactory_mujoco.viewer`, `ufactory_mujoco.model_paths` | 全系机械臂、夹爪、相机、支架及组合 | 载入 MJCF 场景（支持 `home` / `ready` 关键帧）并启动交互视窗 |
 | `02_joint_control.py` | `ufactory_mujoco.sim_robot` | 全系机械臂及带夹爪组合 | 基于速度的五次多项式关节插值控制（裸臂 `xarm6` 默认运行 20 姿态动力学轨迹） |
 | `03_cartesian_ik.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.ik` | `xarm6` | 基于阻尼最小二乘法（DLS）IK 的笛卡尔直线往返与 X-Z 平面圆弧轨迹跟踪 |
 | `04_gripper_control.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.g2_controller` | 独立夹爪及机械臂+夹爪组合 | 夹爪开闭控制循环（`0.0` = 全开，`1.0` = 闭合；Gripper G2 支持 `--speed-percent` 与 `--force-percent` 速度/力控） |
@@ -30,10 +30,12 @@
 ### 2.1 模型预览与基础运动控制 (`01`–`04`)
 
 ```bash
-# 01: 交互式查看器（支持所有机械臂、夹爪及组合模型）
+# 01: 交互式查看器（支持所有机械臂、夹爪、相机、支架及组合模型）
 python examples/simulation/01_load_and_view.py
 python examples/simulation/01_load_and_view.py --model lite6 --pose ready
 python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose ready
+python examples/simulation/01_load_and_view.py --model camera_stand_with_d405
+python examples/simulation/01_load_and_view.py --model xarm6_with_gripper_and_d405 --pose ready
 
 # 02: 关节空间五次多项式轨迹控制
 python examples/simulation/02_joint_control.py --model lite6

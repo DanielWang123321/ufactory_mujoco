@@ -16,7 +16,7 @@ Without a display, run a task headless: `ufactory-mujoco pick-place --robot xarm
 
 ## Features
 
-- **Models**: all five arms and four grippers converted from [ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis), with separate visual meshes and collision meshes. Gripper G2 uses a calibrated 4-bar linkage, a measured force table, and a rate-limited servo (`g2_model.py`, `g2_controller.py`).
+- **Models**: all five arms and four grippers converted from [ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis), plus four depth cameras (`d405`, `d435`, `gemini_305`, `zed_x_nano`), the UFACTORY `camera_stand`, and their bracket / `xarm6` + Gripper G2 assemblies, with separate visual meshes and collision shapes. Gripper G2 uses a calibrated 4-bar linkage, a measured force table, and a rate-limited servo (`g2_model.py`, `g2_controller.py`).
 - **Kinematics and planning**: FK, Jacobians, damped least-squares IK, quintic/LSPB/spline trajectories, Cartesian lines, collision checking, and RRT-Connect (`kinematics.py`, `ik.py`, `trajectory.py`, `collision.py`, `path_planning.py`).
 - **Dynamics**: mass matrix, gravity/Coriolis, inverse/forward dynamics, payloads, and a five-arm validation command (`dynamics.py`, `tasks/dynamics.py`).
 - **Scripted tasks**: cube pick-and-place and box packing for five arm/gripper pairs, with preflight (joint limits, penetration, RRT-Connect detours) and JSON reports (`tasks/`, `preflight.py`).
@@ -33,7 +33,7 @@ Without a display, run a task headless: `ufactory-mujoco pick-place --robot xarm
 | `xarm7` | `gripper_g2` | with `gripper_g2` | yes | yes | — |
 | `uf850` | `gripper_g2` | with `gripper_g2` | yes | yes | — |
 
-Every arm and gripper can also be loaded on its own (`01_load_and_view.py --model <name>`). The command for each model is listed in [docs/visual_command_guide.md](docs/visual_command_guide.md) (Chinese).
+Every arm, gripper, depth camera (`d405`, `d435`, `gemini_305`, `zed_x_nano`), and bracket assembly (`camera_stand`, `camera_stand_with_<camera>`, `xarm6_with_gripper_and_<camera>`) can also be loaded with `01_load_and_view.py --model <name>`. The command for each model is listed in [docs/visual_command_guide.md](docs/visual_command_guide.md) (Chinese).
 
 ## Installation
 
@@ -61,7 +61,7 @@ pip uninstall -y mujoco && pip install "mujoco>=4,<5"
 
 If the environment is already broken, repair it with `pip install --force-reinstall --no-deps mujoco mujoco-core mujoco-studio`. New environments are not affected.
 
-**Wheel**: [GitHub Releases](https://github.com/DanielWang123321/ufactory_mujoco/releases) from v0.1.0 on include a wheel with all models, scenes, task configs and licenses (about 89 MiB download, 532 MiB of resources once installed). Install it with `pip install ufactory_mujoco-0.1.1-py3-none-any.whl`; the `ufactory-mujoco` commands then run from any directory. Build one yourself with `python -m build`.
+**Wheel**: [GitHub Releases](https://github.com/DanielWang123321/ufactory_mujoco/releases) from v0.1.0 on include a wheel with all models, scenes, task configs and licenses (about 102 MiB download, 566 MiB of resources once installed). Install it with `pip install ufactory_mujoco-0.1.2-py3-none-any.whl`; the `ufactory-mujoco` commands then run from any directory. Build one yourself with `python -m build`.
 
 ## Command-Line Tasks
 
@@ -127,7 +127,8 @@ Tests that need optional packages (`gymnasium`/`stable-baselines3`, `trimesh`, `
 - Trained RL weights are not distributed; see [Trained RL Policies](#trained-rl-policies).
 - RL pick-and-place covers xArm 6 + Gripper G2 only. Training with the current recipe depends strongly on the seed and does not reproduce across machines ([details](examples/rl/pick_place/README.md#5-training-stability-seed-sensitivity)).
 - Hardware modes were validated on one xArm 6 (firmware v2.8.0). The static torque comparison (≤ 2.5 % with a 3 kg payload) is a single historical measurement.
-- Bio Gripper G2 is built only for xArm 6. `lite6_vacuum_gripper` has no jaw gap, so `04_gripper_control.py` rejects it.
+- Bio Gripper G2 is built only for xArm 6. `lite6_vacuum_gripper`, standalone cameras, and `camera_stand*` have no jaw actuator, so `04_gripper_control.py` rejects them (exit code `2`).
+- Depth camera and `camera_stand` models provide visual geometry, mounting/screw-hole `<site>`s (`group=4`), and approximate collision geometry (`group=3`) with `mass=0` and no MuJoCo `<camera>` optical sensor; inject camera/bracket inertia via `attach_payload` for dynamics tasks.
 - Lite 6 box packing is reliable only with the default `servo_cartesian` executor.
 - Simulation results are not identical across MuJoCo versions: between 3.16, 3.17 and 4.0 the placement error of the scripted pick-and-place changes by up to 4 mm, while task outcomes stay the same. Benchmarks state the version they were measured with.
 
@@ -174,8 +175,8 @@ docs/                      Commands for every model (Chinese)
 
 - Kinematics and inertia come from the official UFACTORY definitions ([xarm_ros](https://github.com/xArm-Developer/xarm_ros), [ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis)).
 - Actuator parameters follow [MuJoCo Menagerie](https://github.com/google-deepmind/mujoco_menagerie) conventions.
-- Visual meshes (`group=2`, `contype=0 conaffinity=0`) and collision meshes (`group=3`) are kept separate.
+- Visual meshes (`group=2`, `contype=0 conaffinity=0`) and collision meshes (`group=3`) are kept separate. Camera and bracket mounting frames and screw holes are exposed as `<site>` elements in `group=4` (D435 includes a `0.055 mm` normal clearance so its ROS visual mesh stays outside the bracket plane).
 
 ## License
 
-Code: MIT (see `LICENSE`). Robot models are derived from UFACTORY assets (xarm_ros, BSD-3-Clause; ufactory_genesis, MIT); see `NOTICE`.
+Code: MIT (see `LICENSE`). Robot and camera models include assets derived from UFACTORY (`xarm_ros`, BSD-3-Clause; `ufactory_genesis`, MIT), Intel RealSense ROS (`realsense-ros`, Apache-2.0), and published Orbbec / Stereolabs / UFACTORY mechanical CAD; see `NOTICE`.

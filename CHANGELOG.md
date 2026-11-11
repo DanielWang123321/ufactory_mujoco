@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.1.2] - 2026-11-11
+
+Depth camera and camera bracket models. Existing robot XMLs, meshes, task configs, task reports, and RL checkpoint hashes are byte-identical to 0.1.1.
+
+### Added
+
+- Four depth camera models (`d405`, `d435`, `gemini_305`, `zed_x_nano`), the UFACTORY mounting bracket (`camera_stand`), four bracket assemblies (`camera_stand_with_{d405,d435,gemini_305,zed_x_nano}`), and four xArm 6 + Gripper G2 + bracket + camera assemblies (`xarm6_with_gripper_and_{d405,d435,gemini_305,zed_x_nano}`), generated via `scripts/build_camera_mjcf.py` (13 new model directories, 26 XMLs, 189 canonical STL meshes).
+- Split anodized-aluminum housing and glossy optical-glass visual meshes (`group=2`), box and 175-piece convex-prism collision geometry preserving the bracket's 34.5 mm center bore (`group=3`, `mass=0`), and mounting / screw-hole `<site>` frames (`group=4`).
+- `licenses/realsense_ros.LICENSE` (Apache-2.0 for RealSense D405/D435 visual meshes) and updated `NOTICE` / `pyproject.toml` license metadata.
+- `tests/test_camera_models.py` verifying binary STL bounds against vendor specs, collision probes, screw-hole alignment (`<= 0.055 mm`), visual-mesh mounting-plane clearance, flange clearance partitioning, and full-stroke Gripper G2 finger clearance.
+
+### Fixed
+
+- `SimRobot` now resets keyframeless passive models (`nkey == 0`) with `mj_resetData` instead of raising `FatalError: invalid keyframe index 0`, so `04_gripper_control.py` cleanly exits with code `2` on passive accessories.
+
 ## [0.1.1] - 2026-11-11
 
 MuJoCo 4.0 support: no new features and no change to the simulation code. On MuJoCo 3.15 and 3.16, task reports are byte-identical to 0.1.0.
