@@ -5,6 +5,11 @@ on:
     branches: [master]
   pull_request:
 
+# An explicit bash shell runs with `-eo pipefail`, so `command | tee log` fails when the command fails.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -21,11 +26,17 @@ jobs:
           ruff check .
 
   test:
+    name: test (py${{ matrix.python-version }}, mujoco ${{ matrix.mujoco }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.12", "3.13", "3.14"]
+        mujoco: ["4"]
+        include:
+          # MuJoCo 3 stays supported: one job on the 3.16.0 lock.
+          - python-version: "3.13"
+            mujoco: "3"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -37,7 +48,8 @@ jobs:
       - name: Install (pinned core deps + package)
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-lock.txt -e ".[test]"
+          pip install -r ${{ matrix.mujoco == '3' && 'requirements-lock-mujoco3.txt' || 'requirements-lock.txt' }} -e ".[test]"
+          python -c "import mujoco; print('MuJoCo', mujoco.__version__); assert mujoco.__version__.startswith('${{ matrix.mujoco }}.')"
       - name: Unit tests (headless)
         run: |
           mkdir -p build/ci
@@ -66,7 +78,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: core-logs-${{ matrix.python-version }}
+          name: core-logs-${{ matrix.python-version }}-mujoco${{ matrix.mujoco }}
           path: build/ci/
 
   build:
@@ -137,6 +149,8 @@ jobs:
           mkdir -p reports
           python -m pip install --upgrade pip
           pip install distributions/*.whl 2>&1 | tee reports/install.log
+          # The wheel resolves MuJoCo from its declared range; record what a fresh install gets.
+          python -c "import mujoco; v = tuple(int(x) for x in mujoco.__version__.split('.')[:2]); print('MuJoCo', mujoco.__version__); assert (3, 15) <= v < (5, 0), v" 2>&1 | tee reports/mujoco-version.log
           pip check 2>&1 | tee reports/pip-check.log
       - name: Validate installed resources and five-arm tasks
         run: |

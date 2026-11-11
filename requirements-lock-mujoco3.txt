@@ -1,0 +1,12 @@
+# Exact versions the test suite and headless examples were verified with on MuJoCo 3
+# (Python 3.13, Linux x86_64). Install with: pip install -r requirements-lock-mujoco3.txt
+# Default (MuJoCo 4) lock: requirements-lock.txt
+mujoco==3.16.0
+numpy==2.5.4
+scipy==1.18.1
+PyYAML==6.0.3
+glfw==2.10.2
+PyOpenGL==3.1.10
+absl-py==2.5.1
+etils==1.14.0
+typing_extensions==4.16.0
