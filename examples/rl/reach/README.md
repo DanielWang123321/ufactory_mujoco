@@ -113,11 +113,13 @@ Evaluated against the `ufactory_genesis` reach standard (success strictly `< 5 m
 
 | Model | Success Rate (Group 1 / Group 2) | Mean Final Distance (Group 1 / Group 2) | Mean Steps | Training Steps |
 | :--- | ---: | ---: | ---: | ---: |
-| `lite6` | 99.8% / 99.4% | 4.3 / 4.4 mm | 82 | 2M |
-| `xarm5` | 99.2% / 99.0% | 4.2 / 4.2 mm | 95 | 2M |
-| `xarm6` | 100.0% / 99.8% | 4.1 / 4.1 mm | 72 | 2M |
-| `xarm7` | 99.6% / 99.0% | 4.3 / 4.3 mm | 88 | 2M |
-| `uf850` | 98.0% / 96.3% | 4.4 / 4.9 mm | 110 | 4M |
+| `lite6` | 98.2% / 97.9% | 4.4 / 4.4 mm | 84 | 2M |
+| `xarm5` | 97.1% / 97.9% | 4.5 / 4.4 mm | 97 | 2M |
+| `xarm6` | 100.0% / 100.0% | 4.0 / 4.1 mm | 68 | 2M |
+| `xarm7` | 99.2% / 99.6% | 4.4 / 4.3 mm | 91 | 2M |
+| `uf850` | 98.4% / 98.4% | 4.3 / 4.8 mm | 108 | 4M |
 
-Measured with Python 3.13.13, MuJoCo 3.16.0, Stable-Baselines3 2.9.0 and PyTorch 2.10.0 (CPU inference). Before 0.1.0 the same checkpoints were measured on MuJoCo 3.10.0; only `xarm5` group 1 (99.4%) and `uf850` group 1 (98.1%) differed.
+Trained once per arm with the production recipe above (recipe seed `0`) and measured with Python 3.13.13, MuJoCo 4.0.0, Stable-Baselines3 2.9.0 and PyTorch 2.10.0 (CPU inference).
+
+Checkpoints work across MuJoCo versions. Evaluated on MuJoCo 3.16.0, these checkpoints give the same success counts except for one episode (`lite6` group 1: 98.4%). The checkpoints trained on MuJoCo 3 for 0.1.0 (`lite6` 99.8% / 99.4%, `xarm5` 99.2% / 99.0%, `xarm6` 100.0% / 99.8%, `xarm7` 99.6% / 99.0%, `uf850` 98.0% / 96.3%) give identical success counts on MuJoCo 3.16.0 and 4.0.0. The two sets differ because they come from different training runs.
 

@@ -129,18 +129,18 @@ Reference checkpoint `ppo_pick_place.zip` (trained locally with seed `1`; not di
 
 | Policy | Evaluation Set | Success Rate | Max Press (`<= 1.0 mm`) | Max Release Height (`<= 3.0 mm`) | Mean Target Error (`<= 20.0 mm`) | Max Clearance (`>= 65.0 mm`) | Mean Steps |
 | :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: |
-| **Pure-PPO v2** (`ppo_pick_place.zip`) | 64 episodes, `--seed 18001` | **100.0% (64/64)** | 0.132 mm | 0.112 mm | 5.17 mm | 71.60 mm | 195.4 |
-| **Pure-PPO v2** (`ppo_pick_place.zip`) | 1000 episodes, `--seed 30001–34001`, 200 each | **98.1% (981/1000)** | 0.186 mm | 0.462 mm | 12.93 mm\* | 71.92 mm | 191.9 |
-| `PickPlaceExpert` scripted expert (`--expert`) | 64 episodes, `--seed 18001` | **100.0% (64/64)** | 0.000 mm | 1.799 mm | 0.35 mm | 97.72 mm | 294.8 |
+| **Pure-PPO v2** (`ppo_pick_place.zip`) | 64 episodes, `--seed 18001` | **100.0% (64/64)** | 0.255 mm | 0.028 mm | 5.83 mm | 75.86 mm | 192.2 |
+| **Pure-PPO v2** (`ppo_pick_place.zip`) | 1000 episodes, `--seed 30001–34001`, 200 each | **100.0% (1000/1000)** | 0.254 mm | 0.070 mm | 5.46 mm | 76.68 mm | 190.9 |
+| `PickPlaceExpert` scripted expert (`--expert`) | 64 episodes, `--seed 18001` | **100.0% (64/64)** | 0.000 mm | 1.781 mm | 0.34 mm | 97.72 mm | 294.8 |
 
-- `spawn_sha256` for `--seed 18001` is `7a2ebbc7...ec608`. The 1000-episode run had 19 failures: 18 tilt, 1 drop; no collision, drag, press, or high-release failures. \*Mean target error includes failed episodes and is not directly comparable with the 64-episode result.
-- Measured with Python 3.13.13, MuJoCo 3.16.0, SB3 2.9.0 and PyTorch 2.10.0 (CPU inference); the scripted expert gives the same numbers on MuJoCo 3.15.0. Before 0.1.0 the checkpoint was measured on MuJoCo 3.10.0 with the same success rates (64/64 and 98.1%).
-- The reference checkpoint was trained locally (`i7-14700F` + `RTX 4060 Ti`, `128` envs / `24` workers) with seed `1` and early-stopped after two consecutive gate passes at `9,000,064` steps in `19.5 min` (`~7,689 FPS`).
-- After the environment CPU-overhead optimizations (scalar G2 controller, cached kinematics, potential reuse, precomputed IK; bit-identical environment behavior), steady-state training throughput on the same machine and setup (excluding periodic evaluation) rose from about `9,700` to `14,700` steps/s (about `1.5x`).
+- `spawn_sha256` for `--seed 18001` is `7a2ebbc7...ec608`. The 1000-episode run had no failures.
+- Measured with Python 3.13.13, MuJoCo 4.0.0, SB3 2.9.0 and PyTorch 2.10.0 (CPU inference). Checkpoints work across MuJoCo versions: on MuJoCo 3.16.0 this checkpoint also succeeds in 64/64 and 1000/1000 episodes, and the checkpoint trained on MuJoCo 3 for 0.1.0 scores 64/64 and 98.1% (981/1000) on MuJoCo 3.16.0 and 64/64 and 98.5% (985/1000) on MuJoCo 4.0.0.
+- The reference checkpoint was trained locally (`i7-14700F` + `RTX 4060 Ti`, `128` envs / `24` workers) on MuJoCo 4.0.0 with seed `1` and early-stopped after two consecutive gate passes at `16,000,000` steps in `24.4 min` (`~10,900 FPS` including periodic evaluation). The 0.1.0 checkpoint (MuJoCo 3, seed `1`) stopped at `9,000,064` steps.
+- After the environment CPU-overhead optimizations (scalar G2 controller, cached kinematics, potential reuse, precomputed IK; bit-identical environment behavior), steady-state training throughput on the same machine and setup (excluding periodic evaluation) rose from about `9,700` to `14,700` steps/s (about `1.5x`). MuJoCo 3.16.0 and 4.0.0 give the same throughput (about `14,300` and `14,700` steps/s, two 2M-step runs each; the difference is within run-to-run drift).
 
 ## 5. Training Stability (Seed Sensitivity)
 
-Training outcomes with the current recipe depend strongly on the random seed; the reference checkpoint does not mean every seed reaches the same result. The experiments below were run on MuJoCo 3.10.0 before 0.1.0.
+Training outcomes with the current recipe depend strongly on the random seed; the reference checkpoint does not mean every seed reaches the same result. The experiments below were run on MuJoCo 3.10.0 before 0.1.0. On MuJoCo 4.0.0 only seed `1` has been trained (Section 4).
 
 On a server (`i9-14900K` + `RTX 5090`, same software versions; setup as in the Section 3 command), 20 seeds (`10001–29001`) were each trained for `50M` steps (periodic evaluation and early stop disabled) and evaluated at 10M / 20M / 50M steps on 1000 held-out episodes (evaluation seeds `50001–54001`):
 

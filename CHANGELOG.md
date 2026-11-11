@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.1.1] - 2026-11-11
+
+MuJoCo 4.0 support: no new features and no change to the simulation code. On MuJoCo 3.15 and 3.16, task reports are byte-identical to 0.1.0.
+
+### Changed
+
+- The MuJoCo requirement is `>=3.15,<5` (was `>=3.15,<4`). Tested with 3.15.0, 3.16.0, 3.17.0 and 4.0.0 on Python 3.12–3.14.
+- `requirements-lock.txt` pins MuJoCo 4.0.0 (`mujoco`, `mujoco-core`, `mujoco-studio`). `requirements-lock-mujoco3.txt` holds the MuJoCo 3.16.0 set. CI runs the tests with both.
+- RL benchmarks now come from policies retrained on MuJoCo 4.0.0 with the published recipes: reach succeeds on 97.1–100 % of two 512-target groups per arm, pick-and-place on 1000 of 1000 held-out episodes. Checkpoints are interchangeable between MuJoCo 3.16 and 4.0: those trained on MuJoCo 3 keep their success rates on 4.0.0 (pick-and-place 98.5 % against 98.1 %).
+- Results on MuJoCo 4.0.0 differ numerically from 3.16.0 in 19 of the 30 reference task reports (placement error by at most 1.0 mm). Exit codes and task outcomes are the same, and the scripted expert still succeeds in 64 of 64 episodes.
+
+### Fixed
+
+- `provenance.json` records the MuJoCo version when only `mujoco-core` is installed.
+- CI steps that pipe their output through `tee` now fail when the command fails.
+
+### Documentation
+
+- README: how to upgrade an existing environment from MuJoCo 3 to MuJoCo 4 (uninstall first), the two lock files, and a note that results differ between MuJoCo versions.
+
 ## [0.1.0] - 2026-11-10
 
 Cleanup release: no new features. Simulation behaviour, task reports and checkpoint hashes are unchanged.
