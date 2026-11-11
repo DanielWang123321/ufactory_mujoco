@@ -1,7 +1,7 @@
 # Core runtime dependencies (Python 3.12 / 3.13 / 3.14). Same ranges as pyproject.toml;
 # `pip install -e .` installs these plus the ufactory_mujoco package.
 # Exact versions verified in CI: requirements-lock.txt
-mujoco>=3.15,<4
+mujoco>=3.15,<5
 numpy>=2.0,<3
 scipy>=1.14,<2
 pyyaml>=6.0,<7

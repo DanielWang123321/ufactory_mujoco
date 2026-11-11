@@ -550,6 +550,21 @@ def load_checkpoint_manifest(path: str | Path) -> CheckpointManifest:
     return manifest
 
 
+def installed_version(name: str) -> str | None:
+    """Return the installed distribution version, or ``None`` when it is absent.
+
+    MuJoCo 4 ships its bindings as ``mujoco-core``; the ``mujoco`` distribution
+    is a meta package that a core-only installation does not have.
+    """
+    candidates = (name, "mujoco-core") if name == "mujoco" else (name,)
+    for candidate in candidates:
+        try:
+            return metadata.version(candidate)
+        except metadata.PackageNotFoundError:
+            continue
+    return None
+
+
 def write_run_provenance(
     path: str | Path,
     *,
@@ -566,12 +581,10 @@ def write_run_provenance(
             raise ArtifactError(f"provenance source does not exist: {source}")
         resolved_sources.append({"path": str(source), "sha256": file_sha256(source)})
 
-    packages: dict[str, str | None] = {}
-    for name in ("mujoco", "numpy", "scipy", "PyYAML", "gymnasium", "stable_baselines3", "torch"):
-        try:
-            packages[name] = metadata.version(name)
-        except metadata.PackageNotFoundError:
-            packages[name] = None
+    packages = {
+        name: installed_version(name)
+        for name in ("mujoco", "numpy", "scipy", "PyYAML", "gymnasium", "stable_baselines3", "torch")
+    }
 
     body = {
         "schema_version": 1,
