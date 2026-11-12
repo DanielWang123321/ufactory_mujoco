@@ -9,7 +9,8 @@ import mujoco
 import numpy as np
 
 from ufactory_mujoco import SimRobot
-from ufactory_mujoco.model_paths import resolve_model_path
+from ufactory_mujoco.model_paths import MODELS_ROOT, resolve_model_path
+from ufactory_mujoco.robots import ARMS
 from ufactory_mujoco.viewer import configure_low_power_rendering
 
 joint_control = importlib.import_module("examples.simulation.02_joint_control")
@@ -53,6 +54,35 @@ class JointControlTests(unittest.TestCase):
                     )
                     robot.move_joints(q, duration)
                     self.assertLess(np.max(np.abs(robot.get_joint_positions() - q)), 0.01)
+
+    def test_demo_presets_keep_every_arm_and_combination_above_the_floor(self):
+        """ready -> demo of example 02 must not push a link or a mounted tool into the floor."""
+        names = sorted(p.name for p in MODELS_ROOT.iterdir() if p.name.split("_with_")[0] in ARMS)
+        self.assertGreaterEqual(len(names), 23)
+        for name in names:
+            with self.subTest(model=name):
+                model = mujoco.MjModel.from_xml_path(str(resolve_model_path(name)))
+                data = mujoco.MjData(model)
+                n = ARMS[name.split("_with_")[0]].dof
+                ready, demo = joint_control.get_arm_targets(SimpleNamespace(model=model, _n_arm_qpos=n), name)
+                key = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_KEY, "ready")
+                np.testing.assert_allclose(ready, model.key(key).qpos[:n], atol=1e-9)
+                for q in (ready, demo):
+                    self.assertTrue(np.all(q >= model.jnt_range[:n, 0]) and np.all(q <= model.jnt_range[:n, 1]))
+                floors = [g for g in range(model.ngeom) if model.geom_type[g] == mujoco.mjtGeom.mjGEOM_PLANE]
+                moving = [g for g in range(model.ngeom)
+                          if model.body_weldid[model.geom_bodyid[g]] != 0
+                          and (model.geom_contype[g] or model.geom_conaffinity[g])]
+                self.assertTrue(floors and moving)
+                for s in np.linspace(0.0, 1.0, 11):
+                    mujoco.mj_resetDataKeyframe(model, data, key)
+                    data.qpos[:n] = (1.0 - s) * ready + s * demo
+                    mujoco.mj_forward(model, data)
+                    clearance = min(mujoco.mj_geomDistance(model, data, g, f, 1.0, None)
+                                    for g in moving for f in floors)
+                    self.assertGreater(clearance, 0.001, f"path fraction {s:.1f}")
+                    for contact in data.contact[: data.ncon]:
+                        self.assertGreaterEqual(contact.dist, -1e-4, f"penetration at path fraction {s:.1f}")
 
     def test_fractional_duration_reaches_exact_command(self):
         with SimRobot() as robot:

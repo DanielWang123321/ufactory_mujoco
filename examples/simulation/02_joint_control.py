@@ -2,7 +2,8 @@
 """Example 02: speed-based joint control with quintic interpolation.
 
 xArm 6 defaults to the 20 ufactory_genesis dynamics validation poses.
-Other models retain their ready -> demo -> ready presets.
+Other models retain their ready -> demo -> ready presets; a combination without
+its own preset starts from its ready keyframe and uses its arm's demo pose.
 
 Usage:
     python examples/simulation/02_joint_control.py            # with interactive viewer
@@ -22,7 +23,9 @@ import numpy as np  # noqa: E402
 from ufactory_mujoco import SimRobot  # noqa: E402
 from ufactory_mujoco.model_paths import resolve_model_path  # noqa: E402
 
-# Presets for joint demo movements: [ready, demo]
+# Presets for joint demo movements: [ready, demo]. Every demo pose stays inside the joint limits
+# and keeps the tools of the arm's combinations above the floor when the move starts from the
+# combination's ready keyframe (tests/test_joint_control.py).
 PRESETS: dict[str, tuple[list[float], list[float]]] = {
     "xarm6": (
         [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],  # ready = all-zero joints
@@ -56,11 +59,11 @@ PRESETS: dict[str, tuple[list[float], list[float]]] = {
     ),
     "uf850": (
         [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-        [0.3, -0.7, -0.3, 0.2, 0.4, -0.3],
+        [0.3, -0.1, -0.3, 0.2, 0.8, -0.3],
     ),
     "uf850_with_gripper": (
         [0.0, -0.5, 0.0, 0.0, 0.5, 0.0],
-        [0.3, -0.7, -0.3, 0.2, 0.4, -0.3],
+        [0.3, -0.1, -0.3, 0.2, 0.8, -0.3],
     ),
 }
 
@@ -99,13 +102,18 @@ def move_duration(q_start: np.ndarray, q_goal: np.ndarray, speed_deg_s: float,
 
 
 def get_arm_targets(robot: SimRobot, model_name: str) -> tuple[np.ndarray, np.ndarray]:
-    key = model_name if model_name in PRESETS else model_name.split("_with_")[0]
-    if key in PRESETS:
-        ready, demo = PRESETS[key]
+    if model_name in PRESETS:
+        ready, demo = PRESETS[model_name]
         return np.array(ready, dtype=float), np.array(demo, dtype=float)
 
-    # Fallback: extract from keyframe 'ready'
     ready_id = mujoco.mj_name2id(robot.model, mujoco.mjtObj.mjOBJ_KEY, "ready")
+    arm = model_name.split("_with_")[0]
+    if arm in PRESETS and ready_id >= 0:
+        # The bare arm's all-zero ready pose would put a mounted tool into the floor.
+        ready = robot.model.key(ready_id).qpos[:robot._n_arm_qpos].copy()
+        return ready, np.array(PRESETS[arm][1], dtype=float)
+
+    # Fallback: extract from keyframe 'ready'
     if ready_id >= 0:
         ready = robot.model.key(ready_id).qpos[:robot._n_arm_qpos].copy()
     else:
