@@ -16,7 +16,7 @@ python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose
 
 ## 功能
 
-- **模型**：由 [ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis) 转换的全部 5 款机械臂与 4 款夹爪，以及 4 款深度相机（`d405`、`d435`、`gemini_305`、`zed_x_nano`）、UFACTORY 相机支架（`camera_stand`）及其支架组合与 `xarm6` + Gripper G2 组合，视觉网格与碰撞体分离。Gripper G2 采用标定的四连杆几何、实测夹持力表和限速伺服（`g2_model.py`、`g2_controller.py`）。
+- **模型**：由 [ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis) 转换的全部 5 款机械臂与 5 款末端工具（Gripper G2、Bio Gripper G2、Lite 6 夹爪，以及 xArm 与 Lite 6 真空吸盘），以及 4 款深度相机（`d405`、`d435`、`gemini_305`、`zed_x_nano`）、UFACTORY 相机支架（`camera_stand`）及其支架组合与 `xarm6` + Gripper G2 组合，视觉网格与多凸包碰撞体分离。Gripper G2 采用标定的四连杆几何、实测夹持力表和限速伺服（`g2_model.py`、`g2_controller.py`）。Bio Gripper G2 采用 0.79 kg 标定动力学和限速的位置/力伺服（`bio_g2_model.py`、`bio_g2_controller.py`）。
 - **运动学与规划**：正运动学、雅可比、阻尼最小二乘逆解、五次/LSPB/样条轨迹、笛卡尔直线、碰撞检测与 RRT-Connect（`kinematics.py`、`ik.py`、`trajectory.py`、`collision.py`、`path_planning.py`）。
 - **动力学**：质量矩阵、重力/科氏力、正逆动力学、负载，以及五臂验收命令（`dynamics.py`、`tasks/dynamics.py`）。
 - **脚本化任务**：5 组机械臂/夹爪的方块抓放与装箱，含预检（关节限位、穿透、RRT-Connect 绕行）和 JSON 报告（`tasks/`、`preflight.py`）。
@@ -28,12 +28,12 @@ python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose
 | 机械臂 | 已构建的夹爪模型 | `pick-place` / `box-pack` | `dynamics` | RL 到达 | RL 抓放 |
 | :--- | :--- | :--- | :---: | :---: | :---: |
 | `lite6` | `lite6_gripper`、`lite6_vacuum_gripper` | 配 `lite6_gripper` | 支持 | 支持 | — |
-| `xarm5` | `gripper_g2` | 配 `gripper_g2` | 支持 | 支持 | — |
-| `xarm6` | `gripper_g2`、`bio_gripper_g2` | 配 `gripper_g2` | 支持 | 支持 | 配 `gripper_g2` |
-| `xarm7` | `gripper_g2` | 配 `gripper_g2` | 支持 | 支持 | — |
-| `uf850` | `gripper_g2` | 配 `gripper_g2` | 支持 | 支持 | — |
+| `xarm5` | `gripper_g2`、`bio_gripper_g2`、`vacuum_gripper` | 配 `gripper_g2` | 支持 | 支持 | — |
+| `xarm6` | `gripper_g2`、`bio_gripper_g2`、`vacuum_gripper` | 配 `gripper_g2` | 支持 | 支持 | 配 `gripper_g2` |
+| `xarm7` | `gripper_g2`、`bio_gripper_g2`、`vacuum_gripper` | 配 `gripper_g2` | 支持 | 支持 | — |
+| `uf850` | `gripper_g2`、`bio_gripper_g2`、`vacuum_gripper` | 配 `gripper_g2` | 支持 | 支持 | — |
 
-每款机械臂、夹爪、深度相机（`d405`、`d435`、`gemini_305`、`zed_x_nano`）及相机支架组合（`camera_stand`、`camera_stand_with_<相机>`、`xarm6_with_gripper_and_<相机>`）均可通过 `01_load_and_view.py --model <名称>` 加载。各模型的启动命令见 [docs/visual_command_guide.md](docs/visual_command_guide.md)。
+每款机械臂、夹爪、深度相机（`d405`、`d435`、`gemini_305`、`zed_x_nano`）及相机支架组合（`camera_stand`、`camera_stand_with_<相机>`、`xarm6_with_gripper_and_<相机>`）均可通过 `01_load_and_view.py --model <名称>` 加载。模型名与启动命令见 [examples/simulation/README_zh.md](examples/simulation/README_zh.md#4-按机型的命令)。
 
 ## 安装
 
@@ -106,10 +106,9 @@ python scripts/train_pick_place_rl.py --n-envs 128 --n-workers 24 --device cuda 
 
 | 内容 | 文档 |
 | :--- | :--- |
-| 仿真示例 `01`–`10`、命令行参数、真机命令 | [examples/simulation/README_zh.md](examples/simulation/README_zh.md)（[English](examples/simulation/README.md)） |
+| 仿真示例 `01`–`10`、命令行参数、按机型的命令、视窗操作、真机命令 | [examples/simulation/README_zh.md](examples/simulation/README_zh.md)（[English](examples/simulation/README.md)） |
 | 强化学习 TCP 到达 | [examples/rl/reach/README_zh.md](examples/rl/reach/README_zh.md)（[English](examples/rl/reach/README.md)） |
 | 强化学习方块抓放 | [examples/rl/pick_place/README_zh.md](examples/rl/pick_place/README_zh.md)（[English](examples/rl/pick_place/README.md)） |
-| 各模型启动命令 | [docs/visual_command_guide.md](docs/visual_command_guide.md) |
 | 版本历史 | [CHANGELOG.md](CHANGELOG.md) |
 
 ## 运行测试
@@ -127,17 +126,16 @@ ruff check .                      # 与 CI 相同的静态检查（pip install r
 - 不发布训练好的强化学习权重，见[强化学习权重](#强化学习权重)。
 - 强化学习抓放仅支持 xArm 6 + Gripper G2。当前配方的训练结果强烈依赖随机种子，且不能跨机器复现（[详情](examples/rl/pick_place/README_zh.md#5-训练稳定性种子敏感性)）。
 - 真机模式仅在一台 xArm 6（固件 v2.8.0）上验证。静态力矩比对（3 kg 负载，≤ 2.5 %）为单次历史实测。
-- Bio Gripper G2 仅有 xArm 6 组合。`lite6_vacuum_gripper`、独立相机及 `camera_stand*` 没有夹爪执行器，`04_gripper_control.py` 会拒绝该模型（退出码 `2`）。
+- 真空吸盘（`lite6_vacuum_gripper`、`vacuum_gripper` 及其机械臂组合）为静态模型，不含吸附模型。它们与独立相机、`camera_stand*` 都没有夹爪执行器，`04_gripper_control.py` 会拒绝这些模型（退出码 `2`）。
 - 深度相机与 `camera_stand` 模型提供外观几何、安装面/螺钉孔 `<site>`（`group=4`）与近似碰撞体（`group=3`），`mass=0` 且不含 MuJoCo `<camera>` 光学成像传感器；动力学场景请通过 `attach_payload` 注入相机与支架负载。
-- Lite 6 装箱仅在默认的 `servo_cartesian` 执行器下可靠。
-- 不同 MuJoCo 版本的仿真结果不完全相同：在 3.16、3.17 与 4.0 之间，脚本化抓放的放置误差最多相差 4 mm，任务成败不变。基准结果均注明测量时的版本。
+- 不同 MuJoCo 版本的仿真结果不完全相同：在 3.16 与 4.0 之间，脚本化抓放与装箱的放置误差最多相差 0.15 mm，任务成败不变。基准结果均注明测量时的版本。
 
 ## 项目结构
 
 ```text
 calibrations/              单机运动学标定 YAML（SHA-256 校验）
 configs/                   任务配置：default.yaml、pick_place/<机械臂>.yaml、box_pack/<机械臂>.yaml
-models/                    MJCF 模型与网格：机械臂、夹爪、机械臂+夹爪组合；
+models/                    MJCF 模型与网格：机械臂、夹爪、相机、支架及组合；
                            场景变体 scene、scene_reach、scene_pick_place、scene_box_pack、scene_obstacles
 ufactory_mujoco/
   sim_robot.py             SimRobot：物理步进、关节/TCP/夹爪控制、查看器
@@ -150,6 +148,8 @@ ufactory_mujoco/
   kinematics_validation.py 与控制器的只读 FK/IK 比对
   g2_model.py              Gripper G2 连杆几何、夹持力表、SDK 单位换算
   g2_controller.py         Gripper G2 伺服（向量化与标量两种实现）
+  bio_g2_model.py          Bio Gripper G2 标定的开口、速度与夹持力模型
+  bio_g2_controller.py     Bio Gripper G2 限速位置/力伺服
   grippers.py              夹爪规格、开口映射、指垫接触检测与接触力
   preflight.py             抓放/装箱预检，含 RRT-Connect 绕行
   task_geometry.py         任务、预检与强化学习共用的抓取高度和姿态
@@ -167,7 +167,6 @@ examples/simulation/       示例 01–10
 examples/rl/               reach/ 与 pick_place/：回放、评测、recipe.yaml
 scripts/                   强化学习训练、资产转换与 MJCF 生成、标定与真机比对、打包检查
 tests/                     测试套件（pytest）
-docs/                      各模型启动命令
 ```
 
 ## 模型说明

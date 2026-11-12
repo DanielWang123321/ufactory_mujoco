@@ -16,7 +16,7 @@ Without a display, run a task headless: `ufactory-mujoco pick-place --robot xarm
 
 ## Features
 
-- **Models**: all five arms and four grippers converted from [ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis), plus four depth cameras (`d405`, `d435`, `gemini_305`, `zed_x_nano`), the UFACTORY `camera_stand`, and their bracket / `xarm6` + Gripper G2 assemblies, with separate visual meshes and collision shapes. Gripper G2 uses a calibrated 4-bar linkage, a measured force table, and a rate-limited servo (`g2_model.py`, `g2_controller.py`).
+- **Models**: all five arms and five end effectors (Gripper G2, Bio Gripper G2, the Lite 6 gripper, and the xArm and Lite 6 vacuum grippers) converted from [ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis), plus four depth cameras (`d405`, `d435`, `gemini_305`, `zed_x_nano`), the UFACTORY `camera_stand`, and their bracket / `xarm6` + Gripper G2 assemblies, with separate visual meshes and multi-convex collision shapes. Gripper G2 uses a calibrated 4-bar linkage, a measured force table, and a rate-limited servo (`g2_model.py`, `g2_controller.py`). Bio Gripper G2 uses calibrated 0.79 kg dynamics and a rate-limited position/force servo (`bio_g2_model.py`, `bio_g2_controller.py`).
 - **Kinematics and planning**: FK, Jacobians, damped least-squares IK, quintic/LSPB/spline trajectories, Cartesian lines, collision checking, and RRT-Connect (`kinematics.py`, `ik.py`, `trajectory.py`, `collision.py`, `path_planning.py`).
 - **Dynamics**: mass matrix, gravity/Coriolis, inverse/forward dynamics, payloads, and a five-arm validation command (`dynamics.py`, `tasks/dynamics.py`).
 - **Scripted tasks**: cube pick-and-place and box packing for five arm/gripper pairs, with preflight (joint limits, penetration, RRT-Connect detours) and JSON reports (`tasks/`, `preflight.py`).
@@ -28,12 +28,12 @@ Without a display, run a task headless: `ufactory-mujoco pick-place --robot xarm
 | Arm | Built gripper models | `pick-place` / `box-pack` | `dynamics` | RL reach | RL pick-and-place |
 | :--- | :--- | :--- | :---: | :---: | :---: |
 | `lite6` | `lite6_gripper`, `lite6_vacuum_gripper` | with `lite6_gripper` | yes | yes | — |
-| `xarm5` | `gripper_g2` | with `gripper_g2` | yes | yes | — |
-| `xarm6` | `gripper_g2`, `bio_gripper_g2` | with `gripper_g2` | yes | yes | with `gripper_g2` |
-| `xarm7` | `gripper_g2` | with `gripper_g2` | yes | yes | — |
-| `uf850` | `gripper_g2` | with `gripper_g2` | yes | yes | — |
+| `xarm5` | `gripper_g2`, `bio_gripper_g2`, `vacuum_gripper` | with `gripper_g2` | yes | yes | — |
+| `xarm6` | `gripper_g2`, `bio_gripper_g2`, `vacuum_gripper` | with `gripper_g2` | yes | yes | with `gripper_g2` |
+| `xarm7` | `gripper_g2`, `bio_gripper_g2`, `vacuum_gripper` | with `gripper_g2` | yes | yes | — |
+| `uf850` | `gripper_g2`, `bio_gripper_g2`, `vacuum_gripper` | with `gripper_g2` | yes | yes | — |
 
-Every arm, gripper, depth camera (`d405`, `d435`, `gemini_305`, `zed_x_nano`), and bracket assembly (`camera_stand`, `camera_stand_with_<camera>`, `xarm6_with_gripper_and_<camera>`) can also be loaded with `01_load_and_view.py --model <name>`. The command for each model is listed in [docs/visual_command_guide.md](docs/visual_command_guide.md) (Chinese).
+Every arm, gripper, depth camera (`d405`, `d435`, `gemini_305`, `zed_x_nano`), and bracket assembly (`camera_stand`, `camera_stand_with_<camera>`, `xarm6_with_gripper_and_<camera>`) can also be loaded with `01_load_and_view.py --model <name>`. Model names and commands are listed in [examples/simulation/README.md](examples/simulation/README.md#4-commands-by-model).
 
 ## Installation
 
@@ -106,10 +106,9 @@ The examples load `build/rl/<arm>/ppo_reach.zip` and `build/rl/pick_place/xarm6_
 
 | Topic | Document |
 | :--- | :--- |
-| Simulation examples `01`–`10`, CLI options, hardware commands | [examples/simulation/README.md](examples/simulation/README.md) ([中文](examples/simulation/README_zh.md)) |
+| Simulation examples `01`–`10`, CLI options, commands by model, viewer controls, hardware commands | [examples/simulation/README.md](examples/simulation/README.md) ([中文](examples/simulation/README_zh.md)) |
 | RL TCP reaching | [examples/rl/reach/README.md](examples/rl/reach/README.md) ([中文](examples/rl/reach/README_zh.md)) |
 | RL cube pick-and-place | [examples/rl/pick_place/README.md](examples/rl/pick_place/README.md) ([中文](examples/rl/pick_place/README_zh.md)) |
-| Commands for every model (Chinese) | [docs/visual_command_guide.md](docs/visual_command_guide.md) |
 | Release history | [CHANGELOG.md](CHANGELOG.md) |
 
 ## Running Tests
@@ -127,17 +126,16 @@ Tests that need optional packages (`gymnasium`/`stable-baselines3`, `trimesh`, `
 - Trained RL weights are not distributed; see [Trained RL Policies](#trained-rl-policies).
 - RL pick-and-place covers xArm 6 + Gripper G2 only. Training with the current recipe depends strongly on the seed and does not reproduce across machines ([details](examples/rl/pick_place/README.md#5-training-stability-seed-sensitivity)).
 - Hardware modes were validated on one xArm 6 (firmware v2.8.0). The static torque comparison (≤ 2.5 % with a 3 kg payload) is a single historical measurement.
-- Bio Gripper G2 is built only for xArm 6. `lite6_vacuum_gripper`, standalone cameras, and `camera_stand*` have no jaw actuator, so `04_gripper_control.py` rejects them (exit code `2`).
+- The vacuum grippers (`lite6_vacuum_gripper`, `vacuum_gripper` and their arm combinations) are static models without a suction model. They, standalone cameras, and `camera_stand*` have no jaw actuator, so `04_gripper_control.py` rejects them (exit code `2`).
 - Depth camera and `camera_stand` models provide visual geometry, mounting/screw-hole `<site>`s (`group=4`), and approximate collision geometry (`group=3`) with `mass=0` and no MuJoCo `<camera>` optical sensor; inject camera/bracket inertia via `attach_payload` for dynamics tasks.
-- Lite 6 box packing is reliable only with the default `servo_cartesian` executor.
-- Simulation results are not identical across MuJoCo versions: between 3.16, 3.17 and 4.0 the placement error of the scripted pick-and-place changes by up to 4 mm, while task outcomes stay the same. Benchmarks state the version they were measured with.
+- Simulation results are not identical across MuJoCo versions: between 3.16 and 4.0 the placement error of the scripted pick-and-place and box-packing tasks differs by up to 0.15 mm, while task outcomes stay the same. Benchmarks state the version they were measured with.
 
 ## Project Structure
 
 ```text
 calibrations/              Per-unit kinematic calibration YAML (SHA-256 checked)
 configs/                   Task configs: default.yaml, pick_place/<arm>.yaml, box_pack/<arm>.yaml
-models/                    MJCF models and meshes: arms, grippers, arm+gripper combinations;
+models/                    MJCF models and meshes: arms, grippers, cameras, brackets and combinations;
                            scene variants scene, scene_reach, scene_pick_place, scene_box_pack, scene_obstacles
 ufactory_mujoco/
   sim_robot.py             SimRobot: physics stepping, joint/TCP/gripper control, viewer
@@ -150,6 +148,8 @@ ufactory_mujoco/
   kinematics_validation.py Read-only FK/IK comparison with the controller
   g2_model.py              Gripper G2 linkage geometry, force table, SDK unit conversions
   g2_controller.py         Gripper G2 servo (vectorized and scalar forms)
+  bio_g2_model.py          Bio Gripper G2 calibrated gap, speed and force model
+  bio_g2_controller.py     Bio Gripper G2 rate-limited position/force servo
   grippers.py              Gripper specs, gap mapping, finger contact checks and forces
   preflight.py             Pick-place/box-pack preflight with RRT-Connect detours
   task_geometry.py         Grasp heights and orientation shared by tasks, preflight and RL
@@ -168,7 +168,6 @@ examples/rl/               reach/ and pick_place/: rollout, evaluation, recipe.y
 scripts/                   RL training, asset conversion and MJCF generation, calibration and
                            hardware comparison, packaging checks
 tests/                     Test suite (pytest)
-docs/                      Commands for every model (Chinese)
 ```
 
 ## Model Notes

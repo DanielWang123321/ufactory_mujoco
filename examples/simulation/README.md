@@ -6,7 +6,7 @@ Examples `05`, `08` and `10` run the installed commands `ufactory-mujoco pick-pl
 
 MuJoCo simulation examples (`01`–`10`) covering interactive model inspection, joint/Cartesian motion control, gripper actuation, pick-and-place manipulation, time-parameterized trajectory planning, RRT-Connect obstacle avoidance, box-packing showcase, and kinematics/dynamics toolkits.
 
-> Commands for every model (Lite 6, xArm 5/6/7, UF850, grippers and combinations): [docs/visual_command_guide.md](../../docs/visual_command_guide.md) (Chinese).
+> Model names for every arm, end effector, camera and combination, with keyframes and viewer controls: [Section 4](#4-commands-by-model) and [Section 5](#5-viewer-controls).
 
 ## 1. Examples Overview
 
@@ -15,7 +15,7 @@ MuJoCo simulation examples (`01`–`10`) covering interactive model inspection, 
 | `01_load_and_view.py` | `ufactory_mujoco.viewer`, `ufactory_mujoco.model_paths` | All arms, grippers, cameras, brackets & combos | Load MJCF scene at `home` or `ready` keyframe in the interactive viewer |
 | `02_joint_control.py` | `ufactory_mujoco.sim_robot` | All arms & arm+gripper combos | Speed-based quintic joint interpolation (`xarm6` runs 20 dynamics poses by default) |
 | `03_cartesian_ik.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.ik` | `xarm6` | Cartesian straight-line (`move_tcp`) and X-Z circle tracking via DLS IK |
-| `04_gripper_control.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.g2_controller` | Standalone grippers & combos | Open/close cycles (`0.0` = open, `1.0` = closed); Gripper G2 supports calibrated speed & force control (`--speed-percent`, `--force-percent`) |
+| `04_gripper_control.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.g2_controller`, `ufactory_mujoco.bio_g2_controller` | Standalone grippers & combos | Open/close cycles (`0.0` = open, `1.0` = closed); Gripper G2 and Bio Gripper G2 use calibrated speed & force control (`--speed-percent`, `--force-percent`) |
 | `05_pick_place.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.preflight` | All five arm+gripper combos | Cube pick-and-place with bilateral contact check & preflight (`place_error < 50 mm`, `home_drift < 10 mm`) |
 | `06_trajectory_planning.py` | `ufactory_mujoco.trajectory`, `ufactory_mujoco.dynamics` | `xarm6` | Analytical PTP quintic, C2 multi-waypoint spline, Cartesian SLERP line & feedforward torques |
 | `07_kinematics.py` | `ufactory_mujoco.kinematics` | `xarm6` | Per-site FK, analytical vs finite-difference Jacobian, velocity-level DLS IK, manipulability |
@@ -153,11 +153,79 @@ python examples/simulation/08_dynamics.py --robot xarm6 --mode real-read-only --
 | `--sync-hz <Hz>` | `02` | `30.0` | Viewer state-sync rate |
 | `--render-quality` | `02` | `fast` | `fast` (no shadows/reflections) or `full` |
 | `--cycles <N>` | `04`, `05`, `10` | `3` (`04`) / `1` (`05`, `10`) | Number of execution cycles (`10`: one feed cube per cycle, at most 3) |
-| `--speed-percent <pct>` | `04` | `100.0` | Gripper G2 speed percentage (`0..100`) |
-| `--force-percent <pct>` | `04` | `100.0` | Gripper G2 force percentage (`1..100`) |
+| `--speed-percent <pct>` | `04` | `100.0` | Gripper G2 / Bio Gripper G2 speed percentage (`0..100`) |
+| `--force-percent <pct>` | `04` | `100.0` | Gripper G2 / Bio Gripper G2 force percentage (`1..100`) |
 | `--speed <x>` | `10` | YAML `speed_scale` (`1.0`) | Motion speed multiplier (`>1` is faster; free fall is not scaled) |
 | `--seed <N>` | `08`, `09` | `0` | RNG seed for dynamics sampling (`08`, nonnegative) or RRT-Connect/path shortcutting (`09`) |
 | `--safety-margin <m>` | `09` | `0.002` | Minimum allowed obstacle clearance in meters |
 | `--step <rad>` | `09` | `0.15` | RRT-Connect joint-space steer step size (rad) |
 | `--max-iter <N>` | `09` | `2000` | Maximum RRT-Connect iterations |
 
+## 4. Commands by Model
+
+`01`, `02` and `04` take a model name with `--model`; `05`, `08` and `10` take an arm key with `--robot`. Every command opens the viewer unless `--headless` is given.
+
+### 4.1 Arms and Combinations
+
+| Arm | Bare arm (`--model`) | With end effector (`--model`) | Arm key (`--robot`) | RL examples (`examples/rl/`) |
+| :--- | :--- | :--- | :--- | :--- |
+| Lite 6 | `lite6` | `lite6_with_gripper`, `lite6_with_vacuum_gripper` | `lite6` | `reach/01_reach.py --model lite6` |
+| xArm 5 | `xarm5` | `xarm5_with_gripper`, `xarm5_with_bio_gripper`, `xarm5_with_vacuum_gripper` | `xarm5` | `reach/01_reach.py --model xarm5` |
+| xArm 6 | `xarm6` | `xarm6_with_gripper`, `xarm6_with_bio_gripper`, `xarm6_with_vacuum_gripper`, `xarm6_with_gripper_and_<camera>` | `xarm6` | `reach/01_reach.py --model xarm6`<br>`pick_place/01_pick_place.py` |
+| xArm 7 | `xarm7` | `xarm7_with_gripper`, `xarm7_with_bio_gripper`, `xarm7_with_vacuum_gripper` | `xarm7` | `reach/01_reach.py --model xarm7` |
+| UF850 | `uf850` | `uf850_with_gripper`, `uf850_with_bio_gripper`, `uf850_with_vacuum_gripper` | `uf850` | `reach/01_reach.py --model uf850` |
+
+`<arm>_with_gripper` mounts Gripper G2 (the Lite 6 gripper on Lite 6). `<camera>` is `d405`, `d435`, `gemini_305` or `zed_x_nano`.
+
+```bash
+# Any arm or combination: static view and joint motion
+python examples/simulation/01_load_and_view.py --model xarm7_with_bio_gripper --pose ready
+python examples/simulation/02_joint_control.py --model xarm5_with_vacuum_gripper
+
+# Combinations with jaws (Gripper G2, Bio Gripper G2, Lite 6 gripper): open/close
+python examples/simulation/04_gripper_control.py --model uf850_with_bio_gripper
+python examples/simulation/04_gripper_control.py --model xarm6_with_gripper_and_d405
+
+# Tasks: --robot selects the arm and its task gripper (Gripper G2; the Lite 6 gripper on Lite 6)
+python examples/simulation/05_pick_place.py --robot xarm5
+python examples/simulation/10_box_pack.py --robot uf850 --cycles 3
+python examples/simulation/08_dynamics.py --robot all --headless
+
+# RL: --random (reach) and --expert (pick-and-place) run without trained weights
+python examples/rl/reach/01_reach.py --model xarm7 --random
+python examples/rl/pick_place/01_pick_place.py --expert
+```
+
+Examples `03`, `06`, `07` and `09` run on the bare xArm 6 only.
+
+### 4.2 Standalone End Effectors, Cameras and Brackets
+
+| Model (`--model`) | `01_load_and_view.py` | `04_gripper_control.py` |
+| :--- | :---: | :--- |
+| `gripper_g2` | yes | open/close with `--speed-percent`, `--force-percent` |
+| `bio_gripper_g2` | yes | open/close with `--speed-percent`, `--force-percent` |
+| `lite6_gripper` | yes | open/close |
+| `lite6_vacuum_gripper`, `vacuum_gripper` | yes | rejected (no jaw actuator, exit code `2`) |
+| `d405`, `d435`, `gemini_305`, `zed_x_nano` | yes | rejected (exit code `2`) |
+| `camera_stand`, `camera_stand_with_<camera>` | yes | rejected (exit code `2`) |
+
+Camera and bracket models have `mass=0` and no optical sensor. Enable Site Group `4` in the viewer's right panel to show their mounting faces and screw holes.
+
+### 4.3 Keyframes
+
+- Bare xArm 5/6/7 and UF850: `home` and `ready` are all-zero joint angles.
+- Lite 6, bare and in combinations: `home` is all zeros; `ready` is the Studio factory pose `[0, 9.9, 31.8, 0, 21.9, 0]°` (flange near `[200, 0, 200]` mm, orientation `[180, 0, 0]°`).
+- xArm 6 combinations: `home` and `ready` are `[0, -36.184, -47.736, 0, 83.920, 0]°`, so the tool does not start inside the floor. With Gripper G2 this puts the TCP at `(300, 0, 300)` mm with orientation `(180, 0, 0)°`.
+- xArm 5, xArm 7 and UF850 combinations define their own `home` and `ready` keyframes in each MJCF.
+- The TCP of a combination includes the tool offset of its gripper or vacuum gripper.
+
+## 5. Viewer Controls
+
+From the MuJoCo viewer's built-in help (`F1`):
+
+- **Left drag**: rotate. **Right drag**: pan. **Scroll or middle drag**: zoom.
+- **Double-click**: select a body. **Right double-click**: center the view on the clicked point. **Ctrl + right double-click**: track the selected body.
+- **Ctrl + left drag / Ctrl + right drag**: apply a torque / force to the selected body.
+- **Space**: pause or resume. **Backspace**: reset. Both control physics only in `01_load_and_view.py`; the other examples step physics themselves.
+- **C**: contact points. **F**: contact forces. **0–5**: toggle geom groups (`2` visual meshes, `3` collision meshes).
+- **Ctrl + A**: align the view. **Tab / Shift + Tab**: show or hide the left / right panel. **F1**: help.
