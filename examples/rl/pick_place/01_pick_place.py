@@ -110,7 +110,7 @@ def main(argv: list[str] | None = None) -> None:
                 )
             except ImportError:
                 sys.exit(
-                    "stable-baselines3 not installed (requirements-rl.txt); "
+                    'stable-baselines3 not installed (pip install -e ".[rl]"); '
                     "use --expert or --random for baselines"
                 )
 

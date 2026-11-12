@@ -148,14 +148,12 @@ class TaskPackagingTests(unittest.TestCase):
                 elif isinstance(node, ast.Call) and node.args and isinstance(node.args[0], ast.Constant):
                     self.assertFalse(str(node.args[0].value).startswith("examples.simulation"), str(path))
 
-    def test_requirements_match_pyproject(self):
+    def test_dependencies_are_declared_only_in_pyproject(self):
+        """pyproject.toml is the single dependency declaration; only the CI lock files remain."""
+        self.assertEqual(sorted(p.name for p in ROOT.glob("requirements*.txt")),
+                         ["requirements-lock-mujoco3.txt", "requirements-lock.txt"])
         project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
-        for name, expected in (("requirements.txt", project["dependencies"]),
-                               ("requirements-rl.txt", project["optional-dependencies"]["rl"]),
-                               ("requirements-assets.txt", project["optional-dependencies"]["assets"])):
-            actual = [s.strip() for s in (ROOT / name).read_text().splitlines()
-                      if s.strip() and not s.lstrip().startswith("#")]
-            self.assertEqual(sorted(actual), sorted(expected))
+        self.assertEqual(set(project["optional-dependencies"]), {"rl", "assets", "test"})
 
 
 class SimRobotDefaultModelTests(unittest.TestCase):

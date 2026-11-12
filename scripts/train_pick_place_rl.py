@@ -527,7 +527,7 @@ def main(argv: list[str] | None = None) -> None:
         from stable_baselines3.common.callbacks import BaseCallback  # noqa: E402
         import torch  # noqa: E402
     except ImportError as exc:  # pragma: no cover
-        sys.exit(f"training needs gymnasium + stable-baselines3 + torch (requirements-rl.txt): {exc}")
+        sys.exit(f'training needs gymnasium + stable-baselines3 + torch (pip install -e ".[rl]"): {exc}')
 
     if args.torch_threads is not None:
         if args.torch_threads < 1:

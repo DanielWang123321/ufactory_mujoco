@@ -25,9 +25,12 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-# Install CPU torch first to avoid the large CUDA wheel: see requirements-rl.txt
+# Install PyTorch first, otherwise pip pulls the large CUDA build:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu   (or a CUDA build from pytorch.org)
+# The environments need only the core dependencies; rl is for PPO training and policy rollouts.
 rl = ["gymnasium>=1.0,<2", "stable-baselines3>=2.4,<3"]
-assets = ["trimesh>=4", "xacro"]
+# Asset regeneration scripts only (convert_glb_to_obj.py also needs genesis-world, which is not listed).
+assets = ["trimesh>=4", "coacd>=1.0.11", "pymeshlab>=2025.7"]
 test = ["pytest>=8"]
 
 [project.scripts]
@@ -35,6 +38,9 @@ ufactory-mujoco = "ufactory_mujoco.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/DanielWang123321/ufactory_mujoco"
+Repository = "https://github.com/DanielWang123321/ufactory_mujoco"
+Issues = "https://github.com/DanielWang123321/ufactory_mujoco/issues"
+Changelog = "https://github.com/DanielWang123321/ufactory_mujoco/blob/master/CHANGELOG.md"
 
 [tool.setuptools]
 include-package-data = false

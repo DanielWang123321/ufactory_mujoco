@@ -20,7 +20,7 @@ licenses/ (and in ufactory_mujoco/data/licenses/ in installed distributions).
    xarm_ros2 — https://github.com/xArm-Developer/xarm_ros2
    License: BSD-3-Clause (Copyright (c) 2018, UFACTORY Inc. All rights reserved.)
    Used for: kinematics, joint limits, inertial parameters, collision meshes
-   (URDF/xacro -> MJCF via scripts/build_model.py and scripts/build_all_mjcf.py).
+   (URDF -> MJCF via scripts/build_all_mjcf.py).
    BSD-3-Clause requires that redistributions retain the above copyright notice,
    the list of conditions and the disclaimer; see the upstream LICENSE files.
 

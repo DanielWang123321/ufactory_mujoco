@@ -6,7 +6,7 @@ point using joint-position increment actions on top of the model's position
 servo actuators. The environment follows the standard Gymnasium API and only
 requires mujoco + numpy at runtime; gymnasium itself is optional (a minimal
 fallback base keeps random rollouts possible without it), while training
-additionally needs stable-baselines3 (see requirements-rl.txt).
+additionally needs stable-baselines3 (the ``rl`` extra).
 
 MDP summary (n = robot joint count):
     action   Box(-1, 1, (n,))  joint increments, |dq| <= delta per step

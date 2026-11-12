@@ -222,7 +222,7 @@ def main(argv: list[str] | None = None) -> None:
         from stable_baselines3.common.env_util import make_vec_env  # noqa: E402
         from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv  # noqa: E402
     except ImportError as exc:  # pragma: no cover
-        sys.exit(f"training needs gymnasium + stable-baselines3 (requirements-rl.txt): {exc}")
+        sys.exit(f'training needs gymnasium + stable-baselines3 (pip install -e ".[rl]"): {exc}')
 
     env_cfg, _reward_cfg, train_cfg = build_reach_task_configs(args.model, recipe_path=args.recipe)
     seed = int(args.seed if args.seed is not None else train_cfg.get("seed", 0))
