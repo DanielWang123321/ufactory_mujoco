@@ -2,10 +2,11 @@
 """Automated tests validating all converted UFACTORY visual OBJs and collision STLs.
 
 Tests verify:
-1. All 9 target directories exist with expected OBJ and STL counts.
+1. All 10 target directories exist with expected OBJ and STL counts.
 2. Every visual OBJ loads successfully into MuJoCo without colocated-vertex or convex-hull errors.
 3. Every collision STL loads successfully into MuJoCo.
 4. Mesh statistics (vertices, faces) are non-zero.
+5. Total unique visual OBJ disk footprint stays within the <= 110 MiB budget.
 """
 
 from __future__ import annotations
@@ -94,6 +95,18 @@ class ConvertedAssetsTest(unittest.TestCase):
 
             self.assertGreater(model.nmeshvert, 0, f"{stl_path} has 0 vertices in MuJoCo")
             self.assertGreater(model.nmeshface, 0, f"{stl_path} has 0 faces in MuJoCo")
+
+    def test_visual_obj_footprint_within_budget(self) -> None:
+        """Verify unique converted visual OBJs remain <= 110 MiB after QEM optimization."""
+        all_objs = sorted({p.resolve() for p in MODELS_DIR.glob("*/assets/*/visual/*.obj")})
+        total_bytes = sum(p.stat().st_size for p in all_objs)
+        max_budget_bytes = 110 * 1024 * 1024
+        self.assertGreater(total_bytes, 10 * 1024 * 1024)
+        self.assertLessEqual(
+            total_bytes,
+            max_budget_bytes,
+            f"Total visual OBJ size {total_bytes / (1024 * 1024):.2f} MiB exceeds 110 MiB budget",
+        )
 
 
 if __name__ == "__main__":
