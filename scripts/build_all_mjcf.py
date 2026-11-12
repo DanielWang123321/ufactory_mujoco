@@ -131,6 +131,26 @@ def _g2_base_col_geoms(prefix: str = "", indent: str = "      ", geom_class: str
     return "\n".join(lines)
 
 
+def _vacuum_col_stls() -> list[Path]:
+    col_dir = MODELS_DIR / "vacuum_gripper" / "assets" / "vacuum_gripper" / "collision"
+    if not col_dir.is_dir():
+        col_dir = _SOURCE_MODELS_DIR / "vacuum_gripper" / "assets" / "vacuum_gripper" / "collision"
+    files = sorted(col_dir.glob("hull_*.stl"))
+    if not files:
+        raise FileNotFoundError(f"Missing vacuum_gripper convex collision STLs in {col_dir}")
+    return files
+
+
+def _vacuum_col_mesh_assets(indent: str = "    ") -> str:
+    lines = [f'{indent}<mesh name="vac_{p.stem}" file="vacuum_gripper/collision/{p.name}"/>' for p in _vacuum_col_stls()]
+    return "\n".join(lines)
+
+
+def _vacuum_col_geoms(indent: str = "      ", geom_class: str = "collision") -> str:
+    lines = [f'{indent}<geom class="{geom_class}" mesh="vac_{p.stem}"/>' for p in _vacuum_col_stls()]
+    return "\n".join(lines)
+
+
 def _arm_spec(arm: str, end_effector_body_xml: str | None = None) -> dict[str, str]:
     """Return modular XML blocks for any of the 5 UFACTORY arms (bare or with end-effector)."""
     tip_xml = end_effector_body_xml
@@ -1698,6 +1718,154 @@ def build_lite6_with_vacuum_gripper() -> None:
     write_scene_file(target_dir, combo, f"{combo}.xml", center="0.25 0 0.25", extent="0.7")
 
 
+def build_vacuum_gripper() -> None:
+    print("Building xArm Vacuum Gripper...")
+    target_dir = MODELS_DIR / "vacuum_gripper"
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    xml_content = f"""<mujoco model="vacuum_gripper">
+  <!-- UFACTORY xArm 5-Cup Vacuum Suction Gripper, 0.61 kg dynamics and 33 convex collision STLs. -->
+  <compiler angle="radian" autolimits="true" meshdir="assets"/>
+
+  <option integrator="implicitfast"/>
+
+  <asset>
+    <material name="white" rgba="0.95 0.95 0.95 1" specular="0.4" shininess="0.3"/>
+    <material name="silver" rgba="0.85 0.85 0.88 1" specular="0.9" shininess="0.8" reflectance="0.05"/>
+    <material name="gray" rgba="0.784 0.784 0.784 1" specular="0.3" shininess="0.2"/>
+
+    <mesh name="vacuum_silver_vis" file="vacuum_gripper/visual/vacuum_gripper_silver.obj"/>
+    <mesh name="vacuum_white_vis" file="vacuum_gripper/visual/vacuum_gripper_white.obj"/>
+    <mesh name="vacuum_gray_vis" file="vacuum_gripper/visual/vacuum_gripper_gray.obj"/>
+
+{_vacuum_col_mesh_assets("    ")}
+  </asset>
+
+  <default>
+    <default class="vg">
+      <default class="vg_visual">
+        <geom type="mesh" contype="0" conaffinity="0" group="2"/>
+      </default>
+      <default class="vg_collision">
+        <geom type="mesh" group="3"/>
+      </default>
+    </default>
+  </default>
+
+  <worldbody>
+    <body name="xarm_vacuum_gripper_link" childclass="vg">
+      <inertial pos="0 0 0.053" mass="0.61" fullinertia="0.00047106 0.00033072 0.00025642 0.00000039292 0.0000026537 -0.000010975"/>
+      <geom class="vg_visual" mesh="vacuum_silver_vis" material="silver"/>
+      <geom class="vg_visual" mesh="vacuum_white_vis" material="white"/>
+      <geom class="vg_visual" mesh="vacuum_gray_vis" material="gray"/>
+{_vacuum_col_geoms("      ", "vg_collision")}
+      <site name="suction_site" pos="0 0 0.126" size="0.01" rgba="0 1 0 0.5"/>
+    </body>
+  </worldbody>
+</mujoco>
+"""
+    (target_dir / "vacuum_gripper.xml").write_text(xml_content, encoding="utf-8")
+    write_scene_file(target_dir, "vacuum_gripper", "vacuum_gripper.xml", center="0 0 0.06", extent="0.25")
+
+
+def _build_arm_with_vacuum_gripper(arm: str, home_arm_q: str, ready_arm_q: str) -> None:
+    combo = f"{arm}_with_vacuum_gripper"
+    print(f"Building {combo}...")
+    target_dir = MODELS_DIR / combo
+    target_dir.mkdir(parents=True, exist_ok=True)
+    ensure_combo_symlinks(target_dir, (arm, "vacuum_gripper"))
+
+    vg_body = f"""                  <!-- Mounted xArm Vacuum Gripper -->
+                  <body name="xarm_vacuum_gripper_link">
+                    <inertial pos="0 0 0.053" mass="0.61" fullinertia="0.00047106 0.00033072 0.00025642 0.00000039292 0.0000026537 -0.000010975"/>
+                    <geom class="visual" mesh="vacuum_silver_vis" material="silver"/>
+                    <geom class="visual" mesh="vacuum_white_vis" material="white"/>
+                    <geom class="visual" mesh="vacuum_gray_vis" material="gray"/>
+{_vacuum_col_geoms("                    ", "collision")}
+                    <site name="suction_site" pos="0 0 0.126" size="0.01" rgba="0 1 0 0.5"/>
+                    <site name="attachment_site" pos="0 0 0.126"/>
+                  </body>"""
+
+    spec = _arm_spec(arm, end_effector_body_xml=vg_body)
+    last_link = spec["last_link"]
+    prev_link = f"link{int(last_link.removeprefix('link')) - 1}"
+    materials = spec["materials"]
+    if 'name="gray"' not in materials:
+        materials = f'{materials}\n    <material name="gray" rgba="0.784 0.784 0.784 1" specular="0.3" shininess="0.2"/>'
+
+    xml_content = f"""<mujoco model="{combo}">
+  <!-- UFACTORY {arm} equipped with xArm 5-Cup Vacuum Suction Gripper. -->
+  <compiler angle="radian" autolimits="true" meshdir="assets"/>
+
+  <option integrator="implicitfast"/>
+
+  <asset>
+    <!-- Materials -->
+{materials}
+
+    <!-- {arm} Visual OBJs -->
+{spec["vis_assets"]}
+
+    <!-- {arm} Multi-convex Collision STLs -->
+{spec["col_assets"]}
+
+    <!-- Vacuum Gripper Visual OBJs -->
+    <mesh name="vacuum_silver_vis" file="vacuum_gripper/visual/vacuum_gripper_silver.obj"/>
+    <mesh name="vacuum_white_vis" file="vacuum_gripper/visual/vacuum_gripper_white.obj"/>
+    <mesh name="vacuum_gray_vis" file="vacuum_gripper/visual/vacuum_gripper_gray.obj"/>
+
+    <!-- Vacuum Gripper 33 Convex Collision STLs -->
+{_vacuum_col_mesh_assets("    ")}
+  </asset>
+
+  <default>
+    <default class="{arm}">
+{spec["defaults_header"]}
+      <site size="0.001" rgba="1 0 0 1" group="4"/>
+    </default>
+  </default>
+
+  <worldbody>
+{spec["worldbody"]}
+  </worldbody>
+
+  <contact>
+{spec["excludes"]}
+    <exclude body1="{last_link}" body2="xarm_vacuum_gripper_link"/>
+    <exclude body1="{prev_link}" body2="xarm_vacuum_gripper_link"/>
+  </contact>
+
+  <actuator>
+{spec["actuators"]}
+  </actuator>
+
+  <keyframe>
+    <key name="home" qpos="{home_arm_q}" ctrl="{home_arm_q}"/>
+    <key name="ready" qpos="{ready_arm_q}" ctrl="{ready_arm_q}"/>
+  </keyframe>
+</mujoco>
+"""
+    (target_dir / f"{combo}.xml").write_text(xml_content, encoding="utf-8")
+    write_scene_file(target_dir, combo, f"{combo}.xml", center="0.3 0 0.3", extent="0.9")
+
+
+def build_xarm5_with_vacuum_gripper() -> None:
+    _build_arm_with_vacuum_gripper("xarm5", "0 -0.533 -1 0.5 0.3", "0 -0.5 0 0 0.5")
+
+
+def build_xarm6_with_vacuum_gripper() -> None:
+    pose = "0 -0.631529917 -0.833150486 0 1.464680403 0"
+    _build_arm_with_vacuum_gripper("xarm6", pose, pose)
+
+
+def build_xarm7_with_vacuum_gripper() -> None:
+    _build_arm_with_vacuum_gripper("xarm7", "0 -0.8 0 0 0 0 0", "0 -0.5 0 0 0.5 0 0")
+
+
+def build_uf850_with_vacuum_gripper() -> None:
+    _build_arm_with_vacuum_gripper("uf850", "0 0 0 0 0 0", "0 -0.5 0 0 0.5 0")
+
+
 def verify_models() -> None:
     print("\nVerifying all models with MuJoCo...")
     models_to_test = [
@@ -1710,6 +1878,7 @@ def verify_models() -> None:
         MODELS_DIR / "bio_gripper_g2/scene.xml",
         MODELS_DIR / "lite6_gripper/scene.xml",
         MODELS_DIR / "lite6_vacuum_gripper/scene.xml",
+        MODELS_DIR / "vacuum_gripper/scene.xml",
         MODELS_DIR / "xarm5_with_gripper/scene.xml",
         MODELS_DIR / "xarm6_with_gripper/scene.xml",
         MODELS_DIR / "xarm7_with_gripper/scene.xml",
@@ -1718,6 +1887,10 @@ def verify_models() -> None:
         MODELS_DIR / "xarm6_with_bio_gripper/scene.xml",
         MODELS_DIR / "xarm7_with_bio_gripper/scene.xml",
         MODELS_DIR / "uf850_with_bio_gripper/scene.xml",
+        MODELS_DIR / "xarm5_with_vacuum_gripper/scene.xml",
+        MODELS_DIR / "xarm6_with_vacuum_gripper/scene.xml",
+        MODELS_DIR / "xarm7_with_vacuum_gripper/scene.xml",
+        MODELS_DIR / "uf850_with_vacuum_gripper/scene.xml",
         MODELS_DIR / "lite6_with_gripper/scene.xml",
         MODELS_DIR / "lite6_with_vacuum_gripper/scene.xml",
     ]
@@ -1745,6 +1918,7 @@ def main() -> None:
     build_bio_gripper_g2()
     build_lite6_gripper()
     build_lite6_vacuum_gripper()
+    build_vacuum_gripper()
     build_xarm5_with_gripper()
     build_xarm6_with_gripper()
     build_xarm7_with_gripper()
@@ -1753,6 +1927,10 @@ def main() -> None:
     build_xarm6_with_bio_gripper()
     build_xarm7_with_bio_gripper()
     build_uf850_with_bio_gripper()
+    build_xarm5_with_vacuum_gripper()
+    build_xarm6_with_vacuum_gripper()
+    build_xarm7_with_vacuum_gripper()
+    build_uf850_with_vacuum_gripper()
     build_lite6_with_gripper()
     build_lite6_with_vacuum_gripper()
     verify_models()

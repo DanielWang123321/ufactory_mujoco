@@ -1,0 +1,263 @@
+<mujoco model="xarm6_with_vacuum_gripper">
+  <!-- UFACTORY xarm6 equipped with xArm 5-Cup Vacuum Suction Gripper. -->
+  <compiler angle="radian" autolimits="true" meshdir="assets"/>
+
+  <option integrator="implicitfast"/>
+
+  <asset>
+    <!-- Materials -->
+    <material name="white" rgba="0.95 0.95 0.95 1" specular="0.4" shininess="0.3"/>
+    <material name="silver" rgba="0.85 0.85 0.88 1" specular="0.9" shininess="0.8" reflectance="0.05"/>
+    <material name="black" rgba="0.25 0.25 0.25 1" specular="0.2" shininess="0.1"/>
+    <material name="seal" rgba="0.8 0.82 0.85 1" specular="0.3" shininess="0.2"/>
+    <material name="gray" rgba="0.753 0.753 0.753 1"/>
+
+    <!-- xarm6 Visual OBJs -->
+    <mesh name="link_base_vis" file="xarm6/visual/link_base.obj"/>
+    <mesh name="link1_seal_vis" file="xarm6/visual/link1_seal.obj"/>
+    <mesh name="link1_white_vis" file="xarm6/visual/link1_white.obj"/>
+    <mesh name="link1_silver_vis" file="xarm6/visual/link1_silver.obj"/>
+    <mesh name="link2_white_vis" file="xarm6/visual/link2_white.obj"/>
+    <mesh name="link2_silver_vis" file="xarm6/visual/link2_silver.obj"/>
+    <mesh name="link3_white_vis" file="xarm6/visual/link3_white.obj"/>
+    <mesh name="link3_silver_vis" file="xarm6/visual/link3_silver.obj"/>
+    <mesh name="link4_white_vis" file="xarm6/visual/link4_white.obj"/>
+    <mesh name="link4_silver_vis" file="xarm6/visual/link4_silver.obj"/>
+    <mesh name="link5_white_vis" file="xarm6/visual/link5_white.obj"/>
+    <mesh name="link5_silver_vis" file="xarm6/visual/link5_silver.obj"/>
+    <mesh name="link6_white_vis" file="xarm6/visual/link6_white.obj"/>
+    <mesh name="link6_black_vis" file="xarm6/visual/link6_black.obj"/>
+    <mesh name="link6_silver_vis" file="xarm6/visual/link6_silver.obj"/>
+
+    <!-- xarm6 Multi-convex Collision STLs -->
+    <mesh name="xarm6_link1_col_00" file="xarm6/collision/xarm6_link1_col_00.stl"/>
+    <mesh name="xarm6_link1_col_01" file="xarm6/collision/xarm6_link1_col_01.stl"/>
+    <mesh name="xarm6_link2_col_00" file="xarm6/collision/xarm6_link2_col_00.stl"/>
+    <mesh name="xarm6_link2_col_01" file="xarm6/collision/xarm6_link2_col_01.stl"/>
+    <mesh name="xarm6_link2_col_02" file="xarm6/collision/xarm6_link2_col_02.stl"/>
+    <mesh name="xarm6_link2_col_03" file="xarm6/collision/xarm6_link2_col_03.stl"/>
+    <mesh name="xarm6_link2_col_04" file="xarm6/collision/xarm6_link2_col_04.stl"/>
+    <mesh name="xarm6_link3_col_00" file="xarm6/collision/xarm6_link3_col_00.stl"/>
+    <mesh name="xarm6_link3_col_01" file="xarm6/collision/xarm6_link3_col_01.stl"/>
+    <mesh name="xarm6_link3_col_02" file="xarm6/collision/xarm6_link3_col_02.stl"/>
+    <mesh name="xarm6_link3_col_03" file="xarm6/collision/xarm6_link3_col_03.stl"/>
+    <mesh name="xarm6_link3_col_04" file="xarm6/collision/xarm6_link3_col_04.stl"/>
+    <mesh name="xarm6_link4_col_00" file="xarm6/collision/xarm6_link4_col_00.stl"/>
+    <mesh name="xarm6_link4_col_01" file="xarm6/collision/xarm6_link4_col_01.stl"/>
+    <mesh name="xarm6_link4_col_02" file="xarm6/collision/xarm6_link4_col_02.stl"/>
+    <mesh name="xarm6_link4_col_03" file="xarm6/collision/xarm6_link4_col_03.stl"/>
+    <mesh name="xarm6_link4_col_04" file="xarm6/collision/xarm6_link4_col_04.stl"/>
+    <mesh name="xarm6_link5_col_00" file="xarm6/collision/xarm6_link5_col_00.stl"/>
+    <mesh name="xarm6_link5_col_01" file="xarm6/collision/xarm6_link5_col_01.stl"/>
+    <mesh name="xarm6_link6_col_00" file="xarm6/collision/xarm6_link6_col_00.stl"/>
+    <mesh name="xarm6_link_base_col_00" file="xarm6/collision/xarm6_link_base_col_00.stl"/>
+    <mesh name="xarm6_link_base_col_01" file="xarm6/collision/xarm6_link_base_col_01.stl"/>
+
+    <!-- Vacuum Gripper Visual OBJs -->
+    <mesh name="vacuum_silver_vis" file="vacuum_gripper/visual/vacuum_gripper_silver.obj"/>
+    <mesh name="vacuum_white_vis" file="vacuum_gripper/visual/vacuum_gripper_white.obj"/>
+    <mesh name="vacuum_gray_vis" file="vacuum_gripper/visual/vacuum_gripper_gray.obj"/>
+
+    <!-- Vacuum Gripper 33 Convex Collision STLs -->
+    <mesh name="vac_hull_000_flange" file="vacuum_gripper/collision/hull_000_flange.stl"/>
+    <mesh name="vac_hull_001_body" file="vacuum_gripper/collision/hull_001_body.stl"/>
+    <mesh name="vac_hull_002_body" file="vacuum_gripper/collision/hull_002_body.stl"/>
+    <mesh name="vac_hull_003_body" file="vacuum_gripper/collision/hull_003_body.stl"/>
+    <mesh name="vac_hull_004_body" file="vacuum_gripper/collision/hull_004_body.stl"/>
+    <mesh name="vac_hull_005_body" file="vacuum_gripper/collision/hull_005_body.stl"/>
+    <mesh name="vac_hull_006_body" file="vacuum_gripper/collision/hull_006_body.stl"/>
+    <mesh name="vac_hull_007_cover" file="vacuum_gripper/collision/hull_007_cover.stl"/>
+    <mesh name="vac_hull_008_cup_01" file="vacuum_gripper/collision/hull_008_cup_01.stl"/>
+    <mesh name="vac_hull_009_cup_01" file="vacuum_gripper/collision/hull_009_cup_01.stl"/>
+    <mesh name="vac_hull_010_cup_01" file="vacuum_gripper/collision/hull_010_cup_01.stl"/>
+    <mesh name="vac_hull_011_cup_01" file="vacuum_gripper/collision/hull_011_cup_01.stl"/>
+    <mesh name="vac_hull_012_cup_01" file="vacuum_gripper/collision/hull_012_cup_01.stl"/>
+    <mesh name="vac_hull_013_cup_02" file="vacuum_gripper/collision/hull_013_cup_02.stl"/>
+    <mesh name="vac_hull_014_cup_02" file="vacuum_gripper/collision/hull_014_cup_02.stl"/>
+    <mesh name="vac_hull_015_cup_02" file="vacuum_gripper/collision/hull_015_cup_02.stl"/>
+    <mesh name="vac_hull_016_cup_02" file="vacuum_gripper/collision/hull_016_cup_02.stl"/>
+    <mesh name="vac_hull_017_cup_02" file="vacuum_gripper/collision/hull_017_cup_02.stl"/>
+    <mesh name="vac_hull_018_cup_03" file="vacuum_gripper/collision/hull_018_cup_03.stl"/>
+    <mesh name="vac_hull_019_cup_03" file="vacuum_gripper/collision/hull_019_cup_03.stl"/>
+    <mesh name="vac_hull_020_cup_03" file="vacuum_gripper/collision/hull_020_cup_03.stl"/>
+    <mesh name="vac_hull_021_cup_03" file="vacuum_gripper/collision/hull_021_cup_03.stl"/>
+    <mesh name="vac_hull_022_cup_03" file="vacuum_gripper/collision/hull_022_cup_03.stl"/>
+    <mesh name="vac_hull_023_cup_04" file="vacuum_gripper/collision/hull_023_cup_04.stl"/>
+    <mesh name="vac_hull_024_cup_04" file="vacuum_gripper/collision/hull_024_cup_04.stl"/>
+    <mesh name="vac_hull_025_cup_04" file="vacuum_gripper/collision/hull_025_cup_04.stl"/>
+    <mesh name="vac_hull_026_cup_04" file="vacuum_gripper/collision/hull_026_cup_04.stl"/>
+    <mesh name="vac_hull_027_cup_04" file="vacuum_gripper/collision/hull_027_cup_04.stl"/>
+    <mesh name="vac_hull_028_cup_05" file="vacuum_gripper/collision/hull_028_cup_05.stl"/>
+    <mesh name="vac_hull_029_cup_05" file="vacuum_gripper/collision/hull_029_cup_05.stl"/>
+    <mesh name="vac_hull_030_cup_05" file="vacuum_gripper/collision/hull_030_cup_05.stl"/>
+    <mesh name="vac_hull_031_cup_05" file="vacuum_gripper/collision/hull_031_cup_05.stl"/>
+    <mesh name="vac_hull_032_cup_05" file="vacuum_gripper/collision/hull_032_cup_05.stl"/>
+  </asset>
+
+  <default>
+    <default class="xarm6">
+      <joint axis="0 0 1" armature="0.1" range="-6.28319 6.28319" frictionloss="1"/>
+      <general biastype="affine" ctrlrange="-6.28319 6.28319"/>
+      <default class="visual">
+        <geom type="mesh" contype="0" conaffinity="0" group="2"/>
+      </default>
+      <default class="collision">
+        <geom type="mesh" group="3"/>
+      </default>
+      <!-- per-joint torque limits follow the official UFACTORY spec, set as forcerange on each actuator -->
+      <default class="size1"><!-- shoulder joints -->
+        <joint damping="10"/>
+        <general gainprm="1500" biasprm="0 -1500 -150"/>
+      </default>
+      <default class="size2"><!-- elbow / wrist joints -->
+        <joint damping="5"/>
+        <general gainprm="1000" biasprm="0 -1000 -100"/>
+      </default>
+      <default class="size3"><!-- flange joint -->
+        <joint damping="2"/>
+        <general gainprm="800" biasprm="0 -800 -80"/>
+      </default>
+      <site size="0.001" rgba="1 0 0 1" group="4"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <body name="link_base" childclass="xarm6">
+      <inertial pos="0 0 0.09103" mass="2.7" fullinertia="0.00494875 0.00494174 0.002219 -3.5e-06 1.25e-05 1.67e-06"/>
+      <geom class="visual" mesh="link_base_vis" material="silver"/>
+      <geom class="collision" mesh="xarm6_link_base_col_00"/>
+      <geom class="collision" mesh="xarm6_link_base_col_01"/>
+      <body name="link1" pos="0 0 0.267">
+        <inertial pos="0.00022 0.02951 -0.0124" quat="0.976139 -0.216079 -0.00387305 -0.0211673" mass="2.3814"
+          diaginertia="0.00585697 0.00544434 0.00312315"/>
+        <joint name="joint1" class="size1"/>
+        <geom class="visual" mesh="link1_white_vis" material="white"/>
+        <geom class="visual" mesh="link1_silver_vis" material="silver"/>
+        <geom class="visual" mesh="link1_seal_vis" material="seal"/>
+        <geom class="collision" mesh="xarm6_link1_col_00"/>
+        <geom class="collision" mesh="xarm6_link1_col_01"/>
+        <body name="link2" quat="0.707105 -0.707108 0 0">
+          <inertial pos="0.03881 -0.22783 0.03496" quat="0.635305 0.753023 0.170976 -0.010531" mass="2.2675"
+            diaginertia="0.0294477 0.0281783 0.00383449"/>
+          <joint name="joint2" range="-2.059 2.0944" class="size1"/>
+          <geom class="visual" mesh="link2_white_vis" material="white"/>
+          <geom class="visual" mesh="link2_silver_vis" material="silver"/>
+          <geom class="collision" mesh="xarm6_link2_col_00"/>
+          <geom class="collision" mesh="xarm6_link2_col_01"/>
+          <geom class="collision" mesh="xarm6_link2_col_02"/>
+          <geom class="collision" mesh="xarm6_link2_col_03"/>
+          <geom class="collision" mesh="xarm6_link2_col_04"/>
+          <body name="link3" pos="0.0535 -0.2845 0">
+            <inertial pos="0.07041 0.11631 0.0107" quat="0.845838 0.425539 -0.293179 0.132369" mass="1.875"
+              diaginertia="0.00714132 0.00699471 0.00196753"/>
+            <joint name="joint3" range="-3.927 0.19198" class="size2"/>
+            <geom class="visual" mesh="link3_white_vis" material="white"/>
+            <geom class="visual" mesh="link3_silver_vis" material="silver"/>
+            <geom class="collision" mesh="xarm6_link3_col_00"/>
+            <geom class="collision" mesh="xarm6_link3_col_01"/>
+            <geom class="collision" mesh="xarm6_link3_col_02"/>
+            <geom class="collision" mesh="xarm6_link3_col_03"/>
+            <geom class="collision" mesh="xarm6_link3_col_04"/>
+            <body name="link4" pos="0.0775 0.3425 0" quat="0.707105 -0.707108 0 0">
+              <inertial pos="-0.00018 0.01798 -0.02291" quat="0.99929 -0.0369702 0.00179429 -0.00701173" mass="1.3192"
+                diaginertia="0.00489614 0.00447403 0.00132609"/>
+              <joint name="joint4" class="size2"/>
+              <geom class="visual" mesh="link4_white_vis" material="white"/>
+              <geom class="visual" mesh="link4_silver_vis" material="silver"/>
+              <geom class="collision" mesh="xarm6_link4_col_00"/>
+              <geom class="collision" mesh="xarm6_link4_col_01"/>
+              <geom class="collision" mesh="xarm6_link4_col_02"/>
+              <geom class="collision" mesh="xarm6_link4_col_03"/>
+              <geom class="collision" mesh="xarm6_link4_col_04"/>
+              <body name="link5" quat="0.707105 0.707108 0 0">
+                <inertial pos="0.0651 0.03096 0.00315" quat="-0.223008 0.771309 0.16027 0.574163" mass="1.33854"
+                  diaginertia="0.00241824 0.00213367 0.00108731"/>
+                <joint name="joint5" range="-1.69297 3.14159" class="size2"/>
+                <geom class="visual" mesh="link5_white_vis" material="white"/>
+                <geom class="visual" mesh="link5_silver_vis" material="silver"/>
+                <geom class="collision" mesh="xarm6_link5_col_00"/>
+                <geom class="collision" mesh="xarm6_link5_col_01"/>
+                <body name="link6" pos="0.076 0.097 0" quat="0.707105 -0.707108 0 0">
+                  <inertial pos="0 -0.00677 -0.01098" quat="0.487612 0.512088 -0.512088 0.487612" mass="0.17"
+                    diaginertia="0.000132176 9.3e-05 5.85236e-05"/>
+                  <joint name="joint6" class="size3"/>
+                  <geom class="visual" mesh="link6_white_vis" material="white"/>
+                  <geom class="visual" mesh="link6_silver_vis" material="silver"/>
+                  <geom class="visual" mesh="link6_black_vis" material="black"/>
+                  <geom class="collision" mesh="xarm6_link6_col_00"/>
+                  <!-- Mounted xArm Vacuum Gripper -->
+                  <body name="xarm_vacuum_gripper_link">
+                    <inertial pos="0 0 0.053" mass="0.61" fullinertia="0.00047106 0.00033072 0.00025642 0.00000039292 0.0000026537 -0.000010975"/>
+                    <geom class="visual" mesh="vacuum_silver_vis" material="silver"/>
+                    <geom class="visual" mesh="vacuum_white_vis" material="white"/>
+                    <geom class="visual" mesh="vacuum_gray_vis" material="gray"/>
+                    <geom class="collision" mesh="vac_hull_000_flange"/>
+                    <geom class="collision" mesh="vac_hull_001_body"/>
+                    <geom class="collision" mesh="vac_hull_002_body"/>
+                    <geom class="collision" mesh="vac_hull_003_body"/>
+                    <geom class="collision" mesh="vac_hull_004_body"/>
+                    <geom class="collision" mesh="vac_hull_005_body"/>
+                    <geom class="collision" mesh="vac_hull_006_body"/>
+                    <geom class="collision" mesh="vac_hull_007_cover"/>
+                    <geom class="collision" mesh="vac_hull_008_cup_01"/>
+                    <geom class="collision" mesh="vac_hull_009_cup_01"/>
+                    <geom class="collision" mesh="vac_hull_010_cup_01"/>
+                    <geom class="collision" mesh="vac_hull_011_cup_01"/>
+                    <geom class="collision" mesh="vac_hull_012_cup_01"/>
+                    <geom class="collision" mesh="vac_hull_013_cup_02"/>
+                    <geom class="collision" mesh="vac_hull_014_cup_02"/>
+                    <geom class="collision" mesh="vac_hull_015_cup_02"/>
+                    <geom class="collision" mesh="vac_hull_016_cup_02"/>
+                    <geom class="collision" mesh="vac_hull_017_cup_02"/>
+                    <geom class="collision" mesh="vac_hull_018_cup_03"/>
+                    <geom class="collision" mesh="vac_hull_019_cup_03"/>
+                    <geom class="collision" mesh="vac_hull_020_cup_03"/>
+                    <geom class="collision" mesh="vac_hull_021_cup_03"/>
+                    <geom class="collision" mesh="vac_hull_022_cup_03"/>
+                    <geom class="collision" mesh="vac_hull_023_cup_04"/>
+                    <geom class="collision" mesh="vac_hull_024_cup_04"/>
+                    <geom class="collision" mesh="vac_hull_025_cup_04"/>
+                    <geom class="collision" mesh="vac_hull_026_cup_04"/>
+                    <geom class="collision" mesh="vac_hull_027_cup_04"/>
+                    <geom class="collision" mesh="vac_hull_028_cup_05"/>
+                    <geom class="collision" mesh="vac_hull_029_cup_05"/>
+                    <geom class="collision" mesh="vac_hull_030_cup_05"/>
+                    <geom class="collision" mesh="vac_hull_031_cup_05"/>
+                    <geom class="collision" mesh="vac_hull_032_cup_05"/>
+                    <site name="suction_site" pos="0 0 0.126" size="0.01" rgba="0 1 0 0.5"/>
+                    <site name="attachment_site" pos="0 0 0.126"/>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <contact>
+    <exclude body1="link_base" body2="link1"/>
+    <exclude body1="link1" body2="link2"/>
+    <exclude body1="link2" body2="link3"/>
+    <exclude body1="link3" body2="link4"/>
+    <exclude body1="link4" body2="link5"/>
+    <exclude body1="link5" body2="link6"/>
+    <exclude body1="link6" body2="xarm_vacuum_gripper_link"/>
+    <exclude body1="link5" body2="xarm_vacuum_gripper_link"/>
+  </contact>
+
+  <actuator>
+    <general name="act1" joint="joint1" class="size1" forcerange="-179.4445 179.4445"/>
+    <general name="act2" joint="joint2" class="size1" ctrlrange="-2.059 2.0944" forcerange="-179.4445 179.4445"/>
+    <general name="act3" joint="joint3" class="size2" ctrlrange="-3.927 0.19198" forcerange="-92 92"/>
+    <general name="act4" joint="joint4" class="size2" forcerange="-81.558 81.558"/>
+    <general name="act5" joint="joint5" class="size2" ctrlrange="-1.69297 3.14159" forcerange="-30.6 30.6"/>
+    <general name="act6" joint="joint6" class="size3" forcerange="-30.6 30.6"/>
+  </actuator>
+
+  <keyframe>
+    <key name="home" qpos="0 -0.631529917 -0.833150486 0 1.464680403 0" ctrl="0 -0.631529917 -0.833150486 0 1.464680403 0"/>
+    <key name="ready" qpos="0 -0.631529917 -0.833150486 0 1.464680403 0" ctrl="0 -0.631529917 -0.833150486 0 1.464680403 0"/>
+  </keyframe>
+</mujoco>

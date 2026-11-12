@@ -20,12 +20,16 @@ _COMBO_DIRS: dict[tuple[str, str], str] = {
     ("lite6", "lite6_vacuum_gripper"): "lite6_with_vacuum_gripper",
     ("xarm5", "gripper_g2"): "xarm5_with_gripper",
     ("xarm5", "bio_gripper_g2"): "xarm5_with_bio_gripper",
+    ("xarm5", "vacuum_gripper"): "xarm5_with_vacuum_gripper",
     ("xarm6", "gripper_g2"): "xarm6_with_gripper",
     ("xarm6", "bio_gripper_g2"): "xarm6_with_bio_gripper",
+    ("xarm6", "vacuum_gripper"): "xarm6_with_vacuum_gripper",
     ("xarm7", "gripper_g2"): "xarm7_with_gripper",
     ("xarm7", "bio_gripper_g2"): "xarm7_with_bio_gripper",
+    ("xarm7", "vacuum_gripper"): "xarm7_with_vacuum_gripper",
     ("uf850", "gripper_g2"): "uf850_with_gripper",
     ("uf850", "bio_gripper_g2"): "uf850_with_bio_gripper",
+    ("uf850", "vacuum_gripper"): "uf850_with_vacuum_gripper",
 }
 
 _PICK_PLACE_DIRS: dict[tuple[str, str], str] = {
@@ -87,22 +91,22 @@ ARMS: dict[str, ArmSpec] = {
                        (0.0, 0.0, 0.2435), 0.0918, 0.4228),
     ),
     "xarm5": _arm(
-        "xarm5", 5, ("gripper_g2", "bio_gripper_g2"),
+        "xarm5", 5, ("gripper_g2", "bio_gripper_g2", "vacuum_gripper"),
         ReachWorkspace((0.1386, -0.3631, 0.155), (0.3914, 0.3631, 0.5834),
                        (0.0, 0.0, 0.267), 0.1248, 0.6827),
     ),
     "xarm6": _arm(
-        "xarm6", 6, ("gripper_g2", "bio_gripper_g2"),
+        "xarm6", 6, ("gripper_g2", "bio_gripper_g2", "vacuum_gripper"),
         ReachWorkspace((0.25, -0.25, 0.05), (0.45, 0.25, 0.35),
                        (0.0, 0.0, 0.267), 0.15, 0.56),
     ),
     "xarm7": _arm(
-        "xarm7", 7, ("gripper_g2", "bio_gripper_g2"),
+        "xarm7", 7, ("gripper_g2", "bio_gripper_g2", "vacuum_gripper"),
         ReachWorkspace((0.199, -0.3954, 0.2102), (0.4231, 0.3954, 0.5341),
                        (0.0, 0.0, 0.267), 0.1791, 0.7015),
     ),
     "uf850": _arm(
-        "uf850", 6, ("gripper_g2", "bio_gripper_g2"),
+        "uf850", 6, ("gripper_g2", "bio_gripper_g2", "vacuum_gripper"),
         ReachWorkspace((0.1956, -0.4869, 0.2071), (0.5182, 0.4869, 0.735),
                        (0.0, 0.0, 0.364), 0.1761, 0.8823),
     ),

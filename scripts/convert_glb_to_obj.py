@@ -171,6 +171,12 @@ def get_target_specs(ref_root: Path, out_root: Path) -> dict[str, dict[str, Path
             "out_vis": out_root / "lite6_vacuum_gripper/assets/lite6_vacuum_gripper/visual",
             "out_col": out_root / "lite6_vacuum_gripper/assets/lite6_vacuum_gripper/collision",
         },
+        "vacuum_gripper": {
+            "src_glb": ref_root / "vacuum_gripper/meshes/visual",
+            "src_col": ref_root / "vacuum_gripper/meshes/collision/convex",
+            "out_vis": out_root / "vacuum_gripper/assets/vacuum_gripper/visual",
+            "out_col": out_root / "vacuum_gripper/assets/vacuum_gripper/collision",
+        },
     }
 
 

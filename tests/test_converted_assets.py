@@ -27,6 +27,7 @@ EXPECTED_TARGETS = {
     "bio_gripper_g2": {"min_objs": 4, "min_stls": 5},
     "lite6_gripper": {"min_objs": 7, "min_stls": 3},
     "lite6_vacuum_gripper": {"min_objs": 1, "min_stls": 1},
+    "vacuum_gripper": {"min_objs": 3, "min_stls": 33},
 }
 
 

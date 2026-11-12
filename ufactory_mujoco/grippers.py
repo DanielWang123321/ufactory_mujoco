@@ -80,7 +80,10 @@ _JAWS = (
         drive_range_rad=(0.0089, 0.0),
     ),
 )
-_VACUUM = GripperSpec("vacuum", "lite6_vacuum_gripper", cup_body="uflite_vacuum_gripper_link")
+_VACUUMS = (
+    GripperSpec("vacuum", "lite6_vacuum_gripper", cup_body="uflite_vacuum_gripper_link"),
+    GripperSpec("vacuum", "vacuum_gripper", cup_body="xarm_vacuum_gripper_link"),
+)
 
 
 def _body_names(model: mujoco.MjModel) -> set[str]:
@@ -93,8 +96,9 @@ def identify_gripper(model: mujoco.MjModel) -> GripperSpec | None:
     for spec in _JAWS:
         if spec.left_body in names and spec.right_body in names:
             return spec
-    if _VACUUM.cup_body in names:
-        return _VACUUM
+    for spec in _VACUUMS:
+        if spec.cup_body in names:
+            return spec
     return None
 
 

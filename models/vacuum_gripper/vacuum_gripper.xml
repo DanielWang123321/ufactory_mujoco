@@ -1,0 +1,104 @@
+<mujoco model="vacuum_gripper">
+  <!-- UFACTORY xArm 5-Cup Vacuum Suction Gripper, 0.61 kg dynamics and 33 convex collision STLs. -->
+  <compiler angle="radian" autolimits="true" meshdir="assets"/>
+
+  <option integrator="implicitfast"/>
+
+  <asset>
+    <material name="white" rgba="0.95 0.95 0.95 1" specular="0.4" shininess="0.3"/>
+    <material name="silver" rgba="0.85 0.85 0.88 1" specular="0.9" shininess="0.8" reflectance="0.05"/>
+    <material name="gray" rgba="0.784 0.784 0.784 1" specular="0.3" shininess="0.2"/>
+
+    <mesh name="vacuum_silver_vis" file="vacuum_gripper/visual/vacuum_gripper_silver.obj"/>
+    <mesh name="vacuum_white_vis" file="vacuum_gripper/visual/vacuum_gripper_white.obj"/>
+    <mesh name="vacuum_gray_vis" file="vacuum_gripper/visual/vacuum_gripper_gray.obj"/>
+
+    <mesh name="vac_hull_000_flange" file="vacuum_gripper/collision/hull_000_flange.stl"/>
+    <mesh name="vac_hull_001_body" file="vacuum_gripper/collision/hull_001_body.stl"/>
+    <mesh name="vac_hull_002_body" file="vacuum_gripper/collision/hull_002_body.stl"/>
+    <mesh name="vac_hull_003_body" file="vacuum_gripper/collision/hull_003_body.stl"/>
+    <mesh name="vac_hull_004_body" file="vacuum_gripper/collision/hull_004_body.stl"/>
+    <mesh name="vac_hull_005_body" file="vacuum_gripper/collision/hull_005_body.stl"/>
+    <mesh name="vac_hull_006_body" file="vacuum_gripper/collision/hull_006_body.stl"/>
+    <mesh name="vac_hull_007_cover" file="vacuum_gripper/collision/hull_007_cover.stl"/>
+    <mesh name="vac_hull_008_cup_01" file="vacuum_gripper/collision/hull_008_cup_01.stl"/>
+    <mesh name="vac_hull_009_cup_01" file="vacuum_gripper/collision/hull_009_cup_01.stl"/>
+    <mesh name="vac_hull_010_cup_01" file="vacuum_gripper/collision/hull_010_cup_01.stl"/>
+    <mesh name="vac_hull_011_cup_01" file="vacuum_gripper/collision/hull_011_cup_01.stl"/>
+    <mesh name="vac_hull_012_cup_01" file="vacuum_gripper/collision/hull_012_cup_01.stl"/>
+    <mesh name="vac_hull_013_cup_02" file="vacuum_gripper/collision/hull_013_cup_02.stl"/>
+    <mesh name="vac_hull_014_cup_02" file="vacuum_gripper/collision/hull_014_cup_02.stl"/>
+    <mesh name="vac_hull_015_cup_02" file="vacuum_gripper/collision/hull_015_cup_02.stl"/>
+    <mesh name="vac_hull_016_cup_02" file="vacuum_gripper/collision/hull_016_cup_02.stl"/>
+    <mesh name="vac_hull_017_cup_02" file="vacuum_gripper/collision/hull_017_cup_02.stl"/>
+    <mesh name="vac_hull_018_cup_03" file="vacuum_gripper/collision/hull_018_cup_03.stl"/>
+    <mesh name="vac_hull_019_cup_03" file="vacuum_gripper/collision/hull_019_cup_03.stl"/>
+    <mesh name="vac_hull_020_cup_03" file="vacuum_gripper/collision/hull_020_cup_03.stl"/>
+    <mesh name="vac_hull_021_cup_03" file="vacuum_gripper/collision/hull_021_cup_03.stl"/>
+    <mesh name="vac_hull_022_cup_03" file="vacuum_gripper/collision/hull_022_cup_03.stl"/>
+    <mesh name="vac_hull_023_cup_04" file="vacuum_gripper/collision/hull_023_cup_04.stl"/>
+    <mesh name="vac_hull_024_cup_04" file="vacuum_gripper/collision/hull_024_cup_04.stl"/>
+    <mesh name="vac_hull_025_cup_04" file="vacuum_gripper/collision/hull_025_cup_04.stl"/>
+    <mesh name="vac_hull_026_cup_04" file="vacuum_gripper/collision/hull_026_cup_04.stl"/>
+    <mesh name="vac_hull_027_cup_04" file="vacuum_gripper/collision/hull_027_cup_04.stl"/>
+    <mesh name="vac_hull_028_cup_05" file="vacuum_gripper/collision/hull_028_cup_05.stl"/>
+    <mesh name="vac_hull_029_cup_05" file="vacuum_gripper/collision/hull_029_cup_05.stl"/>
+    <mesh name="vac_hull_030_cup_05" file="vacuum_gripper/collision/hull_030_cup_05.stl"/>
+    <mesh name="vac_hull_031_cup_05" file="vacuum_gripper/collision/hull_031_cup_05.stl"/>
+    <mesh name="vac_hull_032_cup_05" file="vacuum_gripper/collision/hull_032_cup_05.stl"/>
+  </asset>
+
+  <default>
+    <default class="vg">
+      <default class="vg_visual">
+        <geom type="mesh" contype="0" conaffinity="0" group="2"/>
+      </default>
+      <default class="vg_collision">
+        <geom type="mesh" group="3"/>
+      </default>
+    </default>
+  </default>
+
+  <worldbody>
+    <body name="xarm_vacuum_gripper_link" childclass="vg">
+      <inertial pos="0 0 0.053" mass="0.61" fullinertia="0.00047106 0.00033072 0.00025642 0.00000039292 0.0000026537 -0.000010975"/>
+      <geom class="vg_visual" mesh="vacuum_silver_vis" material="silver"/>
+      <geom class="vg_visual" mesh="vacuum_white_vis" material="white"/>
+      <geom class="vg_visual" mesh="vacuum_gray_vis" material="gray"/>
+      <geom class="vg_collision" mesh="vac_hull_000_flange"/>
+      <geom class="vg_collision" mesh="vac_hull_001_body"/>
+      <geom class="vg_collision" mesh="vac_hull_002_body"/>
+      <geom class="vg_collision" mesh="vac_hull_003_body"/>
+      <geom class="vg_collision" mesh="vac_hull_004_body"/>
+      <geom class="vg_collision" mesh="vac_hull_005_body"/>
+      <geom class="vg_collision" mesh="vac_hull_006_body"/>
+      <geom class="vg_collision" mesh="vac_hull_007_cover"/>
+      <geom class="vg_collision" mesh="vac_hull_008_cup_01"/>
+      <geom class="vg_collision" mesh="vac_hull_009_cup_01"/>
+      <geom class="vg_collision" mesh="vac_hull_010_cup_01"/>
+      <geom class="vg_collision" mesh="vac_hull_011_cup_01"/>
+      <geom class="vg_collision" mesh="vac_hull_012_cup_01"/>
+      <geom class="vg_collision" mesh="vac_hull_013_cup_02"/>
+      <geom class="vg_collision" mesh="vac_hull_014_cup_02"/>
+      <geom class="vg_collision" mesh="vac_hull_015_cup_02"/>
+      <geom class="vg_collision" mesh="vac_hull_016_cup_02"/>
+      <geom class="vg_collision" mesh="vac_hull_017_cup_02"/>
+      <geom class="vg_collision" mesh="vac_hull_018_cup_03"/>
+      <geom class="vg_collision" mesh="vac_hull_019_cup_03"/>
+      <geom class="vg_collision" mesh="vac_hull_020_cup_03"/>
+      <geom class="vg_collision" mesh="vac_hull_021_cup_03"/>
+      <geom class="vg_collision" mesh="vac_hull_022_cup_03"/>
+      <geom class="vg_collision" mesh="vac_hull_023_cup_04"/>
+      <geom class="vg_collision" mesh="vac_hull_024_cup_04"/>
+      <geom class="vg_collision" mesh="vac_hull_025_cup_04"/>
+      <geom class="vg_collision" mesh="vac_hull_026_cup_04"/>
+      <geom class="vg_collision" mesh="vac_hull_027_cup_04"/>
+      <geom class="vg_collision" mesh="vac_hull_028_cup_05"/>
+      <geom class="vg_collision" mesh="vac_hull_029_cup_05"/>
+      <geom class="vg_collision" mesh="vac_hull_030_cup_05"/>
+      <geom class="vg_collision" mesh="vac_hull_031_cup_05"/>
+      <geom class="vg_collision" mesh="vac_hull_032_cup_05"/>
+      <site name="suction_site" pos="0 0 0.126" size="0.01" rgba="0 1 0 0.5"/>
+    </body>
+  </worldbody>
+</mujoco>

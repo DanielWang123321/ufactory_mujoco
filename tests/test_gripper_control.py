@@ -46,12 +46,20 @@ class GripperControlTest(unittest.TestCase):
                     robot.set_gripper_gap(closed_gap - 0.001)
 
     def test_vacuum_has_no_gap(self):
-        robot = SimRobot(MODELS_ROOT / "lite6_with_vacuum_gripper" / "scene.xml")
-        self.assertEqual(robot.gripper_kind, "vacuum")
-        self.assertFalse(robot.has_gripper)
-        with self.assertRaises(NotImplementedError):
-            robot.set_gripper_gap(0.01)
-        self.assertFalse(robot.cup_contact("link6"))
+        for name, last_link in (
+            ("lite6_with_vacuum_gripper", "link6"),
+            ("xarm5_with_vacuum_gripper", "link5"),
+            ("xarm6_with_vacuum_gripper", "link6"),
+            ("xarm7_with_vacuum_gripper", "link7"),
+            ("uf850_with_vacuum_gripper", "link6"),
+        ):
+            with self.subTest(model=name):
+                robot = SimRobot(MODELS_ROOT / name / "scene.xml")
+                self.assertEqual(robot.gripper_kind, "vacuum")
+                self.assertFalse(robot.has_gripper)
+                with self.assertRaises(NotImplementedError):
+                    robot.set_gripper_gap(0.01)
+                self.assertFalse(robot.cup_contact(last_link))
 
     def test_robot_without_gripper(self):
         """Standard xarm6 has no gripper; gripper methods raise NotImplementedError."""
