@@ -9,6 +9,13 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
+from .bio_g2_controller import BioG2ControlOutput, BioGripperG2Controller, MuJoCoBioG2Adapter
+from .bio_g2_model import (
+    MAX_GAP_MM as BIO_G2_MAX_GAP_MM,
+    MIN_GAP_MM as BIO_G2_MIN_GAP_MM,
+    STROKE_PER_FINGER_M as BIO_G2_STROKE_M,
+    q_to_gap as bio_g2_q_to_gap,
+)
 from .g2_controller import ControlOutput, G2Controller
 from .g2_model import (
     GRIPPER_G2_SIM_CLOSE_DRIVE,
@@ -26,6 +33,7 @@ from .grippers import (
     gap_to_position,
     gripper_object_contact_forces_n,
     identify_gripper,
+    measured_bio_g2_gap_m,
     measured_g2_pad_gap_mm,
     position_to_gap,
     require_bilateral_contact,
@@ -114,11 +122,23 @@ class SimRobot(RobotInterface):
                 self._gripper_close_ctrl = float(hi if abs(hi) > abs(lo) else lo)
 
         self._gripper_spec: GripperSpec | None = identify_gripper(self.model)
+        if (
+            self._gripper_actuator_id is not None
+            and self._gripper_spec is not None
+            and self._gripper_spec.kind == "jaw"
+            and self._gripper_spec.drive_range_rad[0] != self._gripper_spec.drive_range_rad[1]
+        ):
+            self._gripper_open_ctrl = float(self._gripper_spec.drive_range_rad[0])
+            self._gripper_close_ctrl = float(self._gripper_spec.drive_range_rad[1])
+
         self._g2_model: G2Model | None = None
         self._g2_controller: G2Controller | None = None
         self._g2_driver_qpos_adr: int | None = None
         self._g2_driver_dof_adr: int | None = None
         self._g2_last_output: ControlOutput | None = None
+        self._bio_g2_adapter: MuJoCoBioG2Adapter | None = None
+        self._bio_g2_controller: BioGripperG2Controller | None = None
+        self._bio_g2_last_output: BioG2ControlOutput | None = None
 
         # --- Initialise state ---
         self._viewer = None
@@ -157,6 +177,21 @@ class SimRobot(RobotInterface):
                 limit = float(self._g2_controller.torque_limit_nm[0])
                 self.model.actuator_forcerange[self._gripper_actuator_id] = (-limit, limit)
                 self.data.ctrl[self._gripper_actuator_id] = gripper_g2_gap_m_to_sim_drive(init_gap_mm / 1000.0)
+        elif (
+            self._gripper_spec is not None
+            and self._gripper_spec.name == "bio_gripper_g2"
+            and self._gripper_actuator_id is not None
+        ):
+            self._gripper_open_ctrl = BIO_G2_STROKE_M
+            self._gripper_close_ctrl = 0.0
+            self._bio_g2_adapter = MuJoCoBioG2Adapter(
+                self.model, self.data, self._gripper_actuator_id
+            )
+            qr, _, ql, _ = self._bio_g2_adapter.state()
+            init_gap_mm = float(np.clip(bio_g2_q_to_gap(qr, ql), BIO_G2_MIN_GAP_MM, BIO_G2_MAX_GAP_MM))
+            self._bio_g2_controller = BioGripperG2Controller(self._bio_g2_adapter)
+            self._bio_g2_controller.reset(init_gap_mm)
+            self._bio_g2_controller.command(init_gap_mm, speed_percent=100.0, force_percent=100.0)
 
         mujoco.mj_forward(self.model, self.data)
         if viewer:
@@ -222,6 +257,9 @@ class SimRobot(RobotInterface):
             self.model.actuator_forcerange[self._gripper_actuator_id] = (-limit, limit)
             vel_bias = (self._g2_controller.kv / self._g2_controller.kp) * float(output.velocity_rad_s[0])
             self.data.ctrl[self._gripper_actuator_id] = float(output.position_rad[0]) + vel_bias
+        elif self._bio_g2_controller is not None:
+            dt = float(self.model.opt.timestep)
+            self._bio_g2_last_output = self._bio_g2_controller.apply(dt)
         mujoco.mj_step(self.model, self.data)
         self.data.qfrc_applied[:] = 0.0
         # real-time sync: sleep until wall-clock catches up with sim time
@@ -430,15 +468,22 @@ class SimRobot(RobotInterface):
         """Calibrated Gripper G2 controller instance when Gripper G2 is mounted."""
         return self._g2_controller
 
-    def get_gripper_control_output(self) -> ControlOutput | None:
-        """Most recent ``ControlOutput`` from the Gripper G2 controller."""
-        return self._g2_last_output
+    @property
+    def bio_g2_controller(self) -> BioGripperG2Controller | None:
+        """Calibrated Bio Gripper G2 controller instance when Bio Gripper G2 is mounted."""
+        return self._bio_g2_controller
+
+    def get_gripper_control_output(self) -> ControlOutput | BioG2ControlOutput | None:
+        """Most recent control output from the calibrated Gripper G2 or Bio Gripper G2 controller."""
+        if self._g2_last_output is not None:
+            return self._g2_last_output
+        return self._bio_g2_last_output
 
     def get_gripper_position(self) -> float:
         """Current gripper target (0.0 = fully open, 1.0 = fully closed)."""
         if not self.has_gripper:
             raise NotImplementedError("This robot has no gripper")
-        if self._g2_controller is not None and self._gripper_spec is not None:
+        if (self._g2_controller is not None or self._bio_g2_controller is not None) and self._gripper_spec is not None:
             return gap_to_position(self._gripper_spec, self.get_gripper_gap())
         ctrl = self.data.ctrl[self._gripper_actuator_id]
         span = self._gripper_close_ctrl - self._gripper_open_ctrl
@@ -457,7 +502,7 @@ class SimRobot(RobotInterface):
         if not self.has_gripper:
             raise NotImplementedError("This robot has no gripper")
         pos = float(np.clip(pos, 0.0, 1.0))
-        if self._g2_controller is not None and self._gripper_spec is not None:
+        if (self._g2_controller is not None or self._bio_g2_controller is not None) and self._gripper_spec is not None:
             gap_m = position_to_gap(self._gripper_spec, pos)
             self.set_gripper_gap(gap_m, speed_percent=speed_percent, force_percent=force_percent)
             return
@@ -469,16 +514,27 @@ class SimRobot(RobotInterface):
         spec = self._require_jaw()
         if self._g2_controller is not None:
             return float(self._g2_controller.position_mm[0] / 1000.0)
+        if self._bio_g2_controller is not None:
+            return float(self._bio_g2_controller.position_mm / 1000.0)
         return position_to_gap(spec, self.get_gripper_position())
 
     def get_measured_gripper_gap(self) -> float:
-        """Measured finger gap in meters (G2: distance between the pad collision boxes)."""
+        """Measured finger gap in meters."""
         spec = self._require_jaw()
         if self._g2_controller is not None:
             return measured_g2_pad_gap_mm(self.model, self.data) / 1000.0
+        if self._bio_g2_controller is not None or spec.name == "bio_gripper_g2":
+            return measured_bio_g2_gap_m(self.model, self.data)
+        drive_qpos = float(self.data.qpos[self._n_arm_qpos])
+        if (
+            self._gripper_actuator_id is not None
+            and int(self.model.actuator_trntype[self._gripper_actuator_id]) == int(mujoco.mjtTrn.mjTRN_JOINT)
+        ):
+            jnt_id = int(self.model.actuator_trnid[self._gripper_actuator_id, 0])
+            drive_qpos = float(self.data.qpos[int(self.model.jnt_qposadr[jnt_id])])
         return drive_to_gap(
             spec,
-            float(self.data.qpos[self._n_arm_qpos]),
+            drive_qpos,
             open_ctrl=self._gripper_open_ctrl,
             close_ctrl=self._gripper_close_ctrl,
         )
@@ -490,7 +546,7 @@ class SimRobot(RobotInterface):
         speed_percent: float | None = None,
         force_percent: float | None = None,
     ) -> None:
-        """Command a finger gap in meters, with optional speed/force percent for Gripper G2."""
+        """Command a finger gap in meters, with optional speed/force percent for Gripper G2 / Bio Gripper G2."""
         if self.gripper_kind == "vacuum":
             raise NotImplementedError("vacuum gripper has no jaw gap")
         spec = self._require_jaw()
@@ -503,6 +559,11 @@ class SimRobot(RobotInterface):
             self.model.actuator_forcerange[self._gripper_actuator_id] = (-limit, limit)
             self.data.ctrl[self._gripper_actuator_id] = gripper_g2_gap_m_to_sim_drive(gap_m)
             return
+        if self._bio_g2_controller is not None:
+            spd = float(self._bio_g2_controller.speed_percent) if speed_percent is None else float(speed_percent)
+            frc = float(self._bio_g2_controller.force_percent) if force_percent is None else float(force_percent)
+            self._bio_g2_controller.command(float(gap_m) * 1000.0, speed_percent=spd, force_percent=frc)
+            return
         self.set_gripper(norm_pos)
 
     def set_gripper_command(
@@ -512,7 +573,7 @@ class SimRobot(RobotInterface):
         speed_percent: float = 50.0,
         force_percent: float = 50.0,
     ) -> None:
-        """Command Gripper G2 opening in mm with speed (%) and force (%)."""
+        """Command Gripper G2 / Bio Gripper G2 opening in mm with speed (%) and force (%)."""
         self.set_gripper_gap(
             float(position_mm) / 1000.0,
             speed_percent=speed_percent,
@@ -550,13 +611,21 @@ class SimRobot(RobotInterface):
         return self._gripper_spec
 
     def _g2_wait_duration(self) -> float:
-        if self._g2_controller is None:
-            return 0.5
-        spd_mm_s = float(self._g2_controller.requested_speed_mm_s[0])
-        if spd_mm_s <= 0.0:
-            return 0.5
-        travel_mm = abs(float(self._g2_controller.position_mm[0] - self._g2_controller.reference_gap_mm[0]))
-        return max(0.5, travel_mm / spd_mm_s + 0.12)
+        if self._g2_controller is not None:
+            spd_mm_s = float(self._g2_controller.requested_speed_mm_s[0])
+            if spd_mm_s <= 0.0:
+                return 0.5
+            travel_mm = abs(float(self._g2_controller.position_mm[0] - self._g2_controller.reference_gap_mm[0]))
+            return max(0.5, travel_mm / spd_mm_s + 0.12)
+        if self._bio_g2_controller is not None:
+            if self._bio_g2_controller.paused or self._bio_g2_controller.speed_mm_s <= 0.0:
+                return 0.5
+            gap_spd_mm_s = 2.0 * float(self._bio_g2_controller.speed_mm_s)
+            travel_mm = abs(
+                float(self._bio_g2_controller.position_mm - bio_g2_q_to_gap(self._bio_g2_controller.reference_q_m))
+            )
+            return max(0.5, travel_mm / gap_spd_mm_s + 0.12)
+        return 0.5
 
     def open_gripper(
         self,

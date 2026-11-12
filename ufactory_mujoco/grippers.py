@@ -1,7 +1,7 @@
 """Jaw and vacuum gripper specs recognized from MJCF body names.
 
 Includes calibrated 4-bar linkage geometry conversions and contact-force helpers
-for Gripper G2.
+for Gripper G2 and Bio Gripper G2.
 """
 
 from __future__ import annotations
@@ -11,6 +11,14 @@ from dataclasses import dataclass
 import mujoco
 import numpy as np
 
+from .bio_g2_model import (
+    BIO_G2_CLOSED_GAP_M,
+    BIO_G2_OPEN_GAP_M,
+    LEFT_JOINT as BIO_G2_LEFT_JOINT,
+    RIGHT_JOINT as BIO_G2_RIGHT_JOINT,
+    STROKE_PER_FINGER_M as BIO_G2_STROKE_M,
+    bio_g2_sim_drive_to_gap_m,
+)
 from .g2_model import (
     G2_LINKAGE_GEOMETRY,
     GRIPPER_G2_SIM_CLOSE_DRIVE,
@@ -58,9 +66,9 @@ _JAWS = (
         "bio_gripper_g2",
         "bio_gripper_g2_left_finger",
         "bio_gripper_g2_right_finger",
-        open_gap_m=0.079,
-        closed_gap_m=0.0,
-        drive_range_rad=(0.0, 0.0395),
+        open_gap_m=BIO_G2_OPEN_GAP_M,
+        closed_gap_m=BIO_G2_CLOSED_GAP_M,
+        drive_range_rad=(BIO_G2_STROKE_M, 0.0),
     ),
     GripperSpec(
         "jaw",
@@ -128,6 +136,8 @@ def drive_to_gap(
         raise NotImplementedError("vacuum gripper has no jaw gap")
     if spec.name == "gripper_g2":
         return gripper_g2_sim_drive_to_gap_m(float(drive_qpos))
+    if spec.name == "bio_gripper_g2":
+        return bio_g2_sim_drive_to_gap_m(float(drive_qpos))
     lo = spec.drive_range_rad[0] if open_ctrl is None else float(open_ctrl)
     hi = spec.drive_range_rad[1] if close_ctrl is None else float(close_ctrl)
     span = hi - lo
@@ -135,6 +145,17 @@ def drive_to_gap(
         return spec.open_gap_m
     norm_pos = float(np.clip((float(drive_qpos) - lo) / span, 0.0, 1.0))
     return position_to_gap(spec, norm_pos)
+
+
+def measured_bio_g2_gap_m(model: mujoco.MjModel, data: mujoco.MjData) -> float:
+    """Actual physical jaw gap (m) of Bio Gripper G2 from both prismatic finger joints."""
+    right_jnt = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, BIO_G2_RIGHT_JOINT)
+    left_jnt = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, BIO_G2_LEFT_JOINT)
+    if right_jnt < 0 or left_jnt < 0:
+        raise ValueError(f"Bio Gripper G2 joints ({BIO_G2_RIGHT_JOINT!r}, {BIO_G2_LEFT_JOINT!r}) not found")
+    q_right = float(data.qpos[int(model.jnt_qposadr[right_jnt])])
+    q_left = float(data.qpos[int(model.jnt_qposadr[left_jnt])])
+    return bio_g2_sim_drive_to_gap_m(q_right, q_left)
 
 
 def _body_id(model: mujoco.MjModel, name: str) -> int:

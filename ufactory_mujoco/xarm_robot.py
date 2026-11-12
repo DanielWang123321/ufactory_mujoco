@@ -17,6 +17,11 @@ from typing import Any
 import mujoco
 import numpy as np
 
+from .bio_g2_model import (
+    MIN_SPEED_RPM as BIO_G2_MIN_SPEED_RPM,
+    bio_g2_speed_mm_s_from_percent,
+    speed_rpm_from_mm_s as bio_g2_speed_rpm_from_mm_s,
+)
 from .calibration import (
     CalibrationError,
     KinematicsCalibration,
@@ -460,6 +465,18 @@ class XArmRobot(RobotInterface):
     def get_gripper_position(self) -> float:
         if not self.has_gripper:
             raise NotImplementedError("This robot has no gripper")
+        if self._gripper_spec is not None and self._gripper_spec.name == "bio_gripper_g2":
+            bio_getter = getattr(self._arm, "get_bio_gripper_g2_position", None)
+            if callable(bio_getter):
+                code, gap_mm = bio_getter()
+                if int(code) == 0 and gap_mm is not None:
+                    gap_m = float(np.clip(
+                        float(gap_mm) / 1000.0,
+                        self._gripper_spec.closed_gap_m,
+                        self._gripper_spec.open_gap_m,
+                    ))
+                    return gap_to_position(self._gripper_spec, gap_m)
+            return self._commanded_gripper_pos
         getter = getattr(self._arm, "get_gripper_position", None)
         if callable(getter):
             code, pos = getter()
@@ -479,6 +496,66 @@ class XArmRobot(RobotInterface):
         if not self.has_gripper:
             raise NotImplementedError("This robot has no gripper")
         pos_clamped = float(np.clip(pos, 0.0, 1.0))
+
+        if self._gripper_spec is not None and self._gripper_spec.name == "bio_gripper_g2":
+            err_fn = getattr(self._arm, "get_bio_gripper_error", None)
+            if callable(err_fn):
+                code, err = err_fn()
+                if int(code) != 0 or int(err) != 0:
+                    raise SafetyGateError(f"Bio Gripper G2 error check failed (code={code}, err={err})")
+            bio_enable = getattr(self._arm, "set_bio_gripper_enable", None)
+            if callable(bio_enable):
+                code = int(bio_enable(True))
+                if code != 0:
+                    raise SafetyGateError(f"set_bio_gripper_enable failed with SDK code {code}")
+            gap_mm = float(position_to_gap(self._gripper_spec, pos_clamped) * 1000.0)
+            spd_pct = 50.0 if speed_percent is None else checked(speed_percent, 0.0, 100.0, "speed_percent")
+            frc_pct = 50.0 if force_percent is None else checked(force_percent, 1.0, 100.0, "force_percent")
+            spd_mm = bio_g2_speed_mm_s_from_percent(spd_pct)
+            spd_rpm = (
+                int(round(BIO_G2_MIN_SPEED_RPM))
+                if spd_mm <= 0.0
+                else int(round(bio_g2_speed_rpm_from_mm_s(spd_mm)))
+            )
+            bio_pos_fn = getattr(self._arm, "set_bio_gripper_g2_position", None)
+            if callable(bio_pos_fn):
+                code = int(
+                    bio_pos_fn(
+                        int(round(gap_mm)),
+                        speed=spd_rpm,
+                        force=int(round(frc_pct)),
+                        wait=True,
+                    )
+                )
+                if code != 0:
+                    raise SafetyGateError(f"set_bio_gripper_g2_position failed with SDK code {code}")
+                self._commanded_gripper_pos = pos_clamped
+                return
+            fallback_fn = getattr(
+                self._arm,
+                "open_bio_gripper" if pos_clamped < 0.5 else "close_bio_gripper",
+                None,
+            )
+            if callable(fallback_fn):
+                code = int(fallback_fn(speed=spd_rpm, wait=True))
+                if code != 0:
+                    raise SafetyGateError(f"Bio Gripper SDK command failed with code {code}")
+            self._commanded_gripper_pos = pos_clamped
+            return
+
+        if (
+            self._gripper_spec is not None
+            and self._gripper_spec.name == "lite6_gripper"
+            and callable(getattr(self._arm, "open_lite6_gripper", None))
+            and callable(getattr(self._arm, "close_lite6_gripper", None))
+        ):
+            method_name = "open_lite6_gripper" if pos_clamped <= 0.5 else "close_lite6_gripper"
+            code = int(getattr(self._arm, method_name)(sync=True))
+            if code != 0:
+                raise SafetyGateError(f"{method_name} failed with SDK code {code}")
+            self._commanded_gripper_pos = 0.0 if pos_clamped <= 0.5 else 1.0
+            return
+
         enable_fn = getattr(self._arm, "set_gripper_enable", None)
         if callable(enable_fn):
             code = int(enable_fn(True))

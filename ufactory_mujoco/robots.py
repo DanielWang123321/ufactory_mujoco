@@ -19,10 +19,13 @@ _COMBO_DIRS: dict[tuple[str, str], str] = {
     ("lite6", "lite6_gripper"): "lite6_with_gripper",
     ("lite6", "lite6_vacuum_gripper"): "lite6_with_vacuum_gripper",
     ("xarm5", "gripper_g2"): "xarm5_with_gripper",
+    ("xarm5", "bio_gripper_g2"): "xarm5_with_bio_gripper",
     ("xarm6", "gripper_g2"): "xarm6_with_gripper",
     ("xarm6", "bio_gripper_g2"): "xarm6_with_bio_gripper",
     ("xarm7", "gripper_g2"): "xarm7_with_gripper",
+    ("xarm7", "bio_gripper_g2"): "xarm7_with_bio_gripper",
     ("uf850", "gripper_g2"): "uf850_with_gripper",
+    ("uf850", "bio_gripper_g2"): "uf850_with_bio_gripper",
 }
 
 _PICK_PLACE_DIRS: dict[tuple[str, str], str] = {

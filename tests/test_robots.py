@@ -1,9 +1,11 @@
 """Arm registry: degrees of freedom, scene resolution, gripper compatibility."""
 
 import unittest
+from unittest.mock import patch
 
 import mujoco
 
+from ufactory_mujoco import robots as robots_mod
 from ufactory_mujoco.config import ConfigError
 from ufactory_mujoco.model_paths import MODELS_ROOT
 from ufactory_mujoco.robots import ARMS, resolve_arm_scene
@@ -48,11 +50,23 @@ class ArmRegistryTests(unittest.TestCase):
             resolve_arm_scene("lite6", "gripper_g2", "scene")
         self.assertIn("does not support", str(caught.exception))
 
+    def test_all_declared_combos_resolve(self):
+        for arm_key, spec in ARMS.items():
+            for gripper in spec.grippers:
+                with self.subTest(robot=arm_key, gripper=gripper):
+                    path = resolve_arm_scene(arm_key, gripper, "scene")
+                    self.assertTrue(path.is_file(), f"Missing combo scene: {path}")
+                    model = mujoco.MjModel.from_xml_path(str(path))
+                    site = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, "attachment_site")
+                    self.assertGreaterEqual(site, 0)
+
     def test_compatible_gripper_without_mjcf(self):
-        with self.assertRaises(ConfigError) as caught:
-            resolve_arm_scene("xarm5", "bio_gripper_g2", "scene")
-        self.assertIn("not built yet", str(caught.exception))
-        self.assertNotIn("does not support", str(caught.exception))
+        trimmed = {k: v for k, v in robots_mod._COMBO_DIRS.items() if k != ("xarm5", "bio_gripper_g2")}
+        with patch.object(robots_mod, "_COMBO_DIRS", trimmed):
+            with self.assertRaises(ConfigError) as caught:
+                resolve_arm_scene("xarm5", "bio_gripper_g2", "scene")
+            self.assertIn("not built yet", str(caught.exception))
+            self.assertNotIn("does not support", str(caught.exception))
 
     def test_reach_rejects_gripper(self):
         with self.assertRaises(ConfigError):

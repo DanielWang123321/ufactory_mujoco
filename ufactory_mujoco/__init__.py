@@ -3,6 +3,12 @@ from .viewer import configure_backend
 # MuJoCo imports GLFW while importing its rendering modules.
 configure_backend()
 
+from .bio_g2_controller import (
+    BioG2ControlOutput,
+    BioGripperG2Controller,
+    MuJoCoBioG2Adapter,
+)
+from .bio_g2_model import BioGripperG2Model, bio_g2_physics_summary
 from .calibration import (
     CalibrationError,
     KinematicsCalibration,
@@ -36,6 +42,7 @@ from .grippers import (
     gap_to_position,
     gripper_object_contact_forces_n,
     identify_gripper,
+    measured_bio_g2_gap_m,
     measured_g2_pad_gap_mm,
     position_to_gap,
     require_bilateral_contact,
@@ -100,6 +107,9 @@ __all__ = [
     "ARMS",
     "ArmDynamics",
     "ArmSpec",
+    "BioG2ControlOutput",
+    "BioGripperG2Controller",
+    "BioGripperG2Model",
     "BoxPackConfig",
     "CalibrationError",
     "CollisionChecker",
@@ -117,6 +127,7 @@ __all__ = [
     "KinematicsCalibration",
     "MODELS_ROOT",
     "MotionApproval",
+    "MuJoCoBioG2Adapter",
     "PACK_PHASES",
     "PHASES",
     "PhaseResult",
@@ -140,6 +151,7 @@ __all__ = [
     "attach_payload",
     "authorize_real_motion",
     "bilateral_finger_contact",
+    "bio_g2_physics_summary",
     "bodies_in_contact",
     "condition_number",
     "config_sha256",
@@ -151,6 +163,7 @@ __all__ = [
     "load_kinematics_calibration",
     "load_task_config",
     "manipulability",
+    "measured_bio_g2_gap_m",
     "measured_g2_pad_gap_mm",
     "path_length",
     "plan_cartesian_line",

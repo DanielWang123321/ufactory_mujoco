@@ -24,7 +24,7 @@ EXPECTED_TARGETS = {
     "uf850": {"min_objs": 11, "min_stls": 27},
     "lite6": {"min_objs": 12, "min_stls": 17},
     "gripper_g2": {"min_objs": 7, "min_stls": 16},
-    "bio_gripper_g2": {"min_objs": 4, "min_stls": 3},
+    "bio_gripper_g2": {"min_objs": 4, "min_stls": 5},
     "lite6_gripper": {"min_objs": 7, "min_stls": 3},
     "lite6_vacuum_gripper": {"min_objs": 1, "min_stls": 1},
 }

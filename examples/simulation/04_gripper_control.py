@@ -105,11 +105,12 @@ def main() -> None:
             )
             pos_close = robot.get_gripper_position()
             out_close = robot.get_gripper_control_output()
-            tau_str = (
-                f", torque_limit={float(out_close.torque_limit_nm[0]):.3f} Nm"
-                if out_close is not None
-                else ""
-            )
+            if out_close is not None and hasattr(out_close, "torque_limit_nm"):
+                tau_str = f", torque_limit={float(out_close.torque_limit_nm[0]):.3f} Nm"
+            elif out_close is not None and hasattr(out_close, "force_limit_n"):
+                tau_str = f", force_limit={float(out_close.force_limit_n):.2f} N"
+            else:
+                tau_str = ""
             print(
                 f"  Closed state: normalized={pos_close:.3f}, "
                 f"measured_gap={robot.get_measured_gripper_gap() * 1000:.2f} mm, "

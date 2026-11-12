@@ -1,5 +1,5 @@
 <mujoco model="bio_gripper_g2">
-  <!-- UFACTORY Bio Gripper G2, high-fidelity visual OBJs and collision STLs. -->
+  <!-- UFACTORY Bio Gripper G2 (bio_g2_calibrated_v1), 0.79 kg calibrated dynamics and 5-part convex collision STLs. -->
   <compiler angle="radian" autolimits="true" meshdir="assets"/>
 
   <option integrator="implicitfast"/>
@@ -13,9 +13,11 @@
     <mesh name="left_finger_vis" file="bio_gripper_g2/visual/bio_gripper_g2_left_finger.obj"/>
     <mesh name="right_finger_vis" file="bio_gripper_g2/visual/bio_gripper_g2_right_finger.obj"/>
 
-    <mesh name="base_col" file="bio_gripper_g2/collision/bio_gripper_g2_link_base.stl"/>
-    <mesh name="left_finger_col" file="bio_gripper_g2/collision/bio_gripper_g2_left_finger.stl"/>
-    <mesh name="right_finger_col" file="bio_gripper_g2/collision/bio_gripper_g2_right_finger.stl"/>
+    <mesh name="base_col_0" file="bio_gripper_g2/collision/bio_gripper_g2_base_link_convex_0.stl"/>
+    <mesh name="left_finger_col_0" file="bio_gripper_g2/collision/bio_gripper_g2_left_finger_convex_0.stl"/>
+    <mesh name="left_finger_col_1" file="bio_gripper_g2/collision/bio_gripper_g2_left_finger_convex_1.stl"/>
+    <mesh name="right_finger_col_0" file="bio_gripper_g2/collision/bio_gripper_g2_right_finger_convex_0.stl"/>
+    <mesh name="right_finger_col_1" file="bio_gripper_g2/collision/bio_gripper_g2_right_finger_convex_1.stl"/>
   </asset>
 
   <default>
@@ -24,30 +26,38 @@
         <geom type="mesh" contype="0" conaffinity="0" group="2"/>
       </default>
       <default class="bio_collision">
-        <geom type="mesh" group="3"/>
+        <geom type="mesh" group="3" solref="0.005 1" solimp="0.99 0.99 0.001 0.5 2"/>
+      </default>
+      <default class="bio_slide">
+        <joint type="slide" axis="0 1 0" armature="0.1" damping="0" frictionloss="0" solreflimit="0.005 1"/>
       </default>
     </default>
   </default>
 
   <worldbody>
     <body name="bio_gripper_g2_base_link" childclass="bio_g2">
-      <inertial pos="0.016179 -2.3911E-05 0.023897" mass="0.38837" fullinertia="0.00088398 0.00018256 0.00094673 4.8665E-08 5.6276E-06 4.0828E-08"/>
-      <geom class="bio_visual" mesh="base_white_vis" material="white"/>
-      <geom class="bio_visual" mesh="base_silver_vis" material="silver"/>
-      <geom class="bio_collision" mesh="base_col" pos="-0.022475 -0.000830 -0.004696"/>
+      <inertial pos="-0.006296 -0.000853911 0.019201" mass="0.765827"
+        fullinertia="0.0017431206103973 0.000359990156603239 0.00186685736722713 9.59625381852357e-08 1.10970672945902e-05 8.05087539099313e-08"/>
+      <geom class="bio_visual" mesh="base_white_vis" material="white" pos="0 0 0"/>
+      <geom class="bio_visual" mesh="base_silver_vis" material="silver" pos="0 0 0"/>
+      <geom class="bio_collision" mesh="base_col_0" pos="0 0 0"/>
 
       <body name="bio_gripper_g2_left_finger" pos="0.059 0 0.027">
-        <inertial pos="0.021846 -0.0276 0.011911" mass="0.012105" fullinertia="3.7322E-06 1.744E-05 1.7775E-05 4.1705E-06 -4.0142E-06 1.2237E-06"/>
-        <joint name="left_finger_joint" type="slide" axis="0 1 0" range="-0.0395 0" damping="0.5"/>
-        <geom class="bio_visual" mesh="left_finger_vis" material="silver"/>
-        <geom class="bio_collision" mesh="left_finger_col" pos="-0.012870 -0.011316 -0.002219"/>
+        <inertial pos="0.008976 -0.02730000121 0.009692" mass="0.012105"
+          fullinertia="3.7322E-06 1.744E-05 1.7775E-05 4.1705E-06 -4.0142E-06 1.2237E-06"/>
+        <joint name="bio_gripper_g2_left_finger_joint" class="bio_slide" range="-0.0395 0"/>
+        <geom class="bio_visual" mesh="left_finger_vis" material="silver" pos="0 0.00695659220219 0"/>
+        <geom class="bio_collision" mesh="left_finger_col_0" pos="0 0 0"/>
+        <geom class="bio_collision" mesh="left_finger_col_1" pos="0 0 0"/>
       </body>
 
       <body name="bio_gripper_g2_right_finger" pos="0.059 0 0.027">
-        <inertial pos="0.02037 0.027565 0.010274" mass="0.012068" fullinertia="4.1413E-06 1.6115E-05 1.6032E-05 -3.9682E-06 -4.5734E-06 -1.6711E-06"/>
-        <joint name="right_finger_joint" type="slide" axis="0 1 0" range="0 0.0395" damping="0.5"/>
-        <geom class="bio_visual" mesh="right_finger_vis" material="silver"/>
-        <geom class="bio_collision" mesh="right_finger_col" pos="-0.013790 0.011745 -0.001039"/>
+        <inertial pos="0.00658 0.02726500121 0.009235" mass="0.012068"
+          fullinertia="4.1413E-06 1.6115E-05 1.6032E-05 -3.9682E-06 -4.5734E-06 -1.6711E-06"/>
+        <joint name="bio_gripper_g2_right_finger_joint" class="bio_slide" range="0 0.0395"/>
+        <geom class="bio_visual" mesh="right_finger_vis" material="silver" pos="0 -0.00811730325222 0"/>
+        <geom class="bio_collision" mesh="right_finger_col_0" pos="0 0 0"/>
+        <geom class="bio_collision" mesh="right_finger_col_1" pos="0 0 0"/>
       </body>
 
       <site name="link_tcp" pos="0.135 0 0.055"/>
@@ -61,15 +71,18 @@
   </contact>
 
   <equality>
-    <joint joint1="right_finger_joint" joint2="left_finger_joint" polycoef="0 -1 0 0 0"/>
+    <joint name="mimic_bio_gripper_g2_left_finger_joint_to_bio_gripper_g2_right_finger_joint"
+      joint1="bio_gripper_g2_right_finger_joint" joint2="bio_gripper_g2_left_finger_joint"
+      polycoef="0 -1 0 0 0" solref="0.004 1" solimp="0.9999 0.9999 0.001 0.5 2"/>
   </equality>
 
   <actuator>
-    <position name="finger_actuator" joint="left_finger_joint" kp="500" kv="5" ctrlrange="-0.0395 0"/>
+    <position name="finger_actuator" joint="bio_gripper_g2_right_finger_joint" kp="16000" kv="40"
+      forcerange="-40 40" ctrlrange="0 0.0395"/>
   </actuator>
 
   <keyframe>
-    <key name="open" qpos="0 0" ctrl="0"/>
-    <key name="close" qpos="-0.0395 0.0395" ctrl="-0.0395"/>
+    <key name="open" qpos="-0.0395 0.0395" ctrl="0.0395"/>
+    <key name="close" qpos="0 0" ctrl="0"/>
   </keyframe>
 </mujoco>

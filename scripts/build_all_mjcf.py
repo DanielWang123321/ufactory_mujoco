@@ -21,6 +21,7 @@ import shutil
 import mujoco
 
 MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
+_SOURCE_MODELS_DIR = MODELS_DIR
 
 
 SCENE_TEMPLATE = """<mujoco model="{name} scene">
@@ -82,6 +83,8 @@ def ensure_combo_symlinks(target_dir: Path, parts: tuple[str, ...]) -> None:
 
 def _arm_col_stls(arm: str, link: str | None = None) -> list[Path]:
     col_dir = MODELS_DIR / arm / "assets" / arm / "collision"
+    if not col_dir.is_dir():
+        col_dir = _SOURCE_MODELS_DIR / arm / "assets" / arm / "collision"
     pattern = f"{arm}_*_col_*.stl" if link is None else f"{arm}_{link}_col_*.stl"
     files = sorted(col_dir.glob(pattern))
     if not files:
@@ -101,6 +104,8 @@ def _arm_col_geoms(arm: str, link: str, indent: str, geom_class: str = "collisio
 
 def _g2_base_col_stls() -> list[Path]:
     col_dir = MODELS_DIR / "gripper_g2" / "assets" / "gripper_g2" / "collision"
+    if not col_dir.is_dir():
+        col_dir = _SOURCE_MODELS_DIR / "gripper_g2" / "assets" / "gripper_g2" / "collision"
     multi = sorted(col_dir.glob("base_link_col_*.stl"))
     if multi:
         return multi
@@ -1108,7 +1113,7 @@ def build_bio_gripper_g2() -> None:
     target_dir.mkdir(parents=True, exist_ok=True)
 
     xml_content = """<mujoco model="bio_gripper_g2">
-  <!-- UFACTORY Bio Gripper G2, high-fidelity visual OBJs and collision STLs. -->
+  <!-- UFACTORY Bio Gripper G2 (bio_g2_calibrated_v1), 0.79 kg calibrated dynamics and 5-part convex collision STLs. -->
   <compiler angle="radian" autolimits="true" meshdir="assets"/>
 
   <option integrator="implicitfast"/>
@@ -1122,9 +1127,11 @@ def build_bio_gripper_g2() -> None:
     <mesh name="left_finger_vis" file="bio_gripper_g2/visual/bio_gripper_g2_left_finger.obj"/>
     <mesh name="right_finger_vis" file="bio_gripper_g2/visual/bio_gripper_g2_right_finger.obj"/>
 
-    <mesh name="base_col" file="bio_gripper_g2/collision/bio_gripper_g2_link_base.stl"/>
-    <mesh name="left_finger_col" file="bio_gripper_g2/collision/bio_gripper_g2_left_finger.stl"/>
-    <mesh name="right_finger_col" file="bio_gripper_g2/collision/bio_gripper_g2_right_finger.stl"/>
+    <mesh name="base_col_0" file="bio_gripper_g2/collision/bio_gripper_g2_base_link_convex_0.stl"/>
+    <mesh name="left_finger_col_0" file="bio_gripper_g2/collision/bio_gripper_g2_left_finger_convex_0.stl"/>
+    <mesh name="left_finger_col_1" file="bio_gripper_g2/collision/bio_gripper_g2_left_finger_convex_1.stl"/>
+    <mesh name="right_finger_col_0" file="bio_gripper_g2/collision/bio_gripper_g2_right_finger_convex_0.stl"/>
+    <mesh name="right_finger_col_1" file="bio_gripper_g2/collision/bio_gripper_g2_right_finger_convex_1.stl"/>
   </asset>
 
   <default>
@@ -1133,30 +1140,38 @@ def build_bio_gripper_g2() -> None:
         <geom type="mesh" contype="0" conaffinity="0" group="2"/>
       </default>
       <default class="bio_collision">
-        <geom type="mesh" group="3"/>
+        <geom type="mesh" group="3" solref="0.005 1" solimp="0.99 0.99 0.001 0.5 2"/>
+      </default>
+      <default class="bio_slide">
+        <joint type="slide" axis="0 1 0" armature="0.1" damping="0" frictionloss="0" solreflimit="0.005 1"/>
       </default>
     </default>
   </default>
 
   <worldbody>
     <body name="bio_gripper_g2_base_link" childclass="bio_g2">
-      <inertial pos="0.016179 -2.3911E-05 0.023897" mass="0.38837" fullinertia="0.00088398 0.00018256 0.00094673 4.8665E-08 5.6276E-06 4.0828E-08"/>
-      <geom class="bio_visual" mesh="base_white_vis" material="white"/>
-      <geom class="bio_visual" mesh="base_silver_vis" material="silver"/>
-      <geom class="bio_collision" mesh="base_col" pos="-0.022475 -0.000830 -0.004696"/>
+      <inertial pos="-0.006296 -0.000853911 0.019201" mass="0.765827"
+        fullinertia="0.0017431206103973 0.000359990156603239 0.00186685736722713 9.59625381852357e-08 1.10970672945902e-05 8.05087539099313e-08"/>
+      <geom class="bio_visual" mesh="base_white_vis" material="white" pos="0 0 0"/>
+      <geom class="bio_visual" mesh="base_silver_vis" material="silver" pos="0 0 0"/>
+      <geom class="bio_collision" mesh="base_col_0" pos="0 0 0"/>
 
       <body name="bio_gripper_g2_left_finger" pos="0.059 0 0.027">
-        <inertial pos="0.021846 -0.0276 0.011911" mass="0.012105" fullinertia="3.7322E-06 1.744E-05 1.7775E-05 4.1705E-06 -4.0142E-06 1.2237E-06"/>
-        <joint name="left_finger_joint" type="slide" axis="0 1 0" range="-0.0395 0" damping="0.5"/>
-        <geom class="bio_visual" mesh="left_finger_vis" material="silver"/>
-        <geom class="bio_collision" mesh="left_finger_col" pos="-0.012870 -0.011316 -0.002219"/>
+        <inertial pos="0.008976 -0.02730000121 0.009692" mass="0.012105"
+          fullinertia="3.7322E-06 1.744E-05 1.7775E-05 4.1705E-06 -4.0142E-06 1.2237E-06"/>
+        <joint name="bio_gripper_g2_left_finger_joint" class="bio_slide" range="-0.0395 0"/>
+        <geom class="bio_visual" mesh="left_finger_vis" material="silver" pos="0 0.00695659220219 0"/>
+        <geom class="bio_collision" mesh="left_finger_col_0" pos="0 0 0"/>
+        <geom class="bio_collision" mesh="left_finger_col_1" pos="0 0 0"/>
       </body>
 
       <body name="bio_gripper_g2_right_finger" pos="0.059 0 0.027">
-        <inertial pos="0.02037 0.027565 0.010274" mass="0.012068" fullinertia="4.1413E-06 1.6115E-05 1.6032E-05 -3.9682E-06 -4.5734E-06 -1.6711E-06"/>
-        <joint name="right_finger_joint" type="slide" axis="0 1 0" range="0 0.0395" damping="0.5"/>
-        <geom class="bio_visual" mesh="right_finger_vis" material="silver"/>
-        <geom class="bio_collision" mesh="right_finger_col" pos="-0.013790 0.011745 -0.001039"/>
+        <inertial pos="0.00658 0.02726500121 0.009235" mass="0.012068"
+          fullinertia="4.1413E-06 1.6115E-05 1.6032E-05 -3.9682E-06 -4.5734E-06 -1.6711E-06"/>
+        <joint name="bio_gripper_g2_right_finger_joint" class="bio_slide" range="0 0.0395"/>
+        <geom class="bio_visual" mesh="right_finger_vis" material="silver" pos="0 -0.00811730325222 0"/>
+        <geom class="bio_collision" mesh="right_finger_col_0" pos="0 0 0"/>
+        <geom class="bio_collision" mesh="right_finger_col_1" pos="0 0 0"/>
       </body>
 
       <site name="link_tcp" pos="0.135 0 0.055"/>
@@ -1170,16 +1185,19 @@ def build_bio_gripper_g2() -> None:
   </contact>
 
   <equality>
-    <joint joint1="right_finger_joint" joint2="left_finger_joint" polycoef="0 -1 0 0 0"/>
+    <joint name="mimic_bio_gripper_g2_left_finger_joint_to_bio_gripper_g2_right_finger_joint"
+      joint1="bio_gripper_g2_right_finger_joint" joint2="bio_gripper_g2_left_finger_joint"
+      polycoef="0 -1 0 0 0" solref="0.004 1" solimp="0.9999 0.9999 0.001 0.5 2"/>
   </equality>
 
   <actuator>
-    <position name="finger_actuator" joint="left_finger_joint" kp="500" kv="5" ctrlrange="-0.0395 0"/>
+    <position name="finger_actuator" joint="bio_gripper_g2_right_finger_joint" kp="16000" kv="40"
+      forcerange="-40 40" ctrlrange="0 0.0395"/>
   </actuator>
 
   <keyframe>
-    <key name="open" qpos="0 0" ctrl="0"/>
-    <key name="close" qpos="-0.0395 0.0395" ctrl="-0.0395"/>
+    <key name="open" qpos="-0.0395 0.0395" ctrl="0.0395"/>
+    <key name="close" qpos="0 0" ctrl="0"/>
   </keyframe>
 </mujoco>
 """
@@ -1187,41 +1205,57 @@ def build_bio_gripper_g2() -> None:
     write_scene_file(target_dir, "bio_gripper_g2", "bio_gripper_g2.xml", center="0.05 0 0.05", extent="0.25")
 
 
-def build_xarm6_with_bio_gripper() -> None:
-    combo = "xarm6_with_bio_gripper"
+def _build_arm_with_bio_gripper_g2(
+    arm: str,
+    attach_pos: str,
+    attach_quat: str | None,
+    home_arm_q: str,
+    ready_arm_q: str,
+) -> None:
+    combo = f"{arm}_with_bio_gripper"
     print(f"Building {combo}...")
     target_dir = MODELS_DIR / combo
     target_dir.mkdir(parents=True, exist_ok=True)
-    ensure_combo_symlinks(target_dir, ("xarm6", "bio_gripper_g2"))
+    ensure_combo_symlinks(target_dir, (arm, "bio_gripper_g2"))
 
-    bio_body = """                  <!-- Mounted Bio Gripper G2 -->
-                  <body name="bio_gripper_g2_base_link" pos="0.027018 -0.000715 -0.000692" quat="0.999994 0 0 -0.003531">
-                    <inertial pos="0.016179 -2.3911E-05 0.023897" mass="0.38837" fullinertia="0.00088398 0.00018256 0.00094673 4.8665E-08 5.6276E-06 4.0828E-08"/>
-                    <geom class="visual" mesh="bio_base_white_vis" material="white"/>
-                    <geom class="visual" mesh="bio_base_silver_vis" material="silver"/>
-                    <geom class="collision" mesh="bio_base_col" pos="-0.022475 -0.000830 -0.004696"/>
+    quat_attr = f' quat="{attach_quat}"' if attach_quat is not None else ""
+    bio_open_qpos = "-0.0395 0.0395"
+    bio_open_ctrl = "0.0395"
+
+    bio_body = f"""                  <!-- Mounted Bio Gripper G2 -->
+                  <body name="bio_gripper_g2_base_link" pos="{attach_pos}"{quat_attr}>
+                    <inertial pos="-0.006296 -0.000853911 0.019201" mass="0.765827"
+                      fullinertia="0.0017431206103973 0.000359990156603239 0.00186685736722713 9.59625381852357e-08 1.10970672945902e-05 8.05087539099313e-08"/>
+                    <geom class="visual" mesh="bio_base_white_vis" material="white" pos="0 0 0"/>
+                    <geom class="visual" mesh="bio_base_silver_vis" material="silver" pos="0 0 0"/>
+                    <geom class="bio_collision" mesh="bio_base_col_0" pos="0 0 0"/>
 
                     <body name="bio_gripper_g2_left_finger" pos="0.059 0 0.027">
-                      <inertial pos="0.021846 -0.0276 0.011911" mass="0.012105" fullinertia="3.7322E-06 1.744E-05 1.7775E-05 4.1705E-06 -4.0142E-06 1.2237E-06"/>
-                      <joint name="left_finger_joint" class="bio_slide" range="-0.0395 0"/>
-                      <geom class="visual" mesh="bio_left_finger_vis" material="silver"/>
-                      <geom class="collision" mesh="bio_left_finger_col" pos="-0.012870 -0.011316 -0.002219"/>
+                      <inertial pos="0.008976 -0.02730000121 0.009692" mass="0.012105"
+                        fullinertia="3.7322E-06 1.744E-05 1.7775E-05 4.1705E-06 -4.0142E-06 1.2237E-06"/>
+                      <joint name="bio_gripper_g2_left_finger_joint" class="bio_slide" range="-0.0395 0"/>
+                      <geom class="visual" mesh="bio_left_finger_vis" material="silver" pos="0 0.00695659220219 0"/>
+                      <geom class="bio_collision" mesh="bio_left_finger_col_0" pos="0 0 0"/>
+                      <geom class="bio_collision" mesh="bio_left_finger_col_1" pos="0 0 0"/>
                     </body>
 
                     <body name="bio_gripper_g2_right_finger" pos="0.059 0 0.027">
-                      <inertial pos="0.02037 0.027565 0.010274" mass="0.012068" fullinertia="4.1413E-06 1.6115E-05 1.6032E-05 -3.9682E-06 -4.5734E-06 -1.6711E-06"/>
-                      <joint name="right_finger_joint" class="bio_slide" range="0 0.0395"/>
-                      <geom class="visual" mesh="bio_right_finger_vis" material="silver"/>
-                      <geom class="collision" mesh="bio_right_finger_col" pos="-0.013790 0.011745 -0.001039"/>
+                      <inertial pos="0.00658 0.02726500121 0.009235" mass="0.012068"
+                        fullinertia="4.1413E-06 1.6115E-05 1.6032E-05 -3.9682E-06 -4.5734E-06 -1.6711E-06"/>
+                      <joint name="bio_gripper_g2_right_finger_joint" class="bio_slide" range="0 0.0395"/>
+                      <geom class="visual" mesh="bio_right_finger_vis" material="silver" pos="0 -0.00811730325222 0"/>
+                      <geom class="bio_collision" mesh="bio_right_finger_col_0" pos="0 0 0"/>
+                      <geom class="bio_collision" mesh="bio_right_finger_col_1" pos="0 0 0"/>
                     </body>
 
                     <site name="attachment_site" pos="0.135 0 0.055"/>
                   </body>"""
 
-    spec = _arm_spec("xarm6", end_effector_body_xml=bio_body)
+    spec = _arm_spec(arm, end_effector_body_xml=bio_body)
+    last_link = spec["last_link"]
 
     xml_content = f"""<mujoco model="{combo}">
-  <!-- UFACTORY xArm 6 equipped with Bio Gripper G2. -->
+  <!-- UFACTORY {arm} equipped with Bio Gripper G2 (bio_g2_calibrated_v1). -->
   <compiler angle="radian" autolimits="true" meshdir="assets"/>
 
   <option integrator="implicitfast"/>
@@ -1230,10 +1264,10 @@ def build_xarm6_with_bio_gripper() -> None:
     <!-- Materials -->
 {spec["materials"]}
 
-    <!-- xArm 6 Visual OBJs -->
+    <!-- {arm} Visual OBJs -->
 {spec["vis_assets"]}
 
-    <!-- xArm 6 Multi-convex Collision STLs -->
+    <!-- {arm} Multi-convex Collision STLs -->
 {spec["col_assets"]}
 
     <!-- Bio Gripper G2 Visual OBJs -->
@@ -1242,17 +1276,22 @@ def build_xarm6_with_bio_gripper() -> None:
     <mesh name="bio_left_finger_vis" file="bio_gripper_g2/visual/bio_gripper_g2_left_finger.obj"/>
     <mesh name="bio_right_finger_vis" file="bio_gripper_g2/visual/bio_gripper_g2_right_finger.obj"/>
 
-    <!-- Bio Gripper G2 Collision STLs -->
-    <mesh name="bio_base_col" file="bio_gripper_g2/collision/bio_gripper_g2_link_base.stl"/>
-    <mesh name="bio_left_finger_col" file="bio_gripper_g2/collision/bio_gripper_g2_left_finger.stl"/>
-    <mesh name="bio_right_finger_col" file="bio_gripper_g2/collision/bio_gripper_g2_right_finger.stl"/>
+    <!-- Bio Gripper G2 Convex Collision STLs -->
+    <mesh name="bio_base_col_0" file="bio_gripper_g2/collision/bio_gripper_g2_base_link_convex_0.stl"/>
+    <mesh name="bio_left_finger_col_0" file="bio_gripper_g2/collision/bio_gripper_g2_left_finger_convex_0.stl"/>
+    <mesh name="bio_left_finger_col_1" file="bio_gripper_g2/collision/bio_gripper_g2_left_finger_convex_1.stl"/>
+    <mesh name="bio_right_finger_col_0" file="bio_gripper_g2/collision/bio_gripper_g2_right_finger_convex_0.stl"/>
+    <mesh name="bio_right_finger_col_1" file="bio_gripper_g2/collision/bio_gripper_g2_right_finger_convex_1.stl"/>
   </asset>
 
   <default>
-    <default class="xarm6">
+    <default class="{arm}">
 {spec["defaults_header"]}
+      <default class="bio_collision">
+        <geom type="mesh" group="3" solref="0.005 1" solimp="0.99 0.99 0.001 0.5 2"/>
+      </default>
       <default class="bio_slide">
-        <joint type="slide" axis="0 1 0" damping="1"/>
+        <joint type="slide" axis="0 1 0" armature="0.1" damping="0" frictionloss="0" solreflimit="0.005 1"/>
       </default>
       <site size="0.001" rgba="1 0 0 1" group="4"/>
     </default>
@@ -1264,28 +1303,72 @@ def build_xarm6_with_bio_gripper() -> None:
 
   <contact>
 {spec["excludes"]}
-    <exclude body1="link6" body2="bio_gripper_g2_base_link"/>
+    <exclude body1="{last_link}" body2="bio_gripper_g2_base_link"/>
     <exclude body1="bio_gripper_g2_base_link" body2="bio_gripper_g2_left_finger"/>
     <exclude body1="bio_gripper_g2_base_link" body2="bio_gripper_g2_right_finger"/>
   </contact>
 
   <equality>
-    <joint joint1="right_finger_joint" joint2="left_finger_joint" polycoef="0 -1 0 0 0"/>
+    <joint name="mimic_bio_gripper_g2_left_finger_joint_to_bio_gripper_g2_right_finger_joint"
+      joint1="bio_gripper_g2_right_finger_joint" joint2="bio_gripper_g2_left_finger_joint"
+      polycoef="0 -1 0 0 0" solref="0.004 1" solimp="0.9999 0.9999 0.001 0.5 2"/>
   </equality>
 
   <actuator>
 {spec["actuators"]}
-    <position name="finger_actuator" joint="left_finger_joint" kp="500" kv="5" ctrlrange="-0.0395 0"/>
+    <position name="finger_actuator" joint="bio_gripper_g2_right_finger_joint" kp="16000" kv="40"
+      forcerange="-40 40" ctrlrange="0 0.0395"/>
   </actuator>
 
   <keyframe>
-    <key name="home" qpos="0 0 0 0 0 0 0 0" ctrl="0 0 0 0 0 0 0"/>
-    <key name="ready" qpos="0 0 0 0 0 0 0 0" ctrl="0 0 0 0 0 0 0"/>
+    <key name="home" qpos="{home_arm_q} {bio_open_qpos}" ctrl="{home_arm_q} {bio_open_ctrl}"/>
+    <key name="ready" qpos="{ready_arm_q} {bio_open_qpos}" ctrl="{ready_arm_q} {bio_open_ctrl}"/>
   </keyframe>
 </mujoco>
 """
     (target_dir / f"{combo}.xml").write_text(xml_content, encoding="utf-8")
     write_scene_file(target_dir, combo, f"{combo}.xml", center="0.3 0 0.3", extent="0.9")
+
+
+def build_xarm5_with_bio_gripper() -> None:
+    _build_arm_with_bio_gripper_g2(
+        "xarm5",
+        "0.026044 -0.000867 -0.000697",
+        "0.999993824591 0 0 -0.00351436776576",
+        "0 -0.533 -1 0.5 0.3",
+        "0 -0.5 0 0 0.5",
+    )
+
+
+def build_xarm6_with_bio_gripper() -> None:
+    pose = "0 -0.631529917 -0.833150486 0 1.464680403 0"
+    _build_arm_with_bio_gripper_g2(
+        "xarm6",
+        "0.027018 -0.000715 -0.000692",
+        "0.999993767297 0 0 -0.00353063266485",
+        pose,
+        pose,
+    )
+
+
+def build_xarm7_with_bio_gripper() -> None:
+    _build_arm_with_bio_gripper_g2(
+        "xarm7",
+        "0.026931 -0.000882 -0.00076",
+        "0.99999230379 0 0 -0.0039233099351",
+        "0 -0.8 0 0 0 0 0",
+        "0 -0.5 0 0 0.5 0 0",
+    )
+
+
+def build_uf850_with_bio_gripper() -> None:
+    _build_arm_with_bio_gripper_g2(
+        "uf850",
+        "0.024657 0 0",
+        None,
+        "0 0 0 0 0 0",
+        "0 -0.5 0 0 0.5 0",
+    )
 
 
 def build_lite6_gripper() -> None:
@@ -1620,7 +1703,10 @@ def verify_models() -> None:
         MODELS_DIR / "xarm6_with_gripper/scene.xml",
         MODELS_DIR / "xarm7_with_gripper/scene.xml",
         MODELS_DIR / "uf850_with_gripper/scene.xml",
+        MODELS_DIR / "xarm5_with_bio_gripper/scene.xml",
         MODELS_DIR / "xarm6_with_bio_gripper/scene.xml",
+        MODELS_DIR / "xarm7_with_bio_gripper/scene.xml",
+        MODELS_DIR / "uf850_with_bio_gripper/scene.xml",
         MODELS_DIR / "lite6_with_gripper/scene.xml",
         MODELS_DIR / "lite6_with_vacuum_gripper/scene.xml",
     ]
@@ -1652,7 +1738,10 @@ def main() -> None:
     build_xarm6_with_gripper()
     build_xarm7_with_gripper()
     build_uf850_with_gripper()
+    build_xarm5_with_bio_gripper()
     build_xarm6_with_bio_gripper()
+    build_xarm7_with_bio_gripper()
+    build_uf850_with_bio_gripper()
     build_lite6_with_gripper()
     build_lite6_with_vacuum_gripper()
     verify_models()
