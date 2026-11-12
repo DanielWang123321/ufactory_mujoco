@@ -477,6 +477,8 @@ class XArmRobot(RobotInterface):
                     ))
                     return gap_to_position(self._gripper_spec, gap_m)
             return self._commanded_gripper_pos
+        if self._gripper_spec is not None and self._gripper_spec.name == "lite6_gripper":
+            return self._commanded_gripper_pos
         getter = getattr(self._arm, "get_gripper_position", None)
         if callable(getter):
             code, pos = getter()

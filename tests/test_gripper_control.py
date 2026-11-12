@@ -23,7 +23,7 @@ class GripperControlTest(unittest.TestCase):
         scenes = {
             "xarm6_with_gripper": (0.0, 0.022, 0.084),
             "xarm6_with_bio_gripper": (0.071, 0.1105, 0.150),
-            "lite6_with_gripper": (0.0, 0.008, 0.0178),
+            "lite6_with_gripper": (0.020, 0.029, 0.038),
         }
         for name, (closed_gap, mid_gap, open_gap) in scenes.items():
             with self.subTest(model=name):
@@ -204,13 +204,15 @@ class GripperControlTest(unittest.TestCase):
 
                 robot.close_gripper(wait=True)
                 self.assertAlmostEqual(robot.get_gripper_position(), 1.0, places=2)
+                self.assertAlmostEqual(robot.get_measured_gripper_gap(), 0.020, places=3)
                 gripper_qpos = robot.data.qpos[6:8]
-                self.assertTrue(np.all(gripper_qpos > 0.007), f"Fingers not closed: {gripper_qpos}")
+                self.assertTrue(np.all(gripper_qpos < 0.002), f"Fingers not closed: {gripper_qpos}")
 
                 robot.open_gripper(wait=True)
                 self.assertAlmostEqual(robot.get_gripper_position(), 0.0, places=2)
+                self.assertAlmostEqual(robot.get_measured_gripper_gap(), 0.038, places=3)
                 gripper_qpos = robot.data.qpos[6:8]
-                self.assertTrue(np.all(gripper_qpos < 0.002), f"Fingers not open: {gripper_qpos}")
+                self.assertTrue(np.all(gripper_qpos > 0.007), f"Fingers not open: {gripper_qpos}")
 
                 robot.set_gripper(0.5)
                 robot.settle(0.5)

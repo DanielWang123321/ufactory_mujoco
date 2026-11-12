@@ -1,6 +1,6 @@
 <mujoco model="lite6_with_gripper box_pack scene">
   <include file="lite6_with_gripper.xml"/>
-  <statistic center="0.18 0 0.15" extent="0.9"/>
+  <statistic center="0.20 0.02 0.15" extent="0.9"/>
   <visual>
     <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0"/>
     <rgba haze="0.15 0.25 0.35 1"/>
@@ -19,36 +19,36 @@
     <camera name="side" pos="-0.3 1.6 0.8" quat="0.66 0.24 0.24 0.67"/>
 
     <!-- Box-pack props (mirrors configs/box_pack/lite6.yaml):
-         three 16 mm / 2 g feed cubes on stands; box interior 60 mm, rim 28 mm,
-         center (0.18, 0.06). -->
-    <geom name="feed_stand_0" type="box" size="0.006 0.006 0.016" pos="0.14 0.01 0.016" rgba="0.4 0.4 0.4 1"/>
-    <geom name="feed_stand_1" type="box" size="0.006 0.006 0.016" pos="0.18 0.01 0.016" rgba="0.4 0.4 0.4 1"/>
-    <geom name="feed_stand_2" type="box" size="0.006 0.006 0.016" pos="0.22 0.01 0.016" rgba="0.4 0.4 0.4 1"/>
-    <body name="cube_0" pos="0.14 0.01 0.04">
+         three 30 mm / 17 g feed cubes on stands; box interior 130x80 mm, rim 50 mm,
+         center (0.20, 0.085). -->
+    <geom name="feed_stand_0" type="box" size="0.016 0.016 0.01" pos="0.145 -0.05 0.01" rgba="0.4 0.4 0.4 1"/>
+    <geom name="feed_stand_1" type="box" size="0.016 0.016 0.01" pos="0.2 -0.05 0.01" rgba="0.4 0.4 0.4 1"/>
+    <geom name="feed_stand_2" type="box" size="0.016 0.016 0.01" pos="0.255 -0.05 0.01" rgba="0.4 0.4 0.4 1"/>
+    <body name="cube_0" pos="0.145 -0.05 0.035">
       <freejoint name="cube_0"/>
-      <geom name="cube_0_geom" type="box" size="0.008 0.008 0.008" mass="0.002"
+      <geom name="cube_0_geom" type="box" size="0.015 0.015 0.015" mass="0.017"
         rgba="0.9 0.1 0.1 1" friction="1 1 0.005"/>
     </body>
-    <body name="cube_1" pos="0.18 0.01 0.04">
+    <body name="cube_1" pos="0.2 -0.05 0.035">
       <freejoint name="cube_1"/>
-      <geom name="cube_1_geom" type="box" size="0.008 0.008 0.008" mass="0.002"
+      <geom name="cube_1_geom" type="box" size="0.015 0.015 0.015" mass="0.017"
         rgba="0.1 0.8 0.2 1" friction="1 1 0.005"/>
     </body>
-    <body name="cube_2" pos="0.22 0.01 0.04">
+    <body name="cube_2" pos="0.255 -0.05 0.035">
       <freejoint name="cube_2"/>
-      <geom name="cube_2_geom" type="box" size="0.008 0.008 0.008" mass="0.002"
+      <geom name="cube_2_geom" type="box" size="0.015 0.015 0.015" mass="0.017"
         rgba="0.2 0.4 0.9 1" friction="1 1 0.005"/>
     </body>
-    <body name="pack_box" pos="0.18 0.065 0">
-      <geom name="box_floor" type="box" size="0.033 0.033 0.002" pos="0 0 0.002"
+    <body name="pack_box" pos="0.2 0.085 0">
+      <geom name="box_floor" type="box" size="0.069 0.044 0.002" pos="0 0 0.002"
         rgba="0.55 0.4 0.25 1" friction="1 1 0.005"/>
-      <geom name="box_wall_px" type="box" size="0.0015 0.033 0.012" pos="0.0315 0 0.016"
+      <geom name="box_wall_px" type="box" size="0.002 0.044 0.023" pos="0.067 0 0.027"
         rgba="0.6 0.45 0.3 1" friction="1 1 0.005"/>
-      <geom name="box_wall_nx" type="box" size="0.0015 0.033 0.012" pos="-0.0315 0 0.016"
+      <geom name="box_wall_nx" type="box" size="0.002 0.044 0.023" pos="-0.067 0 0.027"
         rgba="0.6 0.45 0.3 1" friction="1 1 0.005"/>
-      <geom name="box_wall_py" type="box" size="0.03 0.0015 0.012" pos="0 0.0315 0.016"
+      <geom name="box_wall_py" type="box" size="0.065 0.002 0.023" pos="0 0.042 0.027"
         rgba="0.6 0.45 0.3 1" friction="1 1 0.005"/>
-      <geom name="box_wall_ny" type="box" size="0.03 0.0015 0.012" pos="0 -0.0315 0.016"
+      <geom name="box_wall_ny" type="box" size="0.065 0.002 0.023" pos="0 -0.042 0.027"
         rgba="0.6 0.45 0.3 1" friction="1 1 0.005"/>
     </body>
   </worldbody>

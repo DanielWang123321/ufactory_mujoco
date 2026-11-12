@@ -201,11 +201,9 @@ class BoxPackSimTest(unittest.TestCase):
                 self.assertLess(r["home_drift_mm"], 10.0)
 
     def test_servo_j_executor(self):
-        # lite6 is excluded: its 2 g cube creeps out of the small gripper under
-        # joint-space transport; the other four arms cover servo_j.
         from ufactory_mujoco import SimRobot
 
-        for robot_name in ("xarm5", "xarm6", "xarm7", "uf850"):
+        for robot_name in ARMS:
             with self.subTest(robot=robot_name):
                 config = _config(robot_name, executor="servo_j")
                 with SimRobot(config.scene_path, viewer=False) as robot:

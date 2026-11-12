@@ -1377,7 +1377,7 @@ def build_lite6_gripper() -> None:
     target_dir.mkdir(parents=True, exist_ok=True)
 
     xml_content = """<mujoco model="lite6_gripper">
-  <!-- UFACTORY Lite6 Parallel Gripper, high-fidelity visual OBJs and collision STLs. -->
+  <!-- UFACTORY Lite6 Reversed Parallel Gripper (20..38 mm jaw gap), S2 drive & L-shaped 2-box finger collision. -->
   <compiler angle="radian" autolimits="true" meshdir="assets"/>
 
   <option integrator="implicitfast"/>
@@ -1396,8 +1396,6 @@ def build_lite6_gripper() -> None:
     <mesh name="finger2_black_vis" file="lite6_gripper/visual/finger2_black.obj"/>
 
     <mesh name="shell_col" file="lite6_gripper/collision/shell.stl"/>
-    <mesh name="finger1_col" file="lite6_gripper/collision/finger1.stl"/>
-    <mesh name="finger2_col" file="lite6_gripper/collision/finger2.stl"/>
   </asset>
 
   <default>
@@ -1406,7 +1404,10 @@ def build_lite6_gripper() -> None:
         <geom type="mesh" contype="0" conaffinity="0" group="2"/>
       </default>
       <default class="lg_collision">
-        <geom type="mesh" group="3"/>
+        <geom type="mesh" group="3" mass="0" density="0"/>
+      </default>
+      <default class="lg_slide">
+        <joint type="slide" range="0 0.0089" armature="0.01" damping="0.05" frictionloss="0"/>
       </default>
     </default>
   </default>
@@ -1419,37 +1420,47 @@ def build_lite6_gripper() -> None:
 
       <body name="uflite_finger1" pos="0 0 0.0543">
         <inertial pos="0 0.01 0.0086" mass="0.0163" fullinertia="1.425e-06 1.63e-06 8.63e-07 0 0 -3.1e-07"/>
-        <joint name="finger_joint1" type="slide" axis="0 1 0" range="0 0.0089" damping="1"/>
+        <joint name="finger_joint1" class="lg_slide" axis="0 1 0"/>
         <geom class="lg_visual" mesh="finger1_white_vis" material="white"/>
         <geom class="lg_visual" mesh="finger1_silver_vis" material="silver"/>
         <geom class="lg_visual" mesh="finger1_black_vis" material="black"/>
-        <geom class="lg_collision" mesh="finger1_col"/>
+        <geom class="lg_collision" type="box" pos="0 0.00775 0.002" size="0.01 0.00775 0.00475"/>
+        <geom class="lg_collision" type="box" pos="0 0.013375 0.016875" size="0.01 0.002125 0.009875"
+          friction="2 0.01 0.001" solref="0.004 1" solimp="0.95 0.99 0.0005"/>
       </body>
 
       <body name="uflite_finger2" pos="0 0 0.0543">
         <inertial pos="0 -0.01 0.0086" mass="0.0163" fullinertia="1.425e-06 1.63e-06 8.63e-07 0 0 3.1e-07"/>
-        <joint name="finger_joint2" type="slide" axis="0 -1 0" range="0 0.0089" damping="1"/>
+        <joint name="finger_joint2" class="lg_slide" axis="0 -1 0"/>
         <geom class="lg_visual" mesh="finger2_white_vis" material="white"/>
         <geom class="lg_visual" mesh="finger2_silver_vis" material="silver"/>
         <geom class="lg_visual" mesh="finger2_black_vis" material="black"/>
-        <geom class="lg_collision" mesh="finger2_col"/>
+        <geom class="lg_collision" type="box" pos="0 -0.00775 0.002" size="0.01 0.00775 0.00475"/>
+        <geom class="lg_collision" type="box" pos="0 -0.013375 0.016875" size="0.01 0.002125 0.009875"
+          friction="2 0.01 0.001" solref="0.004 1" solimp="0.95 0.99 0.0005"/>
       </body>
 
       <site name="link_tcp" pos="0 0 0.0836"/>
     </body>
   </worldbody>
 
+  <contact>
+    <exclude body1="uflite_gripper_link" body2="uflite_finger1"/>
+    <exclude body1="uflite_gripper_link" body2="uflite_finger2"/>
+    <exclude body1="uflite_finger1" body2="uflite_finger2"/>
+  </contact>
+
   <equality>
-    <joint joint1="finger_joint2" joint2="finger_joint1" polycoef="0 1 0 0 0"/>
+    <joint joint1="finger_joint2" joint2="finger_joint1" polycoef="0 1 0 0 0" solref="0.002 1" solimp="0.99 0.999 0.0005"/>
   </equality>
 
   <actuator>
-    <position name="finger_actuator" joint="finger_joint1" kp="200" kv="10" ctrlrange="0 0.0089"/>
+    <position name="finger_actuator" joint="finger_joint1" kp="700" kv="20" forcerange="-3 3" ctrlrange="0 0.0089"/>
   </actuator>
 
   <keyframe>
-    <key name="open" qpos="0 0" ctrl="0"/>
-    <key name="close" qpos="0.0089 0.0089" ctrl="0.0089"/>
+    <key name="open" qpos="0.0089 0.0089" ctrl="0.0089"/>
+    <key name="close" qpos="0 0" ctrl="0"/>
   </keyframe>
 </mujoco>
 """
@@ -1464,7 +1475,7 @@ def build_lite6_with_gripper() -> None:
     target_dir.mkdir(parents=True, exist_ok=True)
     ensure_combo_symlinks(target_dir, ("lite6", "lite6_gripper"))
 
-    lg_body = """                  <!-- Mounted Lite6 Gripper -->
+    lg_body = """                  <!-- Mounted Lite6 Reversed Parallel Gripper (20..38 mm jaw gap) -->
                   <body name="uflite_gripper_link">
                     <inertial pos="0 0 0.03" mass="0.25" fullinertia="0.00047106 0.00033072 0.00025642 0.00000039292 0.0000026537 -0.000010975"/>
                     <geom class="visual" mesh="shell_vis" material="white"/>
@@ -1472,24 +1483,24 @@ def build_lite6_with_gripper() -> None:
 
                     <body name="uflite_finger1" pos="0 0 0.0543">
                       <inertial pos="0 0.01 0.0086" mass="0.0163" fullinertia="1.425e-06 1.63e-06 8.63e-07 0 0 -3.1e-07"/>
-                      <joint name="finger_joint1" class="lg_slide" range="0 0.0089"/>
+                      <joint name="finger_joint1" class="lg_slide" axis="0 1 0"/>
                       <geom class="visual" mesh="finger1_white_vis" material="white"/>
                       <geom class="visual" mesh="finger1_silver_vis" material="silver"/>
                       <geom class="visual" mesh="finger1_black_vis" material="black"/>
-                      <geom class="collision" mesh="finger1_col"/>
-                      <geom class="collision" type="box" size="0.006 0.001 0.005" pos="0 -0.011 0.006"
-                        friction="2 0.01 0.001"/>
+                      <geom class="collision" type="box" pos="0 0.00775 0.002" size="0.01 0.00775 0.00475"/>
+                      <geom class="collision" type="box" pos="0 0.013375 0.016875" size="0.01 0.002125 0.009875"
+                        friction="2 0.01 0.001" solref="0.004 1" solimp="0.95 0.99 0.0005"/>
                     </body>
 
                     <body name="uflite_finger2" pos="0 0 0.0543">
                       <inertial pos="0 -0.01 0.0086" mass="0.0163" fullinertia="1.425e-06 1.63e-06 8.63e-07 0 0 3.1e-07"/>
-                      <joint name="finger_joint2" type="slide" axis="0 -1 0" range="0 0.0089" damping="1"/>
+                      <joint name="finger_joint2" class="lg_slide" axis="0 -1 0"/>
                       <geom class="visual" mesh="finger2_white_vis" material="white"/>
                       <geom class="visual" mesh="finger2_silver_vis" material="silver"/>
                       <geom class="visual" mesh="finger2_black_vis" material="black"/>
-                      <geom class="collision" mesh="finger2_col"/>
-                      <geom class="collision" type="box" size="0.006 0.001 0.005" pos="0 0.011 0.006"
-                        friction="2 0.01 0.001"/>
+                      <geom class="collision" type="box" pos="0 -0.00775 0.002" size="0.01 0.00775 0.00475"/>
+                      <geom class="collision" type="box" pos="0 -0.013375 0.016875" size="0.01 0.002125 0.009875"
+                        friction="2 0.01 0.001" solref="0.004 1" solimp="0.95 0.99 0.0005"/>
                     </body>
 
                     <site name="attachment_site" pos="0 0 0.0836"/>
@@ -1498,7 +1509,7 @@ def build_lite6_with_gripper() -> None:
     spec = _arm_spec("lite6", end_effector_body_xml=lg_body)
 
     xml_content = f"""<mujoco model="{combo}">
-  <!-- UFACTORY Lite 6 equipped with Lite6 Parallel Gripper. -->
+  <!-- UFACTORY Lite 6 equipped with Lite6 Reversed Parallel Gripper (20..38 mm jaw gap). -->
   <compiler angle="radian" autolimits="true" meshdir="assets"/>
 
   <option integrator="implicitfast"/>
@@ -1522,17 +1533,15 @@ def build_lite6_with_gripper() -> None:
     <mesh name="finger2_silver_vis" file="lite6_gripper/visual/finger2_silver.obj"/>
     <mesh name="finger2_black_vis" file="lite6_gripper/visual/finger2_black.obj"/>
 
-    <!-- Lite6 Gripper Collision STLs -->
+    <!-- Lite6 Gripper Collision STL -->
     <mesh name="shell_col" file="lite6_gripper/collision/shell.stl"/>
-    <mesh name="finger1_col" file="lite6_gripper/collision/finger1.stl"/>
-    <mesh name="finger2_col" file="lite6_gripper/collision/finger2.stl"/>
   </asset>
 
   <default>
     <default class="lite6">
 {spec["defaults_header"]}
       <default class="lg_slide">
-        <joint type="slide" axis="0 1 0" damping="1"/>
+        <joint type="slide" range="0 0.0089" armature="0.01" damping="0.05" frictionloss="0"/>
       </default>
       <site size="0.001" rgba="1 0 0 1" group="4"/>
     </default>
@@ -1548,22 +1557,24 @@ def build_lite6_with_gripper() -> None:
     <exclude body1="link6" body2="uflite_gripper_link"/>
     <exclude body1="link5" body2="uflite_gripper_link"/>
     <exclude body1="link4" body2="uflite_gripper_link"/>
+    <exclude body1="uflite_gripper_link" body2="uflite_finger1"/>
+    <exclude body1="uflite_gripper_link" body2="uflite_finger2"/>
     <exclude body1="uflite_finger1" body2="uflite_finger2"/>
   </contact>
 
   <equality>
-    <joint joint1="finger_joint2" joint2="finger_joint1" polycoef="0 1 0 0 0"/>
+    <joint joint1="finger_joint2" joint2="finger_joint1" polycoef="0 1 0 0 0" solref="0.002 1" solimp="0.99 0.999 0.0005"/>
   </equality>
 
   <actuator>
 {spec["actuators"]}
-    <position name="finger_actuator" joint="finger_joint1" kp="200" kv="10" ctrlrange="0 0.0089"/>
+    <position name="finger_actuator" joint="finger_joint1" kp="700" kv="20" forcerange="-3 3" ctrlrange="0 0.0089"/>
   </actuator>
 
   <keyframe>
-    <key name="home" qpos="0 0 0 0 0 0 0 0" ctrl="0 0 0 0 0 0 0"/>
+    <key name="home" qpos="0 0 0 0 0 0 0.0089 0.0089" ctrl="0 0 0 0 0 0 0.0089"/>
     <!-- Studio factory ready pose (deg): 0 9.9 31.8 0 21.9 0 -->
-    <key name="ready" qpos="0 0.172787595947 0.555014702134 0 0.382227106187 0 0 0" ctrl="0 0.172787595947 0.555014702134 0 0.382227106187 0 0"/>
+    <key name="ready" qpos="0 0.172787595947 0.555014702134 0 0.382227106187 0 0.0089 0.0089" ctrl="0 0.172787595947 0.555014702134 0 0.382227106187 0 0.0089"/>
   </keyframe>
 </mujoco>
 """

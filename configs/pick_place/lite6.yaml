@@ -3,11 +3,11 @@ gripper: lite6_gripper
 scene: pick_place
 executor: servo_cartesian
 pick_place:
-  cube_xy: [0.18, 0.0]
-  target_xy: [0.18, 0.05]
-  cube_half_m: 0.008
-  cube_mass_kg: 0.002
-  grasp_gap_m: 0.0
+  cube_xy: [0.20, 0.0]
+  target_xy: [0.20, 0.10]
+  cube_half_m: 0.015
+  cube_mass_kg: 0.017
+  grasp_gap_m: 0.020
   approach_m: 0.06
-  lift_z_m: 0.20
-  flange_grasp_z_m: 0.105
+  lift_z_m: 0.24
+  flange_grasp_z_m: 0.115

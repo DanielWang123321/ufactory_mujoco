@@ -75,9 +75,9 @@ _JAWS = (
         "lite6_gripper",
         "uflite_finger1",
         "uflite_finger2",
-        open_gap_m=0.0178,
-        closed_gap_m=0.0,
-        drive_range_rad=(0.0, 0.0089),
+        open_gap_m=0.038,
+        closed_gap_m=0.020,
+        drive_range_rad=(0.0089, 0.0),
     ),
 )
 _VACUUM = GripperSpec("vacuum", "lite6_vacuum_gripper", cup_body="uflite_vacuum_gripper_link")

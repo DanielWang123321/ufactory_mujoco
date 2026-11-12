@@ -121,9 +121,10 @@ class MultiArmPickPlaceTests(unittest.TestCase):
                 self.assertEqual(config.scene_path.name, "scene_pick_place.xml")
         lite6 = self._config("lite6", "servo_cartesian")
         task = lite6.pick_place
-        self.assertLessEqual(task.grasp_gap_m, 0.0178)
+        self.assertGreaterEqual(task.grasp_gap_m, 0.020)
+        self.assertLessEqual(task.grasp_gap_m, 0.038)
         self.assertLess(task.grasp_gap_m, 2 * task.cube_half_m)
-        self.assertLess(task.cube_half_m, 0.0089)
+        self.assertLess(2 * task.cube_half_m, 0.038)
 
     def test_grasp_and_place_ik(self):
         from ufactory_mujoco import SimRobot

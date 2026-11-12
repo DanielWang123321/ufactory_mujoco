@@ -19,12 +19,14 @@ GRIP_DOWN_QUAT = np.array([0.0, 1.0, 0.0, 0.0])
 
 def _close_until_contact(robot, object_body: str, gap_m: float) -> float:
     """Command ``gap_m``, then shrink it until both pads touch. Do not lift otherwise."""
+    spec = getattr(robot, "_gripper_spec", None)
+    min_gap = float(spec.closed_gap_m) if spec is not None else 0.0
     gap = gap_m
     robot.set_gripper_gap(gap)
     robot.settle(2.0)
     robot.settle(0.5)
-    while not robot.bilateral_finger_contact(object_body) and gap > 0.0:
-        gap = max(0.0, gap - 0.002)
+    while not robot.bilateral_finger_contact(object_body) and gap > min_gap:
+        gap = max(min_gap, gap - 0.002)
         robot.set_gripper_gap(gap)
         robot.settle(0.3)
     robot.require_bilateral_contact(object_body)
