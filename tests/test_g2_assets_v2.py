@@ -49,8 +49,12 @@ def test_base_flange_and_mesh_correspondence():
     for name in ("base", "left_finger", "right_finger", "left_inner_knuckle", "right_inner_knuckle",
                  "left_outer_knuckle", "right_outer_knuckle"):
         visual = _vertices(ASSETS / f"visual/{name}.obj")
-        collision_name = "base_link" if name == "base" else name
-        collision = _vertices(ASSETS / f"collision/{collision_name}.stl")
+        if name == "base":
+            base_stls = sorted((ASSETS / "collision").glob("base_link_col_*.stl"))
+            assert len(base_stls) >= 2
+            collision = np.vstack([_vertices(p) for p in base_stls])
+        else:
+            collision = _vertices(ASSETS / f"collision/{name}.stl")
         bounds_v = np.array([visual.min(axis=0), visual.max(axis=0)])
         bounds_c = np.array([collision.min(axis=0), collision.max(axis=0)])
         # Collision hulls omit decorative details; Y/Z bounds retain the linkage and pad geometry.

@@ -243,14 +243,14 @@ class CameraAndBracketModelsTest(unittest.TestCase):
             self.assertGreater(min_signed, -1e-7, f"{cam} visual vertices cross bracket mounting plane")
 
     def test_plan_a_flange_section_partition_and_pin_bound(self) -> None:
-        """Plan A Rule 1: zero flange overlap outside (0, -25) mm locating pin; pin 5-gon graze < 0.30 mm."""
+        """Plan A Rule 1: strict zero flange overlap everywhere including (0, -25) mm locating pin (r <= 3.00 mm)."""
         g2_obj = MODELS_ROOT / "gripper_g2" / "assets" / "gripper_g2" / "visual" / "base.obj"
         tris_mm = _parse_obj_triangles(g2_obj) * 1000.0
         # In xarm6_with_gripper_and_*, xarm_gripper_base_link is shifted +3.0 mm along link6 +Z.
         tris_mm[:, :, 2] += 3.0
 
-        # Across bracket thickness z_link6 in (0.2..2.8 mm):
-        for z_mm in (0.2, 0.5, 0.8, 1.5, 2.2, 2.8):
+        # Across full bracket thickness z_link6 in (0.05..2.99 mm):
+        for z_mm in (0.05, 0.2, 0.5, 0.8, 1.5, 2.2, 2.8, 2.99):
             pts = _slice_triangles_xy_mm(tris_mm, z_mm)
             self.assertGreater(len(pts), 50)
             pin_dist = np.hypot(pts[:, 0], pts[:, 1] + 25.0)
@@ -268,9 +268,9 @@ class CameraAndBracketModelsTest(unittest.TestCase):
                 f"Non-pin flange overlap detected at z={z_mm} mm: {invading[:5]}",
             )
 
-            # Bounded QEM 5-gon corner bulge at (0, -25.0) mm locating pin (< 0.30 mm beyond r=3.05 mm).
+            # Locating pin at (0, -25.0) mm stays strictly within nominal r <= 3.00 mm (< r=3.05 mm bracket hole).
             self.assertTrue(np.any(pin_mask))
-            self.assertLess(float(np.max(pin_dist[pin_mask])), 3.35)
+            self.assertLessEqual(float(np.max(pin_dist[pin_mask])), 3.00)
 
     def test_plan_a_xarm6_g2_camera_assemblies_weld_and_motion_clearances(self) -> None:
         """Plan A Rule 2: weld-aware clearance, +3 mm TCP shift, identical mass matrix, and G2 stroke."""
@@ -351,6 +351,12 @@ class CameraAndBracketModelsTest(unittest.TestCase):
                 and (mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_BODY, m.geom_bodyid[i]) or "") in arm_lower_bodies
             ]
 
+            self.assertGreaterEqual(len(g2_base_geoms), 2, f"{combo} G2 base must use multi-convex collision")
+            self.assertGreater(
+                _min_geom_distance(m, d, stand_geoms, g2_base_geoms),
+                0.0,
+                f"{combo} camera stand and G2 base collision hulls must have positive clearance",
+            )
             self.assertGreater(_min_geom_distance(m, d, cam_geoms, g2_base_geoms), 0.008)
             self.assertGreater(_min_geom_distance(m, d, stand_geoms + cam_geoms, arm_geoms), 0.020)
 

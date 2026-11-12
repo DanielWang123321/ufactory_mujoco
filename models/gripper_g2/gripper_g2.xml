@@ -19,7 +19,16 @@
     <mesh name="right_inner_knuckle_vis" file="gripper_g2/visual/right_inner_knuckle.obj"/>
 
     <!-- Collision STLs -->
-    <mesh name="base_link_col" file="gripper_g2/collision/base_link.stl"/>
+    <mesh name="base_link_col_00" file="gripper_g2/collision/base_link_col_00.stl"/>
+    <mesh name="base_link_col_01" file="gripper_g2/collision/base_link_col_01.stl"/>
+    <mesh name="base_link_col_02" file="gripper_g2/collision/base_link_col_02.stl"/>
+    <mesh name="base_link_col_03" file="gripper_g2/collision/base_link_col_03.stl"/>
+    <mesh name="base_link_col_04" file="gripper_g2/collision/base_link_col_04.stl"/>
+    <mesh name="base_link_col_05" file="gripper_g2/collision/base_link_col_05.stl"/>
+    <mesh name="base_link_col_06" file="gripper_g2/collision/base_link_col_06.stl"/>
+    <mesh name="base_link_col_07" file="gripper_g2/collision/base_link_col_07.stl"/>
+    <mesh name="base_link_col_08" file="gripper_g2/collision/base_link_col_08.stl"/>
+    <mesh name="base_link_col_09" file="gripper_g2/collision/base_link_col_09.stl"/>
     <mesh name="left_outer_knuckle_col" file="gripper_g2/collision/left_outer_knuckle.stl"/>
     <mesh name="left_finger_col" file="gripper_g2/collision/left_finger.stl"/>
     <mesh name="left_inner_knuckle_col" file="gripper_g2/collision/left_inner_knuckle.stl"/>
@@ -53,7 +62,16 @@
       <inertial pos="-0.000655 -0.00185 0.04803" quat="0.9974 -0.0718 -0.0062 0.0005"
         mass="0.54156" diaginertia="0.000471 0.000332 0.000255"/>
       <geom class="g2_visual" mesh="base_vis" material="white"/>
-      <geom class="g2_collision" mesh="base_link_col"/>
+      <geom class="g2_collision" mesh="base_link_col_00"/>
+      <geom class="g2_collision" mesh="base_link_col_01"/>
+      <geom class="g2_collision" mesh="base_link_col_02"/>
+      <geom class="g2_collision" mesh="base_link_col_03"/>
+      <geom class="g2_collision" mesh="base_link_col_04"/>
+      <geom class="g2_collision" mesh="base_link_col_05"/>
+      <geom class="g2_collision" mesh="base_link_col_06"/>
+      <geom class="g2_collision" mesh="base_link_col_07"/>
+      <geom class="g2_collision" mesh="base_link_col_08"/>
+      <geom class="g2_collision" mesh="base_link_col_09"/>
 
       <!-- Left finger chain -->
       <body name="left_outer_knuckle" pos="0 0.035 0.0606">
