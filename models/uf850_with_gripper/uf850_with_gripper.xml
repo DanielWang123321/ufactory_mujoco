@@ -1,6 +1,5 @@
 <mujoco model="uf850_with_gripper">
-  <!-- UFACTORY UF850 robot arm, high-fidelity multi-material visual OBJs
-       with dedicated collision STLs. -->
+  <!-- UFACTORY uf850 equipped with Gripper G2. -->
   <compiler angle="radian" autolimits="true" meshdir="assets"/>
 
   <option integrator="implicitfast"/>
@@ -11,7 +10,7 @@
     <material name="black" rgba="0.25 0.25 0.25 1" specular="0.2" shininess="0.1"/>
     <material name="silver" rgba="0.85 0.85 0.88 1" specular="0.9" shininess="0.8" reflectance="0.05"/>
 
-    <!-- High-fidelity visual OBJs -->
+    <!-- uf850 Visual OBJs -->
     <mesh name="link_base_vis" file="uf850/visual/link_base.obj"/>
     <mesh name="link1_white_vis" file="uf850/visual/link1_white.obj"/>
     <mesh name="link1_silver_vis" file="uf850/visual/link1_silver.obj"/>
@@ -24,15 +23,36 @@
     <mesh name="link5_vis" file="uf850/visual/link5.obj"/>
     <mesh name="link6_vis" file="uf850/visual/link6.obj"/>
 
-    <!-- Collision STLs -->
-    <mesh name="link_base_col" file="uf850/collision/link_base.stl"/>
-    <mesh name="link1_col" file="uf850/collision/link1.stl"/>
-    <mesh name="link2_col" file="uf850/collision/link2.stl"/>
-    <mesh name="link3_col" file="uf850/collision/link3.stl"/>
-    <mesh name="link4_col" file="uf850/collision/link4.stl"/>
-    <mesh name="link5_col" file="uf850/collision/link5.stl"/>
-    <mesh name="link6_col" file="uf850/collision/link6.stl"/>
+    <!-- uf850 Multi-convex Collision STLs -->
+    <mesh name="uf850_link1_col_00" file="uf850/collision/uf850_link1_col_00.stl"/>
+    <mesh name="uf850_link1_col_01" file="uf850/collision/uf850_link1_col_01.stl"/>
+    <mesh name="uf850_link1_col_02" file="uf850/collision/uf850_link1_col_02.stl"/>
+    <mesh name="uf850_link1_col_03" file="uf850/collision/uf850_link1_col_03.stl"/>
+    <mesh name="uf850_link2_col_00" file="uf850/collision/uf850_link2_col_00.stl"/>
+    <mesh name="uf850_link2_col_01" file="uf850/collision/uf850_link2_col_01.stl"/>
+    <mesh name="uf850_link2_col_02" file="uf850/collision/uf850_link2_col_02.stl"/>
+    <mesh name="uf850_link2_col_03" file="uf850/collision/uf850_link2_col_03.stl"/>
+    <mesh name="uf850_link2_col_04" file="uf850/collision/uf850_link2_col_04.stl"/>
+    <mesh name="uf850_link2_col_05" file="uf850/collision/uf850_link2_col_05.stl"/>
+    <mesh name="uf850_link2_col_06" file="uf850/collision/uf850_link2_col_06.stl"/>
+    <mesh name="uf850_link3_col_00" file="uf850/collision/uf850_link3_col_00.stl"/>
+    <mesh name="uf850_link3_col_01" file="uf850/collision/uf850_link3_col_01.stl"/>
+    <mesh name="uf850_link3_col_02" file="uf850/collision/uf850_link3_col_02.stl"/>
+    <mesh name="uf850_link3_col_03" file="uf850/collision/uf850_link3_col_03.stl"/>
+    <mesh name="uf850_link3_col_04" file="uf850/collision/uf850_link3_col_04.stl"/>
+    <mesh name="uf850_link4_col_00" file="uf850/collision/uf850_link4_col_00.stl"/>
+    <mesh name="uf850_link4_col_01" file="uf850/collision/uf850_link4_col_01.stl"/>
+    <mesh name="uf850_link4_col_02" file="uf850/collision/uf850_link4_col_02.stl"/>
+    <mesh name="uf850_link4_col_03" file="uf850/collision/uf850_link4_col_03.stl"/>
+    <mesh name="uf850_link4_col_04" file="uf850/collision/uf850_link4_col_04.stl"/>
+    <mesh name="uf850_link5_col_00" file="uf850/collision/uf850_link5_col_00.stl"/>
+    <mesh name="uf850_link5_col_01" file="uf850/collision/uf850_link5_col_01.stl"/>
+    <mesh name="uf850_link6_col_00" file="uf850/collision/uf850_link6_col_00.stl"/>
+    <mesh name="uf850_link_base_col_00" file="uf850/collision/uf850_link_base_col_00.stl"/>
+    <mesh name="uf850_link_base_col_01" file="uf850/collision/uf850_link_base_col_01.stl"/>
+    <mesh name="uf850_link_base_col_02" file="uf850/collision/uf850_link_base_col_02.stl"/>
 
+    <!-- Gripper G2 Visual OBJs -->
     <mesh name="g2_base_vis" file="gripper_g2/visual/base.obj"/>
     <mesh name="g2_left_outer_knuckle_vis" file="gripper_g2/visual/left_outer_knuckle.obj"/>
     <mesh name="g2_left_finger_vis" file="gripper_g2/visual/left_finger.obj"/>
@@ -40,6 +60,8 @@
     <mesh name="g2_right_outer_knuckle_vis" file="gripper_g2/visual/right_outer_knuckle.obj"/>
     <mesh name="g2_right_finger_vis" file="gripper_g2/visual/right_finger.obj"/>
     <mesh name="g2_right_inner_knuckle_vis" file="gripper_g2/visual/right_inner_knuckle.obj"/>
+
+    <!-- Gripper G2 Collision STLs -->
     <mesh name="g2_base_link_col" file="gripper_g2/collision/base_link.stl"/>
     <mesh name="g2_left_outer_knuckle_col" file="gripper_g2/collision/left_outer_knuckle.stl"/>
     <mesh name="g2_left_finger_col" file="gripper_g2/collision/left_finger.stl"/>
@@ -72,7 +94,6 @@
         <joint damping="3"/>
         <general gainprm="800" biasprm="0 -800 -80"/>
       </default>
-
       <default class="driver">
         <joint range="0.057210812728026743 0.86509464599328212" armature="0.01" damping="0.05" frictionloss="0" solreflimit="0.005 1"/>
       </default>
@@ -88,53 +109,76 @@
 
   <worldbody>
     <body name="link_base" childclass="uf850">
+      <inertial pos="-0.00025599 -2.8579e-06 0.085749" mass="2.2684" fullinertia="0.0063949 0.0064375 0.0048631 -8.0653e-07 -2.1841e-05 -4.2181e-07"/>
       <geom class="visual" mesh="link_base_vis" material="silver"/>
-      <geom class="collision" mesh="link_base_col"/>
+      <geom class="collision" mesh="uf850_link_base_col_00"/>
+      <geom class="collision" mesh="uf850_link_base_col_01"/>
+      <geom class="collision" mesh="uf850_link_base_col_02"/>
       <body name="link1" pos="0 0 0.364">
         <inertial pos="5.7e-05 0.013842 -0.02055" quat="0.999624 -0.0273411 -0.000364635 -0.00185749" mass="4.807"
           diaginertia="0.0220018 0.0189206 0.0122503"/>
         <joint name="joint1" class="size1"/>
         <geom class="visual" mesh="link1_white_vis" material="white"/>
         <geom class="visual" mesh="link1_silver_vis" material="silver"/>
-        <geom class="collision" mesh="link1_col"/>
+        <geom class="collision" mesh="uf850_link1_col_00"/>
+        <geom class="collision" mesh="uf850_link1_col_01"/>
+        <geom class="collision" mesh="uf850_link1_col_02"/>
+        <geom class="collision" mesh="uf850_link1_col_03"/>
         <body name="link2" quat="0.5 0.5 -0.5 0.5">
           <inertial pos="0.323425 9.5e-05 0.007586" quat="0.463878 0.532622 0.539126 0.458775" mass="3.28"
             diaginertia="0.0642088 0.0624144 0.00637301"/>
           <joint name="joint2" range="-2.30383 2.30383" class="size1"/>
           <geom class="visual" mesh="link2_white_vis" material="white"/>
           <geom class="visual" mesh="link2_silver_vis" material="silver"/>
-          <geom class="collision" mesh="link2_col"/>
+          <geom class="collision" mesh="uf850_link2_col_00"/>
+          <geom class="collision" mesh="uf850_link2_col_01"/>
+          <geom class="collision" mesh="uf850_link2_col_02"/>
+          <geom class="collision" mesh="uf850_link2_col_03"/>
+          <geom class="collision" mesh="uf850_link2_col_04"/>
+          <geom class="collision" mesh="uf850_link2_col_05"/>
+          <geom class="collision" mesh="uf850_link2_col_06"/>
           <body name="link3" pos="0.39 0 0" quat="0 -0.707107 0.707107 0">
             <inertial pos="0.128834 0.11341 0.00978" quat="0.781477 0.318832 -0.496505 0.202789" mass="2.237"
               diaginertia="0.0155188 0.0144822 0.00312732"/>
             <joint name="joint3" range="-4.2237 0.061087" class="size2"/>
             <geom class="visual" mesh="link3_white_vis" material="white"/>
             <geom class="visual" mesh="link3_silver_vis" material="silver"/>
-            <geom class="collision" mesh="link3_col"/>
+            <geom class="collision" mesh="uf850_link3_col_00"/>
+            <geom class="collision" mesh="uf850_link3_col_01"/>
+            <geom class="collision" mesh="uf850_link3_col_02"/>
+            <geom class="collision" mesh="uf850_link3_col_03"/>
+            <geom class="collision" mesh="uf850_link3_col_04"/>
             <body name="link4" pos="0.15 0.426 0" quat="0.707105 -0.707108 0 0">
               <inertial pos="0.000266 -0.03833 -0.101915" quat="0.983546 0.180626 -0.00118669 -0.00323727" mass="2.041"
                 diaginertia="0.0199188 0.0197497 0.00204912"/>
               <joint name="joint4" class="size2"/>
               <geom class="visual" mesh="link4_white_vis" material="white"/>
               <geom class="visual" mesh="link4_silver_vis" material="silver"/>
-              <geom class="collision" mesh="link4_col"/>
+              <geom class="collision" mesh="uf850_link4_col_00"/>
+              <geom class="collision" mesh="uf850_link4_col_01"/>
+              <geom class="collision" mesh="uf850_link4_col_02"/>
+              <geom class="collision" mesh="uf850_link4_col_03"/>
+              <geom class="collision" mesh="uf850_link4_col_04"/>
               <body name="link5" quat="0.707105 -0.707108 0 0">
                 <inertial pos="5.7e-05 -0.015267 -0.001015" quat="0.709629 0.704516 0.00436679 -0.0080782" mass="1.385"
                   diaginertia="0.00207749 0.00203574 0.00110911"/>
                 <joint name="joint5" range="-2.1642 2.1642" class="size3"/>
                 <geom class="visual" mesh="link5_vis" material="white"/>
-                <geom class="collision" mesh="link5_col"/>
+                <geom class="collision" mesh="uf850_link5_col_00"/>
+                <geom class="collision" mesh="uf850_link5_col_01"/>
                 <body name="link6" pos="0 -0.09 0" quat="0.707105 0.707108 0 0">
                   <inertial pos="0.000484 -0.000334 -0.014217" quat="0.63763 0.308332 -0.636717 0.30488" mass="0.225"
                     diaginertia="0.000232503 0.000133671 0.000124886"/>
                   <joint name="joint6" class="size3"/>
                   <geom class="visual" mesh="link6_vis" material="silver"/>
-                  <geom class="collision" mesh="link6_col"/>
-                                    <body name="xarm_gripper_base_link">
+                  <geom class="collision" mesh="uf850_link6_col_00"/>
+                  <!-- Mounted Gripper G2 -->
+                  <body name="xarm_gripper_base_link">
                     <inertial pos="-0.000655 -0.00185 0.04803" quat="0.9974 -0.0718 -0.0062 0.0005"
                       mass="0.54156" diaginertia="0.000471 0.000332 0.000255"/>
                     <geom class="visual" mesh="g2_base_vis" material="white"/>
                     <geom class="collision" mesh="g2_base_link_col"/>
+
                     <body name="left_outer_knuckle" pos="0 0.035 0.0606">
                       <inertial pos="0 0.02156 0.01518" quat="0.4779 0.8784 0 0" mass="0.03362"
                         diaginertia="1.91e-05 1.79e-05 1.90e-06"/>
@@ -156,6 +200,7 @@
                       <geom class="visual" mesh="g2_left_inner_knuckle_vis" material="black"/>
                       <geom class="collision" mesh="g2_left_inner_knuckle_col"/>
                     </body>
+
                     <body name="right_outer_knuckle" pos="0 -0.035 0.0606">
                       <inertial pos="0 -0.02156 0.01518" quat="0.8784 0.4779 0 0" mass="0.03362"
                         diaginertia="1.91e-05 1.79e-05 1.90e-06"/>
@@ -177,6 +222,7 @@
                       <geom class="visual" mesh="g2_right_inner_knuckle_vis" material="black"/>
                       <geom class="collision" mesh="g2_right_inner_knuckle_col"/>
                     </body>
+
                     <site name="attachment_site" pos="0 0 0.1735"/>
                   </body>
                 </body>
@@ -195,14 +241,12 @@
     <exclude body1="link3" body2="link4"/>
     <exclude body1="link4" body2="link5"/>
     <exclude body1="link5" body2="link6"/>
-
     <exclude body1="link6" body2="xarm_gripper_base_link"/>
     <exclude body1="right_inner_knuckle" body2="right_outer_knuckle"/>
     <exclude body1="right_inner_knuckle" body2="right_finger"/>
     <exclude body1="left_inner_knuckle" body2="left_outer_knuckle"/>
     <exclude body1="left_inner_knuckle" body2="left_finger"/>
   </contact>
-
 
   <equality>
     <joint joint1="left_driver_joint" joint2="left_finger_joint" polycoef="0 1 0 0 0" solref="0.02 1" solimp="0.9 0.95 0.001 0.5 2"/>

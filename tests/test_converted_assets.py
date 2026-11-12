@@ -18,11 +18,11 @@ import mujoco
 MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
 
 EXPECTED_TARGETS = {
-    "xarm6": {"min_objs": 15, "min_stls": 7},
-    "xarm5": {"min_objs": 12, "min_stls": 6},
-    "xarm7": {"min_objs": 16, "min_stls": 8},
-    "uf850": {"min_objs": 11, "min_stls": 7},
-    "lite6": {"min_objs": 12, "min_stls": 7},
+    "xarm6": {"min_objs": 15, "min_stls": 22},
+    "xarm5": {"min_objs": 12, "min_stls": 19},
+    "xarm7": {"min_objs": 16, "min_stls": 26},
+    "uf850": {"min_objs": 11, "min_stls": 27},
+    "lite6": {"min_objs": 12, "min_stls": 17},
     "gripper_g2": {"min_objs": 7, "min_stls": 7},
     "bio_gripper_g2": {"min_objs": 4, "min_stls": 3},
     "lite6_gripper": {"min_objs": 7, "min_stls": 3},
