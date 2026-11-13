@@ -25,7 +25,7 @@ python -m pytest tests
 ```
 
 - Tests that need an optional package are skipped when it is missing.
-- The full suite loads every model: one run peaks at about 3 GB of memory and takes about two minutes on a 28-thread desktop. Run one `pytest` process at a time.
+- The full suite loads every model: one run peaks at about 2.6 GB of memory and takes about two minutes on a 28-thread desktop. Run one `pytest` process at a time.
 - While iterating, run the files that cover your change, for example `python -m pytest tests/test_joint_control.py`.
 - Examples must keep running with `--headless`. The commands CI runs are in the `Example smoke tests` step of [.github/workflows/ci.yml](.github/workflows/ci.yml).
 
