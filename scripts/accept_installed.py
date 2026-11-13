@@ -69,7 +69,7 @@ def resource_reference():
         path = RESOURCE_ROOT / name
         if path.is_file():
             result["licenses"][name] = digest(path)
-    assert len(result["models"]) >= 74 and len(result["meshes"]) >= 324
+    assert len(result["models"]) >= 90 and len(result["meshes"]) >= 446
     assert len(result["configs"]) == 11 and len(result["licenses"]) == 6
     return result
 
@@ -113,6 +113,19 @@ def accept(args, summary):
     with SimRobot() as robot:
         assert robot.n_arm == 6, "SimRobot() must default to the bundled xArm6 scene"
     summary["sim_robot_default"] = "pass"
+    # End effectors added in 0.1.3: the calibrated Bio Gripper G2 servo spans its 71..150 mm
+    # stroke and the vacuum gripper is recognized, both from the bundled resources.
+    from ufactory_mujoco.robots import resolve_arm_scene
+    with SimRobot(resolve_arm_scene("xarm6", "bio_gripper_g2", "scene")) as robot:
+        assert robot.bio_g2_controller is not None
+        robot.close_gripper()
+        closed = robot.get_measured_gripper_gap()
+        robot.open_gripper()
+        opened = robot.get_measured_gripper_gap()
+    assert abs(closed - 0.071) < 0.001 and abs(opened - 0.150) < 0.001, (closed, opened)
+    with SimRobot(resolve_arm_scene("xarm6", "vacuum_gripper", "scene")) as robot:
+        assert robot.gripper_kind == "vacuum" and not robot.has_gripper
+    summary["end_effectors_0_1_3"] = "pass"
     # Exercise commands with a read-only installation. JSON belongs in the
     # working directory, and Python can import without writing bytecode here.
     for path in package.parent.rglob("*"):

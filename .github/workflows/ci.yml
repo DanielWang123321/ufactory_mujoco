@@ -59,7 +59,8 @@ jobs:
           set -e
           exec > >(tee build/ci/examples.log) 2>&1
           python examples/simulation/01_load_and_view.py --headless --model xarm6_with_gripper --pose ready
-          for m in d405 d435 gemini_305 zed_x_nano camera_stand camera_stand_with_d405 xarm6_with_gripper_and_d405; do
+          for m in d405 d435 gemini_305 zed_x_nano camera_stand camera_stand_with_d405 xarm6_with_gripper_and_d405 \
+                   vacuum_gripper xarm6_with_vacuum_gripper xarm5_with_bio_gripper; do
             python examples/simulation/01_load_and_view.py --headless --model $m
           done
           python examples/simulation/04_gripper_control.py --headless --model xarm6_with_gripper_and_d405 --cycles 1
@@ -67,14 +68,18 @@ jobs:
             echo "::group::$s"; python examples/simulation/$s.py --headless; echo "::endgroup::"
           done
           echo "::group::10_box_pack"; python examples/simulation/10_box_pack.py --headless --cycles 1; echo "::endgroup::"
-          for m in xarm5 xarm7 uf850 lite6 xarm6_with_gripper xarm6_with_bio_gripper lite6_with_gripper; do
+          for m in xarm5 xarm7 uf850 lite6 xarm6_with_gripper xarm6_with_bio_gripper lite6_with_gripper \
+                   uf850_with_gripper xarm5_with_vacuum_gripper xarm6_with_gripper_and_d405; do
             python examples/simulation/02_joint_control.py --headless --model $m
           done
-          for m in xarm6_with_gripper xarm6_with_bio_gripper lite6_with_gripper gripper_g2 bio_gripper_g2; do
+          for m in xarm6_with_gripper xarm6_with_bio_gripper lite6_with_gripper gripper_g2 bio_gripper_g2 \
+                   xarm7_with_bio_gripper; do
             python examples/simulation/04_gripper_control.py --headless --model $m
           done
-          # unsupported model must fail with a non-zero exit code
-          if python examples/simulation/04_gripper_control.py --headless --model lite6_vacuum_gripper; then exit 1; fi
+          # models without a jaw actuator must fail with a non-zero exit code
+          for m in lite6_vacuum_gripper vacuum_gripper; do
+            if python examples/simulation/04_gripper_control.py --headless --model $m; then exit 1; fi
+          done
           python examples/rl/reach/01_reach.py --random --headless --episodes 3
           python examples/rl/pick_place/01_pick_place.py --expert --headless --episodes 1
           python examples/rl/pick_place/evaluate.py --expert --episodes 2 --quiet-episodes
