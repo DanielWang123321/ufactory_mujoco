@@ -167,13 +167,13 @@ python examples/simulation/08_dynamics.py --robot xarm6 --mode real-read-only --
 
 ### 4.1 Arms and Combinations
 
-| Arm | Bare arm (`--model`) | With end effector (`--model`) | Arm key (`--robot`) | RL examples (`examples/rl/`) |
-| :--- | :--- | :--- | :--- | :--- |
-| Lite 6 | `lite6` | `lite6_with_gripper`, `lite6_with_vacuum_gripper` | `lite6` | `reach/01_reach.py --model lite6` |
-| xArm 5 | `xarm5` | `xarm5_with_gripper`, `xarm5_with_bio_gripper`, `xarm5_with_vacuum_gripper` | `xarm5` | `reach/01_reach.py --model xarm5` |
-| xArm 6 | `xarm6` | `xarm6_with_gripper`, `xarm6_with_bio_gripper`, `xarm6_with_vacuum_gripper`, `xarm6_with_gripper_and_<camera>` | `xarm6` | `reach/01_reach.py --model xarm6`<br>`pick_place/01_pick_place.py` |
-| xArm 7 | `xarm7` | `xarm7_with_gripper`, `xarm7_with_bio_gripper`, `xarm7_with_vacuum_gripper` | `xarm7` | `reach/01_reach.py --model xarm7` |
-| UF850 | `uf850` | `uf850_with_gripper`, `uf850_with_bio_gripper`, `uf850_with_vacuum_gripper` | `uf850` | `reach/01_reach.py --model uf850` |
+| Arm | Bare arm (`--model`) | With end effector (`--model`) | Arm key (`--robot`) |
+| :--- | :--- | :--- | :--- |
+| Lite 6 | `lite6` | `lite6_with_gripper`, `lite6_with_vacuum_gripper` | `lite6` |
+| xArm 5 | `xarm5` | `xarm5_with_gripper`, `xarm5_with_bio_gripper`, `xarm5_with_vacuum_gripper` | `xarm5` |
+| xArm 6 | `xarm6` | `xarm6_with_gripper`, `xarm6_with_bio_gripper`, `xarm6_with_vacuum_gripper`, `xarm6_with_gripper_and_<camera>` | `xarm6` |
+| xArm 7 | `xarm7` | `xarm7_with_gripper`, `xarm7_with_bio_gripper`, `xarm7_with_vacuum_gripper` | `xarm7` |
+| UF850 | `uf850` | `uf850_with_gripper`, `uf850_with_bio_gripper`, `uf850_with_vacuum_gripper` | `uf850` |
 
 `<arm>_with_gripper` mounts Gripper G2 (the Lite 6 gripper on Lite 6). `<camera>` is `d405`, `d435`, `gemini_305` or `zed_x_nano`.
 
@@ -190,10 +190,6 @@ python examples/simulation/04_gripper_control.py --model xarm6_with_gripper_and_
 python examples/simulation/05_pick_place.py --robot xarm5
 python examples/simulation/10_box_pack.py --robot uf850 --cycles 3
 python examples/simulation/08_dynamics.py --robot all --headless
-
-# RL: --random (reach) and --expert (pick-and-place) run without trained weights
-python examples/rl/reach/01_reach.py --model xarm7 --random
-python examples/rl/pick_place/01_pick_place.py --expert
 ```
 
 Examples `03`, `06`, `07` and `09` run on the bare xArm 6 only.

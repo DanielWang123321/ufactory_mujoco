@@ -1,4 +1,4 @@
-"""Pinned digests: saved task configs and RL checkpoints depend on this encoding."""
+"""Pinned digests: saved task configs depend on this encoding."""
 
 from pathlib import Path
 import tempfile

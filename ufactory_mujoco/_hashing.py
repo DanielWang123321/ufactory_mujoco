@@ -1,7 +1,7 @@
 """SHA-256 helpers for files and canonical JSON.
 
-These digests are stored in task configs and RL checkpoint manifests; changing
-the encoding invalidates every saved artifact.
+The task config hash written to task reports uses this encoding; changing it
+changes every reported hash.
 """
 
 from __future__ import annotations

@@ -80,8 +80,8 @@ def _arm(key: str, dof: int, grippers: tuple[str, ...], reach: ReachWorkspace) -
     return ArmSpec(key, dof, "attachment_site", grippers, reach)
 
 
-# Values produced by scripts/measure_reach_workspace.py (FK cloud + IK
-# reachability >= 90%). The xArm 6 entry keeps its original training box;
+# Target boxes measured from an FK point cloud and shrunk until IK reaches
+# >= 90% of uniform samples. The xArm 6 entry keeps its original box;
 # its reach_max was raised 0.55 -> 0.56 so the radial band covers every box
 # corner (the far bottom corner is 0.5586 m from the shoulder).
 ARMS: dict[str, ArmSpec] = {

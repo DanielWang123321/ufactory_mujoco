@@ -2,7 +2,7 @@
 
 [English](README.md) | [中文](README_zh.md) · [更新记录](CHANGELOG.md) · [![CI](https://github.com/DanielWang123321/ufactory_mujoco/actions/workflows/ci.yml/badge.svg)](https://github.com/DanielWang123321/ufactory_mujoco/actions/workflows/ci.yml)
 
-基于 MuJoCo 的 UFACTORY 机器人（Lite 6、xArm 5/6/7、UF850 及其夹爪）仿真与强化学习套件：精细模型、运动学与动力学工具、轨迹规划、脚本化操作任务、Gymnasium 强化学习环境，以及带安全门的 xArm 真机接口。
+基于 MuJoCo 的 UFACTORY 机器人（Lite 6、xArm 5/6/7、UF850 及其夹爪）仿真套件：精细模型、运动学与动力学工具、轨迹规划、脚本化操作任务，以及带安全门的 xArm 真机接口。
 
 ## 快速上手
 
@@ -20,13 +20,12 @@ python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose
 - **运动学与规划**：正运动学、雅可比、阻尼最小二乘逆解、五次/LSPB/样条轨迹、笛卡尔直线、碰撞检测与 RRT-Connect（`kinematics.py`、`ik.py`、`trajectory.py`、`collision.py`、`path_planning.py`）。
 - **动力学**：质量矩阵、重力/科氏力、正逆动力学、负载，以及五臂验收命令（`dynamics.py`、`tasks/dynamics.py`）。
 - **脚本化任务**：5 组机械臂/夹爪的方块抓放与装箱，含预检（关节限位、穿透、RRT-Connect 绕行）和 JSON 报告（`tasks/`、`preflight.py`）。
-- **强化学习**：全部 5 款机械臂的 TCP 到达，以及 xArm 6 + Gripper G2 方块抓放；检查点通过 SHA-256 绑定配置与场景（`rl/`）。结果见 [到达](examples/rl/reach/README_zh.md#4-基准验收结果)、[抓放](examples/rl/pick_place/README_zh.md#4-基准验收结果)。
 - **真机**：`XArmRobot` 默认只读；运动需单机标定、控制器状态检查和 `--confirm-real`。`sdk-sim` 在控制器内置仿真中重放轨迹（`xarm_robot.py`、`calibration.py`、`safety.py`）。
 
 ## 支持的机型与任务
 
-| 机械臂 | 已构建的夹爪模型 | `pick-place` / `box-pack` | `dynamics` | RL 到达 | RL 抓放 |
-| :--- | :--- | :--- | :---: | :---: | :---: |
+| 机械臂 | 已构建的夹爪模型 | `pick-place` / `box-pack` | `dynamics` |
+| :--- | :--- | :--- | :---: |
 | `lite6` | `lite6_gripper`、`lite6_vacuum_gripper` | 配 `lite6_gripper` | 支持 | 支持 | — |
 | `xarm5` | `gripper_g2`、`bio_gripper_g2`、`vacuum_gripper` | 配 `gripper_g2` | 支持 | 支持 | — |
 | `xarm6` | `gripper_g2`、`bio_gripper_g2`、`vacuum_gripper` | 配 `gripper_g2` | 支持 | 支持 | 配 `gripper_g2` |
@@ -47,7 +46,6 @@ python -m pip install -e .       # 安装包及核心依赖（mujoco、numpy、s
 
 | 可选依赖 | 安装 | 用途 |
 | :--- | :--- | :--- |
-| `rl` | `pip install torch --index-url https://download.pytorch.org/whl/cpu`（或 CUDA 版），再 `pip install -e ".[rl]"` | PPO 训练与已训练策略回放 |
 | `test` | `pip install -e ".[test]"` | 测试套件 |
 | `assets` | `pip install -e ".[assets]"` | 仅用于资产再生成（见 [models/gripper_g2/source/README.md](models/gripper_g2/source/README.md)） |
 
@@ -85,17 +83,6 @@ ufactory-mujoco dynamics --robot all --headless --report reports/dynamics.json
 | `MUJOCO_GL` | Linux OpenGL 后端（`egl`、`osmesa`）；`--headless` 不需要 |
 | `UFACTORY_GENESIS_ROOT` | 资产转换脚本使用的 `ufactory_genesis` 目录 |
 
-## 强化学习权重
-
-仓库和 Release 均**不包含**训练好的权重，需在本地训练（需安装 `rl` 依赖）：
-
-```bash
-python scripts/train_reach_rl.py --model xarm6 --total-steps 2000000 --net-arch 256,256,128 --ent-coef 0.001 --eval-episodes 200
-python scripts/train_pick_place_rl.py --n-envs 128 --n-workers 24 --device cuda --seed 1
-```
-
-示例默认加载 `build/rl/<机械臂>/ppo_reach.zip` 和 `build/rl/pick_place/xarm6_g2_v2/ppo_pick_place.zip`。没有权重时，可用未训练的 `--random` 基线（到达）或脚本专家 `--expert`（抓放），两者都不需要 `rl` 依赖。训练耗时、种子敏感性与结果见 [到达](examples/rl/reach/README_zh.md) 和 [抓放](examples/rl/pick_place/README_zh.md) 文档。
-
 ## 平台说明
 
 - **macOS**：GUI 示例用 `mujoco` 自带的 `mjpython` 启动，如 `mjpython examples/simulation/01_load_and_view.py`；`--headless` 用普通 `python` 即可。
@@ -107,8 +94,7 @@ python scripts/train_pick_place_rl.py --n-envs 128 --n-workers 24 --device cuda 
 | 内容 | 文档 |
 | :--- | :--- |
 | 仿真示例 `01`–`10`、命令行参数、按机型的命令、视窗操作、真机命令 | [examples/simulation/README_zh.md](examples/simulation/README_zh.md)（[English](examples/simulation/README.md)） |
-| 强化学习 TCP 到达 | [examples/rl/reach/README_zh.md](examples/rl/reach/README_zh.md)（[English](examples/rl/reach/README.md)） |
-| 强化学习方块抓放 | [examples/rl/pick_place/README_zh.md](examples/rl/pick_place/README_zh.md)（[English](examples/rl/pick_place/README.md)） |
+| 贡献指南、安全策略、行为准则（英文） | [CONTRIBUTING.md](CONTRIBUTING.md)、[SECURITY.md](SECURITY.md)、[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) |
 | 版本历史 | [CHANGELOG.md](CHANGELOG.md) |
 
 ## 运行测试
@@ -119,16 +105,14 @@ python -m pytest tests
 ruff check .                      # 与 CI 相同的静态检查（pip install ruff）
 ```
 
-缺少可选包（`gymnasium`/`stable-baselines3`、`trimesh`、`DracoPy`/`pygltflib`）或本地训练权重时，相关测试自动跳过。
+缺少可选包（`trimesh`、`DracoPy`/`pygltflib`）时，相关测试自动跳过。
 
 ## 已知限制
 
-- 不发布训练好的强化学习权重，见[强化学习权重](#强化学习权重)。
-- 强化学习抓放仅支持 xArm 6 + Gripper G2。当前配方的训练结果强烈依赖随机种子，且不能跨机器复现（[详情](examples/rl/pick_place/README_zh.md#5-训练稳定性种子敏感性)）。
 - 真机模式仅在一台 xArm 6（固件 v2.8.0）上验证。静态力矩比对（3 kg 负载，≤ 2.5 %）为单次历史实测。
 - 真空吸盘（`lite6_vacuum_gripper`、`vacuum_gripper` 及其机械臂组合）为静态模型，不含吸附模型。它们与独立相机、`camera_stand*` 都没有夹爪执行器，`04_gripper_control.py` 会拒绝这些模型（退出码 `2`）。
 - 深度相机与 `camera_stand` 模型提供外观几何、安装面/螺钉孔 `<site>`（`group=4`）与近似碰撞体（`group=3`），`mass=0` 且不含 MuJoCo `<camera>` 光学成像传感器；动力学场景请通过 `attach_payload` 注入相机与支架负载。
-- 不同 MuJoCo 版本的仿真结果不完全相同：在 3.16 与 4.0 之间，脚本化抓放与装箱的放置误差最多相差 0.15 mm，任务成败不变。基准结果均注明测量时的版本。
+- 不同 MuJoCo 版本的仿真结果不完全相同：在 3.16 与 4.0 之间，脚本化抓放与装箱的放置误差最多相差 0.15 mm，任务成败不变。
 
 ## 项目结构
 
@@ -152,20 +136,18 @@ ufactory_mujoco/
   bio_g2_controller.py     Bio Gripper G2 限速位置/力伺服
   grippers.py              夹爪规格、开口映射、指垫接触检测与接触力
   preflight.py             抓放/装箱预检，含 RRT-Connect 绕行
-  task_geometry.py         任务、预检与强化学习共用的抓取高度和姿态
+  task_geometry.py         任务与预检共用的抓取高度和姿态
   ik.py, kinematics.py     DLS 逆解；正运动学、雅可比、可操作度
   trajectory.py            JointTrajectory、五次/LSPB、样条、笛卡尔直线
   dynamics.py              质量矩阵、重力/科氏力、正逆动力学、负载
   collision.py             碰撞与间隙查询
   path_planning.py         RRT-Connect 与路径剪枝
-  rl/                      到达与抓放环境、评测、检查点契约、模型哈希
   tasks/                   pick-place、box-pack、dynamics 命令
   cli.py, __main__.py      `ufactory-mujoco` / `python -m ufactory_mujoco` 入口
   viewer.py                被动查看器，处理 Linux GLFW/X11
   resource_paths.py, model_paths.py  资源根目录与模型名解析
 examples/simulation/       示例 01–10
-examples/rl/               reach/ 与 pick_place/：回放、评测、recipe.yaml
-scripts/                   强化学习训练、资产转换与 MJCF 生成、标定与真机比对、打包检查
+scripts/                   资产转换与 MJCF 生成、标定与真机比对、打包检查
 tests/                     测试套件（pytest）
 ```
 

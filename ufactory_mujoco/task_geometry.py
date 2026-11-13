@@ -1,4 +1,4 @@
-"""Task geometry shared by pick-and-place, box packing, preflight and RL.
+"""Task geometry shared by pick-and-place, box packing and preflight.
 
 Height probes run IK on ``robot.eval_data`` and never step physics;
 ``_close_until_contact`` does step the simulation while it closes the gripper.

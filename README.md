@@ -2,7 +2,7 @@
 
 [English](README.md) | [中文](README_zh.md) · [Changelog](CHANGELOG.md) · [![CI](https://github.com/DanielWang123321/ufactory_mujoco/actions/workflows/ci.yml/badge.svg)](https://github.com/DanielWang123321/ufactory_mujoco/actions/workflows/ci.yml)
 
-MuJoCo simulation and reinforcement-learning suite for UFACTORY robots (Lite 6, xArm 5/6/7, UF850 and their grippers): detailed models, kinematics and dynamics tools, motion planning, scripted manipulation tasks, Gymnasium RL environments, and a gated interface to a real xArm.
+MuJoCo simulation suite for UFACTORY robots (Lite 6, xArm 5/6/7, UF850 and their grippers): detailed models, kinematics and dynamics tools, motion planning, scripted manipulation tasks, and a gated interface to a real xArm.
 
 ## Quick Start
 
@@ -20,18 +20,17 @@ Without a display, run a task headless: `ufactory-mujoco pick-place --robot xarm
 - **Kinematics and planning**: FK, Jacobians, damped least-squares IK, quintic/LSPB/spline trajectories, Cartesian lines, collision checking, and RRT-Connect (`kinematics.py`, `ik.py`, `trajectory.py`, `collision.py`, `path_planning.py`).
 - **Dynamics**: mass matrix, gravity/Coriolis, inverse/forward dynamics, payloads, and a five-arm validation command (`dynamics.py`, `tasks/dynamics.py`).
 - **Scripted tasks**: cube pick-and-place and box packing for five arm/gripper pairs, with preflight (joint limits, penetration, RRT-Connect detours) and JSON reports (`tasks/`, `preflight.py`).
-- **Reinforcement learning**: TCP reaching for all five arms and cube pick-and-place for xArm 6 + Gripper G2, with checkpoints bound to their config and scene by SHA-256 (`rl/`). Results: [reach](examples/rl/reach/README.md#4-benchmark-results), [pick-and-place](examples/rl/pick_place/README.md#4-benchmark-results).
 - **Real robot**: `XArmRobot` is read-only by default; motion needs a per-unit calibration, controller checks, and `--confirm-real`. `sdk-sim` replays trajectories in the controller's built-in simulator (`xarm_robot.py`, `calibration.py`, `safety.py`).
 
 ## Supported Robots and Tasks
 
-| Arm | Built gripper models | `pick-place` / `box-pack` | `dynamics` | RL reach | RL pick-and-place |
-| :--- | :--- | :--- | :---: | :---: | :---: |
-| `lite6` | `lite6_gripper`, `lite6_vacuum_gripper` | with `lite6_gripper` | yes | yes | — |
-| `xarm5` | `gripper_g2`, `bio_gripper_g2`, `vacuum_gripper` | with `gripper_g2` | yes | yes | — |
-| `xarm6` | `gripper_g2`, `bio_gripper_g2`, `vacuum_gripper` | with `gripper_g2` | yes | yes | with `gripper_g2` |
-| `xarm7` | `gripper_g2`, `bio_gripper_g2`, `vacuum_gripper` | with `gripper_g2` | yes | yes | — |
-| `uf850` | `gripper_g2`, `bio_gripper_g2`, `vacuum_gripper` | with `gripper_g2` | yes | yes | — |
+| Arm | Built gripper models | `pick-place` / `box-pack` | `dynamics` |
+| :--- | :--- | :--- | :---: |
+| `lite6` | `lite6_gripper`, `lite6_vacuum_gripper` | with `lite6_gripper` | yes |
+| `xarm5` | `gripper_g2`, `bio_gripper_g2`, `vacuum_gripper` | with `gripper_g2` | yes |
+| `xarm6` | `gripper_g2`, `bio_gripper_g2`, `vacuum_gripper` | with `gripper_g2` | yes |
+| `xarm7` | `gripper_g2`, `bio_gripper_g2`, `vacuum_gripper` | with `gripper_g2` | yes |
+| `uf850` | `gripper_g2`, `bio_gripper_g2`, `vacuum_gripper` | with `gripper_g2` | yes |
 
 Every arm, gripper, depth camera (`d405`, `d435`, `gemini_305`, `zed_x_nano`), and bracket assembly (`camera_stand`, `camera_stand_with_<camera>`, `xarm6_with_gripper_and_<camera>`) can also be loaded with `01_load_and_view.py --model <name>`. Model names and commands are listed in [examples/simulation/README.md](examples/simulation/README.md#4-commands-by-model).
 
@@ -47,7 +46,6 @@ python -m pip install -e .       # package + core dependencies (mujoco, numpy, s
 
 | Extra | Install | Needed for |
 | :--- | :--- | :--- |
-| `rl` | `pip install torch --index-url https://download.pytorch.org/whl/cpu` (or a CUDA build), then `pip install -e ".[rl]"` | PPO training and rolling out trained policies |
 | `test` | `pip install -e ".[test]"` | the test suite |
 | `assets` | `pip install -e ".[assets]"` | asset regeneration only (see [models/gripper_g2/source/README.md](models/gripper_g2/source/README.md)) |
 
@@ -85,17 +83,6 @@ ufactory-mujoco dynamics --robot all --headless --report reports/dynamics.json
 | `MUJOCO_GL` | Linux OpenGL backend (`egl`, `osmesa`); not needed for `--headless` |
 | `UFACTORY_GENESIS_ROOT` | `ufactory_genesis` checkout used by the asset conversion script |
 
-## Trained RL Policies
-
-Trained weights are **not** included in the repository or in the releases. Train them locally (the `rl` extra is required):
-
-```bash
-python scripts/train_reach_rl.py --model xarm6 --total-steps 2000000 --net-arch 256,256,128 --ent-coef 0.001 --eval-episodes 200
-python scripts/train_pick_place_rl.py --n-envs 128 --n-workers 24 --device cuda --seed 1
-```
-
-The examples load `build/rl/<arm>/ppo_reach.zip` and `build/rl/pick_place/xarm6_g2_v2/ppo_pick_place.zip` by default. Without weights, use the untrained `--random` baseline (reach) or the scripted `--expert` (pick-and-place); both run without the `rl` extra. Training times, seed sensitivity and results are in the [reach](examples/rl/reach/README.md) and [pick-and-place](examples/rl/pick_place/README.md) READMEs.
-
 ## Platform Notes
 
 - **macOS**: start GUI examples with `mjpython` (shipped with `mujoco`), e.g. `mjpython examples/simulation/01_load_and_view.py`. `--headless` works with plain `python`.
@@ -107,8 +94,7 @@ The examples load `build/rl/<arm>/ppo_reach.zip` and `build/rl/pick_place/xarm6_
 | Topic | Document |
 | :--- | :--- |
 | Simulation examples `01`–`10`, CLI options, commands by model, viewer controls, hardware commands | [examples/simulation/README.md](examples/simulation/README.md) ([中文](examples/simulation/README_zh.md)) |
-| RL TCP reaching | [examples/rl/reach/README.md](examples/rl/reach/README.md) ([中文](examples/rl/reach/README_zh.md)) |
-| RL cube pick-and-place | [examples/rl/pick_place/README.md](examples/rl/pick_place/README.md) ([中文](examples/rl/pick_place/README_zh.md)) |
+| Contributing, security policy, code of conduct | [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) |
 | Release history | [CHANGELOG.md](CHANGELOG.md) |
 
 ## Running Tests
@@ -119,16 +105,14 @@ python -m pytest tests
 ruff check .                      # lint as in CI (pip install ruff)
 ```
 
-Tests that need optional packages (`gymnasium`/`stable-baselines3`, `trimesh`, `DracoPy`/`pygltflib`) or locally trained weights are skipped when those are missing.
+Tests that need optional packages (`trimesh`, `DracoPy`/`pygltflib`) are skipped when those are missing.
 
 ## Known Limitations
 
-- Trained RL weights are not distributed; see [Trained RL Policies](#trained-rl-policies).
-- RL pick-and-place covers xArm 6 + Gripper G2 only. Training with the current recipe depends strongly on the seed and does not reproduce across machines ([details](examples/rl/pick_place/README.md#5-training-stability-seed-sensitivity)).
 - Hardware modes were validated on one xArm 6 (firmware v2.8.0). The static torque comparison (≤ 2.5 % with a 3 kg payload) is a single historical measurement.
 - The vacuum grippers (`lite6_vacuum_gripper`, `vacuum_gripper` and their arm combinations) are static models without a suction model. They, standalone cameras, and `camera_stand*` have no jaw actuator, so `04_gripper_control.py` rejects them (exit code `2`).
 - Depth camera and `camera_stand` models provide visual geometry, mounting/screw-hole `<site>`s (`group=4`), and approximate collision geometry (`group=3`) with `mass=0` and no MuJoCo `<camera>` optical sensor; inject camera/bracket inertia via `attach_payload` for dynamics tasks.
-- Simulation results are not identical across MuJoCo versions: between 3.16 and 4.0 the placement error of the scripted pick-and-place and box-packing tasks differs by up to 0.15 mm, while task outcomes stay the same. Benchmarks state the version they were measured with.
+- Simulation results are not identical across MuJoCo versions: between 3.16 and 4.0 the placement error of the scripted pick-and-place and box-packing tasks differs by up to 0.15 mm, while task outcomes stay the same.
 
 ## Project Structure
 
@@ -152,21 +136,19 @@ ufactory_mujoco/
   bio_g2_controller.py     Bio Gripper G2 rate-limited position/force servo
   grippers.py              Gripper specs, gap mapping, finger contact checks and forces
   preflight.py             Pick-place/box-pack preflight with RRT-Connect detours
-  task_geometry.py         Grasp heights and orientation shared by tasks, preflight and RL
+  task_geometry.py         Grasp heights and orientation shared by tasks and preflight
   ik.py, kinematics.py     DLS IK; FK, Jacobians, manipulability
   trajectory.py            JointTrajectory, quintic/LSPB, spline, Cartesian line
   dynamics.py              Mass matrix, gravity/Coriolis, inverse/forward dynamics, payload
   collision.py             Collision and clearance queries
   path_planning.py         RRT-Connect and shortcutting
-  rl/                      Reach and pick-place environments, evaluation, checkpoint contracts, model hash
   tasks/                   pick-place, box-pack and dynamics commands
   cli.py, __main__.py      `ufactory-mujoco` / `python -m ufactory_mujoco` entry point
   viewer.py                Passive viewer with Linux GLFW/X11 handling
   resource_paths.py, model_paths.py  Resource roots and model name lookup
 examples/simulation/       Examples 01–10
-examples/rl/               reach/ and pick_place/: rollout, evaluation, recipe.yaml
-scripts/                   RL training, asset conversion and MJCF generation, calibration and
-                           hardware comparison, packaging checks
+scripts/                   Asset conversion and MJCF generation, calibration and hardware
+                           comparison, packaging checks
 tests/                     Test suite (pytest)
 ```
 

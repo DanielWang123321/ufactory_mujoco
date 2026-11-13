@@ -80,9 +80,6 @@ jobs:
           for m in lite6_vacuum_gripper vacuum_gripper; do
             if python examples/simulation/04_gripper_control.py --headless --model $m; then exit 1; fi
           done
-          python examples/rl/reach/01_reach.py --random --headless --episodes 3
-          python examples/rl/pick_place/01_pick_place.py --expert --headless --episodes 1
-          python examples/rl/pick_place/evaluate.py --expert --episodes 2 --quiet-episodes
       - name: Upload core logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -172,42 +169,3 @@ jobs:
         with:
           name: installed-logs-${{ matrix.python-version }}
           path: reports/
-
-  rl:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-          cache: pip
-      - name: Install (CPU torch + RL extras)
-        run: |
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install -r requirements-lock.txt -e ".[rl,test]"
-      - name: RL tests + tiny training smoke run
-        run: |
-          mkdir -p build/rl/ci build/rl/ci/pick_place
-          python -m pytest -v tests/test_reach_env.py tests/test_pick_place_rl.py tests/test_g2_assets_v2.py tests/test_pick_place_model_contract.py 2>&1 | tee build/rl/ci/tests.log
-          python scripts/train_reach_rl.py --model xarm6 --total-steps 4096 --n-envs 2 --n-steps 1024 --eval-episodes 2 --out-dir build/rl/ci 2>&1 | tee build/rl/ci/training.log
-          test -f build/rl/ci/metrics.json
-          test -f build/rl/ci/config.yaml
-          test -f build/rl/ci/ppo_reach.checkpoint_manifest.json
-          python examples/rl/reach/evaluate.py --model xarm6 --policy build/rl/ci/ppo_reach.zip --episodes 2 --min-success-rate 0.0 --max-mean-dist-m 1.0 --out build/rl/ci/reach_eval.json --quiet-episodes
-          python scripts/train_pick_place_rl.py --total-steps 256 --n-envs 1 --n-steps 64 --batch-size 64 --eval-episodes 2 --out-dir build/rl/ci/pick_place 2>&1 | tee -a build/rl/ci/training.log
-          test -f build/rl/ci/pick_place/metrics.json
-          test -f build/rl/ci/pick_place/config.yaml
-          test -f build/rl/ci/pick_place/ppo_pick_place.checkpoint_manifest.json
-          python examples/rl/pick_place/evaluate.py --checkpoint build/rl/ci/pick_place/ppo_pick_place.zip --episodes 2 --min-success-rate 0.0 --max-press-mm 100.0 --max-target-error-mm 1000.0 --out build/rl/ci/pick_place/eval.json --quiet-episodes
-          python -c 'import json; from pathlib import Path; m=json.loads(Path("build/rl/ci/metrics.json").read_text()); assert m["config"]["total_steps"] == 4096 and m["config"]["device"] == "cpu" and m["episodes"] == 2; print(m)'
-      - name: Upload RL metrics and logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: rl-logs
-          path: |
-            build/rl/ci/**/*.json
-            build/rl/ci/**/*.yaml
-            build/rl/ci/**/*.log

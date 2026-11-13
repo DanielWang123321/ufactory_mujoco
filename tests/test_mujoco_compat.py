@@ -1,16 +1,12 @@
 """Guards for the MuJoCo version range and the private viewer hooks this project relies on."""
 
-from importlib import metadata
 import inspect
 from pathlib import Path
 import re
 import tomllib
 import unittest
-from unittest.mock import patch
 
 import mujoco
-
-from ufactory_mujoco.rl.artifacts import installed_version
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -36,21 +32,6 @@ class MujocoCompatTests(unittest.TestCase):
         parameters = inspect.signature(mujoco.viewer._launch_internal).parameters
         self.assertLessEqual({"run_physics_thread", "handle_return"}, set(parameters))
         self.assertTrue(callable(mujoco.viewer._simulate.set_glfw_dlhandle))
-
-    def test_provenance_reports_mujoco_version_for_core_only_install(self):
-        def version(name: str) -> str:
-            if name == "mujoco-core":
-                return "4.0.0"
-            raise metadata.PackageNotFoundError(name)
-
-        with patch("ufactory_mujoco.rl.artifacts.metadata.version", side_effect=version):
-            self.assertEqual(installed_version("mujoco"), "4.0.0")
-            self.assertIsNone(installed_version("numpy"))
-
-    def test_provenance_prefers_the_mujoco_distribution(self):
-        with patch("ufactory_mujoco.rl.artifacts.metadata.version", return_value="3.16.0") as version:
-            self.assertEqual(installed_version("mujoco"), "3.16.0")
-        version.assert_called_once_with("mujoco")
 
 
 if __name__ == "__main__":

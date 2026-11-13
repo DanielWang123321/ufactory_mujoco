@@ -104,7 +104,7 @@ def accept(args, summary):
     assert not any(p.is_symlink() for p in RESOURCE_ROOT.rglob("*")), "Symlink in installed resources"
     assert not os.environ.get("PYTHONPATH"), "Acceptance requires an unset PYTHONPATH"
     assert "UFACTORY_MUJOCO_MODELS" not in os.environ, "Acceptance must use bundled models"
-    optional = ("torch", "gymnasium", "stable_baselines3", "trimesh", "coacd", "pymeshlab", "xarm")
+    optional = ("trimesh", "coacd", "pymeshlab", "xarm")
     assert all(importlib.util.find_spec(name) is None for name in optional), "Optional dependency in core env"
     summary.update(python=sys.version, package=str(package), resource_root=str(RESOURCE_ROOT))
     compare_resources(strict_json(args.reference), resource_reference())
