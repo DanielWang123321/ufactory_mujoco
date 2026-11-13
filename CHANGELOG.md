@@ -1,5 +1,46 @@
 # Changelog
 
+## [0.1.4] - 2026-11-13
+
+Cleanup and governance release. It removes the reinforcement-learning part and publishes the 0.1.3 asset changes, which were not released on their own. Models, meshes, task configs and task reports are byte-identical to 0.1.3.
+
+### Added
+
+- `CONTRIBUTING.md`, `SECURITY.md` and `CODE_OF_CONDUCT.md`.
+- "Commands by Model" and "Viewer Controls" sections in the simulation READMEs, in English and Chinese. They replace the Chinese-only `docs/visual_command_guide.md`.
+
+### Changed
+
+- Dependencies are declared only in `pyproject.toml`. `requirements.txt`, `requirements-rl.txt` and `requirements-assets.txt` are removed; the two lock files remain. The `assets` extra is now `trimesh`, `coacd` and `pymeshlab` (`xacro` is no longer used).
+- `scripts/accept_installed.py` and the CI smoke tests cover the Bio Gripper G2 and vacuum gripper models.
+
+### Removed
+
+- Reinforcement learning: the `ufactory_mujoco.rl` package (reach and pick-and-place environments, checkpoint contracts), `examples/rl/`, the scripts `train_reach_rl.py`, `train_pick_place_rl.py` and `measure_reach_workspace.py`, the `rl` extra, the RL tests and the `rl` CI job. The scripted pick-and-place and box-packing tasks are not affected.
+- `scripts/build_model.py`, an unreferenced script that drafted the xArm 6 MJCF from `xarm_ros`.
+
+### Fixed
+
+- `02_joint_control.py` started combinations without their own preset (Bio Gripper G2, vacuum gripper and camera combinations) from the bare arm's all-zero pose, with the tool inside the floor, and its UF850 demo pose pushed Gripper G2 47 mm into the floor. Combinations now start from their own `ready` keyframe and the UF850 demo pose is raised.
+
+## [0.1.3] - 2026-11-12
+
+Asset synchronization with ufactory_genesis v0.3.6, released as part of 0.1.4. Collision geometry, Bio Gripper G2 and Lite 6 gripper dynamics and all visual meshes changed, so task reports differ from 0.1.2.
+
+### Added
+
+- xArm vacuum gripper (`vacuum_gripper`, 0.61 kg, 33 convex collision pieces) and its combinations `xarm5/xarm6/xarm7/uf850_with_vacuum_gripper`.
+- Bio Gripper G2 combinations for xArm 5, xArm 7 and UF850 (`<arm>_with_bio_gripper`).
+- Calibrated Bio Gripper G2 model and servo (`bio_g2_model.py`, `bio_g2_controller.py`): 71–150 mm gap with speed and force settings, used by `SimRobot`, `XArmRobot` and `04_gripper_control.py`.
+
+### Changed
+
+- Arm collision geometry: 111 convex STL pieces (17–27 per arm) replace one convex hull per link, and `link_base` has explicit inertial parameters.
+- Gripper G2: the base collision shape is split into 10 convex pieces and the locating pin stays within its 3 mm radius. This removes the overlap with the camera bracket.
+- Bio Gripper G2: calibrated 0.79 kg dynamics (was 0.4125 kg) and 5 convex collision pieces.
+- Lite 6 gripper: jaw gap 20–38 mm, two-box finger collision shapes and a ±3 N drive (`kp 700`, `kv 20`). The Lite 6 pick-and-place and box-packing tasks use a 30 mm, 17 g cube, and box packing also passes with `servo_j`.
+- Visual OBJ meshes were decimated with a crease-preserving quadric edge collapse, from 548.92 MB to 89.54 MB (5.64 M to 1.34 M faces). The wheel shrinks from 102 MiB to 36 MiB and its installed resources from 566 MiB to 128 MiB. A full test run now peaks at about 3 GB of memory instead of 7 GB.
+
 ## [0.1.2] - 2026-11-11
 
 Depth camera and camera bracket models. Existing robot XMLs, meshes, task configs, task reports, and RL checkpoint hashes are byte-identical to 0.1.1.

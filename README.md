@@ -36,7 +36,7 @@ Every arm, gripper, depth camera (`d405`, `d435`, `gemini_305`, `zed_x_nano`), a
 
 ## Installation
 
-Python **3.12–3.14** and MuJoCo **≥ 3.15, < 5** (tested with 3.15.0, 3.16.0, 3.17.0 and 4.0.0). The meshes are large, so clone with `--depth 1`.
+Python **3.12–3.14** and MuJoCo **≥ 3.15, < 5** (tested with 3.15.0, 3.16.0, 3.17.0, 4.0.0 and 4.0.1). The meshes are large, so clone with `--depth 1`.
 
 ```bash
 python3.13 -m venv .venv
@@ -59,7 +59,7 @@ pip uninstall -y mujoco && pip install "mujoco>=4,<5"
 
 If the environment is already broken, repair it with `pip install --force-reinstall --no-deps mujoco mujoco-core mujoco-studio`. New environments are not affected.
 
-**Wheel**: [GitHub Releases](https://github.com/DanielWang123321/ufactory_mujoco/releases) from v0.1.0 on include a wheel with all models, scenes, task configs and licenses (about 102 MiB download, 566 MiB of resources once installed). Install it with `pip install ufactory_mujoco-0.1.2-py3-none-any.whl`; the `ufactory-mujoco` commands then run from any directory. Build one yourself with `python -m build`.
+**Wheel**: [GitHub Releases](https://github.com/DanielWang123321/ufactory_mujoco/releases) from v0.1.0 on include a wheel with all models, scenes, task configs and licenses (about 36 MiB download, 128 MiB of resources once installed). Install it with `pip install ufactory_mujoco-0.1.4-py3-none-any.whl`; the `ufactory-mujoco` commands then run from any directory. Build one yourself with `python -m build`.
 
 ## Command-Line Tasks
 

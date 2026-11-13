@@ -36,7 +36,7 @@ python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose
 
 ## 安装
 
-需要 Python **3.12–3.14** 与 MuJoCo **≥ 3.15、< 5**（已测试 3.15.0、3.16.0、3.17.0 与 4.0.0）。网格较大，请用 `--depth 1` 克隆。
+需要 Python **3.12–3.14** 与 MuJoCo **≥ 3.15、< 5**（已测试 3.15.0、3.16.0、3.17.0、4.0.0 与 4.0.1）。网格较大，请用 `--depth 1` 克隆。
 
 ```bash
 python3.13 -m venv .venv
@@ -59,7 +59,7 @@ pip uninstall -y mujoco && pip install "mujoco>=4,<5"
 
 环境已经损坏时，用 `pip install --force-reinstall --no-deps mujoco mujoco-core mujoco-studio` 修复。新建的环境不受影响。
 
-**wheel**：自 v0.1.0 起，[GitHub Release](https://github.com/DanielWang123321/ufactory_mujoco/releases) 附带 wheel，内含全部模型、场景、任务配置和许可证（下载约 102 MiB，安装后资源约 566 MiB）。用 `pip install ufactory_mujoco-0.1.2-py3-none-any.whl` 安装后，`ufactory-mujoco` 命令可在任意目录运行。也可用 `python -m build` 自行构建。
+**wheel**：自 v0.1.0 起，[GitHub Release](https://github.com/DanielWang123321/ufactory_mujoco/releases) 附带 wheel，内含全部模型、场景、任务配置和许可证（下载约 36 MiB，安装后资源约 128 MiB）。用 `pip install ufactory_mujoco-0.1.4-py3-none-any.whl` 安装后，`ufactory-mujoco` 命令可在任意目录运行。也可用 `python -m build` 自行构建。
 
 ## 命令行任务
 
