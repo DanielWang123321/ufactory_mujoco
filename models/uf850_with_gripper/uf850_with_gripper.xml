@@ -17,11 +17,11 @@
     <mesh name="link2_white_vis" file="uf850/visual/link2_white.obj"/>
     <mesh name="link2_silver_vis" file="uf850/visual/link2_silver.obj"/>
     <mesh name="link3_white_vis" file="uf850/visual/link3_white.obj"/>
-    <mesh name="link3_silver_vis" file="uf850/visual/link3_silver.obj"/>
+    <mesh name="link3_silver_vis" file="uf850/visual/link3_silver.obj" inertia="shell"/>
     <mesh name="link4_white_vis" file="uf850/visual/link4_white.obj"/>
-    <mesh name="link4_silver_vis" file="uf850/visual/link4_silver.obj"/>
+    <mesh name="link4_silver_vis" file="uf850/visual/link4_silver.obj" inertia="shell"/>
     <mesh name="link5_vis" file="uf850/visual/link5.obj"/>
-    <mesh name="link6_vis" file="uf850/visual/link6.obj"/>
+    <mesh name="link6_vis" file="uf850/visual/link6.obj" inertia="shell"/>
 
     <!-- uf850 Multi-convex Collision STLs -->
     <mesh name="uf850_link1_col_00" file="uf850/collision/uf850_link1_col_00.stl"/>
@@ -53,13 +53,13 @@
     <mesh name="uf850_link_base_col_02" file="uf850/collision/uf850_link_base_col_02.stl"/>
 
     <!-- Gripper G2 Visual OBJs -->
-    <mesh name="g2_base_vis" file="gripper_g2/visual/base.obj"/>
-    <mesh name="g2_left_outer_knuckle_vis" file="gripper_g2/visual/left_outer_knuckle.obj"/>
-    <mesh name="g2_left_finger_vis" file="gripper_g2/visual/left_finger.obj"/>
-    <mesh name="g2_left_inner_knuckle_vis" file="gripper_g2/visual/left_inner_knuckle.obj"/>
-    <mesh name="g2_right_outer_knuckle_vis" file="gripper_g2/visual/right_outer_knuckle.obj"/>
-    <mesh name="g2_right_finger_vis" file="gripper_g2/visual/right_finger.obj"/>
-    <mesh name="g2_right_inner_knuckle_vis" file="gripper_g2/visual/right_inner_knuckle.obj"/>
+    <mesh name="g2_base_vis" file="gripper_g2/visual/base.obj" inertia="shell"/>
+    <mesh name="g2_left_outer_knuckle_vis" file="gripper_g2/visual/left_outer_knuckle.obj" inertia="shell"/>
+    <mesh name="g2_left_finger_vis" file="gripper_g2/visual/left_finger.obj" inertia="shell"/>
+    <mesh name="g2_left_inner_knuckle_vis" file="gripper_g2/visual/left_inner_knuckle.obj" inertia="shell"/>
+    <mesh name="g2_right_outer_knuckle_vis" file="gripper_g2/visual/right_outer_knuckle.obj" inertia="shell"/>
+    <mesh name="g2_right_finger_vis" file="gripper_g2/visual/right_finger.obj" inertia="shell"/>
+    <mesh name="g2_right_inner_knuckle_vis" file="gripper_g2/visual/right_inner_knuckle.obj" inertia="shell"/>
 
     <!-- Gripper G2 Collision STLs -->
     <mesh name="g2_base_link_col_00" file="gripper_g2/collision/base_link_col_00.stl"/>

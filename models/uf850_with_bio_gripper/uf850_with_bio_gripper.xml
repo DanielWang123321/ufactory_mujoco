@@ -17,11 +17,11 @@
     <mesh name="link2_white_vis" file="uf850/visual/link2_white.obj"/>
     <mesh name="link2_silver_vis" file="uf850/visual/link2_silver.obj"/>
     <mesh name="link3_white_vis" file="uf850/visual/link3_white.obj"/>
-    <mesh name="link3_silver_vis" file="uf850/visual/link3_silver.obj"/>
+    <mesh name="link3_silver_vis" file="uf850/visual/link3_silver.obj" inertia="shell"/>
     <mesh name="link4_white_vis" file="uf850/visual/link4_white.obj"/>
-    <mesh name="link4_silver_vis" file="uf850/visual/link4_silver.obj"/>
+    <mesh name="link4_silver_vis" file="uf850/visual/link4_silver.obj" inertia="shell"/>
     <mesh name="link5_vis" file="uf850/visual/link5.obj"/>
-    <mesh name="link6_vis" file="uf850/visual/link6.obj"/>
+    <mesh name="link6_vis" file="uf850/visual/link6.obj" inertia="shell"/>
 
     <!-- uf850 Multi-convex Collision STLs -->
     <mesh name="uf850_link1_col_00" file="uf850/collision/uf850_link1_col_00.stl"/>
@@ -53,10 +53,10 @@
     <mesh name="uf850_link_base_col_02" file="uf850/collision/uf850_link_base_col_02.stl"/>
 
     <!-- Bio Gripper G2 Visual OBJs -->
-    <mesh name="bio_base_white_vis" file="bio_gripper_g2/visual/bio_gripper_g2_base_white.obj"/>
-    <mesh name="bio_base_silver_vis" file="bio_gripper_g2/visual/bio_gripper_g2_base_silver.obj"/>
-    <mesh name="bio_left_finger_vis" file="bio_gripper_g2/visual/bio_gripper_g2_left_finger.obj"/>
-    <mesh name="bio_right_finger_vis" file="bio_gripper_g2/visual/bio_gripper_g2_right_finger.obj"/>
+    <mesh name="bio_base_white_vis" file="bio_gripper_g2/visual/bio_gripper_g2_base_white.obj" inertia="shell"/>
+    <mesh name="bio_base_silver_vis" file="bio_gripper_g2/visual/bio_gripper_g2_base_silver.obj" inertia="shell"/>
+    <mesh name="bio_left_finger_vis" file="bio_gripper_g2/visual/bio_gripper_g2_left_finger.obj" inertia="shell"/>
+    <mesh name="bio_right_finger_vis" file="bio_gripper_g2/visual/bio_gripper_g2_right_finger.obj" inertia="shell"/>
 
     <!-- Bio Gripper G2 Convex Collision STLs -->
     <mesh name="bio_base_col_0" file="bio_gripper_g2/collision/bio_gripper_g2_base_link_convex_0.stl"/>

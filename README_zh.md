@@ -36,7 +36,7 @@ python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose
 
 ## 安装
 
-需要 Python **3.12–3.14** 与 MuJoCo **≥ 3.15、< 5**（已测试 3.15.0、3.16.0、3.17.0、4.0.0 与 4.0.1）。网格较大，请用 `--depth 1` 克隆。
+需要 Python **3.12–3.14** 与 MuJoCo **≥ 4.0、< 5**（已测试 4.0.0 与 4.0.1；自 0.1.5 起不再支持 MuJoCo 3）。网格较大，请用 `--depth 1` 克隆。
 
 ```bash
 python3.13 -m venv .venv
@@ -49,7 +49,7 @@ python -m pip install -e .       # 安装包及核心依赖（mujoco、numpy、s
 | `test` | `pip install -e ".[test]"` | 测试套件 |
 | `assets` | `pip install -e ".[assets]"` | 仅用于资产再生成（见 [models/gripper_g2/source/README.md](models/gripper_g2/source/README.md)） |
 
-`requirements-lock.txt` 固定了 CI 测试使用的版本（MuJoCo 4.0.0）；`requirements-lock-mujoco3.txt` 是对应的 MuJoCo 3.16.0 版本集合。
+`requirements-lock.txt` 固定了 CI 测试使用的版本（MuJoCo 4.0.0）。
 
 **把已有环境从 MuJoCo 3 升级到 MuJoCo 4**：MuJoCo 4 把 Python 包拆成了 `mujoco-core`、`mujoco-studio` 和 `mujoco`。原地升级（`pip install -U mujoco`）会得到损坏的安装，之后 `import mujoco` 报错，提示缺少 `mujoco-core`。请先卸载再安装：
 
@@ -59,7 +59,7 @@ pip uninstall -y mujoco && pip install "mujoco>=4,<5"
 
 环境已经损坏时，用 `pip install --force-reinstall --no-deps mujoco mujoco-core mujoco-studio` 修复。新建的环境不受影响。
 
-**wheel**：自 v0.1.0 起，[GitHub Release](https://github.com/DanielWang123321/ufactory_mujoco/releases) 附带 wheel，内含全部模型、场景、任务配置和许可证（下载约 36 MiB，安装后资源约 128 MiB）。用 `pip install ufactory_mujoco-0.1.4-py3-none-any.whl` 安装后，`ufactory-mujoco` 命令可在任意目录运行。也可用 `python -m build` 自行构建。
+**wheel**：自 v0.1.0 起，[GitHub Release](https://github.com/DanielWang123321/ufactory_mujoco/releases) 附带 wheel，内含全部模型、场景、任务配置和许可证（下载约 112 MiB，安装后资源约 630 MiB）。用 `pip install ufactory_mujoco-0.1.4-py3-none-any.whl` 安装后，`ufactory-mujoco` 命令可在任意目录运行。也可用 `python -m build` 自行构建。
 
 ## 命令行任务
 
@@ -112,7 +112,7 @@ ruff check .                      # 与 CI 相同的静态检查（pip install r
 - 真机模式仅在一台 xArm 6（固件 v2.8.0）上验证。静态力矩比对（3 kg 负载，≤ 2.5 %）为单次历史实测。
 - 真空吸盘（`lite6_vacuum_gripper`、`vacuum_gripper` 及其机械臂组合）为静态模型，不含吸附模型。它们与独立相机、`camera_stand*` 都没有夹爪执行器，`04_gripper_control.py` 会拒绝这些模型（退出码 `2`）。
 - 深度相机与 `camera_stand` 模型提供外观几何、安装面/螺钉孔 `<site>`（`group=4`）与近似碰撞体（`group=3`），`mass=0` 且不含 MuJoCo `<camera>` 光学成像传感器；动力学场景请通过 `attach_payload` 注入相机与支架负载。
-- 不同 MuJoCo 版本的仿真结果不完全相同：在 3.16 与 4.0 之间，脚本化抓放与装箱的放置误差最多相差 0.15 mm，任务成败不变。
+- 任务报告在 MuJoCo 4.0.0 与 4.0.1 下逐字节一致；其他 MuJoCo 版本可能使结果在数值上不同。
 
 ## 项目结构
 

@@ -10,13 +10,13 @@
     <material name="black" rgba="0.15 0.15 0.15 1" specular="0.2" shininess="0.1"/>
 
     <!-- Visual OBJs -->
-    <mesh name="base_vis" file="gripper_g2/visual/base.obj"/>
-    <mesh name="left_outer_knuckle_vis" file="gripper_g2/visual/left_outer_knuckle.obj"/>
-    <mesh name="left_finger_vis" file="gripper_g2/visual/left_finger.obj"/>
-    <mesh name="left_inner_knuckle_vis" file="gripper_g2/visual/left_inner_knuckle.obj"/>
-    <mesh name="right_outer_knuckle_vis" file="gripper_g2/visual/right_outer_knuckle.obj"/>
-    <mesh name="right_finger_vis" file="gripper_g2/visual/right_finger.obj"/>
-    <mesh name="right_inner_knuckle_vis" file="gripper_g2/visual/right_inner_knuckle.obj"/>
+    <mesh name="base_vis" file="gripper_g2/visual/base.obj" inertia="shell"/>
+    <mesh name="left_outer_knuckle_vis" file="gripper_g2/visual/left_outer_knuckle.obj" inertia="shell"/>
+    <mesh name="left_finger_vis" file="gripper_g2/visual/left_finger.obj" inertia="shell"/>
+    <mesh name="left_inner_knuckle_vis" file="gripper_g2/visual/left_inner_knuckle.obj" inertia="shell"/>
+    <mesh name="right_outer_knuckle_vis" file="gripper_g2/visual/right_outer_knuckle.obj" inertia="shell"/>
+    <mesh name="right_finger_vis" file="gripper_g2/visual/right_finger.obj" inertia="shell"/>
+    <mesh name="right_inner_knuckle_vis" file="gripper_g2/visual/right_inner_knuckle.obj" inertia="shell"/>
 
     <!-- Collision STLs -->
     <mesh name="base_link_col_00" file="gripper_g2/collision/base_link_col_00.stl"/>

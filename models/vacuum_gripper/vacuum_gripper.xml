@@ -10,7 +10,7 @@
     <material name="gray" rgba="0.784 0.784 0.784 1" specular="0.3" shininess="0.2"/>
 
     <mesh name="vacuum_silver_vis" file="vacuum_gripper/visual/vacuum_gripper_silver.obj"/>
-    <mesh name="vacuum_white_vis" file="vacuum_gripper/visual/vacuum_gripper_white.obj"/>
+    <mesh name="vacuum_white_vis" file="vacuum_gripper/visual/vacuum_gripper_white.obj" inertia="shell"/>
     <mesh name="vacuum_gray_vis" file="vacuum_gripper/visual/vacuum_gripper_gray.obj"/>
 
     <mesh name="vac_hull_000_flange" file="vacuum_gripper/collision/hull_000_flange.stl"/>

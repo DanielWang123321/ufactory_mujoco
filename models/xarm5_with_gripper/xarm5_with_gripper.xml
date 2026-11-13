@@ -17,12 +17,12 @@
     <mesh name="link2_white_vis" file="xarm5/visual/link2_white.obj"/>
     <mesh name="link2_silver_vis" file="xarm5/visual/link2_silver.obj"/>
     <mesh name="link3_white_vis" file="xarm5/visual/link3_white.obj"/>
-    <mesh name="link3_silver_vis" file="xarm5/visual/link3_silver.obj"/>
+    <mesh name="link3_silver_vis" file="xarm5/visual/link3_silver.obj" inertia="shell"/>
     <mesh name="link4_white_vis" file="xarm5/visual/link4_white.obj"/>
     <mesh name="link4_silver_vis" file="xarm5/visual/link4_silver.obj"/>
-    <mesh name="link5_white_vis" file="xarm5/visual/link5_white.obj"/>
-    <mesh name="link5_silver_vis" file="xarm5/visual/link5_silver.obj"/>
-    <mesh name="link5_black_vis" file="xarm5/visual/link5_black.obj"/>
+    <mesh name="link5_white_vis" file="xarm5/visual/link5_white.obj" inertia="shell"/>
+    <mesh name="link5_silver_vis" file="xarm5/visual/link5_silver.obj" inertia="shell"/>
+    <mesh name="link5_black_vis" file="xarm5/visual/link5_black.obj" inertia="shell"/>
 
     <!-- xarm5 Multi-convex Collision STLs -->
     <mesh name="xarm5_link1_col_00" file="xarm5/collision/xarm5_link1_col_00.stl"/>
@@ -46,13 +46,13 @@
     <mesh name="xarm5_link_base_col_01" file="xarm5/collision/xarm5_link_base_col_01.stl"/>
 
     <!-- Gripper G2 Visual OBJs -->
-    <mesh name="g2_base_vis" file="gripper_g2/visual/base.obj"/>
-    <mesh name="g2_left_outer_knuckle_vis" file="gripper_g2/visual/left_outer_knuckle.obj"/>
-    <mesh name="g2_left_finger_vis" file="gripper_g2/visual/left_finger.obj"/>
-    <mesh name="g2_left_inner_knuckle_vis" file="gripper_g2/visual/left_inner_knuckle.obj"/>
-    <mesh name="g2_right_outer_knuckle_vis" file="gripper_g2/visual/right_outer_knuckle.obj"/>
-    <mesh name="g2_right_finger_vis" file="gripper_g2/visual/right_finger.obj"/>
-    <mesh name="g2_right_inner_knuckle_vis" file="gripper_g2/visual/right_inner_knuckle.obj"/>
+    <mesh name="g2_base_vis" file="gripper_g2/visual/base.obj" inertia="shell"/>
+    <mesh name="g2_left_outer_knuckle_vis" file="gripper_g2/visual/left_outer_knuckle.obj" inertia="shell"/>
+    <mesh name="g2_left_finger_vis" file="gripper_g2/visual/left_finger.obj" inertia="shell"/>
+    <mesh name="g2_left_inner_knuckle_vis" file="gripper_g2/visual/left_inner_knuckle.obj" inertia="shell"/>
+    <mesh name="g2_right_outer_knuckle_vis" file="gripper_g2/visual/right_outer_knuckle.obj" inertia="shell"/>
+    <mesh name="g2_right_finger_vis" file="gripper_g2/visual/right_finger.obj" inertia="shell"/>
+    <mesh name="g2_right_inner_knuckle_vis" file="gripper_g2/visual/right_inner_knuckle.obj" inertia="shell"/>
 
     <!-- Gripper G2 Collision STLs -->
     <mesh name="g2_base_link_col_00" file="gripper_g2/collision/base_link_col_00.stl"/>

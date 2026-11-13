@@ -8,10 +8,10 @@
     <material name="white" rgba="0.95 0.95 0.95 1" specular="0.4" shininess="0.3"/>
     <material name="silver" rgba="0.85 0.85 0.88 1" specular="0.9" shininess="0.8" reflectance="0.05"/>
 
-    <mesh name="base_white_vis" file="bio_gripper_g2/visual/bio_gripper_g2_base_white.obj"/>
-    <mesh name="base_silver_vis" file="bio_gripper_g2/visual/bio_gripper_g2_base_silver.obj"/>
-    <mesh name="left_finger_vis" file="bio_gripper_g2/visual/bio_gripper_g2_left_finger.obj"/>
-    <mesh name="right_finger_vis" file="bio_gripper_g2/visual/bio_gripper_g2_right_finger.obj"/>
+    <mesh name="base_white_vis" file="bio_gripper_g2/visual/bio_gripper_g2_base_white.obj" inertia="shell"/>
+    <mesh name="base_silver_vis" file="bio_gripper_g2/visual/bio_gripper_g2_base_silver.obj" inertia="shell"/>
+    <mesh name="left_finger_vis" file="bio_gripper_g2/visual/bio_gripper_g2_left_finger.obj" inertia="shell"/>
+    <mesh name="right_finger_vis" file="bio_gripper_g2/visual/bio_gripper_g2_right_finger.obj" inertia="shell"/>
 
     <mesh name="base_col_0" file="bio_gripper_g2/collision/bio_gripper_g2_base_link_convex_0.stl"/>
     <mesh name="left_finger_col_0" file="bio_gripper_g2/collision/bio_gripper_g2_left_finger_convex_0.stl"/>

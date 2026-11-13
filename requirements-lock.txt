@@ -1,6 +1,5 @@
 # Exact versions the test suite and headless examples were verified with
 # (Python 3.12 / 3.13 / 3.14, Linux x86_64). Install with: pip install -r requirements-lock.txt
-# MuJoCo 3 equivalent: requirements-lock-mujoco3.txt
 mujoco==4.0.0
 mujoco-core==4.0.0
 mujoco-studio==4.0.0

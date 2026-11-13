@@ -20,6 +20,11 @@ from pathlib import Path
 import shutil
 import mujoco
 
+try:
+    from scripts.make_double_sided_objs import add_shell_inertia
+except ImportError:  # run as ``python scripts/build_all_mjcf.py``
+    from make_double_sided_objs import add_shell_inertia
+
 MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
 _SOURCE_MODELS_DIR = MODELS_DIR
 
@@ -50,6 +55,11 @@ SCENE_TEMPLATE = """<mujoco model="{name} scene">
   </worldbody>
 </mujoco>
 """
+
+
+def write_model_xml(path: Path, xml_content: str) -> None:
+    """Write a model XML; double-sided visual meshes get ``inertia="shell"``."""
+    path.write_text(add_shell_inertia(xml_content), encoding="utf-8")
 
 
 def write_scene_file(target_dir: Path, name: str, xml_file: str, center: str = "0.3 0 0.3", extent: str = "0.8") -> None:
@@ -758,7 +768,7 @@ def _build_bare_arm(
   </keyframe>
 </mujoco>
 """
-    (target_dir / f"{arm}.xml").write_text(xml_content, encoding="utf-8")
+    write_model_xml(target_dir / f"{arm}.xml", xml_content)
     write_scene_file(target_dir, arm, f"{arm}.xml", center=center, extent=extent)
 
 
@@ -952,7 +962,7 @@ def build_gripper_g2() -> None:
   </keyframe>
 </mujoco>
 """
-    (target_dir / "gripper_g2.xml").write_text(xml_content, encoding="utf-8")
+    write_model_xml(target_dir / "gripper_g2.xml", xml_content)
     write_scene_file(target_dir, "gripper_g2", "gripper_g2.xml", center="0 0 0.1", extent="0.3")
 
 
@@ -1106,7 +1116,7 @@ def _build_arm_with_gripper_g2(arm: str, home_arm_q: str, ready_arm_q: str) -> N
   </keyframe>
 </mujoco>
 """
-    (target_dir / f"{combo}.xml").write_text(xml_content, encoding="utf-8")
+    write_model_xml(target_dir / f"{combo}.xml", xml_content)
     write_scene_file(target_dir, combo, f"{combo}.xml", center="0.3 0 0.3", extent="0.9")
 
 
@@ -1221,7 +1231,7 @@ def build_bio_gripper_g2() -> None:
   </keyframe>
 </mujoco>
 """
-    (target_dir / "bio_gripper_g2.xml").write_text(xml_content, encoding="utf-8")
+    write_model_xml(target_dir / "bio_gripper_g2.xml", xml_content)
     write_scene_file(target_dir, "bio_gripper_g2", "bio_gripper_g2.xml", center="0.05 0 0.05", extent="0.25")
 
 
@@ -1346,7 +1356,7 @@ def _build_arm_with_bio_gripper_g2(
   </keyframe>
 </mujoco>
 """
-    (target_dir / f"{combo}.xml").write_text(xml_content, encoding="utf-8")
+    write_model_xml(target_dir / f"{combo}.xml", xml_content)
     write_scene_file(target_dir, combo, f"{combo}.xml", center="0.3 0 0.3", extent="0.9")
 
 
@@ -1484,7 +1494,7 @@ def build_lite6_gripper() -> None:
   </keyframe>
 </mujoco>
 """
-    (target_dir / "lite6_gripper.xml").write_text(xml_content, encoding="utf-8")
+    write_model_xml(target_dir / "lite6_gripper.xml", xml_content)
     write_scene_file(target_dir, "lite6_gripper", "lite6_gripper.xml", center="0 0 0.05", extent="0.2")
 
 
@@ -1598,7 +1608,7 @@ def build_lite6_with_gripper() -> None:
   </keyframe>
 </mujoco>
 """
-    (target_dir / f"{combo}.xml").write_text(xml_content, encoding="utf-8")
+    write_model_xml(target_dir / f"{combo}.xml", xml_content)
     write_scene_file(target_dir, combo, f"{combo}.xml", center="0.25 0 0.25", extent="0.7")
 
 
@@ -1641,7 +1651,7 @@ def build_lite6_vacuum_gripper() -> None:
   </worldbody>
 </mujoco>
 """
-    (target_dir / "lite6_vacuum_gripper.xml").write_text(xml_content, encoding="utf-8")
+    write_model_xml(target_dir / "lite6_vacuum_gripper.xml", xml_content)
     write_scene_file(target_dir, "lite6_vacuum_gripper", "lite6_vacuum_gripper.xml", center="0 0 0.03", extent="0.15")
 
 
@@ -1714,7 +1724,7 @@ def build_lite6_with_vacuum_gripper() -> None:
   </keyframe>
 </mujoco>
 """
-    (target_dir / f"{combo}.xml").write_text(xml_content, encoding="utf-8")
+    write_model_xml(target_dir / f"{combo}.xml", xml_content)
     write_scene_file(target_dir, combo, f"{combo}.xml", center="0.25 0 0.25", extent="0.7")
 
 
@@ -1764,7 +1774,7 @@ def build_vacuum_gripper() -> None:
   </worldbody>
 </mujoco>
 """
-    (target_dir / "vacuum_gripper.xml").write_text(xml_content, encoding="utf-8")
+    write_model_xml(target_dir / "vacuum_gripper.xml", xml_content)
     write_scene_file(target_dir, "vacuum_gripper", "vacuum_gripper.xml", center="0 0 0.06", extent="0.25")
 
 
@@ -1845,7 +1855,7 @@ def _build_arm_with_vacuum_gripper(arm: str, home_arm_q: str, ready_arm_q: str) 
   </keyframe>
 </mujoco>
 """
-    (target_dir / f"{combo}.xml").write_text(xml_content, encoding="utf-8")
+    write_model_xml(target_dir / f"{combo}.xml", xml_content)
     write_scene_file(target_dir, combo, f"{combo}.xml", center="0.3 0 0.3", extent="0.9")
 
 

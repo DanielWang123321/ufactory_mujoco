@@ -9,7 +9,7 @@
     <material name="seal" rgba="0.8 0.82 0.85 1" specular="0.3" shininess="0.2" />
     <material name="gray" rgba="0.753 0.753 0.753 1" />
     <mesh name="link_base_vis" file="xarm6/visual/link_base.obj" />
-    <mesh name="link1_seal_vis" file="xarm6/visual/link1_seal.obj" />
+    <mesh name="link1_seal_vis" file="xarm6/visual/link1_seal.obj" inertia="shell" />
     <mesh name="link1_white_vis" file="xarm6/visual/link1_white.obj" />
     <mesh name="link1_silver_vis" file="xarm6/visual/link1_silver.obj" />
     <mesh name="link2_white_vis" file="xarm6/visual/link2_white.obj" />
@@ -17,12 +17,12 @@
     <mesh name="link3_white_vis" file="xarm6/visual/link3_white.obj" />
     <mesh name="link3_silver_vis" file="xarm6/visual/link3_silver.obj" />
     <mesh name="link4_white_vis" file="xarm6/visual/link4_white.obj" />
-    <mesh name="link4_silver_vis" file="xarm6/visual/link4_silver.obj" />
+    <mesh name="link4_silver_vis" file="xarm6/visual/link4_silver.obj" inertia="shell" />
     <mesh name="link5_white_vis" file="xarm6/visual/link5_white.obj" />
     <mesh name="link5_silver_vis" file="xarm6/visual/link5_silver.obj" />
-    <mesh name="link6_white_vis" file="xarm6/visual/link6_white.obj" />
-    <mesh name="link6_black_vis" file="xarm6/visual/link6_black.obj" />
-    <mesh name="link6_silver_vis" file="xarm6/visual/link6_silver.obj" />
+    <mesh name="link6_white_vis" file="xarm6/visual/link6_white.obj" inertia="shell" />
+    <mesh name="link6_black_vis" file="xarm6/visual/link6_black.obj" inertia="shell" />
+    <mesh name="link6_silver_vis" file="xarm6/visual/link6_silver.obj" inertia="shell" />
     <mesh name="xarm6_link1_col_00" file="xarm6/collision/xarm6_link1_col_00.stl" />
     <mesh name="xarm6_link1_col_01" file="xarm6/collision/xarm6_link1_col_01.stl" />
     <mesh name="xarm6_link2_col_00" file="xarm6/collision/xarm6_link2_col_00.stl" />
@@ -45,13 +45,13 @@
     <mesh name="xarm6_link6_col_00" file="xarm6/collision/xarm6_link6_col_00.stl" />
     <mesh name="xarm6_link_base_col_00" file="xarm6/collision/xarm6_link_base_col_00.stl" />
     <mesh name="xarm6_link_base_col_01" file="xarm6/collision/xarm6_link_base_col_01.stl" />
-    <mesh name="g2_base_vis" file="gripper_g2/visual/base.obj" />
-    <mesh name="g2_left_outer_knuckle_vis" file="gripper_g2/visual/left_outer_knuckle.obj" />
-    <mesh name="g2_left_finger_vis" file="gripper_g2/visual/left_finger.obj" />
-    <mesh name="g2_left_inner_knuckle_vis" file="gripper_g2/visual/left_inner_knuckle.obj" />
-    <mesh name="g2_right_outer_knuckle_vis" file="gripper_g2/visual/right_outer_knuckle.obj" />
-    <mesh name="g2_right_finger_vis" file="gripper_g2/visual/right_finger.obj" />
-    <mesh name="g2_right_inner_knuckle_vis" file="gripper_g2/visual/right_inner_knuckle.obj" />
+    <mesh name="g2_base_vis" file="gripper_g2/visual/base.obj" inertia="shell" />
+    <mesh name="g2_left_outer_knuckle_vis" file="gripper_g2/visual/left_outer_knuckle.obj" inertia="shell" />
+    <mesh name="g2_left_finger_vis" file="gripper_g2/visual/left_finger.obj" inertia="shell" />
+    <mesh name="g2_left_inner_knuckle_vis" file="gripper_g2/visual/left_inner_knuckle.obj" inertia="shell" />
+    <mesh name="g2_right_outer_knuckle_vis" file="gripper_g2/visual/right_outer_knuckle.obj" inertia="shell" />
+    <mesh name="g2_right_finger_vis" file="gripper_g2/visual/right_finger.obj" inertia="shell" />
+    <mesh name="g2_right_inner_knuckle_vis" file="gripper_g2/visual/right_inner_knuckle.obj" inertia="shell" />
     <mesh name="g2_base_link_col_00" file="gripper_g2/collision/base_link_col_00.stl" />
     <mesh name="g2_base_link_col_01" file="gripper_g2/collision/base_link_col_01.stl" />
     <mesh name="g2_base_link_col_02" file="gripper_g2/collision/base_link_col_02.stl" />

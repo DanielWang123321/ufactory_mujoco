@@ -10,10 +10,10 @@
     <material name="black" rgba="0.15 0.15 0.15 1" specular="0.2" shininess="0.1"/>
 
     <mesh name="shell_vis" file="lite6_gripper/visual/shell.obj"/>
-    <mesh name="finger1_white_vis" file="lite6_gripper/visual/finger1_white.obj"/>
+    <mesh name="finger1_white_vis" file="lite6_gripper/visual/finger1_white.obj" inertia="shell"/>
     <mesh name="finger1_silver_vis" file="lite6_gripper/visual/finger1_silver.obj"/>
     <mesh name="finger1_black_vis" file="lite6_gripper/visual/finger1_black.obj"/>
-    <mesh name="finger2_white_vis" file="lite6_gripper/visual/finger2_white.obj"/>
+    <mesh name="finger2_white_vis" file="lite6_gripper/visual/finger2_white.obj" inertia="shell"/>
     <mesh name="finger2_silver_vis" file="lite6_gripper/visual/finger2_silver.obj"/>
     <mesh name="finger2_black_vis" file="lite6_gripper/visual/finger2_black.obj"/>
 

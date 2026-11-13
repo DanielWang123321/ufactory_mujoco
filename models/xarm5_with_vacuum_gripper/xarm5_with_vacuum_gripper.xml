@@ -18,12 +18,12 @@
     <mesh name="link2_white_vis" file="xarm5/visual/link2_white.obj"/>
     <mesh name="link2_silver_vis" file="xarm5/visual/link2_silver.obj"/>
     <mesh name="link3_white_vis" file="xarm5/visual/link3_white.obj"/>
-    <mesh name="link3_silver_vis" file="xarm5/visual/link3_silver.obj"/>
+    <mesh name="link3_silver_vis" file="xarm5/visual/link3_silver.obj" inertia="shell"/>
     <mesh name="link4_white_vis" file="xarm5/visual/link4_white.obj"/>
     <mesh name="link4_silver_vis" file="xarm5/visual/link4_silver.obj"/>
-    <mesh name="link5_white_vis" file="xarm5/visual/link5_white.obj"/>
-    <mesh name="link5_silver_vis" file="xarm5/visual/link5_silver.obj"/>
-    <mesh name="link5_black_vis" file="xarm5/visual/link5_black.obj"/>
+    <mesh name="link5_white_vis" file="xarm5/visual/link5_white.obj" inertia="shell"/>
+    <mesh name="link5_silver_vis" file="xarm5/visual/link5_silver.obj" inertia="shell"/>
+    <mesh name="link5_black_vis" file="xarm5/visual/link5_black.obj" inertia="shell"/>
 
     <!-- xarm5 Multi-convex Collision STLs -->
     <mesh name="xarm5_link1_col_00" file="xarm5/collision/xarm5_link1_col_00.stl"/>
@@ -48,7 +48,7 @@
 
     <!-- Vacuum Gripper Visual OBJs -->
     <mesh name="vacuum_silver_vis" file="vacuum_gripper/visual/vacuum_gripper_silver.obj"/>
-    <mesh name="vacuum_white_vis" file="vacuum_gripper/visual/vacuum_gripper_white.obj"/>
+    <mesh name="vacuum_white_vis" file="vacuum_gripper/visual/vacuum_gripper_white.obj" inertia="shell"/>
     <mesh name="vacuum_gray_vis" file="vacuum_gripper/visual/vacuum_gripper_gray.obj"/>
 
     <!-- Vacuum Gripper 33 Convex Collision STLs -->

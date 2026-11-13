@@ -27,6 +27,11 @@ import mujoco
 import numpy as np
 from scipy.spatial.transform import Rotation
 
+try:
+    from scripts.make_double_sided_objs import apply_shell_inertia
+except ImportError:  # run as ``python scripts/build_camera_mjcf.py``
+    from make_double_sided_objs import apply_shell_inertia
+
 ROOT = Path(__file__).resolve().parent.parent
 MODELS_DIR = ROOT / "models"
 DEV_DIR = ROOT / "dev"
@@ -421,6 +426,7 @@ def _append_bracket(
 
 def _write_xml(root: ET.Element, out_path: Path) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    apply_shell_inertia(root)
     ET.indent(root, space="  ")
     text = ET.tostring(root, encoding="unicode")
     out_path.write_text(text + "\n", encoding="utf-8")

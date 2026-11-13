@@ -18,11 +18,11 @@
     <mesh name="link2_white_vis" file="uf850/visual/link2_white.obj"/>
     <mesh name="link2_silver_vis" file="uf850/visual/link2_silver.obj"/>
     <mesh name="link3_white_vis" file="uf850/visual/link3_white.obj"/>
-    <mesh name="link3_silver_vis" file="uf850/visual/link3_silver.obj"/>
+    <mesh name="link3_silver_vis" file="uf850/visual/link3_silver.obj" inertia="shell"/>
     <mesh name="link4_white_vis" file="uf850/visual/link4_white.obj"/>
-    <mesh name="link4_silver_vis" file="uf850/visual/link4_silver.obj"/>
+    <mesh name="link4_silver_vis" file="uf850/visual/link4_silver.obj" inertia="shell"/>
     <mesh name="link5_vis" file="uf850/visual/link5.obj"/>
-    <mesh name="link6_vis" file="uf850/visual/link6.obj"/>
+    <mesh name="link6_vis" file="uf850/visual/link6.obj" inertia="shell"/>
 
     <!-- uf850 Multi-convex Collision STLs -->
     <mesh name="uf850_link1_col_00" file="uf850/collision/uf850_link1_col_00.stl"/>
@@ -55,7 +55,7 @@
 
     <!-- Vacuum Gripper Visual OBJs -->
     <mesh name="vacuum_silver_vis" file="vacuum_gripper/visual/vacuum_gripper_silver.obj"/>
-    <mesh name="vacuum_white_vis" file="vacuum_gripper/visual/vacuum_gripper_white.obj"/>
+    <mesh name="vacuum_white_vis" file="vacuum_gripper/visual/vacuum_gripper_white.obj" inertia="shell"/>
     <mesh name="vacuum_gray_vis" file="vacuum_gripper/visual/vacuum_gripper_gray.obj"/>
 
     <!-- Vacuum Gripper 33 Convex Collision STLs -->

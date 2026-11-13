@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.1.5] - Unreleased
+
+Visual-mesh fix and end of MuJoCo 3 support. Only visual meshes and the `inertia` attribute of visual `<mesh>` elements change; kinematics, dynamics, collision geometry and task reports are byte-identical to 0.1.4.
+
+### Changed
+
+- MuJoCo 3 is no longer supported: the requirement is `mujoco>=4,<5` (was `>=3.15,<5`). Tested with MuJoCo 4.0.0 and 4.0.1 on Python 3.12–3.14.
+
+### Fixed
+
+- Creases on xArm 5/6/7, UF850 and Lite 6: dark bands at joints and polygonal outlines on rounded edges. The 0.1.3 decimation reduced rounded surfaces to a few faces and smoothed normals across creases, and MuJoCo's classic renderer flattens any corner normal more than 36.9° from its face normal. The arm and accessory visual meshes are restored to full upstream tessellation; their vertices match the ufactory_genesis v0.3.6 GLBs within 1.4e-8 m.
+- Holes in the Gripper G2 housing, and smaller see-through patches on the Bio Gripper G2, vacuum gripper and arm end parts. MuJoCo culls back faces, and the converter oriented the faces of open and thin-walled parts wrongly. 36 visual OBJs are now double-sided: each face has a reversed twin with a negated normal, the equivalent of glTF `doubleSided`. Their `<mesh>` elements declare `inertia="shell"`.
+
+### Added
+
+- `scripts/make_double_sided_objs.py`, which makes the listed OBJs double-sided and is idempotent. Mesh pipeline: `convert_glb_to_obj.py` → `fix_g2_base_meshes.py` → `make_double_sided_objs.py`.
+- Asset tests: visual OBJ size band, a limit on the area drawn with flattened normals, and double-sided OBJs with `inertia="shell"`.
+
+### Removed
+
+- `scripts/optimize_visual_objs.py`, and `pymeshlab` from the `assets` extra.
+- `requirements-lock-mujoco3.txt` and the MuJoCo 3 CI job.
+
 ## [0.1.4] - 2026-11-13
 
 Cleanup and governance release. It removes the reinforcement-learning part and publishes the 0.1.3 asset changes, which were not released on their own. Models, meshes, task configs and task reports are byte-identical to 0.1.3.

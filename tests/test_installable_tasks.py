@@ -149,9 +149,9 @@ class TaskPackagingTests(unittest.TestCase):
                     self.assertFalse(str(node.args[0].value).startswith("examples.simulation"), str(path))
 
     def test_dependencies_are_declared_only_in_pyproject(self):
-        """pyproject.toml is the single dependency declaration; only the CI lock files remain."""
+        """pyproject.toml is the single dependency declaration; only the CI lock file remains."""
         self.assertEqual(sorted(p.name for p in ROOT.glob("requirements*.txt")),
-                         ["requirements-lock-mujoco3.txt", "requirements-lock.txt"])
+                         ["requirements-lock.txt"])
         project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
         self.assertEqual(set(project["optional-dependencies"]), {"assets", "test"})
 

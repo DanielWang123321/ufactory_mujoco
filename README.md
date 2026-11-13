@@ -36,7 +36,7 @@ Every arm, gripper, depth camera (`d405`, `d435`, `gemini_305`, `zed_x_nano`), a
 
 ## Installation
 
-Python **3.12–3.14** and MuJoCo **≥ 3.15, < 5** (tested with 3.15.0, 3.16.0, 3.17.0, 4.0.0 and 4.0.1). The meshes are large, so clone with `--depth 1`.
+Python **3.12–3.14** and MuJoCo **≥ 4.0, < 5** (tested with 4.0.0 and 4.0.1; MuJoCo 3 is no longer supported from 0.1.5). The meshes are large, so clone with `--depth 1`.
 
 ```bash
 python3.13 -m venv .venv
@@ -49,7 +49,7 @@ python -m pip install -e .       # package + core dependencies (mujoco, numpy, s
 | `test` | `pip install -e ".[test]"` | the test suite |
 | `assets` | `pip install -e ".[assets]"` | asset regeneration only (see [models/gripper_g2/source/README.md](models/gripper_g2/source/README.md)) |
 
-`requirements-lock.txt` pins the versions CI tests with (MuJoCo 4.0.0). `requirements-lock-mujoco3.txt` is the equivalent set for MuJoCo 3.16.0.
+`requirements-lock.txt` pins the versions CI tests with (MuJoCo 4.0.0).
 
 **Upgrading an existing environment from MuJoCo 3 to MuJoCo 4**: MuJoCo 4 splits its Python package into `mujoco-core`, `mujoco-studio` and `mujoco`. Upgrading in place (`pip install -U mujoco`) leaves a broken installation, and `import mujoco` then fails with an error about missing `mujoco-core` bindings. Uninstall first:
 
@@ -59,7 +59,7 @@ pip uninstall -y mujoco && pip install "mujoco>=4,<5"
 
 If the environment is already broken, repair it with `pip install --force-reinstall --no-deps mujoco mujoco-core mujoco-studio`. New environments are not affected.
 
-**Wheel**: [GitHub Releases](https://github.com/DanielWang123321/ufactory_mujoco/releases) from v0.1.0 on include a wheel with all models, scenes, task configs and licenses (about 36 MiB download, 128 MiB of resources once installed). Install it with `pip install ufactory_mujoco-0.1.4-py3-none-any.whl`; the `ufactory-mujoco` commands then run from any directory. Build one yourself with `python -m build`.
+**Wheel**: [GitHub Releases](https://github.com/DanielWang123321/ufactory_mujoco/releases) from v0.1.0 on include a wheel with all models, scenes, task configs and licenses (about 112 MiB download, 630 MiB of resources once installed). Install it with `pip install ufactory_mujoco-0.1.4-py3-none-any.whl`; the `ufactory-mujoco` commands then run from any directory. Build one yourself with `python -m build`.
 
 ## Command-Line Tasks
 
@@ -112,7 +112,7 @@ Tests that need optional packages (`trimesh`, `DracoPy`/`pygltflib`) are skipped
 - Hardware modes were validated on one xArm 6 (firmware v2.8.0). The static torque comparison (≤ 2.5 % with a 3 kg payload) is a single historical measurement.
 - The vacuum grippers (`lite6_vacuum_gripper`, `vacuum_gripper` and their arm combinations) are static models without a suction model. They, standalone cameras, and `camera_stand*` have no jaw actuator, so `04_gripper_control.py` rejects them (exit code `2`).
 - Depth camera and `camera_stand` models provide visual geometry, mounting/screw-hole `<site>`s (`group=4`), and approximate collision geometry (`group=3`) with `mass=0` and no MuJoCo `<camera>` optical sensor; inject camera/bracket inertia via `attach_payload` for dynamics tasks.
-- Simulation results are not identical across MuJoCo versions: between 3.16 and 4.0 the placement error of the scripted pick-and-place and box-packing tasks differs by up to 0.15 mm, while task outcomes stay the same.
+- Task reports are byte-identical on MuJoCo 4.0.0 and 4.0.1; other MuJoCo versions can change results numerically.
 
 ## Project Structure
 

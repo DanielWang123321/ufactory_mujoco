@@ -21,7 +21,7 @@ venv/
 # AI agent files
 AGENTS.md
 worklog.md
-roadmap.md
+prd.md
 todolist.md
 
 # MuJoCo intermediate / log files

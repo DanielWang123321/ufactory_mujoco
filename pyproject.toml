@@ -12,7 +12,7 @@ license-files = ["LICENSE", "NOTICE", "licenses/*"]
 requires-python = ">=3.12"
 # Core ranges verified in CI on Python 3.12 / 3.13 / 3.14.
 dependencies = [
-    "mujoco>=3.15,<5",
+    "mujoco>=4,<5",
     "numpy>=2.0,<3",
     "scipy>=1.14,<2",
     "pyyaml>=6.0,<7",
@@ -26,7 +26,7 @@ classifiers = [
 
 [project.optional-dependencies]
 # Asset regeneration scripts only (convert_glb_to_obj.py also needs genesis-world, which is not listed).
-assets = ["trimesh>=4", "coacd>=1.0.11", "pymeshlab>=2025.7"]
+assets = ["trimesh>=4", "coacd>=1.0.11"]
 test = ["pytest>=8"]
 
 [project.scripts]
