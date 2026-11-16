@@ -274,6 +274,6 @@
 
   <keyframe>
     <key name="home" qpos="0 -0.8 0 0 0 0 0" ctrl="0 -0.8 0 0 0 0 0"/>
-    <key name="ready" qpos="0 -0.5 0 0 0.5 0 0" ctrl="0 -0.5 0 0 0.5 0 0"/>
+    <key name="ready" qpos="0 -0.612697406 0 0.831413847 0 1.444111253 0" ctrl="0 -0.612697406 0 0.831413847 0 1.444111253 0"/>
   </keyframe>
 </mujoco>

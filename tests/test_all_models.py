@@ -45,6 +45,13 @@ ALL_MODELS = [
     "xarm6_with_gripper_and_d435",
     "xarm6_with_gripper_and_gemini_305",
     "xarm6_with_gripper_and_zed_x_nano",
+    "xarm5_with_d435",
+    "xarm6_with_d435",
+    "xarm7_with_d435",
+    "uf850_with_d435",
+    "xarm5_with_gripper_and_d435",
+    "xarm7_with_gripper_and_d435",
+    "uf850_with_gripper_and_d435",
 ]
 
 
@@ -135,6 +142,35 @@ class AllModelsLoadingTest(unittest.TestCase):
                 np.testing.assert_allclose(
                     d.body("link6").xmat.reshape(3, 3), np.diag([1, -1, -1]), atol=1e-5,
                 )
+
+    def test_xarm5_xarm7_uf850_combo_ready_poses_point_down_at_300mm(self):
+        """xArm 5/7 and UF850 combination ready poses point downward with G2 TCP at (300, 0, 300) mm."""
+        for name in ("xarm5_with_gripper", "xarm7_with_gripper", "uf850_with_gripper"):
+            with self.subTest(model=name):
+                m = mujoco.MjModel.from_xml_path(str(MODELS_ROOT / name / "scene.xml"))
+                d = mujoco.MjData(m)
+                ready_id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_KEY, "ready")
+                self.assertGreaterEqual(ready_id, 0)
+                mujoco.mj_resetDataKeyframe(m, d, ready_id)
+                mujoco.mj_forward(m, d)
+                site = d.site("attachment_site")
+                np.testing.assert_allclose(site.xpos, [0.3, 0.0, 0.3], atol=1e-5)
+                np.testing.assert_allclose(site.xmat.reshape(3, 3), np.diag([1, -1, -1]), atol=2e-5)
+
+        last_links = {"xarm5": "link5", "xarm6": "link6", "xarm7": "link7", "uf850": "link6"}
+        for arm, last_link in last_links.items():
+            for suffix in ("gripper", "bio_gripper", "vacuum_gripper", "d435", "gripper_and_d435"):
+                name = f"{arm}_with_{suffix}"
+                with self.subTest(model=name):
+                    m = mujoco.MjModel.from_xml_path(str(MODELS_ROOT / name / "scene.xml"))
+                    d = mujoco.MjData(m)
+                    ready_id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_KEY, "ready")
+                    self.assertGreaterEqual(ready_id, 0)
+                    mujoco.mj_resetDataKeyframe(m, d, ready_id)
+                    mujoco.mj_forward(m, d)
+                    np.testing.assert_allclose(
+                        d.body(last_link).xmat.reshape(3, 3), np.diag([1, -1, -1]), atol=2e-5,
+                    )
 
 
 if __name__ == "__main__":

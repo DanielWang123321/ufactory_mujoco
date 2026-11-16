@@ -31,8 +31,8 @@ PRESETS: dict[str, tuple[list[float], list[float]]] = {
         [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],  # ready = all-zero joints
         [0.3, -1.2, -1.0, 0.6, 0.6, 0.5],
     ),
-    # Gripper G2 combo: all-zero would push the fingers into the floor, so ready is the
-    # IK pose with the gripper TCP at (300, 0, 300) mm, rpy (180, 0, 0).
+    # Gripper G2 combos (xarm5, xarm6, xarm7, uf850): ready is the zero-roll IK pose with
+    # the gripper TCP at (300, 0, 300) mm, rpy (180, 0, 0).
     "xarm6_with_gripper": (
         [0.0, -0.631529917, -0.833150486, 0.0, 1.464680403, 0.0],
         [0.3, -1.2, -1.0, 0.6, 0.6, 0.5],
@@ -46,7 +46,7 @@ PRESETS: dict[str, tuple[list[float], list[float]]] = {
         [0.3, -0.7, -0.3, 0.2, 0.6],
     ),
     "xarm5_with_gripper": (
-        [0.0, -0.5, 0.0, 0.0, 0.5],
+        [0.0, -0.63088336, -0.837867545, 1.468750905, 0.0],
         [0.3, -0.7, -0.3, 0.2, 0.6],
     ),
     "xarm7": (
@@ -54,7 +54,7 @@ PRESETS: dict[str, tuple[list[float], list[float]]] = {
         [0.3, -0.7, 0.2, 0.5, 0.2, 0.2, -0.3],
     ),
     "xarm7_with_gripper": (
-        [0.0, -0.5, 0.0, 0.0, 0.5, 0.0, 0.0],
+        [0.0, -0.612697406, 0.0, 0.831413847, 0.0, 1.444111253, 0.0],
         [0.3, -0.7, 0.2, 0.5, 0.2, 0.2, -0.3],
     ),
     "uf850": (
@@ -62,7 +62,7 @@ PRESETS: dict[str, tuple[list[float], list[float]]] = {
         [0.3, -0.1, -0.3, 0.2, 0.8, -0.3],
     ),
     "uf850_with_gripper": (
-        [0.0, -0.5, 0.0, 0.0, 0.5, 0.0],
+        [0.0, 0.305871495, -0.534714507, 0.0, -0.840586002, 0.0],
         [0.3, -0.1, -0.3, 0.2, 0.8, -0.3],
     ),
 }

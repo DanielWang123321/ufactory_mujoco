@@ -55,6 +55,7 @@ jobs:
           exec > >(tee build/ci/examples.log) 2>&1
           python examples/simulation/01_load_and_view.py --headless --model xarm6_with_gripper --pose ready
           for m in d405 d435 gemini_305 zed_x_nano camera_stand camera_stand_with_d405 xarm6_with_gripper_and_d405 \
+                   xarm5_with_d435 uf850_with_gripper_and_d435 \
                    vacuum_gripper xarm6_with_vacuum_gripper xarm5_with_bio_gripper; do
             python examples/simulation/01_load_and_view.py --headless --model $m
           done
@@ -64,7 +65,8 @@ jobs:
           done
           echo "::group::10_box_pack"; python examples/simulation/10_box_pack.py --headless --cycles 1; echo "::endgroup::"
           for m in xarm5 xarm7 uf850 lite6 xarm6_with_gripper xarm6_with_bio_gripper lite6_with_gripper \
-                   uf850_with_gripper xarm5_with_vacuum_gripper xarm6_with_gripper_and_d405; do
+                   uf850_with_gripper xarm5_with_vacuum_gripper xarm6_with_gripper_and_d405 \
+                   xarm7_with_d435 uf850_with_gripper_and_d435; do
             python examples/simulation/02_joint_control.py --headless --model $m
           done
           for m in xarm6_with_gripper xarm6_with_bio_gripper lite6_with_gripper gripper_g2 bio_gripper_g2 \
@@ -72,7 +74,7 @@ jobs:
             python examples/simulation/04_gripper_control.py --headless --model $m
           done
           # models without a jaw actuator must fail with a non-zero exit code
-          for m in lite6_vacuum_gripper vacuum_gripper; do
+          for m in lite6_vacuum_gripper vacuum_gripper xarm6_with_d435; do
             if python examples/simulation/04_gripper_control.py --headless --model $m; then exit 1; fi
           done
       - name: Upload core logs
