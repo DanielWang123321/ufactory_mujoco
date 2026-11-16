@@ -1,8 +1,8 @@
 # Changelog
 
-## [0.1.5] - Unreleased
+## [0.1.5] - 2026-11-16
 
-Visual-mesh fix, end of MuJoCo 3 support, and a smaller public API. Only visual meshes and the `inertia` attribute of visual `<mesh>` elements change; kinematics, dynamics, collision geometry and task reports are byte-identical to 0.1.4.
+Full-precision visual meshes, multi-arm RealSense D435 assemblies, Lite 6 joint PD tuning, end of MuJoCo 3 support, and a smaller public API. Task reports for xArm 5/6/7 and UF850 are byte-identical to 0.1.4; Lite 6 simulation task reports reflect the tighter Cartesian line tracking.
 
 ### Breaking
 
@@ -26,6 +26,8 @@ Visual-mesh fix, end of MuJoCo 3 support, and a smaller public API. Only visual 
 - Consolidated `ufactory_mujoco/resource_paths.py` into `ufactory_mujoco/model_paths.py`, inlined task config JSON hashing into `ufactory_mujoco/config.py`, and merged `scripts/check_distribution.py` into `scripts/accept_installed.py --check-dist`.
 - Asset conversion and MJCF generation tools (`build_all_mjcf.py`, `build_camera_mjcf.py`, `convert_glb_to_obj.py`, `fix_g2_base_meshes.py`, `make_double_sided_objs.py`) are now maintained outside the public tree. `models/` stays the published output; `scripts/` keeps `accept_installed.py` and `gen_kinematics_params.py`.
 - Pick-and-place and box-packing share one `Mover` helper for Cartesian moves and preflight detours.
+- Updated `xarm5`, `xarm7`, and `uf850` combination `ready` keyframes (and `02_joint_control.py` presets) to exact Gripper G2 `(300, 0, 300) mm` downward IK poses (`RPY = (180°, 0°, 0°)`), eliminating wrist roll tilt on `xarm5`/`xarm7` and raising `uf850_with_gripper` `ready` floor clearance from `4.9 mm` to `185.5 mm`.
+- Tuned Lite 6 joint position actuator PD gains (`J1–3`: `kv 200 -> 80`; `J4–6`: `kp 40/80/40 -> 160/320/160`, `kv 8/16/8 -> 6.4/12.8/6.4`) to a uniform `0.04 s` time constant, reducing Cartesian line tracking deviation in `pick-place` and `box-pack` from `6–26 mm` to `<= 0.13 mm` with zero overshoot.
 
 ### Fixed
 
@@ -35,6 +37,7 @@ Visual-mesh fix, end of MuJoCo 3 support, and a smaller public API. Only visual 
 ### Added
 
 - Asset tests: visual OBJ size band, a limit on the area drawn with flattened normals, and double-sided OBJs with `inertia="shell"`.
+- Seven RealSense D435 arm assemblies (`{xarm5,xarm6,xarm7,uf850}_with_d435` and `{xarm5,xarm7,uf850}_with_gripper_and_d435`, 14 XMLs reusing existing meshes via relative symlinks), plus regression tests locking D435's human-eye upright view and base `Y-` (flange `+Y`) USB-C port orientation across all eight xArm/UF850 D435 assemblies.
 
 ### Removed
 
@@ -42,6 +45,11 @@ Visual-mesh fix, end of MuJoCo 3 support, and a smaller public API. Only visual 
 - `requirements-lock-mujoco3.txt` and the MuJoCo 3 CI job.
 - Remaining RL-only scenes and interfaces (`models/*/scene_reach.xml`, `"reach"` in `SCENES`, `ReachWorkspace`, `RobotProfile`, `robot_profile`, `ROBOT_PROFILES`, `ScalarG2Controller`, and `ufactory_mujoco._hashing`).
 - Unreferenced Lite 6 gripper collision meshes (`finger1.stl`, `finger2.stl`), the `models/gripper_g2/source/` upstream GLB/STL/URDF snapshot (keeping the 85-pose reference CSV in `tests/fixtures/`), and historical xArm 6 comparison scripts (`scripts/compare_dynamics_xarm6.py`, `scripts/compare_torque_xarm6.py`).
+
+### Documentation
+
+- Root READMEs (`README.md`, `README_zh.md`): added Python/MuJoCo/License/CI badges and a supported Python (3.12–3.14) / MuJoCo (4.x) version matrix with `venv` and `conda` setup examples, fixed the broken table columns in `README_zh.md`, updated the wheel filename example to `0.1.5`, and removed stale `UFACTORY_GENESIS_ROOT` / `DracoPy` references.
+- Simulation READMEs (`examples/simulation/README.md`, `README_zh.md`): corrected model coverage for `02_joint_control.py` (30 arm/combo models) and `04_gripper_control.py` (19 jaw-gripper models), added multi-arm D435 and `ufactory-mujoco` examples, restructured `08_dynamics.py` notes and the real-robot / `sdk-sim` section, and split the CLI option reference into task/hardware vs script-specific tables.
 
 ## [0.1.4] - 2026-11-13
 

@@ -1,10 +1,14 @@
 # ufactory_mujoco
 
-[English](README.md) | [中文](README_zh.md) · [更新记录](CHANGELOG.md) · [![CI](https://github.com/DanielWang123321/ufactory_mujoco/actions/workflows/ci.yml/badge.svg)](https://github.com/DanielWang123321/ufactory_mujoco/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue) ![MuJoCo](https://img.shields.io/badge/mujoco-4.x-lightgrey) ![License](https://img.shields.io/badge/license-MIT-green) [![CI](https://github.com/DanielWang123321/ufactory_mujoco/actions/workflows/ci.yml/badge.svg)](https://github.com/DanielWang123321/ufactory_mujoco/actions/workflows/ci.yml)
 
-基于 MuJoCo 的 UFACTORY 机器人（Lite 6、xArm 5/6/7、UF850 及其夹爪）仿真套件：精细模型、运动学与动力学工具、轨迹规划、脚本化操作任务，以及带安全门的 xArm 真机接口。
+[English](README.md) | [中文](README_zh.md) · [更新记录](CHANGELOG.md)
+
+基于 MuJoCo 的 UFACTORY 机器人（Lite 6、xArm 5/6/7、UF850）、夹爪与深度相机仿真套件：精细 MJCF 模型、运动学与动力学工具、轨迹规划、脚本化操作任务，以及带安全门的 xArm 真机接口。
 
 ## 快速上手
+
+需要 Python **3.12–3.14**（详见[安装](#安装)）。
 
 ```bash
 git clone --depth 1 https://github.com/DanielWang123321/ufactory_mujoco.git && cd ufactory_mujoco
@@ -16,7 +20,7 @@ python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose
 
 ## 功能
 
-- **模型**：由 [ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis) 转换的全部 5 款机械臂与 5 款末端工具（Gripper G2、Bio Gripper G2、Lite 6 夹爪，以及 xArm 与 Lite 6 真空吸盘），以及 4 款深度相机（`d405`、`d435`、`gemini_305`、`zed_x_nano`）、UFACTORY 相机支架（`camera_stand`）及其支架组合与 `xarm6` + Gripper G2 组合，视觉网格与多凸包碰撞体分离。Gripper G2 采用标定的四连杆几何、实测夹持力表和限速伺服（`g2_model.py`、`g2_controller.py`）。Bio Gripper G2 采用 0.79 kg 标定动力学和限速的位置/力伺服（`bio_g2_model.py`、`bio_g2_controller.py`）。
+- **模型**：全部 5 款机械臂、5 款末端工具、4 款深度相机、相机支架及组合 MJCF 模型，视觉网格与多凸包碰撞体分离。Gripper G2 与 Bio Gripper G2 采用标定动力学与限速位置/力伺服（`g2_model.py`、`g2_controller.py`、`bio_g2_model.py`、`bio_g2_controller.py`）。
 - **运动学与规划**：正运动学、雅可比、阻尼最小二乘逆解、五次/LSPB/样条轨迹、笛卡尔直线、碰撞检测与 RRT-Connect（`kinematics.py`、`ik.py`、`trajectory.py`、`collision.py`、`path_planning.py`）。
 - **动力学**：质量矩阵、重力/科氏力、正逆动力学、负载，以及五臂验收命令（`dynamics.py`、`tasks/dynamics.py`）。
 - **脚本化任务**：5 组机械臂/夹爪的方块抓放与装箱，含预检（关节限位、穿透、RRT-Connect 绕行）和 JSON 报告（`tasks/`、`preflight.py`）。
@@ -26,29 +30,40 @@ python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose
 
 | 机械臂 | 已构建的夹爪模型 | `pick-place` / `box-pack` | `dynamics` |
 | :--- | :--- | :--- | :---: |
-| `lite6` | `lite6_gripper`、`lite6_vacuum_gripper` | 配 `lite6_gripper` | 支持 | 支持 | — |
-| `xarm5` | `gripper_g2`、`bio_gripper_g2`、`vacuum_gripper` | 配 `gripper_g2` | 支持 | 支持 | — |
-| `xarm6` | `gripper_g2`、`bio_gripper_g2`、`vacuum_gripper` | 配 `gripper_g2` | 支持 | 支持 | 配 `gripper_g2` |
-| `xarm7` | `gripper_g2`、`bio_gripper_g2`、`vacuum_gripper` | 配 `gripper_g2` | 支持 | 支持 | — |
-| `uf850` | `gripper_g2`、`bio_gripper_g2`、`vacuum_gripper` | 配 `gripper_g2` | 支持 | 支持 | — |
+| `lite6` | `lite6_gripper`、`lite6_vacuum_gripper` | 配 `lite6_gripper` | 支持 |
+| `xarm5` | `gripper_g2`、`bio_gripper_g2`、`vacuum_gripper` | 配 `gripper_g2` | 支持 |
+| `xarm6` | `gripper_g2`、`bio_gripper_g2`、`vacuum_gripper` | 配 `gripper_g2` | 支持 |
+| `xarm7` | `gripper_g2`、`bio_gripper_g2`、`vacuum_gripper` | 配 `gripper_g2` | 支持 |
+| `uf850` | `gripper_g2`、`bio_gripper_g2`、`vacuum_gripper` | 配 `gripper_g2` | 支持 |
 
-每款机械臂、夹爪、深度相机（`d405`、`d435`、`gemini_305`、`zed_x_nano`）及相机支架组合（`camera_stand`、`camera_stand_with_<相机>`、`xarm6_with_gripper_and_<相机>`）均可通过 `01_load_and_view.py --model <名称>` 加载。模型名与启动命令见 [examples/simulation/README_zh.md](examples/simulation/README_zh.md#4-按机型的命令)。
+仓库在 `models/` 下共内置 **44 套模型目录**：5 款裸臂、5 款独立末端工具、4 款深度相机（`d405`、`d435`、`gemini_305`、`zed_x_nano`）、5 套 `camera_stand*` 支架模型、14 套机械臂 + 末端组合，以及 11 套机械臂 + 相机组合（`xarm6_with_gripper_and_<相机>` 以及 `xarm5/6/7`、`uf850` 的 `<机械臂>_with_d435` 与 `<机械臂>_with_gripper_and_d435`）。均可通过 `01_load_and_view.py --model <名称>` 加载，完整模型名与启动命令见 [examples/simulation/README_zh.md](examples/simulation/README_zh.md#4-按机型的命令)。
 
 ## 安装
 
-需要 Python **3.12–3.14** 与 MuJoCo **≥ 4.0、< 5**（已测试 4.0.0 与 4.0.1；自 0.1.5 起不再支持 MuJoCo 3）。网格较大，请用 `--depth 1` 克隆。
+| 组件 | 支持范围 | 已验证版本 | 说明 |
+| :--- | :--- | :--- | :--- |
+| **Python** | **3.12、3.13、3.14** (`>=3.12`) | `3.12.13`、`3.13.13`、`3.14.6` | CI 与发版验收全量覆盖三版本；**不支持 Python ≤ 3.11**；Python ≥ 3.15 未测试 |
+| **MuJoCo** | **≥ 4.0、< 5** | `4.0.0`、`4.0.1` | 自 `v0.1.5` 起不再支持 MuJoCo 3.x |
+| 核心依赖 | `numpy>=2.0,<3`、`scipy>=1.14,<2`、`pyyaml>=6.0,<7` | 见 `requirements-lock.txt` | 执行 `pip install -e .` 时自动安装 |
+| `.[test]`（可选） | `pytest>=8` | — | 仅运行单元测试套件时需要 |
+| `xarm-python-sdk`（可选） | 与控制器匹配的版本 | — | 仅 `--mode sdk-sim` / `real` / `real-read-only` 及 `scripts/gen_kinematics_params.py` 需要 |
+
+网格体积较大，请使用 `--depth 1` 克隆。可通过 `venv` 或 `conda` 创建隔离环境：
 
 ```bash
+git clone --depth 1 https://github.com/DanielWang123321/ufactory_mujoco.git && cd ufactory_mujoco
+
+# 方式 A：venv（Python 3.12 / 3.13 / 3.14）
 python3.13 -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
-python -m pip install -e .       # 安装包及核心依赖（mujoco、numpy、scipy、pyyaml）
+python -m pip install -e .
+
+# 方式 B：conda（Python 3.12 / 3.13 / 3.14）
+conda create -n ufactory python=3.14 -y && conda activate ufactory
+python -m pip install -e .
 ```
 
-| 可选依赖 | 安装 | 用途 |
-| :--- | :--- | :--- |
-| `test` | `pip install -e ".[test]"` | 测试套件 |
-
-`requirements-lock.txt` 固定了 CI 测试使用的版本（MuJoCo 4.0.0）。
+`requirements-lock.txt` 固定了 CI 测试使用的精确版本（MuJoCo 4.0.0）。
 
 **把已有环境从 MuJoCo 3 升级到 MuJoCo 4**：MuJoCo 4 把 Python 包拆成了 `mujoco-core`、`mujoco-studio` 和 `mujoco`。原地升级（`pip install -U mujoco`）会得到损坏的安装，之后 `import mujoco` 报错，提示缺少 `mujoco-core`。请先卸载再安装：
 
@@ -58,7 +73,7 @@ pip uninstall -y mujoco && pip install "mujoco>=4,<5"
 
 环境已经损坏时，用 `pip install --force-reinstall --no-deps mujoco mujoco-core mujoco-studio` 修复。新建的环境不受影响。
 
-**wheel**：自 v0.1.0 起，[GitHub Release](https://github.com/DanielWang123321/ufactory_mujoco/releases) 附带 wheel，内含全部模型、场景、任务配置和许可证（下载约 112 MiB，安装后资源约 630 MiB）。用 `pip install ufactory_mujoco-0.1.4-py3-none-any.whl` 安装后，`ufactory-mujoco` 命令可在任意目录运行。也可用 `python -m build` 自行构建。
+**wheel**：自 v0.1.0 起，[GitHub Release](https://github.com/DanielWang123321/ufactory_mujoco/releases) 附带自包含 wheel，内含全部模型、场景、任务配置和许可证（下载约 112 MiB，安装后资源约 630 MiB）。用 `pip install ufactory_mujoco-0.1.5-py3-none-any.whl` 安装后，`ufactory-mujoco` 命令可在任意目录运行。也可用 `python -m build` 自行构建。
 
 ## 命令行任务
 
@@ -80,7 +95,6 @@ ufactory-mujoco dynamics --robot all --headless --report reports/dynamics.json
 | `UFACTORY_MUJOCO_MODELS` | 使用指定的模型目录，替代包内或仓库中的模型 |
 | `XARM_IP` | 真机模式的默认控制器 IP |
 | `MUJOCO_GL` | Linux OpenGL 后端（`egl`、`osmesa`）；`--headless` 不需要 |
-| `UFACTORY_GENESIS_ROOT` | 资产转换脚本使用的 `ufactory_genesis` 目录 |
 
 ## 平台说明
 
@@ -104,12 +118,12 @@ python -m pytest tests
 ruff check .                      # 与 CI 相同的静态检查（pip install ruff）
 ```
 
-缺少可选包（`trimesh`、`DracoPy`/`pygltflib`）时，相关测试自动跳过。
+缺少可选包（`trimesh`）或维护者本地源快照时，相关测试自动跳过。
 
 ## 已知限制
 
 - 真机模式仅在一台 xArm 6（固件 v2.8.0）上验证。静态力矩比对（3 kg 负载，≤ 2.5 %）为单次历史实测。
-- 真空吸盘（`lite6_vacuum_gripper`、`vacuum_gripper` 及其机械臂组合）为静态模型，不含吸附模型。它们与独立相机、`camera_stand*` 都没有夹爪执行器，`04_gripper_control.py` 会拒绝这些模型（退出码 `2`）。
+- 真空吸盘（`lite6_vacuum_gripper`、`vacuum_gripper` 及其机械臂组合）为静态模型，不含吸附模型。它们与独立相机、`camera_stand*`、`<机械臂>_with_d435` 都没有夹爪执行器，`04_gripper_control.py` 会拒绝这些模型（退出码 `2`）。
 - 深度相机与 `camera_stand` 模型提供外观几何、安装面/螺钉孔 `<site>`（`group=4`）与近似碰撞体（`group=3`），`mass=0` 且不含 MuJoCo `<camera>` 光学成像传感器；动力学场景请通过 `attach_payload` 注入相机与支架负载。
 - 任务报告在 MuJoCo 4.0.0 与 4.0.1 下逐字节一致；其他 MuJoCo 版本可能使结果在数值上不同。
 
@@ -153,8 +167,8 @@ tests/                     测试套件（pytest）
 ## 模型说明
 
 - 运动学与惯量来自 UFACTORY 官方定义（[xarm_ros](https://github.com/xArm-Developer/xarm_ros)、[ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis)）。
-- 执行器参数遵循 [MuJoCo Menagerie](https://github.com/google-deepmind/mujoco_menagerie) 规范。
-- 视觉网格（`group=2`，`contype=0 conaffinity=0`）与碰撞网格（`group=3`）分离；相机与支架安装基准及螺钉孔以 `group=4` 的 `<site>` 提供（D435 含 `0.055 mm` 法向间隙以避免 ROS 视觉网格越过支架安装面）。
+- 执行器参数遵循 [MuJoCo Menagerie](https://github.com/google-deepmind/mujoco_menagerie) 规范；其中 Lite 6 关节位置执行器 PD 增益按统一时间常数 `0.04 s` 调优以提升笛卡尔直线跟踪精度，Gripper G2 与 Bio Gripper G2 采用实测标定伺服模型。
+- 视觉网格（`group=2`，`contype=0 conaffinity=0`）与碰撞网格（`group=3`）分离；相机与支架安装基准及螺钉孔以 `group=4` 的 `<site>` 提供（D435 含 `0.055 mm` 法向间隙以避免 ROS 视觉网格越过支架安装面；安装在机械臂上的 `d435` 采用与人眼一致的正向视野朝向，工具朝下姿态下 USB-C 口位于法兰 `+Y` / 基座 `Y-` 侧）。
 
 ## 许可
 
