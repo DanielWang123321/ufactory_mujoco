@@ -104,7 +104,7 @@ def main() -> None:
                 force_percent=args.force_percent,
             )
             pos_close = robot.get_gripper_position()
-            out_close = robot.get_gripper_control_output()
+            out_close = robot.gripper_control_output
             if out_close is not None and hasattr(out_close, "torque_limit_nm"):
                 tau_str = f", torque_limit={float(out_close.torque_limit_nm[0]):.3f} Nm"
             elif out_close is not None and hasattr(out_close, "force_limit_n"):
@@ -113,7 +113,7 @@ def main() -> None:
                 tau_str = ""
             print(
                 f"  Closed state: normalized={pos_close:.3f}, "
-                f"measured_gap={robot.get_measured_gripper_gap() * 1000:.2f} mm, "
+                f"measured_gap={robot.get_gripper_gap(measured=True) * 1000:.2f} mm, "
                 f"gripper_qpos={np.round(robot.data.qpos[robot._n_arm_qpos:], 4)}{tau_str}"
             )
 
@@ -127,7 +127,7 @@ def main() -> None:
             pos_open = robot.get_gripper_position()
             print(
                 f"  Open state:   normalized={pos_open:.3f}, "
-                f"measured_gap={robot.get_measured_gripper_gap() * 1000:.2f} mm, "
+                f"measured_gap={robot.get_gripper_gap(measured=True) * 1000:.2f} mm, "
                 f"gripper_qpos={np.round(robot.data.qpos[robot._n_arm_qpos:], 4)}"
             )
 
@@ -142,7 +142,7 @@ def main() -> None:
             pos_half = robot.get_gripper_position()
             print(
                 f"  Half state:   normalized={pos_half:.3f}, "
-                f"measured_gap={robot.get_measured_gripper_gap() * 1000:.2f} mm, "
+                f"measured_gap={robot.get_gripper_gap(measured=True) * 1000:.2f} mm, "
                 f"gripper_qpos={np.round(robot.data.qpos[robot._n_arm_qpos:], 4)}"
             )
 

@@ -18,7 +18,6 @@ from .task_geometry import tcp_task_heights, box_task_heights
 # Phase names are report data keys (approach, close/grasp, lift, transport, place/release,
 # return); they stay unchanged so existing reports and tooling keep matching.
 PHASES = ("接近", "闭合", "抬起", "运送", "放置", "回位")
-PACK_PHASES = ("接近", "抓取", "抬起", "运送", "释放", "回位")
 _IGNORED_BODIES = ("world", "cube", "pick_stand", "place_stand")
 _BOX_PACK_PREFIXES = ("cube", "feed_stand", "pick_stand", "place_stand")
 _FINGER_PAIR = ("uflite_finger1", "uflite_finger2")

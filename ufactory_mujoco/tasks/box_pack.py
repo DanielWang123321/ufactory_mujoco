@@ -34,39 +34,8 @@ _REST_ANG_VEL = 2e-2
 _REST_HOLD_S = 0.15
 
 
-def _set_cube(robot: SimRobot, cube_name: str, xy) -> None:
-    _motion.set_cube(robot, cube_name, xy, "box-pack")
-
-
-def _scaled_vel_acc(task) -> tuple[float, float]:
-    s = task.speed_scale
-    return task.cart_v_m_s * s, task.cart_a_m_s2 * s * s
-
-
-def _cart_duration(task, dist: float) -> float:
-    """Trapezoidal segment time from the configured Cartesian limits."""
-    v, a = _scaled_vel_acc(task)
-    return _motion.cart_duration(dist, v, a)
-
-
 def _wait(task, seconds: float) -> float:
     return seconds / task.speed_scale
-
-
-def _move_pose(robot: SimRobot, config, pos: np.ndarray, duration: float,
-               q_seed: np.ndarray) -> np.ndarray:
-    v, a = _scaled_vel_acc(config.box_pack)
-    return _motion.move_pose(robot, config.executor, pos, duration, q_seed, max_lin_vel=v, max_lin_acc=a)
-
-
-def _execute_segment(robot: SimRobot, config, name: str, pos: np.ndarray,
-                     duration: float, q_seed: np.ndarray, report) -> np.ndarray:
-    v, a = _scaled_vel_acc(config.box_pack)
-    s = config.box_pack.speed_scale
-    return _motion.execute_segment(
-        robot, config.executor, name, pos, duration, q_seed, report,
-        max_lin_vel=v, max_lin_acc=a,
-        detour_max_vel=np.deg2rad(90.0) * s, detour_max_acc=3.5 * s)
 
 
 def _settle_cube(robot: SimRobot, cube_name: str, timeout: float) -> bool:
@@ -105,6 +74,9 @@ def run_box_pack(robot: SimRobot, config, cycles: int = 1, *,
     task = config.box_pack
     if robot.gripper_kind != "jaw":
         raise ValueError("Box-packing requires a jaw gripper")
+    s = task.speed_scale
+    mover = _motion.Mover(robot, config.executor, task.cart_v_m_s * s, task.cart_a_m_s2 * s * s,
+                          np.deg2rad(90.0) * s, 3.5 * s)
     h, q_seed = box_task_heights(robot, task)
     n_arm = robot.n_arm
 
@@ -117,7 +89,7 @@ def run_box_pack(robot: SimRobot, config, cycles: int = 1, *,
         cube = f"cube_{i}"
         feed = np.asarray(task.feed_xy[i], dtype=float)
         drop = np.asarray(task.drop_xy[i], dtype=float)
-        _set_cube(robot, cube, feed)
+        _motion.set_cube(robot, cube, feed, "box-pack")
         cube_id = mujoco.mj_name2id(robot.model, mujoco.mjtObj.mjOBJ_BODY, cube)
         cube_z0 = _cube_rest_z(robot, cube)
         if viewer_closed():
@@ -141,18 +113,17 @@ def run_box_pack(robot: SimRobot, config, cycles: int = 1, *,
         robot.settle(_wait(task, 0.5))
         deploy_seg = report.segments.get(f"approach_deploy{tag}")
         if deploy_seg is not None and deploy_seg.detour:
-            q_seed = _execute_segment(robot, config, f"approach_deploy{tag}", home,
-                                      _wait(task, 3.0), q_home, report)
+            q_seed = mover.segment(f"approach_deploy{tag}", home, _wait(task, 3.0), q_home, report)
         else:
             robot.move_joints(q_home[:n_arm], duration=_wait(task, 3.0))
             q_seed = robot.data.qpos.copy()
         print("  Approach pre-grasp and descend ...")
-        q_seed = _execute_segment(robot, config, f"approach_pre{tag}", pre_grasp,
-                                  _cart_duration(task, h["lift_z"] - h["pre_grasp_z"]),
-                                  q_seed, report)
-        q_seed = _execute_segment(robot, config, f"approach_grasp{tag}", grasp,
-                                  _cart_duration(task, h["pre_grasp_z"] - h["grasp_z"]),
-                                  q_seed, report)
+        q_seed = mover.segment(f"approach_pre{tag}", pre_grasp,
+                               mover.duration(h["lift_z"] - h["pre_grasp_z"]),
+                               q_seed, report)
+        q_seed = mover.segment(f"approach_grasp{tag}", grasp,
+                               mover.duration(h["pre_grasp_z"] - h["grasp_z"]),
+                               q_seed, report)
         if viewer_closed():
             break
 
@@ -160,32 +131,32 @@ def run_box_pack(robot: SimRobot, config, cycles: int = 1, *,
         gap = _close_until_contact(robot, cube, task.grasp_gap_m)
         print(f"  Bilateral pad contact at {gap * 1000:.0f} mm; lifting ...")
 
-        q_seed = _execute_segment(robot, config, f"抬起{tag}", home,
-                                  _cart_duration(task, h["lift_z"] - h["grasp_z"]),
-                                  q_seed, report)
+        q_seed = mover.segment(f"抬起{tag}", home,
+                               mover.duration(h["lift_z"] - h["grasp_z"]),
+                               q_seed, report)
         cube_lift_z = float(robot.data.body(cube_id).xpos[2])
         cube_lifted = cube_lift_z > cube_z0 + 0.05
-        q_seed = _execute_segment(robot, config, f"运送{tag}", above_box,
-                                  _cart_duration(task, float(np.linalg.norm(
-                                      above_box - home))), q_seed, report)
+        q_seed = mover.segment(f"运送{tag}", above_box,
+                               mover.duration(float(np.linalg.norm(above_box - home))),
+                               q_seed, report)
         if viewer_closed():
             break
 
         print(f"  Release {task.release_above_rim_m * 1000:.0f} mm above the rim ...")
-        q_seed = _execute_segment(robot, config, f"释放{tag}", release,
-                                  _cart_duration(task, h["lift_z"] - h["release_z"]),
-                                  q_seed, report)
+        q_seed = mover.segment(f"释放{tag}", release,
+                               mover.duration(h["lift_z"] - h["release_z"]),
+                               q_seed, report)
         released_z = float(robot.data.body(cube_id).xpos[2])
         robot.open_gripper(wait=False)
         rested = _settle_cube(robot, cube, task.settle_timeout_s)
 
         print("  Retreat and return home ...")
-        q_seed = _execute_segment(robot, config, f"return_up{tag}", above_box,
-                                  _cart_duration(task, h["lift_z"] - h["release_z"]),
-                                  q_seed, report)
-        _execute_segment(robot, config, f"return_home{tag}", home,
-                         _cart_duration(task, float(np.linalg.norm(home - above_box))),
-                         q_seed, report)
+        q_seed = mover.segment(f"return_up{tag}", above_box,
+                               mover.duration(h["lift_z"] - h["release_z"]),
+                               q_seed, report)
+        mover.segment(f"return_home{tag}", home,
+                      mover.duration(float(np.linalg.norm(home - above_box))),
+                      q_seed, report)
         robot.settle(_wait(task, 0.5))
 
         rest_pos = robot.data.body(cube_id).xpos.copy()

@@ -45,14 +45,6 @@ def quat_error(quat_cur: np.ndarray, quat_target: np.ndarray) -> np.ndarray:
     return rot
 
 
-def pose_error(pos_cur: np.ndarray, quat_cur: np.ndarray,
-               pos_target: np.ndarray, quat_target: np.ndarray) -> np.ndarray:
-    """6D pose error twist [pos_err (3,); world-frame rotation vector (3,)]."""
-    return np.concatenate([np.asarray(pos_target, dtype=float)
-                           - np.asarray(pos_cur, dtype=float),
-                           quat_error(quat_cur, quat_target)])
-
-
 def site_jacobian(model: mujoco.MjModel, data: mujoco.MjData, site_name: str,
                   q: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
     """World-frame Jacobians (jacp (3, nv), jacr (3, nv)) of the named site."""
@@ -101,15 +93,3 @@ def manipulability(model: mujoco.MjModel, data: mujoco.MjData, site_name: str,
     J = pose_jacobian(model, data, site_name, q) if include_rotation \
         else site_jacobian(model, data, site_name, q)[0]
     return float(np.prod(np.linalg.svd(J, compute_uv=False)))
-
-
-def condition_number(model: mujoco.MjModel, data: mujoco.MjData, site_name: str,
-                     q: np.ndarray | None = None, *,
-                     include_rotation: bool = True) -> float:
-    """sigma_max / sigma_min of J; grows without bound near singularities."""
-    J = pose_jacobian(model, data, site_name, q) if include_rotation \
-        else site_jacobian(model, data, site_name, q)[0]
-    s = np.linalg.svd(J, compute_uv=False)
-    if s[-1] == 0:
-        return float("inf")
-    return float(s[0] / s[-1])

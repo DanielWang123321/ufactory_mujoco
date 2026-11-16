@@ -20,36 +20,11 @@ import numpy as np
 from ufactory_mujoco import SimRobot
 from ufactory_mujoco.model_paths import CONFIGS_ROOT
 from ufactory_mujoco.preflight import preflight_pick_place
-from ufactory_mujoco.task_geometry import GRIP_DOWN_QUAT, _close_until_contact, tcp_task_heights  # noqa: F401 (re-export)
+from ufactory_mujoco.task_geometry import _close_until_contact, tcp_task_heights
 from . import _motion
 from ._reporting import task_report, write_report
 
 PICK_CONFIGS = CONFIGS_ROOT / "pick_place"
-
-
-def _cart_duration(dist: float, task) -> float:
-    """Trapezoidal segment time from the configured Cartesian limits."""
-    return _motion.cart_duration(dist, task.cart_v_m_s, task.cart_a_m_s2)
-
-
-def _set_cube(robot: SimRobot, task) -> None:
-    _motion.set_cube(robot, "cube", task.cube_xy, "pick-place")
-
-
-def _move_pose(robot: SimRobot, config, pos: np.ndarray, duration: float,
-               q_seed: np.ndarray) -> np.ndarray:
-    task = config.pick_place
-    return _motion.move_pose(robot, config.executor, pos, duration, q_seed,
-                             max_lin_vel=task.cart_v_m_s, max_lin_acc=task.cart_a_m_s2)
-
-
-def _execute_segment(robot: SimRobot, config, name: str, pos: np.ndarray,
-                     duration: float, q_seed: np.ndarray, report) -> np.ndarray:
-    task = config.pick_place
-    return _motion.execute_segment(
-        robot, config.executor, name, pos, duration, q_seed, report,
-        max_lin_vel=task.cart_v_m_s, max_lin_acc=task.cart_a_m_s2,
-        detour_max_vel=np.deg2rad(90.0), detour_max_acc=3.5)
 
 
 def run_pick_place(robot: SimRobot, config, cycles: int = 1, *,
@@ -72,8 +47,10 @@ def run_pick_place(robot: SimRobot, config, cycles: int = 1, *,
         raise ValueError("Scene has no 'cube' body; load a pick-place scene")
     if robot.gripper_kind != "jaw":
         raise ValueError("Pick-and-place requires a jaw gripper")
+    mover = _motion.Mover(robot, config.executor, task.cart_v_m_s, task.cart_a_m_s2,
+                          np.deg2rad(90.0), 3.5)
 
-    _set_cube(robot, task)
+    _motion.set_cube(robot, "cube", task.cube_xy, "pick-place")
     h, q_seed = tcp_task_heights(robot, task)
     cube_joint = mujoco.mj_name2id(robot.model, mujoco.mjtObj.mjOBJ_JOINT, "cube")
     cube_z = float(robot.data.qpos[int(robot.model.jnt_qposadr[cube_joint]) + 2])
@@ -100,20 +77,20 @@ def run_pick_place(robot: SimRobot, config, cycles: int = 1, *,
         robot.open_gripper(wait=True)
         deploy_seg = report.segments.get("approach_deploy")
         if deploy_seg is not None and deploy_seg.detour:
-            q_seed = _execute_segment(robot, config, "approach_deploy", home, 3.0, q_seed, report)
+            q_seed = mover.segment("approach_deploy", home, 3.0, q_seed, report)
         else:
             robot.move_joints(q_seed[:robot.n_arm], duration=3.0)
             q_seed = robot.data.qpos.copy()
         deploy = np.array([task.cube_xy[0], task.cube_xy[1], h["lift_z"]])
-        q_seed = _move_pose(robot, config, home, _cart_duration(
-            float(np.linalg.norm(home - deploy)), task), q_seed)
+        q_seed = mover.move(home, mover.duration(
+            float(np.linalg.norm(home - deploy))), q_seed)
         if viewer_closed():
             break
         print("  Approach pre-grasp and descend ...")
-        q_seed = _execute_segment(robot, config, "approach_pre", pre_grasp, _cart_duration(
-            h["lift_z"] - h["pre_grasp_z"], task), q_seed, report)
-        q_seed = _execute_segment(robot, config, "approach_grasp", grasp, _cart_duration(
-            h["pre_grasp_z"] - h["grasp_z"], task), q_seed, report)
+        q_seed = mover.segment("approach_pre", pre_grasp, mover.duration(
+            h["lift_z"] - h["pre_grasp_z"]), q_seed, report)
+        q_seed = mover.segment("approach_grasp", grasp, mover.duration(
+            h["pre_grasp_z"] - h["grasp_z"]), q_seed, report)
         if viewer_closed():
             break
 
@@ -121,27 +98,27 @@ def run_pick_place(robot: SimRobot, config, cycles: int = 1, *,
         gap = _close_until_contact(robot, "cube", task.grasp_gap_m)
         print(f"  Bilateral pad contact at {gap * 1000:.0f} mm; lifting ...")
 
-        q_seed = _execute_segment(
-            robot, config, "抬起", np.array([cube_xy[0], cube_xy[1], h["lift_z"]]),
-            _cart_duration(h["lift_z"] - h["grasp_z"], task), q_seed, report)
+        q_seed = mover.segment(
+            "抬起", np.array([cube_xy[0], cube_xy[1], h["lift_z"]]),
+            mover.duration(h["lift_z"] - h["grasp_z"]), q_seed, report)
         cube_lift_z = float(robot.data.body(cube_id).xpos[2])
         cube_lifted = cube_lift_z > task.cube_half_m + 0.05
-        q_seed = _execute_segment(robot, config, "运送", above_target, _cart_duration(
-            float(np.linalg.norm(above_target - home)), task), q_seed, report)
+        q_seed = mover.segment("运送", above_target, mover.duration(
+            float(np.linalg.norm(above_target - home))), q_seed, report)
         if viewer_closed():
             break
 
         print("  Descend and release ...")
-        q_seed = _execute_segment(robot, config, "放置", place, _cart_duration(
-            h["lift_z"] - h["grasp_z"], task), q_seed, report)
+        q_seed = mover.segment("放置", place, mover.duration(
+            h["lift_z"] - h["grasp_z"]), q_seed, report)
         robot.open_gripper(wait=True)
         robot.settle(1.0)
 
         print("  Retreat and return home ...")
-        q_seed = _execute_segment(robot, config, "return_up", above_target, _cart_duration(
-            h["lift_z"] - h["grasp_z"], task), q_seed, report)
-        _execute_segment(robot, config, "return_home", home, _cart_duration(
-            float(np.linalg.norm(home - above_target)), task), q_seed, report)
+        q_seed = mover.segment("return_up", above_target, mover.duration(
+            h["lift_z"] - h["grasp_z"]), q_seed, report)
+        mover.segment("return_home", home, mover.duration(
+            float(np.linalg.norm(home - above_target))), q_seed, report)
         robot.settle(0.5)
 
         cube_final = robot.data.body(cube_id).xpos.copy()

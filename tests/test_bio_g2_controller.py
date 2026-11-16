@@ -24,7 +24,6 @@ from ufactory_mujoco.bio_g2_model import (
     RIGHT_JOINT as RIGHT,
     SPEEDS_MM_S,
     BioGripperG2Model,
-    bio_g2_physics_summary,
     bio_g2_speed_mm_s_from_percent,
     bio_g2_speed_percent_from_mm_s,
     drive_limit_n,
@@ -89,11 +88,9 @@ class BioG2ControllerTest(unittest.TestCase):
     def test_mass_inertia_and_mimic_across_mjcf_and_urdf(self):
         mjcf_model = BioGripperG2Model.load()
         urdf_model = BioGripperG2Model.load(URDF_FIXTURE)
-        summary = bio_g2_physics_summary()
         self.assertAlmostEqual(mjcf_model.total_mass_kg, 0.79, places=12)
         self.assertAlmostEqual(urdf_model.total_mass_kg, 0.79, places=12)
         self.assertEqual(mjcf_model.link_masses_kg, urdf_model.link_masses_kg)
-        self.assertAlmostEqual(summary["total_mass_kg"], 0.79, places=12)
         self.assertAlmostEqual(BASE_INERTIA_SCALE, 1.9719005072482427, places=12)
 
         robot = ET.parse(URDF_FIXTURE).getroot()
@@ -261,20 +258,20 @@ class BioG2ControllerTest(unittest.TestCase):
         # Verify rate-limited speed tracking in free space (10% vs 100% speed)
         with SimRobot(ROOT / "models/xarm6_with_bio_gripper/scene.xml") as robot:
             self.assertIsNotNone(robot.bio_g2_controller)
-            robot.set_gripper_command(71.0, speed_percent=10.0, force_percent=50.0)
+            robot.set_gripper_gap(0.071, speed_percent=10.0, force_percent=50.0)
             robot.settle(0.30)
-            gap_slow = robot.get_measured_gripper_gap() * 1000.0
+            gap_slow = robot.get_gripper_gap(measured=True) * 1000.0
             # At 10% speed (83.33 mm/s bilateral), 0.30 s moves ~25 mm from 150 mm -> ~125 mm
             self.assertGreater(gap_slow, 118.0)
             self.assertLess(gap_slow, 132.0)
 
             robot.open_gripper(wait=True, speed_percent=100.0, force_percent=100.0)
-            self.assertAlmostEqual(robot.get_measured_gripper_gap(), 0.150, places=3)
-            robot.set_gripper_command(71.0, speed_percent=100.0, force_percent=80.0)
+            self.assertAlmostEqual(robot.get_gripper_gap(measured=True), 0.150, places=3)
+            robot.set_gripper_gap(0.071, speed_percent=100.0, force_percent=80.0)
             robot.settle(0.30)
-            gap_fast = robot.get_measured_gripper_gap() * 1000.0
+            gap_fast = robot.get_gripper_gap(measured=True) * 1000.0
             self.assertAlmostEqual(gap_fast, 71.0, delta=0.5)
-            out = robot.get_gripper_control_output()
+            out = robot.gripper_control_output
             self.assertIsNotNone(out)
             self.assertAlmostEqual(out.force_limit_n, drive_limit_n(80.0), places=6)
 

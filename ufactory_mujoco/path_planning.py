@@ -19,12 +19,6 @@ class PlanningError(RuntimeError):
     """No collision-free path found (or the endpoints are in collision)."""
 
 
-def path_length(waypoints: np.ndarray) -> float:
-    """Sum of Euclidean segment lengths between consecutive waypoints."""
-    w = np.asarray(waypoints, dtype=float)
-    return float(np.linalg.norm(np.diff(w, axis=0), axis=1).sum())
-
-
 def _edge_free(checker: CollisionChecker, qa: np.ndarray, qb: np.ndarray,
                check_res: float, safety_margin: float | None) -> bool:
     """True when sampled states along the segment qa->qb (endpoints included)

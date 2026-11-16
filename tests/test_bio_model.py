@@ -4,18 +4,13 @@ Reference: xArm-Developer/ufactory_genesis v0.3.6,
 assets/urdf/bio_gripper_g2/bio_gripper_g2_movable_visual.urdf.
 """
 
-import contextlib
-import io
 from pathlib import Path
-import tempfile
 import unittest
-from unittest.mock import patch
 import xml.etree.ElementTree as ET
 
 import mujoco
 import numpy as np
 
-from scripts import build_all_mjcf
 
 ROOT = Path(__file__).resolve().parent.parent
 REFERENCE = ROOT / "tests/fixtures/bio_gripper_g2_movable_visual.urdf"
@@ -114,23 +109,6 @@ class BioModelTest(unittest.TestCase):
                                 rtol=0,
                                 atol=1e-12,
                             )
-
-    def test_generated_models_match_builder_templates(self):
-        with tempfile.TemporaryDirectory(dir=ROOT) as tmp:
-            models_dir = Path(tmp)
-            with patch.object(build_all_mjcf, "MODELS_DIR", models_dir), contextlib.redirect_stdout(io.StringIO()):
-                build_all_mjcf.build_bio_gripper_g2()
-                build_all_mjcf.build_xarm5_with_bio_gripper()
-                build_all_mjcf.build_xarm6_with_bio_gripper()
-                build_all_mjcf.build_xarm7_with_bio_gripper()
-                build_all_mjcf.build_uf850_with_bio_gripper()
-            for name in MODEL_NAMES:
-                for filename in (f"{name}.xml", "scene.xml"):
-                    with self.subTest(model=name, file=filename):
-                        self.assertEqual(
-                            (models_dir / name / filename).read_bytes(),
-                            (ROOT / "models" / name / filename).read_bytes(),
-                        )
 
     def test_standalone_gripper_closes_and_opens(self):
         for filename in ("bio_gripper_g2.xml", "scene.xml"):

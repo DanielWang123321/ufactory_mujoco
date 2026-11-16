@@ -1,13 +1,6 @@
-"""Abstract robot control interface.
+"""Abstract robot control interface shared by ``SimRobot`` (MuJoCo) and ``XArmRobot`` (hardware).
 
-Decouples examples from the concrete backend so a real xArm (via
-xarm-python-sdk) can replace the MuJoCo simulation later:
-
-    class XArmRobot(RobotInterface):
-        def __init__(self, ip): from xarm.wrapper import XArmAPI; ...
-        # implement the same methods with sdk calls
-
-Examples program exclusively against RobotInterface.
+Task code programs against ``RobotInterface`` so the same sequence runs in simulation and on a real arm.
 """
 
 from __future__ import annotations
@@ -93,13 +86,9 @@ class RobotInterface(ABC):
         """Set gripper target position (0.0 = fully open, 1.0 = fully closed)."""
         raise NotImplementedError("This robot has no gripper")
 
-    def get_gripper_gap(self) -> float:
-        """Commanded finger gap in meters. Vacuum grippers have no gap."""
+    def get_gripper_gap(self, *, measured: bool = False) -> float:
+        """Finger gap in meters: commanded by default, physical when ``measured``. Vacuum grippers have no gap."""
         raise NotImplementedError("This robot has no jaw gripper")
-
-    def get_measured_gripper_gap(self) -> float:
-        """Measured physical finger gap in meters."""
-        return self.get_gripper_gap()
 
     def set_gripper_gap(
         self,
@@ -110,20 +99,6 @@ class RobotInterface(ABC):
     ) -> None:
         """Command a finger gap in meters, with optional speed/force percent."""
         raise NotImplementedError("This robot has no jaw gripper")
-
-    def set_gripper_command(
-        self,
-        position_mm: float,
-        *,
-        speed_percent: float = 50.0,
-        force_percent: float = 50.0,
-    ) -> None:
-        """Command Gripper G2 target opening in mm with speed (%) and force (%)."""
-        self.set_gripper_gap(
-            float(position_mm) / 1000.0,
-            speed_percent=speed_percent,
-            force_percent=force_percent,
-        )
 
     def bilateral_finger_contact(self, object_body: str) -> bool:
         """Whether both finger pads touch ``object_body``."""

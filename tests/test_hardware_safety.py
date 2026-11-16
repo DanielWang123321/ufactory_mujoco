@@ -23,21 +23,20 @@ from ufactory_mujoco import (
     RobotInterface,
     SafetyGateError,
     XArmRobot,
-    apply_calibration_to_model,
-    authorize_real_motion,
     fk_pose,
     load_kinematics_calibration,
-    run_sdk_simulation,
-    validate_fk_ik_with_controller,
 )
 from ufactory_mujoco.calibration import (
+    apply_calibration_to_model,
     flange_m_quat_to_tcp_mm_rpy,
     pose_flange_to_tcp,
     pose_tcp_to_flange,
     tcp_mm_rpy_to_flange_m_quat,
 )
 from ufactory_mujoco.cli import main as cli_main
+from ufactory_mujoco.kinematics_validation import validate_fk_ik_with_controller
 from ufactory_mujoco.model_paths import MODELS_ROOT
+from ufactory_mujoco.safety import authorize_real_motion, run_sdk_simulation
 
 ROOT = Path(__file__).resolve().parent.parent
 CALIB_PATH = ROOT / "calibrations" / "xarm6_kinematics_L56A01.yaml"

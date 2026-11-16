@@ -110,17 +110,19 @@ class BoxPackSceneTest(unittest.TestCase):
 class BoxPackPreflightTest(unittest.TestCase):
     def test_dry_run_all_phases_ok_no_detour(self):
         from ufactory_mujoco import SimRobot
-        from ufactory_mujoco.preflight import PACK_PHASES, preflight_box_pack
+        from ufactory_mujoco.preflight import preflight_box_pack
+
+        pack_phases = ("接近", "抓取", "抬起", "运送", "释放", "回位")
 
         config = _config("xarm6")
         with SimRobot(config.scene_path, viewer=False) as robot:
             report = preflight_box_pack(robot, config, cycles=3)
             self.assertEqual(robot.data.time, 0.0)
         self.assertTrue(report.ok)
-        self.assertEqual(len(report.phases), 3 * len(PACK_PHASES))
+        self.assertEqual(len(report.phases), 3 * len(pack_phases))
         for i in range(3):
             names = [p.name for p in report.phases[i * 6:(i + 1) * 6]]
-            self.assertEqual(names, [f"{name}#{i + 1}" for name in PACK_PHASES])
+            self.assertEqual(names, [f"{name}#{i + 1}" for name in pack_phases])
         self.assertTrue(all(not seg.detour for seg in report.segments.values()))
 
     def test_drop_outside_box_fails_without_stepping(self):

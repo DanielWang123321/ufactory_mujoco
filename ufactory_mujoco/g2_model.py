@@ -451,11 +451,16 @@ def gripper_g2_sim_drive_to_gap_m(drive: float) -> float:
 
 
 def checked(value: float, low: float, high: float, name: str) -> float:
-    """Return ``value`` as float, raising ValueError unless it is finite and within ``[low, high]``."""
-    value = float(value)
-    if not math.isfinite(value) or not low <= value <= high:
+    """Return ``value`` as float, raising ValueError unless it is a finite number within ``[low, high]``."""
+    if isinstance(value, bool):
         raise ValueError(f"{name} must be finite and within {low:g}–{high:g}")
-    return value
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError(f"{name} must be finite and within {low:g}–{high:g}") from exc
+    if not math.isfinite(numeric) or not low <= numeric <= high:
+        raise ValueError(f"{name} must be finite and within {low:g}–{high:g}, got {numeric}")
+    return numeric
 
 
 def sdk_position_counts(position_mm: float) -> int:

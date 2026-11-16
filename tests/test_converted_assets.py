@@ -22,12 +22,6 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
-from scripts.make_double_sided_objs import (
-    DOUBLE_SIDED_VISUALS,
-    double_sided_paths,
-    is_double_sided,
-)
-
 MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
 
 # Full-precision visual OBJs total about 592 MiB (0.1.5); the decimated 0.1.3 set was about 95 MiB.
@@ -38,6 +32,31 @@ VISUAL_OBJ_MAX_MIB = 650
 # normal by the face normal when their dot product is below 0.8 (36.9 degrees).
 FLAT_NORMAL_DOT = 0.8
 FLAT_AREA_MAX = 0.005
+
+# Thin-walled visual OBJs carrying reversed twin faces (0.1.5); MJCF must load them with inertia="shell".
+DOUBLE_SIDED_COUNT = 36
+
+
+def _is_double_sided(path: Path) -> bool:
+    """True if the second half of faces/normals is the reversed/negated first half."""
+    normals, faces = [], []
+    with path.open(encoding="utf-8") as stream:
+        for line in stream:
+            if line.startswith("vn "):
+                normals.append(tuple(float(t) for t in line.split()[1:4]))
+            elif line.startswith("f "):
+                faces.append([(tok.split("/") + ["", ""])[:3] for tok in line.split()[1:]])
+    nf, nn = len(faces), len(normals)
+    if nf == 0 or nf % 2 or nn % 2:
+        return False
+    hf, hn = nf // 2, nn // 2
+    for a, b in zip(faces[:hf], faces[hf:]):
+        twin = [a[0]] + a[:0:-1]
+        if len(twin) != len(b) or [c[0] for c in b] != [c[0] for c in twin]:
+            return False
+        if any(x[2] and (not y[2] or int(y[2]) != int(x[2]) + hn) for x, y in zip(twin, b)):
+            return False
+    return all(abs(p + q) <= 1e-6 for na, nb in zip(normals[:hn], normals[hn:]) for p, q in zip(na, nb))
 # Measured on the source GLB normals (identical to ufactory_robot_viewer).
 FLAT_AREA_ALLOW = {
     "bio_gripper_g2/assets/bio_gripper_g2/visual/bio_gripper_g2_left_finger.obj": 0.015,
@@ -165,30 +184,30 @@ class ConvertedAssetsTest(unittest.TestCase):
         )
 
     def test_double_sided_visuals(self) -> None:
-        """Listed OBJs have reversed twin faces; every referencing MJCF uses inertia="shell"."""
-        self.assertTrue(DOUBLE_SIDED_VISUALS)
-        tails = set()
-        for path in double_sided_paths():
-            self.assertTrue(path.is_file(), path)
-            self.assertTrue(is_double_sided(path), f"{path} is not double-sided")
-            tails.add(path.relative_to(MODELS_DIR).as_posix().split("/assets/", 1)[1])
+        """OBJs loaded with inertia="shell" have reversed twin faces, and every reference to them uses shell."""
+        mesh_re = re.compile(r"<mesh\b[^>]*>")
+        tags = []
+        for xml in sorted(MODELS_DIR.glob("*/*.xml")):
+            for tag in mesh_re.findall(xml.read_text(encoding="utf-8")):
+                file_match = re.search(r'file="([^"]+)"', tag)
+                if file_match:
+                    tags.append((xml.name, file_match.group(1), tag))
+        # Camera glass STLs also use shell inertia (thin panels); only OBJs carry twin faces.
+        tails = {name for _, name, tag in tags if name.endswith(".obj") and 'inertia="shell"' in tag}
+        self.assertEqual(len(tails), DOUBLE_SIDED_COUNT)
         self.assertTrue(
             {f"gripper_g2/visual/{n}.obj" for n in (
                 "base", "left_finger", "left_inner_knuckle", "left_outer_knuckle",
                 "right_finger", "right_inner_knuckle", "right_outer_knuckle",
             )} <= tails,
         )
-        mesh_re = re.compile(r"<mesh\b[^>]*>")
-        referenced = set()
-        for xml in sorted(MODELS_DIR.glob("*/*.xml")):
-            for tag in mesh_re.findall(xml.read_text(encoding="utf-8")):
-                file_match = re.search(r'file="([^"]+)"', tag)
-                if not file_match or file_match.group(1) not in tails:
-                    continue
-                referenced.add(file_match.group(1))
-                self.assertIn('inertia="shell"', tag, f"{xml.name}: {tag}")
-        self.assertEqual(referenced, tails)
-
+        for tail in sorted(tails):
+            path = MODELS_DIR / tail.split("/", 1)[0] / "assets" / tail
+            self.assertTrue(path.is_file(), path)
+            self.assertTrue(_is_double_sided(path), f"{path} is not double-sided")
+        for xml_name, name, tag in tags:
+            if name in tails:
+                self.assertIn('inertia="shell"', tag, f"{xml_name}: {tag}")
 
 if __name__ == "__main__":
     unittest.main()

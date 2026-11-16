@@ -153,7 +153,7 @@ class TaskPackagingTests(unittest.TestCase):
         self.assertEqual(sorted(p.name for p in ROOT.glob("requirements*.txt")),
                          ["requirements-lock.txt"])
         project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
-        self.assertEqual(set(project["optional-dependencies"]), {"assets", "test"})
+        self.assertEqual(set(project["optional-dependencies"]), {"test"})
 
 
 class SimRobotDefaultModelTests(unittest.TestCase):

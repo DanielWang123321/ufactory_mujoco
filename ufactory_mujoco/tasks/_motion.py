@@ -6,6 +6,7 @@ its own speed policy (box-pack applies ``speed_scale``; pick-place does not).
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -32,48 +33,55 @@ def set_cube(robot, joint_name: str, xy, scene_kind: str) -> None:
     mujoco.mj_forward(robot.model, robot.data)
 
 
-def cart_duration(dist: float, v: float, a: float) -> float:
-    """Trapezoidal segment time for distance ``dist`` under speed ``v`` and acceleration ``a``."""
-    return dist / v + v / a + 0.1
+@dataclass(frozen=True)
+class Mover:
+    """Executor and already-scaled Cartesian/detour limits for one task run."""
 
+    robot: Any
+    executor: str
+    max_lin_vel: float
+    max_lin_acc: float
+    detour_max_vel: float
+    detour_max_acc: float
 
-def move_pose(robot, executor: str, pos: np.ndarray, duration: float, q_seed: np.ndarray, *,
-              max_lin_vel: float, max_lin_acc: float) -> np.ndarray:
-    """Move the TCP to ``pos`` with a grip-down orientation and return the resulting joint seed.
+    def duration(self, dist: float) -> float:
+        """Trapezoidal segment time for distance ``dist`` under the Cartesian limits."""
+        return dist / self.max_lin_vel + self.max_lin_vel / self.max_lin_acc + 0.1
 
-    ``servo_j`` plans a Cartesian line in joint space and falls back to an IK joint move;
-    ``servo_cartesian`` tracks TCP waypoints directly.
-    """
-    if executor == "servo_j":
-        traj, ok = robot.plan_cartesian_trajectory(
-            pos, GRIP_DOWN_QUAT, max_lin_vel=max_lin_vel, max_lin_acc=max_lin_acc)
-        if ok:
-            n = robot.n_arm
-            robot.execute_trajectory(JointTrajectory(
-                traj.times, traj.q[:, :n], traj.qd[:, :n], traj.qdd[:, :n]))
-            return robot.data.qpos.copy()
-        q, ok = robot.solve_tcp(pos, GRIP_DOWN_QUAT, q_init=q_seed)
-        if not ok:
-            raise RuntimeError(f"IK failed for joint move to {pos}")
-        robot.move_joints(q[:robot.n_arm], duration)
-        return q
-    robot.move_tcp(pos, GRIP_DOWN_QUAT, duration=duration)
-    return robot.data.qpos.copy()
+    def move(self, pos: np.ndarray, duration: float, q_seed: np.ndarray) -> np.ndarray:
+        """Move the TCP to ``pos`` with a grip-down orientation and return the resulting joint seed.
 
-
-def execute_segment(robot, executor: str, name: str, pos: np.ndarray, duration: float,
-                    q_seed: np.ndarray, report, *, max_lin_vel: float, max_lin_acc: float,
-                    detour_max_vel: float, detour_max_acc: float) -> np.ndarray:
-    """Run preflight segment ``name``: a joint-space detour when preflight planned one, else ``move_pose``."""
-    segment = report.segments.get(name)
-    if segment is not None and segment.detour:
-        traj = plan_joint_waypoints(
-            segment.waypoints, max_vel=detour_max_vel, max_acc=detour_max_acc,
-            dt=robot.model.opt.timestep)
-        robot.execute_trajectory(traj)
+        ``servo_j`` plans a Cartesian line in joint space and falls back to an IK joint move;
+        ``servo_cartesian`` tracks TCP waypoints directly.
+        """
+        robot = self.robot
+        if self.executor == "servo_j":
+            traj, ok = robot.plan_cartesian_trajectory(
+                pos, GRIP_DOWN_QUAT, max_lin_vel=self.max_lin_vel, max_lin_acc=self.max_lin_acc)
+            if ok:
+                n = robot.n_arm
+                robot.execute_trajectory(JointTrajectory(
+                    traj.times, traj.q[:, :n], traj.qd[:, :n], traj.qdd[:, :n]))
+                return robot.data.qpos.copy()
+            q, ok = robot.solve_tcp(pos, GRIP_DOWN_QUAT, q_init=q_seed)
+            if not ok:
+                raise RuntimeError(f"IK failed for joint move to {pos}")
+            robot.move_joints(q[:robot.n_arm], duration)
+            return q
+        robot.move_tcp(pos, GRIP_DOWN_QUAT, duration=duration)
         return robot.data.qpos.copy()
-    return move_pose(robot, executor, pos, duration, q_seed,
-                     max_lin_vel=max_lin_vel, max_lin_acc=max_lin_acc)
+
+    def segment(self, name: str, pos: np.ndarray, duration: float, q_seed: np.ndarray,
+                report) -> np.ndarray:
+        """Run preflight segment ``name``: a joint-space detour when preflight planned one, else ``move``."""
+        segment = report.segments.get(name)
+        if segment is not None and segment.detour:
+            traj = plan_joint_waypoints(
+                segment.waypoints, max_vel=self.detour_max_vel, max_acc=self.detour_max_acc,
+                dt=self.robot.model.opt.timestep)
+            self.robot.execute_trajectory(traj)
+            return self.robot.data.qpos.copy()
+        return self.move(pos, duration, q_seed)
 
 
 def print_phases(report) -> None:

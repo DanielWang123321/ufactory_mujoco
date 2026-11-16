@@ -47,7 +47,6 @@ python -m pip install -e .       # package + core dependencies (mujoco, numpy, s
 | Extra | Install | Needed for |
 | :--- | :--- | :--- |
 | `test` | `pip install -e ".[test]"` | the test suite |
-| `assets` | `pip install -e ".[assets]"` | asset regeneration only (see [CONTRIBUTING.md](CONTRIBUTING.md#changes-that-need-extra-care)) |
 
 `requirements-lock.txt` pins the versions CI tests with (MuJoCo 4.0.0).
 
@@ -147,8 +146,7 @@ ufactory_mujoco/
   viewer.py                Passive viewer with Linux GLFW/X11 handling
   model_paths.py           Resource roots and model name lookup
 examples/simulation/       Examples 01–10
-scripts/                   Asset conversion and MJCF generation, calibration extraction,
-                           distribution and installed-wheel checks
+scripts/                   Calibration extraction, distribution and installed-wheel checks
 tests/                     Test suite (pytest)
 ```
 

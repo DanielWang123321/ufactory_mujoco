@@ -8,6 +8,7 @@ import mujoco
 import numpy as np
 
 from ufactory_mujoco.config import ConfigError, load_task_config
+from ufactory_mujoco.task_geometry import GRIP_DOWN_QUAT, tcp_task_heights
 
 pick_place = importlib.import_module("ufactory_mujoco.tasks.pick_place")
 
@@ -61,7 +62,7 @@ class IkJointLimitTest(unittest.TestCase):
         m = mujoco.MjModel.from_xml_path(str(SCENE))
         d = mujoco.MjData(m)
         q, ok = solve_ik(m, d, "attachment_site", np.array([0.30, 0.0, 0.45]),
-                         pick_place.GRIP_DOWN_QUAT, q_init=np.zeros(m.nq))
+                         GRIP_DOWN_QUAT, q_init=np.zeros(m.nq))
         self.assertTrue(ok)
         for j in range(m.njnt):
             if int(m.jnt_type[j]) in (int(mujoco.mjtJoint.mjJNT_HINGE), int(mujoco.mjtJoint.mjJNT_SLIDE)):
@@ -133,13 +134,13 @@ class MultiArmPickPlaceTests(unittest.TestCase):
             task = config.pick_place
             with self.subTest(robot=robot_name):
                 with SimRobot(config.scene_path, viewer=False) as robot:
-                    heights, q_home = pick_place.tcp_task_heights(robot, task)
+                    heights, q_home = tcp_task_heights(robot, task)
                     for xy, z in (
                         (task.cube_xy, heights["grasp_z"]),
                         (task.target_xy, heights["lift_z"]),
                     ):
                         q, ok = robot.solve_tcp(
-                            [xy[0], xy[1], z], pick_place.GRIP_DOWN_QUAT, q_init=q_home)
+                            [xy[0], xy[1], z], GRIP_DOWN_QUAT, q_init=q_home)
                         self.assertTrue(ok, f"IK failed at {xy} z={z}")
                         self.assertEqual(len(q), robot.model.nq)
 

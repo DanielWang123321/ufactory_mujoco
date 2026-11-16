@@ -31,7 +31,6 @@ from .grippers import (
     bodies_in_contact,
     drive_to_gap,
     gap_to_position,
-    gripper_object_contact_forces_n,
     identify_gripper,
     measured_bio_g2_gap_m,
     measured_g2_pad_gap_mm,
@@ -39,7 +38,7 @@ from .grippers import (
     require_bilateral_contact,
 )
 from .ik import solve_ik, solve_ik_trajectory
-from .kinematics import manipulability, pose_jacobian, solve_joint_velocity
+from .kinematics import manipulability, solve_joint_velocity
 from .model_paths import MODELS_ROOT
 from .robot_interface import RobotInterface
 from .trajectory import JointTrajectory, plan_cartesian_line, plan_ptp_quintic
@@ -429,11 +428,6 @@ class SimRobot(RobotInterface):
             out[i] = self.eval_data.site_xpos[self._site]
         return out
 
-    def tcp_jacobian(self, q: np.ndarray | None = None) -> np.ndarray:
-        """(6, nv) world-frame TCP Jacobian on eval_data; site twist = J @ qd."""
-        return pose_jacobian(self.model, self.eval_data,
-                             self.model.site(self._site).name, q)
-
     def solve_tcp_velocity(self, twist: np.ndarray, q: np.ndarray | None = None, *,
                            damping: float = 1e-3) -> np.ndarray:
         """Velocity-level IK: joint velocity for desired TCP twist [v; omega] (world)."""
@@ -471,7 +465,8 @@ class SimRobot(RobotInterface):
         """Calibrated Bio Gripper G2 controller instance when Bio Gripper G2 is mounted."""
         return self._bio_g2_controller
 
-    def get_gripper_control_output(self) -> ControlOutput | BioG2ControlOutput | None:
+    @property
+    def gripper_control_output(self) -> ControlOutput | BioG2ControlOutput | None:
         """Most recent control output from the calibrated Gripper G2 or Bio Gripper G2 controller."""
         if self._g2_last_output is not None:
             return self._g2_last_output
@@ -507,18 +502,18 @@ class SimRobot(RobotInterface):
         target_ctrl = self._gripper_open_ctrl + pos * (self._gripper_close_ctrl - self._gripper_open_ctrl)
         self.data.ctrl[self._gripper_actuator_id] = target_ctrl
 
-    def get_gripper_gap(self) -> float:
-        """Commanded finger gap in meters."""
+    def get_gripper_gap(self, *, measured: bool = False) -> float:
+        """Finger gap in meters: the commanded target, or the physical pad gap when ``measured``."""
         spec = self._require_jaw()
+        if measured:
+            return self._measured_gripper_gap(spec)
         if self._g2_controller is not None:
             return float(self._g2_controller.position_mm[0] / 1000.0)
         if self._bio_g2_controller is not None:
             return float(self._bio_g2_controller.position_mm / 1000.0)
         return position_to_gap(spec, self.get_gripper_position())
 
-    def get_measured_gripper_gap(self) -> float:
-        """Measured finger gap in meters."""
-        spec = self._require_jaw()
+    def _measured_gripper_gap(self, spec: GripperSpec) -> float:
         if self._g2_controller is not None:
             return measured_g2_pad_gap_mm(self.model, self.data) / 1000.0
         if self._bio_g2_controller is not None or spec.name == "bio_gripper_g2":
@@ -563,25 +558,6 @@ class SimRobot(RobotInterface):
             self._bio_g2_controller.command(float(gap_m) * 1000.0, speed_percent=spd, force_percent=frc)
             return
         self.set_gripper(norm_pos)
-
-    def set_gripper_command(
-        self,
-        position_mm: float,
-        *,
-        speed_percent: float = 50.0,
-        force_percent: float = 50.0,
-    ) -> None:
-        """Command Gripper G2 / Bio Gripper G2 opening in mm with speed (%) and force (%)."""
-        self.set_gripper_gap(
-            float(position_mm) / 1000.0,
-            speed_percent=speed_percent,
-            force_percent=force_percent,
-        )
-
-    def get_gripper_contact_forces(self, object_body: str) -> tuple[float, float]:
-        """Return net contact force magnitudes (N) on (left_finger, right_finger) for ``object_body``."""
-        spec = self._require_jaw()
-        return gripper_object_contact_forces_n(self.model, self.data, spec, object_body)
 
     def bilateral_finger_contact(self, object_body: str) -> bool:
         """Whether both finger pads touch ``object_body``."""

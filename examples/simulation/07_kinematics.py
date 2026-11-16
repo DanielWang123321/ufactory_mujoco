@@ -27,7 +27,6 @@ import numpy as np  # noqa: E402
 
 from ufactory_mujoco import SimRobot  # noqa: E402
 from ufactory_mujoco.kinematics import (  # noqa: E402
-    condition_number,
     fk_pose,
     pose_jacobian,
     quat_error,
@@ -82,8 +81,8 @@ def check_velocity_ik(robot: SimRobot, q: np.ndarray) -> float:
 def check_singularity(robot: SimRobot) -> dict:
     w_generic = robot.tcp_manipulability(GENERIC)
     w_zero = robot.tcp_manipulability(ZERO)
-    c_generic = condition_number(robot.model, robot.eval_data, SITE, GENERIC)
-    c_zero = condition_number(robot.model, robot.eval_data, SITE, ZERO)
+    c_generic = float(np.linalg.cond(pose_jacobian(robot.model, robot.eval_data, SITE, GENERIC)))
+    c_zero = float(np.linalg.cond(pose_jacobian(robot.model, robot.eval_data, SITE, ZERO)))
     return {
         "manipulability_generic": w_generic,
         "manipulability_zero": w_zero,

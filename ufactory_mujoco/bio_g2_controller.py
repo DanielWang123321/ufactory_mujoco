@@ -23,12 +23,12 @@ from .bio_g2_model import (
     RIGHT_JOINT,
     bio_g2_speed_mm_s_from_percent,
     bio_g2_speed_percent_from_mm_s,
-    bounded,
     drive_limit_n,
     gap_to_q,
     q_to_gap,
     speed_mm_s_from_rpm,
 )
+from .g2_model import checked
 
 
 @dataclass(frozen=True)
@@ -146,10 +146,10 @@ class BioGripperG2Controller:
         if provided > 1:
             raise ValueError("Specify at most one of speed_mm_s, speed_percent, or speed_rpm")
         q = gap_to_q(position_mm)
-        force = bounded(force_percent, 1.0, 100.0, "force_percent")
+        force = checked(force_percent, 1.0, 100.0, "force_percent")
         zero_speed_pause = False
         if speed_percent is not None:
-            pct = bounded(speed_percent, 0.0, 100.0, "speed_percent")
+            pct = checked(speed_percent, 0.0, 100.0, "speed_percent")
             if pct == 0.0:
                 zero_speed_pause = True
                 speed = self.speed_mm_s
@@ -160,7 +160,7 @@ class BioGripperG2Controller:
             pct = bio_g2_speed_percent_from_mm_s(speed)
         else:
             raw_speed = DEFAULT_SPEED_MM_S if speed_mm_s is None else speed_mm_s
-            speed = bounded(raw_speed, MIN_SPEED_MM_S, MAX_SPEED_MM_S, "speed_mm_s")
+            speed = checked(raw_speed, MIN_SPEED_MM_S, MAX_SPEED_MM_S, "speed_mm_s")
             pct = bio_g2_speed_percent_from_mm_s(speed)
 
         if zero_speed_pause and not self.paused:

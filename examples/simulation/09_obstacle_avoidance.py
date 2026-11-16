@@ -30,7 +30,7 @@ import numpy as np  # noqa: E402
 from ufactory_mujoco import SimRobot, plan_joint_waypoints  # noqa: E402
 from ufactory_mujoco.collision import CollisionChecker  # noqa: E402
 from ufactory_mujoco.model_paths import MODELS_ROOT  # noqa: E402
-from ufactory_mujoco.path_planning import path_length, plan_collision_free, shortcut_path  # noqa: E402
+from ufactory_mujoco.path_planning import plan_collision_free, shortcut_path  # noqa: E402
 
 SCENE = MODELS_ROOT / "xarm6" / "scene_obstacles.xml"
 START_KEY, GOAL_KEY = "start", "goal"
@@ -89,7 +89,7 @@ def run_avoidance(robot: SimRobot, checker: CollisionChecker, *, seed: int = 0,
         "straight_min_dist_m": straight_min,
         "rrt_waypoints": int(len(waypoints)),
         "waypoints": int(len(short)),
-        "path_length_rad": path_length(short),
+        "path_length_rad": float(np.linalg.norm(np.diff(short, axis=0), axis=1).sum()),
         "timed_method": method,
         "traj_duration_s": float(traj.duration),
         "min_clearance_m": float(min(finite)) if finite else float("inf"),

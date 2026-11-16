@@ -29,7 +29,6 @@ from .calibration import (
     canonical_robot_key,
     get_robot_sn,
     read_tcp_offset,
-    tcp_mm_rpy_to_flange_m_quat,
 )
 from .g2_model import checked, sdk_position_counts, sdk_speed_rpm, speed_mm_s
 from .grippers import (
@@ -267,13 +266,6 @@ class XArmRobot(RobotInterface):
         quat = np.empty(4, dtype=np.float64)
         mujoco.mju_mat2Quat(quat, self.data.site_xmat[self._site])
         return pos, quat
-
-    def get_controller_tcp_pose(self) -> tuple[np.ndarray, np.ndarray]:
-        """Read controller ``get_position(is_radian=True)`` converted to flange ``(pos_m, quat_wxyz)``."""
-        code, pose = self._arm.get_position(is_radian=True)
-        if int(code) != 0:
-            raise SafetyGateError(f"get_position failed with SDK code {code}")
-        return tcp_mm_rpy_to_flange_m_quat(pose[:6], self.tcp_offset)
 
     def read_state(self) -> dict[str, Any]:
         """Read a structured, side-effect-free telemetry snapshot."""
@@ -608,7 +600,9 @@ class XArmRobot(RobotInterface):
                 raise SafetyGateError(f"set_gripper_position failed with SDK code {code}")
         self._commanded_gripper_pos = pos_clamped
 
-    def get_gripper_gap(self) -> float:
+    def get_gripper_gap(self, *, measured: bool = False) -> float:
+        """Finger gap in meters from the SDK position readback (commanded and measured are the same reading)."""
+        del measured
         spec = self._require_jaw()
         return position_to_gap(spec, self.get_gripper_position())
 

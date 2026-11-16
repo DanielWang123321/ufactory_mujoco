@@ -13,7 +13,6 @@ import numpy as np
 from ufactory_mujoco.collision import CollisionChecker
 from ufactory_mujoco.path_planning import (
     PlanningError,
-    path_length,
     plan_collision_free,
     shortcut_path,
 )
@@ -36,6 +35,10 @@ def _segments_free(checker: CollisionChecker, waypoints: np.ndarray,
             if checker.in_collision(qa + t * (qb - qa)):
                 return False
     return True
+
+
+def path_length(waypoints) -> float:
+    return float(np.linalg.norm(np.diff(np.asarray(waypoints, dtype=float), axis=0), axis=1).sum())
 
 
 class StraightLineFastPathTests(unittest.TestCase):

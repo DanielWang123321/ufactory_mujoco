@@ -12,7 +12,7 @@ import mujoco
 import numpy as np
 
 from ufactory_mujoco.g2_model import G2_JOINT_NAMES, gripper_g2_gap_m_to_sim_drive
-from ufactory_mujoco.grippers import measured_g2_pad_gap_mm
+from ufactory_mujoco.grippers import gripper_object_contact_forces_n, identify_gripper, measured_g2_pad_gap_mm
 from ufactory_mujoco.sim_robot import SimRobot
 
 try:
@@ -126,12 +126,12 @@ def test_85_reference_openings_and_axial_lengths():
 def test_open_close_and_contact_force_on_each_model(name, tmp_path):
     source = ROOT / "models" / name / f"{name}.xml"
     with SimRobot(source) as robot:
-        robot.set_gripper_command(0, speed_percent=100, force_percent=80)
+        robot.set_gripper_gap(0.0, speed_percent=100, force_percent=80)
         robot.settle(1.0)
-        assert robot.get_measured_gripper_gap() < 0.003
-        robot.set_gripper_command(84, speed_percent=100, force_percent=80)
+        assert robot.get_gripper_gap(measured=True) < 0.003
+        robot.set_gripper_gap(0.084, speed_percent=100, force_percent=80)
         robot.settle(1.0)
-        assert robot.get_measured_gripper_gap() > 0.081
+        assert robot.get_gripper_gap(measured=True) > 0.081
 
     # A fixed load cell in the gripper's own frame isolates pinch force from
     # the arm's pose and keeps the contact test identical across all models.
@@ -147,13 +147,14 @@ def test_open_close_and_contact_force_on_each_model(name, tmp_path):
     forces, limits = [], []
     with SimRobot(test_scene) as robot:
         for percent in (10, 50, 100):
-            robot.set_gripper_command(84, speed_percent=100, force_percent=percent)
+            robot.set_gripper_gap(0.084, speed_percent=100, force_percent=percent)
             robot.settle(1.0)
-            robot.set_gripper_command(0, speed_percent=50, force_percent=percent)
+            robot.set_gripper_gap(0.0, speed_percent=50, force_percent=percent)
             robot.settle(1.0)
-            left, right = robot.get_gripper_contact_forces("loadcell")
+            left, right = gripper_object_contact_forces_n(
+                robot.model, robot.data, identify_gripper(robot.model), "loadcell")
             assert min(left, right) > 1
             forces.append((left + right) / 2)
-            limits.append(float(robot.get_gripper_control_output().torque_limit_nm[0]))
+            limits.append(float(robot.gripper_control_output.torque_limit_nm[0]))
     assert forces[0] < forces[1] < forces[2]
     assert limits[0] < limits[1] < limits[2]

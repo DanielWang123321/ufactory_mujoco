@@ -12,10 +12,8 @@ import numpy as np
 from ufactory_mujoco import SimRobot
 from ufactory_mujoco.ik import solve_ik
 from ufactory_mujoco.kinematics import (
-    condition_number,
     fk_pose,
     manipulability,
-    pose_error,
     pose_jacobian,
     quat_error,
     site_jacobian,
@@ -82,30 +80,17 @@ class KinematicsTests(unittest.TestCase):
         _, fd_r = self._fd_jacobian(_Q0)
         np.testing.assert_allclose(jacr, fd_r, rtol=1e-4, atol=1e-5)
 
-    def test_pose_jacobian_is_stacked_and_simrobot_wrapper_agrees(self):
+    def test_pose_jacobian_is_stacked(self):
         J = pose_jacobian(self.model, self.data, self.site, _Q0)
         jacp, jacr = site_jacobian(self.model, self.data, self.site, _Q0)
         np.testing.assert_allclose(J, np.vstack([jacp, jacr]), atol=0)
-        np.testing.assert_allclose(self.robot.tcp_jacobian(_Q0), J, atol=0)
 
-    # -- pose error / IK consistency -------------------------------------
-    def test_pose_error_vanishes_at_fk_pose(self):
-        pos, quat = self._fk(_Q0)
-        np.testing.assert_allclose(
-            pose_error(pos, quat, pos, quat), np.zeros(6), atol=1e-12)
+    # -- orientation error ----------------------------------------------
+    def test_quat_error_is_sign_invariant(self):
+        _, quat = self._fk(_Q0)
+        np.testing.assert_allclose(quat_error(quat, quat), np.zeros(3), atol=1e-12)
         # q and -q are the same orientation -> zero rotation error
         np.testing.assert_allclose(quat_error(quat, -quat), np.zeros(3), atol=1e-12)
-
-    def test_pose_error_zero_after_ik_convergence(self):
-        target_pos = np.array([0.45, 0.15, 0.35])
-        target_quat = np.array([0.0, 1.0, 0.0, 0.0])
-        q, ok = solve_ik(self.model, self.data, self.site,
-                         target_pos, target_quat, q_init=_Q0)
-        self.assertTrue(ok)
-        pos, quat = self._fk(q)
-        err = pose_error(pos, quat, target_pos, target_quat)
-        self.assertLess(np.linalg.norm(err[:3]), 1e-4)
-        self.assertLess(np.linalg.norm(err[3:]), 1e-3)
 
     # -- velocity-level IK -----------------------------------------------
     def test_solve_joint_velocity_reproduces_twist(self):
@@ -134,8 +119,8 @@ class KinematicsTests(unittest.TestCase):
     def test_simrobot_velocity_ik_wrapper(self):
         twist = np.array([0.05, 0.02, -0.03, 0.1, 0.0, -0.1])
         qd = self.robot.solve_tcp_velocity(twist, _Q0, damping=1e-9)
-        np.testing.assert_allclose(self.robot.tcp_jacobian(_Q0) @ qd,
-                                   twist, atol=1e-6)
+        J = pose_jacobian(self.model, self.data, self.site, _Q0)
+        np.testing.assert_allclose(J @ qd, twist, atol=1e-6)
 
     # -- singularity metrics ---------------------------------------------
     def test_manipulability_matches_analytic_and_detects_singularity(self):
@@ -149,16 +134,6 @@ class KinematicsTests(unittest.TestCase):
         q_sing = np.zeros(6)  # fully stretched: axes align -> true singularity
         w_sing = manipulability(self.model, self.data, self.site, q_sing)
         self.assertLess(w_sing, 1e-9 * w)
-
-    def test_condition_number_matches_numpy(self):
-        J = pose_jacobian(self.model, self.data, self.site, _Q0)
-        np.testing.assert_allclose(
-            condition_number(self.model, self.data, self.site, _Q0),
-            np.linalg.cond(J), rtol=1e-9)
-        q_sing = np.zeros(6)
-        self.assertGreater(
-            condition_number(self.model, self.data, self.site, q_sing),
-            1e6 * condition_number(self.model, self.data, self.site, _Q0))
 
 
 class FreeJointModelTests(unittest.TestCase):

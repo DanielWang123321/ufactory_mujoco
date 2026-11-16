@@ -139,7 +139,7 @@ class GripperControlTest(unittest.TestCase):
                 robot = SimRobot(scene)
                 self.assertEqual(len(robot.get_joint_positions()), n_arm)
                 self.assertAlmostEqual(robot.get_gripper_position(), 0.0, places=3)
-                self.assertAlmostEqual(robot.get_measured_gripper_gap(), 0.150, places=3)
+                self.assertAlmostEqual(robot.get_gripper_gap(measured=True), 0.150, places=3)
 
                 # Close bio gripper (q -> 0, physical gap -> 71 mm)
                 robot.close_gripper(wait=True)
@@ -148,7 +148,7 @@ class GripperControlTest(unittest.TestCase):
                 right_finger_pos = robot.data.qpos[n_arm + 1]
                 self.assertGreater(left_finger_pos, -0.002, f"Left finger not closed: {left_finger_pos}")
                 self.assertLess(right_finger_pos, 0.002, f"Right finger not closed: {right_finger_pos}")
-                self.assertAlmostEqual(robot.get_measured_gripper_gap(), 0.071, places=3)
+                self.assertAlmostEqual(robot.get_gripper_gap(measured=True), 0.071, places=3)
 
                 # Open bio gripper (q_left -> -0.0395, q_right -> +0.0395, physical gap -> 150 mm)
                 robot.open_gripper(wait=True)
@@ -157,7 +157,7 @@ class GripperControlTest(unittest.TestCase):
                 right_finger_pos = robot.data.qpos[n_arm + 1]
                 self.assertLess(left_finger_pos, -0.035, f"Left finger not open: {left_finger_pos}")
                 self.assertGreater(right_finger_pos, 0.035, f"Right finger not open: {right_finger_pos}")
-                self.assertAlmostEqual(robot.get_measured_gripper_gap(), 0.150, places=3)
+                self.assertAlmostEqual(robot.get_gripper_gap(measured=True), 0.150, places=3)
 
     def test_arm_gripper_motion_isolation(self):
         """Arm motion does not alter gripper state, gripper motion does not move arm."""
@@ -212,13 +212,13 @@ class GripperControlTest(unittest.TestCase):
 
                 robot.close_gripper(wait=True)
                 self.assertAlmostEqual(robot.get_gripper_position(), 1.0, places=2)
-                self.assertAlmostEqual(robot.get_measured_gripper_gap(), 0.020, places=3)
+                self.assertAlmostEqual(robot.get_gripper_gap(measured=True), 0.020, places=3)
                 gripper_qpos = robot.data.qpos[6:8]
                 self.assertTrue(np.all(gripper_qpos < 0.002), f"Fingers not closed: {gripper_qpos}")
 
                 robot.open_gripper(wait=True)
                 self.assertAlmostEqual(robot.get_gripper_position(), 0.0, places=2)
-                self.assertAlmostEqual(robot.get_measured_gripper_gap(), 0.038, places=3)
+                self.assertAlmostEqual(robot.get_gripper_gap(measured=True), 0.038, places=3)
                 gripper_qpos = robot.data.qpos[6:8]
                 self.assertTrue(np.all(gripper_qpos > 0.007), f"Fingers not open: {gripper_qpos}")
 

@@ -47,7 +47,6 @@ python -m pip install -e .       # 安装包及核心依赖（mujoco、numpy、s
 | 可选依赖 | 安装 | 用途 |
 | :--- | :--- | :--- |
 | `test` | `pip install -e ".[test]"` | 测试套件 |
-| `assets` | `pip install -e ".[assets]"` | 仅用于资产再生成（见 [CONTRIBUTING.md](CONTRIBUTING.md#changes-that-need-extra-care)） |
 
 `requirements-lock.txt` 固定了 CI 测试使用的版本（MuJoCo 4.0.0）。
 
@@ -147,7 +146,7 @@ ufactory_mujoco/
   viewer.py                被动查看器，处理 Linux GLFW/X11
   model_paths.py           资源根目录与模型名解析
 examples/simulation/       示例 01–10
-scripts/                   资产转换与 MJCF 生成、标定提取、发布包与安装检查
+scripts/                   标定提取、发布包与安装检查
 tests/                     测试套件（pytest）
 ```
 

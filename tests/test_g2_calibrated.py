@@ -34,6 +34,7 @@ from ufactory_mujoco.g2_model import (
     sdk_speed_rpm,
     speed_mm_s,
 )
+from ufactory_mujoco.grippers import gripper_object_contact_forces_n, identify_gripper
 from ufactory_mujoco.model_paths import MODELS_ROOT
 from ufactory_mujoco.sim_robot import SimRobot
 from ufactory_mujoco.task_geometry import GRIP_DOWN_QUAT, tcp_task_heights
@@ -476,10 +477,10 @@ def test_mujoco_closed_loop_speed_control():
 
     def steps_to_reach_gap(speed_pct: float, target_gap_m: float = 0.015) -> int:
         with SimRobot(scene) as robot:
-            robot.set_gripper_command(0.0, speed_percent=speed_pct, force_percent=80.0)
+            robot.set_gripper_gap(0.0, speed_percent=speed_pct, force_percent=80.0)
             for step in range(1, 2500):
                 robot._step()
-                if robot.get_measured_gripper_gap() <= target_gap_m:
+                if robot.get_gripper_gap(measured=True) <= target_gap_m:
                     return step
         return 2500
 
@@ -524,12 +525,13 @@ def test_mujoco_closed_loop_force_control_monotonicity():
             robot.data.ctrl[: robot.n_arm] = q_grasp[: robot.n_arm]
             mujoco.mj_forward(robot.model, robot.data)
 
-            robot.set_gripper_command(0.0, speed_percent=50.0, force_percent=force_pct)
+            robot.set_gripper_gap(0.0, speed_percent=50.0, force_percent=force_pct)
             robot.settle(1.0)
-            out = robot.get_gripper_control_output()
+            out = robot.gripper_control_output
             assert out is not None
             torque_limits.append(float(out.torque_limit_nm[0]))
-            f_left, f_right = robot.get_gripper_contact_forces("cube")
+            f_left, f_right = gripper_object_contact_forces_n(
+                robot.model, robot.data, identify_gripper(robot.model), "cube")
             forces_measured.append(0.5 * (f_left + f_right))
 
     assert torque_limits[0] < torque_limits[1] < torque_limits[2]

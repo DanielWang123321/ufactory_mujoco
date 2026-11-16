@@ -7,22 +7,19 @@ or the reference URDF fixture ``bio_gripper_g2_movable_visual.urdf``.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from functools import lru_cache
 import hashlib
-import math
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
+from .g2_model import checked
 from .model_paths import MODELS_ROOT
-
-BIO_G2_PHYSICS_PROFILE = "bio_g2_calibrated_v1"
 
 BIO_G2_KP = 16000.0
 BIO_G2_KV = 40.0
 BIO_G2_KI = 4000.0
 
-MASS_KG = 0.79
 BASE_MASS_KG = 0.765827
 BASE_INERTIA_SCALE = BASE_MASS_KG / 0.38837
 
@@ -54,22 +51,9 @@ GLB_FINGER_VISUAL_Y_OFFSET_M: dict[str, float] = {
 }
 
 
-def bounded(value: float, lo: float, hi: float, name: str) -> float:
-    """Validate that *value* is a finite float within ``[lo, hi]``."""
-    if isinstance(value, bool):
-        raise ValueError(f"{name} must be finite, in [{lo}, {hi}]")
-    try:
-        numeric = float(value)
-    except (TypeError, ValueError, OverflowError) as exc:
-        raise ValueError(f"{name} must be finite, in [{lo}, {hi}]") from exc
-    if not math.isfinite(numeric) or not lo <= numeric <= hi:
-        raise ValueError(f"{name} must be finite, in [{lo}, {hi}], got {numeric}")
-    return numeric
-
-
 def gap_to_q(position_mm: float) -> float:
     """Convert two-finger jaw gap (mm) in ``[71, 150]`` to right-finger prismatic joint position (m)."""
-    return (bounded(position_mm, MIN_GAP_MM, MAX_GAP_MM, "position_mm") - MIN_GAP_MM) / 2000.0
+    return (checked(position_mm, MIN_GAP_MM, MAX_GAP_MM, "position_mm") - MIN_GAP_MM) / 2000.0
 
 
 def q_to_gap(q_right: float, q_left: float | None = None) -> float:
@@ -85,7 +69,7 @@ def bio_g2_sim_drive_to_gap_m(q_right: float, q_left: float | None = None) -> fl
 def finger_force_n(force_percent: float) -> float:
     """Map SDK force percentage ``[1, 100]`` linearly to single-finger normal force ``[4, 20]`` N."""
     return (
-        MIN_FORCE_N + (bounded(force_percent, 1.0, 100.0, "force_percent") - 1.0) * (MAX_FORCE_N - MIN_FORCE_N) / 99.0
+        MIN_FORCE_N + (checked(force_percent, 1.0, 100.0, "force_percent") - 1.0) * (MAX_FORCE_N - MIN_FORCE_N) / 99.0
     )
 
 
@@ -96,19 +80,19 @@ def drive_limit_n(force_percent: float) -> float:
 
 def speed_mm_s_from_rpm(speed_rpm: float) -> float:
     """Convert SDK motor speed (rpm) in ``[500, 4000]`` to single-finger speed (mm/s)."""
-    rpm = bounded(speed_rpm, MIN_SPEED_RPM, MAX_SPEED_RPM, "speed_rpm")
+    rpm = checked(speed_rpm, MIN_SPEED_RPM, MAX_SPEED_RPM, "speed_rpm")
     return rpm * 5.0 / 60.0
 
 
 def speed_rpm_from_mm_s(speed_mm_s: float) -> float:
     """Convert single-finger speed (mm/s) in ``[41.666..., 333.333...]`` to SDK motor speed (rpm)."""
-    speed = bounded(speed_mm_s, MIN_SPEED_MM_S, MAX_SPEED_MM_S, "speed_mm_s")
+    speed = checked(speed_mm_s, MIN_SPEED_MM_S, MAX_SPEED_MM_S, "speed_mm_s")
     return speed * 60.0 / 5.0
 
 
 def bio_g2_speed_mm_s_from_percent(speed_percent: float) -> float:
     """Convert percentage speed ``[0, 100]`` to single-finger speed (mm/s)."""
-    percent = bounded(speed_percent, 0.0, 100.0, "speed_percent")
+    percent = checked(speed_percent, 0.0, 100.0, "speed_percent")
     if percent == 0.0:
         return 0.0
     return max(MIN_SPEED_MM_S, (percent / 100.0) * MAX_SPEED_MM_S)
@@ -121,7 +105,7 @@ def bio_g2_speed_percent_from_mm_s(speed_mm_s: float) -> float:
     numeric = float(speed_mm_s)
     if numeric == 0.0:
         return 0.0
-    speed = bounded(numeric, MIN_SPEED_MM_S, MAX_SPEED_MM_S, "speed_mm_s")
+    speed = checked(numeric, MIN_SPEED_MM_S, MAX_SPEED_MM_S, "speed_mm_s")
     return min(100.0, max(1.0, (speed / MAX_SPEED_MM_S) * 100.0))
 
 
@@ -172,14 +156,3 @@ class BioGripperG2Model:
             total_mass_kg=sum(masses.values()),
             link_masses_kg=masses,
         )
-
-
-def bio_g2_physics_summary(model_path: str | Path | None = None) -> dict:
-    model = BioGripperG2Model.load(model_path)
-    payload = asdict(model)
-    payload["model_path"] = str(model.model_path)
-    payload["profile"] = BIO_G2_PHYSICS_PROFILE
-    payload["kp_n_m"] = BIO_G2_KP
-    payload["kv_n_s_m"] = BIO_G2_KV
-    payload["ki_n_m_s"] = BIO_G2_KI
-    return payload

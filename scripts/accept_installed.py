@@ -184,9 +184,9 @@ def accept(args, summary):
     with SimRobot(resolve_arm_scene("xarm6", "bio_gripper_g2", "scene")) as robot:
         assert robot.bio_g2_controller is not None
         robot.close_gripper()
-        closed = robot.get_measured_gripper_gap()
+        closed = robot.get_gripper_gap(measured=True)
         robot.open_gripper()
-        opened = robot.get_measured_gripper_gap()
+        opened = robot.get_gripper_gap(measured=True)
     assert abs(closed - 0.071) < 0.001 and abs(opened - 0.150) < 0.001, (closed, opened)
     with SimRobot(resolve_arm_scene("xarm6", "vacuum_gripper", "scene")) as robot:
         assert robot.gripper_kind == "vacuum" and not robot.has_gripper

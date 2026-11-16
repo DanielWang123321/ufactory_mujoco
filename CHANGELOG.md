@@ -2,12 +2,30 @@
 
 ## [0.1.5] - Unreleased
 
-Visual-mesh fix and end of MuJoCo 3 support. Only visual meshes and the `inertia` attribute of visual `<mesh>` elements change; kinematics, dynamics, collision geometry and task reports are byte-identical to 0.1.4.
+Visual-mesh fix, end of MuJoCo 3 support, and a smaller public API. Only visual meshes and the `inertia` attribute of visual `<mesh>` elements change; kinematics, dynamics, collision geometry and task reports are byte-identical to 0.1.4.
+
+### Breaking
+
+- `ufactory_mujoco` exports 39 names instead of 84. Lower-level helpers stay importable from their submodules, for example `from ufactory_mujoco.preflight import preflight_pick_place` or `from ufactory_mujoco.grippers import gap_to_position`.
+- Gripper API on `RobotInterface`, `SimRobot` and `XArmRobot`:
+
+  | 0.1.4 | 0.1.5 |
+  | :--- | :--- |
+  | `get_measured_gripper_gap()` | `get_gripper_gap(measured=True)` |
+  | `set_gripper_command(mm, ...)` | `set_gripper_gap(mm / 1000, ...)` |
+  | `SimRobot.get_gripper_control_output()` | `SimRobot.gripper_control_output` (property) |
+  | `SimRobot.get_gripper_contact_forces(body)` | `grippers.gripper_object_contact_forces_n(model, data, spec, body)` |
+  | `SimRobot.tcp_jacobian(q)` | `kinematics.pose_jacobian(model, data, site, q)` |
+
+- Removed helpers: `kinematics.pose_error`, `kinematics.condition_number` (use `np.linalg.cond(pose_jacobian(...))`), `path_planning.path_length`, `bio_g2_model.bio_g2_physics_summary`, `bio_g2_model.MASS_KG`, `bio_g2_model.BIO_G2_PHYSICS_PROFILE`, `bio_g2_model.bounded` (use `g2_model.checked`), `preflight.PACK_PHASES`, and `XArmRobot.get_controller_tcp_pose`.
+- The `assets` extra is removed.
 
 ### Changed
 
 - MuJoCo 3 is no longer supported: the requirement is `mujoco>=4,<5` (was `>=3.15,<5`). Tested with MuJoCo 4.0.0 and 4.0.1 on Python 3.12–3.14.
 - Consolidated `ufactory_mujoco/resource_paths.py` into `ufactory_mujoco/model_paths.py`, inlined task config JSON hashing into `ufactory_mujoco/config.py`, and merged `scripts/check_distribution.py` into `scripts/accept_installed.py --check-dist`.
+- Asset conversion and MJCF generation tools (`build_all_mjcf.py`, `build_camera_mjcf.py`, `convert_glb_to_obj.py`, `fix_g2_base_meshes.py`, `make_double_sided_objs.py`) are now maintained outside the public tree. `models/` stays the published output; `scripts/` keeps `accept_installed.py` and `gen_kinematics_params.py`.
+- Pick-and-place and box-packing share one `Mover` helper for Cartesian moves and preflight detours.
 
 ### Fixed
 
@@ -16,12 +34,11 @@ Visual-mesh fix and end of MuJoCo 3 support. Only visual meshes and the `inertia
 
 ### Added
 
-- `scripts/make_double_sided_objs.py`, which makes the listed OBJs double-sided and is idempotent. Mesh pipeline: `convert_glb_to_obj.py` → `fix_g2_base_meshes.py` → `make_double_sided_objs.py`.
 - Asset tests: visual OBJ size band, a limit on the area drawn with flattened normals, and double-sided OBJs with `inertia="shell"`.
 
 ### Removed
 
-- `scripts/optimize_visual_objs.py`, and `pymeshlab` from the `assets` extra.
+- `scripts/optimize_visual_objs.py`.
 - `requirements-lock-mujoco3.txt` and the MuJoCo 3 CI job.
 - Remaining RL-only scenes and interfaces (`models/*/scene_reach.xml`, `"reach"` in `SCENES`, `ReachWorkspace`, `RobotProfile`, `robot_profile`, `ROBOT_PROFILES`, `ScalarG2Controller`, and `ufactory_mujoco._hashing`).
 - Unreferenced Lite 6 gripper collision meshes (`finger1.stl`, `finger2.stl`), the `models/gripper_g2/source/` upstream GLB/STL/URDF snapshot (keeping the 85-pose reference CSV in `tests/fixtures/`), and historical xArm 6 comparison scripts (`scripts/compare_dynamics_xarm6.py`, `scripts/compare_torque_xarm6.py`).
