@@ -18,8 +18,8 @@ import mujoco
 import numpy as np
 
 from ufactory_mujoco import SimRobot
+from ufactory_mujoco.model_paths import CONFIGS_ROOT
 from ufactory_mujoco.preflight import preflight_pick_place
-from ufactory_mujoco.resource_paths import CONFIGS_ROOT
 from ufactory_mujoco.task_geometry import GRIP_DOWN_QUAT, _close_until_contact, tcp_task_heights  # noqa: F401 (re-export)
 from . import _motion
 from ._reporting import task_report, write_report

@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
+import json
 import math
 from pathlib import Path
 from typing import Any, Mapping
 
 import yaml
 
-from ._hashing import canonical_json_sha256
+from .model_paths import CONFIGS_ROOT
 from .robots import resolve_arm_scene
-from .resource_paths import CONFIGS_ROOT
 
 DEFAULT_CONFIG_PATH = CONFIGS_ROOT / "default.yaml"
 EXECUTORS = ("servo_cartesian", "servo_j")
@@ -69,7 +70,7 @@ class BoxPackConfig:
 
 @dataclass(frozen=True)
 class TaskConfig:
-    """Resolved task selection. Reach calibration is not part of this object."""
+    """Resolved task selection and scene configuration."""
 
     schema_version: int
     robot: str
@@ -83,9 +84,15 @@ class TaskConfig:
     sources: tuple[str, ...]
 
 
+def _canonical_json_sha256(data: Any) -> str:
+    """Hex SHA-256 of ``data`` as sorted-key, compact, ASCII-escaped JSON."""
+    encoded = json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def config_sha256(payload: Mapping[str, Any]) -> str:
     """SHA-256 of canonical JSON. Callers pass only the hashed fields."""
-    return canonical_json_sha256({key: payload[key] for key in _HASH_FIELDS})
+    return _canonical_json_sha256({key: payload[key] for key in _HASH_FIELDS})
 
 
 def _read_yaml(path: Path) -> dict[str, Any]:

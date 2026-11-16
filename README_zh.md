@@ -47,7 +47,7 @@ python -m pip install -e .       # 安装包及核心依赖（mujoco、numpy、s
 | 可选依赖 | 安装 | 用途 |
 | :--- | :--- | :--- |
 | `test` | `pip install -e ".[test]"` | 测试套件 |
-| `assets` | `pip install -e ".[assets]"` | 仅用于资产再生成（见 [models/gripper_g2/source/README.md](models/gripper_g2/source/README.md)） |
+| `assets` | `pip install -e ".[assets]"` | 仅用于资产再生成（见 [CONTRIBUTING.md](CONTRIBUTING.md#changes-that-need-extra-care)） |
 
 `requirements-lock.txt` 固定了 CI 测试使用的版本（MuJoCo 4.0.0）。
 
@@ -120,18 +120,18 @@ ruff check .                      # 与 CI 相同的静态检查（pip install r
 calibrations/              单机运动学标定 YAML（SHA-256 校验）
 configs/                   任务配置：default.yaml、pick_place/<机械臂>.yaml、box_pack/<机械臂>.yaml
 models/                    MJCF 模型与网格：机械臂、夹爪、相机、支架及组合；
-                           场景变体 scene、scene_reach、scene_pick_place、scene_box_pack、scene_obstacles
+                           场景变体 scene、scene_pick_place、scene_box_pack、scene_obstacles
 ufactory_mujoco/
   sim_robot.py             SimRobot：物理步进、关节/TCP/夹爪控制、查看器
   xarm_robot.py            XArmRobot：xArm 真机，未获运动授权时只读
   robot_interface.py       SimRobot 与 XArmRobot 的共同接口
-  robots.py                5 款机械臂注册表、夹爪组合、到达工作空间
+  robots.py                5 款机械臂注册表与兼容夹爪
   config.py                严格 YAML 任务配置及其内容哈希
   calibration.py           单机标定、模型修补、TCP/法兰变换
   safety.py                真机安全门与 sdk-sim 重放
   kinematics_validation.py 与控制器的只读 FK/IK 比对
   g2_model.py              Gripper G2 连杆几何、夹持力表、SDK 单位换算
-  g2_controller.py         Gripper G2 伺服（向量化与标量两种实现）
+  g2_controller.py         Gripper G2 向量化位置/力伺服
   bio_g2_model.py          Bio Gripper G2 标定的开口、速度与夹持力模型
   bio_g2_controller.py     Bio Gripper G2 限速位置/力伺服
   grippers.py              夹爪规格、开口映射、指垫接触检测与接触力
@@ -145,9 +145,9 @@ ufactory_mujoco/
   tasks/                   pick-place、box-pack、dynamics 命令
   cli.py, __main__.py      `ufactory-mujoco` / `python -m ufactory_mujoco` 入口
   viewer.py                被动查看器，处理 Linux GLFW/X11
-  resource_paths.py, model_paths.py  资源根目录与模型名解析
+  model_paths.py           资源根目录与模型名解析
 examples/simulation/       示例 01–10
-scripts/                   资产转换与 MJCF 生成、标定与真机比对、打包检查
+scripts/                   资产转换与 MJCF 生成、标定提取、发布包与安装检查
 tests/                     测试套件（pytest）
 ```
 

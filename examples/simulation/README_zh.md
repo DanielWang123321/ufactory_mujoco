@@ -123,8 +123,6 @@ tau_ff = dyn.feedforward_traj(q_traj, dt)  # 沿关节轨迹的前馈力矩序�
 ```bash
 python scripts/gen_kinematics_params.py 192.168.1.60                          # 提取单机运动学标定
 python -m ufactory_mujoco.kinematics_validation --robot xarm6 --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
-python scripts/compare_torque_xarm6.py --ip 192.168.1.60 --no-move --calibration calibrations/xarm6_kinematics_<SN>.yaml
-python scripts/compare_dynamics_xarm6.py --replay build/dynamics/run_xxx.csv  # 离线回放已录制的扫描数据
 python examples/simulation/05_pick_place.py --robot xarm6 --mode sdk-sim --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
 python examples/simulation/08_dynamics.py --robot xarm6 --mode real-read-only --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
 ```

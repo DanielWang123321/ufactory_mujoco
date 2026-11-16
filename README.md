@@ -47,7 +47,7 @@ python -m pip install -e .       # package + core dependencies (mujoco, numpy, s
 | Extra | Install | Needed for |
 | :--- | :--- | :--- |
 | `test` | `pip install -e ".[test]"` | the test suite |
-| `assets` | `pip install -e ".[assets]"` | asset regeneration only (see [models/gripper_g2/source/README.md](models/gripper_g2/source/README.md)) |
+| `assets` | `pip install -e ".[assets]"` | asset regeneration only (see [CONTRIBUTING.md](CONTRIBUTING.md#changes-that-need-extra-care)) |
 
 `requirements-lock.txt` pins the versions CI tests with (MuJoCo 4.0.0).
 
@@ -120,18 +120,18 @@ Tests that need optional packages (`trimesh`, `DracoPy`/`pygltflib`) are skipped
 calibrations/              Per-unit kinematic calibration YAML (SHA-256 checked)
 configs/                   Task configs: default.yaml, pick_place/<arm>.yaml, box_pack/<arm>.yaml
 models/                    MJCF models and meshes: arms, grippers, cameras, brackets and combinations;
-                           scene variants scene, scene_reach, scene_pick_place, scene_box_pack, scene_obstacles
+                           scene variants scene, scene_pick_place, scene_box_pack, scene_obstacles
 ufactory_mujoco/
   sim_robot.py             SimRobot: physics stepping, joint/TCP/gripper control, viewer
   xarm_robot.py            XArmRobot: real xArm, read-only unless motion is approved
   robot_interface.py       Common interface of SimRobot and XArmRobot
-  robots.py                Registry of the five arms, gripper combinations, reach workspaces
+  robots.py                Registry of the five arms and compatible grippers
   config.py                Strict YAML task configs and their content hash
   calibration.py           Per-unit calibration, model patching, TCP/flange transforms
   safety.py                Hardware safety gate and sdk-sim replay
   kinematics_validation.py Read-only FK/IK comparison with the controller
   g2_model.py              Gripper G2 linkage geometry, force table, SDK unit conversions
-  g2_controller.py         Gripper G2 servo (vectorized and scalar forms)
+  g2_controller.py         Gripper G2 vectorized position/force servo
   bio_g2_model.py          Bio Gripper G2 calibrated gap, speed and force model
   bio_g2_controller.py     Bio Gripper G2 rate-limited position/force servo
   grippers.py              Gripper specs, gap mapping, finger contact checks and forces
@@ -145,10 +145,10 @@ ufactory_mujoco/
   tasks/                   pick-place, box-pack and dynamics commands
   cli.py, __main__.py      `ufactory-mujoco` / `python -m ufactory_mujoco` entry point
   viewer.py                Passive viewer with Linux GLFW/X11 handling
-  resource_paths.py, model_paths.py  Resource roots and model name lookup
+  model_paths.py           Resource roots and model name lookup
 examples/simulation/       Examples 01–10
-scripts/                   Asset conversion and MJCF generation, calibration and hardware
-                           comparison, packaging checks
+scripts/                   Asset conversion and MJCF generation, calibration extraction,
+                           distribution and installed-wheel checks
 tests/                     Test suite (pytest)
 ```
 

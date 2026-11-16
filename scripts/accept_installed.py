@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Standalone wheel acceptance; CI downloads this file without checking out source.
+"""Standalone distribution check and wheel acceptance; CI runs this without source checkout.
 
 Record the source reference before building:
     python scripts/accept_installed.py --record-reference build/reference.json
+Check built sdist and wheel archives without extraction:
+    python scripts/accept_installed.py --check-dist dist --reference build/reference.json --report build/dist.json
 Then run from an empty directory with an ordinary core-only wheel install:
     python -I accept_installed.py --reference reference.json --out-dir reports
 """
@@ -14,8 +16,11 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 import sys
+import tarfile
+import zipfile
 
 
 def digest(path):
@@ -26,7 +31,7 @@ def resource_reference():
     import mujoco
     import numpy as np
     from ufactory_mujoco.config import load_task_config
-    from ufactory_mujoco.resource_paths import CONFIGS_ROOT, MODELS_ROOT, RESOURCE_ROOT
+    from ufactory_mujoco.model_paths import CONFIGS_ROOT, MODELS_ROOT, RESOURCE_ROOT
 
     result = {"models": {}, "meshes": {}, "configs": {}, "config_hashes": {}, "licenses": {}}
     for path in sorted(MODELS_ROOT.glob("*/*.xml")):
@@ -69,9 +74,71 @@ def resource_reference():
         path = RESOURCE_ROOT / name
         if path.is_file():
             result["licenses"][name] = digest(path)
-    assert len(result["models"]) >= 90 and len(result["meshes"]) >= 446
+    assert len(result["models"]) >= 85 and len(result["meshes"]) >= 444
     assert len(result["configs"]) == 11 and len(result["licenses"]) == 6
     return result
+
+
+def check_archive(path, reference):
+    if path.suffix == ".whl":
+        with zipfile.ZipFile(path) as archive:
+            entries = archive.infolist()
+            assert len({e.filename for e in entries}) == len(entries), "Duplicate ZIP members"
+            assert not any(stat.S_ISLNK(e.external_attr >> 16) for e in entries), "Wheel contains symlink"
+            files = {e.filename: archive.read(e) for e in entries if not e.is_dir()}
+        assert not any(n.endswith("_build_support.py") for n in files)
+        assert any(n.endswith(".dist-info/entry_points.txt") and b"ufactory-mujoco" in b
+                   for n, b in files.items()), "Missing console entry point"
+        for name in reference["licenses"]:
+            assert any(".dist-info/licenses/" in n and n.endswith("/" + name) for n in files), name
+    else:
+        with tarfile.open(path, "r:gz") as archive:
+            entries = archive.getmembers()
+            assert all(e.isfile() or e.isdir() for e in entries), "sdist contains links or special files"
+            files = {e.name.split("/", 1)[1]: archive.extractfile(e).read() for e in entries if e.isfile()}
+        assert "_build_support.py" in files and "setup.py" in files, "Missing sdist build hooks"
+    data = {n.removeprefix("ufactory_mujoco/data/"): b for n, b in files.items()
+            if n.startswith("ufactory_mujoco/data/")}
+    expected = {f"{group}/{name}" for group in ("models", "meshes", "configs", "licenses")
+                for name in reference[group]}
+    assert data.keys() == expected, f"Inventory mismatch: {set(data) ^ expected}"
+    for group in ("meshes", "configs", "licenses"):
+        for name, sha in reference[group].items():
+            assert hashlib.sha256(data[f"{group}/{name}"]).hexdigest() == sha, f"Changed {group}/{name}"
+    for name, baseline in reference["models"].items():
+        xml = data[f"models/{name}"].decode()
+        assert 'meshdir="assets"' not in xml, f"Unstaged XML: {name}"
+        xml = re.sub(r'\smeshdir\s*=\s*"[^"]*"', "", xml)
+        assert hashlib.sha256(xml.encode()).hexdigest() == baseline["sha256_without_meshdir"], name
+    for name in files:
+        parts = Path(name).parts
+        assert not ({"dev", "build", "__pycache__", "logs", "weights"} & set(parts)), name
+        assert not name.endswith((".pyc", ".zip", ".log", ".pt", ".pth")), name
+    return {
+        "file": path.name,
+        "bytes": path.stat().st_size,
+        "resource_bytes": sum(map(len, data.values())),
+        "models": len(reference["models"]),
+        "meshes": len(reference["meshes"]),
+        "configs": len(reference["configs"]),
+        "licenses": len(reference["licenses"]),
+    }
+
+
+def check_distributions(dist_dir, reference_path, report_path):
+    reference = strict_json(reference_path)
+    archives = sorted(dist_dir.glob("*.whl")) + sorted(dist_dir.glob("*.tar.gz"))
+    assert len(archives) == 2, "Expected one wheel and one sdist"
+    result = {"success": False, "archives": []}
+    try:
+        for path in archives:
+            result["archives"].append(check_archive(path, reference))
+        result["success"] = True
+        print(json.dumps(result, indent=2))
+    finally:
+        if report_path is not None:
+            report_path.parent.mkdir(parents=True, exist_ok=True)
+            report_path.write_text(json.dumps(result, allow_nan=False, indent=2) + "\n")
 
 
 def compare_resources(expected, actual):
@@ -96,7 +163,7 @@ def strict_json(path):
 
 def accept(args, summary):
     import ufactory_mujoco
-    from ufactory_mujoco.resource_paths import RESOURCE_ROOT
+    from ufactory_mujoco.model_paths import CONFIGS_ROOT, RESOURCE_ROOT
 
     package = Path(ufactory_mujoco.__file__).resolve()
     assert package.is_relative_to(Path(sys.prefix).resolve()), f"Imported outside install: {package}"
@@ -113,8 +180,6 @@ def accept(args, summary):
     with SimRobot() as robot:
         assert robot.n_arm == 6, "SimRobot() must default to the bundled xArm6 scene"
     summary["sim_robot_default"] = "pass"
-    # End effectors added in 0.1.3: the calibrated Bio Gripper G2 servo spans its 71..150 mm
-    # stroke and the vacuum gripper is recognized, both from the bundled resources.
     from ufactory_mujoco.robots import resolve_arm_scene
     with SimRobot(resolve_arm_scene("xarm6", "bio_gripper_g2", "scene")) as robot:
         assert robot.bio_g2_controller is not None
@@ -205,7 +270,6 @@ def accept(args, summary):
         run(f"{task}-invalid-cycles", [task, "--cycles", "0", "--headless"], 2)
     run("box-invalid-speed", ["box-pack", "--speed", "nan", "--headless"], 2)
     # Exercise the installed preflight failure and its strict JSON report.
-    from ufactory_mujoco.resource_paths import CONFIGS_ROOT
     import yaml
     for task, section, field in (("pick-place", "pick_place", "target_xy"),
                                  ("box-pack", "box_pack", "drop_xy")):
@@ -222,13 +286,20 @@ def accept(args, summary):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--record-reference", type=Path)
+    parser.add_argument("--check-dist", type=Path)
     parser.add_argument("--reference", type=Path)
+    parser.add_argument("--report", type=Path)
     parser.add_argument("--out-dir", type=Path, default=Path("reports"))
     args = parser.parse_args()
     if args.record_reference:
         args.record_reference.parent.mkdir(parents=True, exist_ok=True)
         args.record_reference.write_text(json.dumps(resource_reference(), allow_nan=False, indent=2) + "\n")
         print(f"Source reference: {args.record_reference}")
+        return
+    if args.check_dist:
+        if args.reference is None:
+            parser.error("--reference is required with --check-dist")
+        check_distributions(args.check_dist, args.reference, args.report)
         return
     if args.reference is None:
         parser.error("--reference is required for installed acceptance")

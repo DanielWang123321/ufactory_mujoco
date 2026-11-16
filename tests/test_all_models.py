@@ -58,10 +58,7 @@ class AllModelsLoadingTest(unittest.TestCase):
             primary_xml = model_dir / f"{name}.xml"
             self.assertTrue(scene_xml.is_file(), f"{name}/scene.xml not found")
             self.assertTrue(primary_xml.is_file(), f"{name}/{name}.xml not found")
-        # task scenes across all 5 arms (reach, pick_place, box_pack) and xarm6 obstacles
-        for arm in ("lite6", "xarm5", "xarm6", "xarm7", "uf850"):
-            self.assertTrue((MODELS_ROOT / arm / "scene_reach.xml").is_file(),
-                            f"{arm}/scene_reach.xml not found")
+        # task scenes across all 5 arm+gripper pairs (pick_place, box_pack) and xarm6 obstacles
         for combo in ("xarm5_with_gripper", "xarm6_with_gripper", "xarm7_with_gripper",
                       "uf850_with_gripper", "lite6_with_gripper"):
             self.assertTrue((MODELS_ROOT / combo / "scene_pick_place.xml").is_file(),
@@ -75,8 +72,7 @@ class AllModelsLoadingTest(unittest.TestCase):
         for name in ALL_MODELS:
             model_dir = MODELS_ROOT / name
             xmls = [model_dir / f"{name}.xml", model_dir / "scene.xml"]
-            for extra in ("scene_reach.xml", "scene_obstacles.xml",
-                          "scene_pick_place.xml", "scene_box_pack.xml"):
+            for extra in ("scene_obstacles.xml", "scene_pick_place.xml", "scene_box_pack.xml"):
                 if (model_dir / extra).is_file():
                     xmls.append(model_dir / extra)
             for xml_file in xmls:

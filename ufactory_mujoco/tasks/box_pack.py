@@ -19,8 +19,8 @@ import mujoco
 import numpy as np
 
 from ufactory_mujoco import SimRobot
+from ufactory_mujoco.model_paths import CONFIGS_ROOT
 from ufactory_mujoco.preflight import preflight_box_pack
-from ufactory_mujoco.resource_paths import CONFIGS_ROOT
 from ufactory_mujoco.task_geometry import (
     GRIP_DOWN_QUAT, _close_until_contact, _cube_rest_z, box_task_heights, cube_box_margin,
 )

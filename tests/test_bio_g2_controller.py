@@ -12,7 +12,6 @@ import numpy as np
 
 from ufactory_mujoco.bio_g2_controller import (
     BioGripperG2Controller,
-    GripperController,
     MuJoCoBioG2Adapter,
 )
 from ufactory_mujoco.bio_g2_model import (
@@ -147,7 +146,7 @@ class BioG2ControllerTest(unittest.TestCase):
             for value in (float("nan"), float("inf"), -float("inf"), -1, 0, 10000):
                 with self.subTest(field=field, value=value):
                     adapter = FakeAdapter()
-                    controller = GripperController(adapter)
+                    controller = BioGripperG2Controller(adapter)
                     controller.command(110)
                     before = copy.deepcopy({k: v for k, v in vars(controller).items() if k != "adapter"})
                     calls = copy.deepcopy(adapter.calls)
@@ -161,7 +160,7 @@ class BioG2ControllerTest(unittest.TestCase):
         for dt in (0, -1, float("nan"), float("inf")):
             with self.subTest(dt=dt):
                 adapter = FakeAdapter()
-                controller = GripperController(adapter)
+                controller = BioGripperG2Controller(adapter)
                 before = copy.deepcopy({k: v for k, v in vars(controller).items() if k != "adapter"})
                 calls = copy.deepcopy(adapter.calls)
                 with self.assertRaises(ValueError):
@@ -209,7 +208,7 @@ class BioG2ControllerTest(unittest.TestCase):
 
     def test_conditional_integral_does_not_wind_up_at_saturation(self):
         adapter = FakeAdapter()
-        controller = GripperController(adapter)
+        controller = BioGripperG2Controller(adapter)
         controller.command(71, force_percent=1)
         for _ in range(200):
             controller.apply(0.02)

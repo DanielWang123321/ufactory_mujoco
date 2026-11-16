@@ -26,7 +26,7 @@ from .config import (
     load_task_config,
 )
 from .dynamics import ArmDynamics, attach_payload
-from .g2_controller import ControlOutput, G2Controller, ScalarG2Controller
+from .g2_controller import ControlOutput, G2Controller
 from .g2_model import (
     ForceCurve,
     ForceLookup,
@@ -78,13 +78,9 @@ from .preflight import (
 from .robot_interface import RobotInterface
 from .robots import (
     ARMS,
-    ROBOT_PROFILES,
     SCENES,
     ArmSpec,
-    ReachWorkspace,
-    RobotProfile,
     resolve_arm_scene,
-    robot_profile,
 )
 from .safety import (
     MotionApproval,
@@ -134,13 +130,9 @@ __all__ = [
     "PickPlaceConfig",
     "PlanningError",
     "PreflightReport",
-    "ROBOT_PROFILES",
-    "ReachWorkspace",
     "RobotInterface",
-    "RobotProfile",
     "SCENES",
     "SafetyGateError",
-    "ScalarG2Controller",
     "SdkSimEvidence",
     "SegmentPlan",
     "SimRobot",
@@ -180,7 +172,6 @@ __all__ = [
     "require_bilateral_contact",
     "resolve_arm_scene",
     "resolve_model_path",
-    "robot_profile",
     "run_sdk_simulation",
     "shortcut_path",
     "site_jacobian",

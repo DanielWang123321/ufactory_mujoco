@@ -6,9 +6,7 @@ from contextlib import redirect_stderr, redirect_stdout
 import copy
 import io
 from pathlib import Path
-import sys
 import tempfile
-import types
 import unittest
 from unittest.mock import patch
 
@@ -16,7 +14,6 @@ import mujoco
 import numpy as np
 import yaml
 
-from scripts import compare_dynamics_xarm6, compare_torque_xarm6
 from ufactory_mujoco import (
     CalibrationError,
     CollisionChecker,
@@ -468,36 +465,6 @@ class CliAndDynamicsGateTests(unittest.TestCase):
                 ]),
                 1,
             )
-            self.assertEqual(fake.motion_calls, [])
-
-    def test_dynamics_scripts_enforce_confirm_real_and_allow_readonly_no_move(self):
-        fake = FakeXArmAPI()
-
-        def make_fake(*_a, **_kw):
-            fake.connected = True
-            return fake
-
-        wrapper = types.ModuleType("xarm.wrapper")
-        wrapper.XArmAPI = make_fake
-        with patch.dict(sys.modules, {"xarm": types.ModuleType("xarm"), "xarm.wrapper": wrapper}):
-            # Read-only --no-move succeeds without motion calls
-            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
-                self.assertEqual(
-                    compare_torque_xarm6.main(["--no-move", "--calibration", str(CALIB_PATH)]),
-                    0,
-                )
-                compare_dynamics_xarm6.main(["--no-move", "--calibration", str(CALIB_PATH)])
-            self.assertEqual(fake.motion_calls, [])
-
-            # Moving without --confirm-real is rejected with zero motion calls
-            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
-                self.assertEqual(
-                    compare_torque_xarm6.main(["--calibration", str(CALIB_PATH)]),
-                    1,
-                )
-                with self.assertRaises(SystemExit) as exc:
-                    compare_dynamics_xarm6.main(["--calibration", str(CALIB_PATH)])
-                self.assertEqual(exc.exception.code, 1)
             self.assertEqual(fake.motion_calls, [])
 
 

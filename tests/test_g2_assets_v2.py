@@ -23,7 +23,8 @@ except ImportError as exc:
 ROOT = Path(__file__).resolve().parents[1]
 G2 = ROOT / "models/gripper_g2"
 ASSETS = G2 / "assets/gripper_g2"
-SOURCE = G2 / "source/gripper_g2"
+SOURCE = ROOT / "dev/g2_sources/gripper_g2"
+REFERENCE_CSV = ROOT / "tests/fixtures/g2_reference_opening_axial_length.csv"
 
 
 def _vertices(path):
@@ -38,11 +39,12 @@ def _vertices(path):
 
 
 def test_snapshot_file_hashes():
+    if not SOURCE.is_dir():
+        pytest.skip("dev/g2_sources snapshot not present")
     metadata = json.loads((SOURCE / "snapshot.json").read_text())
     for name, expected in metadata["files_sha256"].items():
         assert hashlib.sha256((SOURCE / name).read_bytes()).hexdigest() == expected
-    reference = G2 / "source/reference_opening_axial_length.csv"
-    assert hashlib.sha256(reference.read_bytes()).hexdigest() == metadata["reference_axial_length_csv"]["sha256"]
+    assert hashlib.sha256(REFERENCE_CSV.read_bytes()).hexdigest() == metadata["reference_axial_length_csv"]["sha256"]
 
 
 def test_base_flange_and_mesh_correspondence():
@@ -66,6 +68,8 @@ def test_base_flange_and_mesh_correspondence():
 
 
 def test_converted_visual_matches_draco_snapshot():
+    if not SOURCE.is_dir():
+        pytest.skip("dev/g2_sources snapshot not present")
     draco = pytest.importorskip("DracoPy")
     gltf_lib = pytest.importorskip("pygltflib")
     for obj in sorted((ASSETS / "visual").glob("*.obj")):
@@ -86,7 +90,7 @@ def test_converted_visual_matches_draco_snapshot():
 
 
 def test_85_reference_openings_and_axial_lengths():
-    rows = list(csv.DictReader((G2 / "source/reference_opening_axial_length.csv").open(encoding="utf-8-sig")))
+    rows = list(csv.DictReader(REFERENCE_CSV.open(encoding="utf-8-sig")))
     assert len(rows) == 85
     model = mujoco.MjModel.from_xml_path(str(G2 / "gripper_g2.xml"))
     data = mujoco.MjData(model)

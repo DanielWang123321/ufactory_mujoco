@@ -289,6 +289,3 @@ class BioGripperG2Controller:
             "integral_n": self.integral_n,
             "paused": self.paused,
         }
-
-
-GripperController = BioGripperG2Controller

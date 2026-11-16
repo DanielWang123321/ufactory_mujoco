@@ -14,33 +14,23 @@ import math
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
-from .resource_paths import MODELS_ROOT
+from .model_paths import MODELS_ROOT
 
 BIO_G2_PHYSICS_PROFILE = "bio_g2_calibrated_v1"
 
 BIO_G2_KP = 16000.0
 BIO_G2_KV = 40.0
 BIO_G2_KI = 4000.0
-BIO_G2_RATE_HZ = 50
-BIO_G2_DT = 0.02
-BIO_G2_SUBSTEPS = 32
-BIO_G2_CONSTRAINT_TIMECONST = 0.005
 
 MASS_KG = 0.79
-TOTAL_MASS_KG = MASS_KG
 BASE_MASS_KG = 0.765827
-LEFT_FINGER_MASS_KG = 0.012105
-RIGHT_FINGER_MASS_KG = 0.012068
 BASE_INERTIA_SCALE = BASE_MASS_KG / 0.38837
 
 MIN_GAP_MM = 71.0
 MAX_GAP_MM = 150.0
-CLOSED_GAP_MM = MIN_GAP_MM
-OPEN_GAP_MM = MAX_GAP_MM
 BIO_G2_CLOSED_GAP_M = MIN_GAP_MM / 1000.0
 BIO_G2_OPEN_GAP_M = MAX_GAP_MM / 1000.0
-STROKE_M = (MAX_GAP_MM - MIN_GAP_MM) / 2000.0  # 0.0395 m per finger
-STROKE_PER_FINGER_M = STROKE_M
+STROKE_PER_FINGER_M = (MAX_GAP_MM - MIN_GAP_MM) / 2000.0  # 0.0395 m per finger
 
 MIN_SPEED_RPM = 500.0
 MAX_SPEED_RPM = 4000.0
@@ -49,29 +39,19 @@ DEFAULT_SPEED_RPM = 2000.0
 MIN_SPEED_MM_S = MIN_SPEED_RPM * 5.0 / 60.0  # 41.67 mm/s per finger
 MAX_SPEED_MM_S = MAX_SPEED_RPM * 5.0 / 60.0  # 333.33 mm/s per finger
 DEFAULT_SPEED_MM_S = DEFAULT_SPEED_RPM * 5.0 / 60.0  # 166.67 mm/s per finger
-MIN_GAP_SPEED_MM_S = 2.0 * MIN_SPEED_MM_S  # 83.33 mm/s bilateral jaw speed
-MAX_GAP_SPEED_MM_S = 2.0 * MAX_SPEED_MM_S  # 666.67 mm/s bilateral jaw speed
-DEFAULT_GAP_SPEED_MM_S = 2.0 * DEFAULT_SPEED_MM_S  # 333.33 mm/s bilateral jaw speed
-MAX_JOINT_SPEED_M_S = MAX_SPEED_MM_S / 1000.0
 SPEEDS_MM_S: tuple[float, ...] = tuple(rpm * 5.0 / 60.0 for rpm in (500, 1000, 2000, 3000, 4000))
 
 MIN_FORCE_N = 4.0
 MAX_FORCE_N = 20.0
 
-RIGHT = "bio_gripper_g2_right_finger_joint"
-LEFT = "bio_gripper_g2_left_finger_joint"
-RIGHT_JOINT = RIGHT
-LEFT_JOINT = LEFT
-BIO_G2_JOINT_NAMES: tuple[str, str] = (RIGHT_JOINT, LEFT_JOINT)
+RIGHT_JOINT = "bio_gripper_g2_right_finger_joint"
+LEFT_JOINT = "bio_gripper_g2_left_finger_joint"
 
 # Y-axis visual offsets aligning the vendor GLB/OBJ finger inner gripping planes to +/-35.5 mm (71 mm closed gap).
 GLB_FINGER_VISUAL_Y_OFFSET_M: dict[str, float] = {
     "bio_gripper_g2_left_finger": 0.0069565922021865845,
     "bio_gripper_g2_right_finger": -0.008117303252220154,
 }
-
-# In bio_gripper_g2_base_link frame, the validated planar gripping ridge center is at (0.128, 0, 0.050).
-GRASP_OFFSET_IN_BASE_LINK: tuple[float, float, float] = (0.128, 0.0, 0.050)
 
 
 def bounded(value: float, lo: float, hi: float, name: str) -> float:
@@ -87,9 +67,6 @@ def bounded(value: float, lo: float, hi: float, name: str) -> float:
     return numeric
 
 
-checked = bounded
-
-
 def gap_to_q(position_mm: float) -> float:
     """Convert two-finger jaw gap (mm) in ``[71, 150]`` to right-finger prismatic joint position (m)."""
     return (bounded(position_mm, MIN_GAP_MM, MAX_GAP_MM, "position_mm") - MIN_GAP_MM) / 2000.0
@@ -98,11 +75,6 @@ def gap_to_q(position_mm: float) -> float:
 def q_to_gap(q_right: float, q_left: float | None = None) -> float:
     """Convert finger prismatic joint position(s) (m) to two-finger jaw gap (mm)."""
     return MIN_GAP_MM + (2.0 * float(q_right) if q_left is None else float(q_right) - float(q_left)) * 1000.0
-
-
-def bio_g2_gap_m_to_sim_drive(gap_m: float) -> float:
-    """Convert two-finger jaw gap (m) in ``[0.071, 0.150]`` to right-finger drive position (m)."""
-    return gap_to_q(float(gap_m) * 1000.0)
 
 
 def bio_g2_sim_drive_to_gap_m(q_right: float, q_left: float | None = None) -> float:
@@ -173,14 +145,6 @@ class BioGripperG2Model:
     min_force_n: float = MIN_FORCE_N
     max_force_n: float = MAX_FORCE_N
 
-    @property
-    def urdf_path(self) -> Path:
-        return self.model_path
-
-    @property
-    def urdf_sha256(self) -> str:
-        return self.model_sha256
-
     @classmethod
     @lru_cache(maxsize=4)
     def load(cls, model_path: str | Path | None = None) -> BioGripperG2Model:
@@ -214,8 +178,6 @@ def bio_g2_physics_summary(model_path: str | Path | None = None) -> dict:
     model = BioGripperG2Model.load(model_path)
     payload = asdict(model)
     payload["model_path"] = str(model.model_path)
-    payload["urdf_path"] = str(model.model_path)
-    payload["urdf_sha256"] = model.model_sha256
     payload["profile"] = BIO_G2_PHYSICS_PROFILE
     payload["kp_n_m"] = BIO_G2_KP
     payload["kv_n_s_m"] = BIO_G2_KV

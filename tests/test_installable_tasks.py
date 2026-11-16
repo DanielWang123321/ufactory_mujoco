@@ -20,8 +20,8 @@ import mujoco
 from ufactory_mujoco import SimRobot
 from ufactory_mujoco.cli import main
 from ufactory_mujoco.config import load_task_config
+from ufactory_mujoco.model_paths import CONFIGS_ROOT
 from ufactory_mujoco.preflight import PreflightReport
-from ufactory_mujoco.resource_paths import CONFIGS_ROOT
 from ufactory_mujoco.tasks import pick_place, box_pack
 from ufactory_mujoco.tasks._reporting import task_report
 

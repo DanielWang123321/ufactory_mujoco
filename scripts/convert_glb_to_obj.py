@@ -113,6 +113,11 @@ _SKIP_PRIMITIVES: dict[str, set[int]] = {
     "finger1.glb": {4},  # white fingertip pad, wrong frame (spans y +/-24 mm)
 }
 
+# Lite 6 gripper fingers use native L-shaped <geom type="box"> collision geoms in MJCF.
+_SKIP_COLLISION_STLS: dict[str, set[str]] = {
+    "lite6_gripper": {"finger1.stl", "finger2.stl"},
+}
+
 
 def get_target_specs(ref_root: Path, out_root: Path) -> dict[str, dict[str, Path]]:
     """Return dictionary of source/destination paths for each robot arm and accessory."""
@@ -199,7 +204,8 @@ def convert_single_target(
     stats = {"stl_count": 0, "obj_count": 0, "flipped_faces": 0}
 
     # 1. Copy collision STLs
-    stl_files = sorted(src_col_dir.glob("*.stl"))
+    skip_stls = _SKIP_COLLISION_STLS.get(name, set())
+    stl_files = [p for p in sorted(src_col_dir.glob("*.stl")) if p.name not in skip_stls]
     print(f"[1/2] Copying {len(stl_files)} collision STLs from {src_col_dir} -> {out_col_dir}...")
     for stl_path in stl_files:
         dst = out_col_dir / stl_path.name

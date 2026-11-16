@@ -104,7 +104,7 @@ jobs:
       - name: Validate release metadata and resources
         run: |
           python -m twine check dist/* 2>&1 | tee build/ci/twine.log
-          python scripts/check_distribution.py --dist-dir dist --reference build/ci/reference.json --report build/ci/distribution.json 2>&1 | tee build/ci/distribution.log
+          python scripts/accept_installed.py --check-dist dist --reference build/ci/reference.json --report build/ci/distribution.json 2>&1 | tee build/ci/distribution.log
       - name: Upload distributions
         uses: actions/upload-artifact@v4
         with:

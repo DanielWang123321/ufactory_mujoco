@@ -123,8 +123,6 @@ Replace the IP with your controller's. `gen_kinematics_params.py` writes `calibr
 ```bash
 python scripts/gen_kinematics_params.py 192.168.1.60                          # extract the per-unit calibration
 python -m ufactory_mujoco.kinematics_validation --robot xarm6 --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
-python scripts/compare_torque_xarm6.py --ip 192.168.1.60 --no-move --calibration calibrations/xarm6_kinematics_<SN>.yaml
-python scripts/compare_dynamics_xarm6.py --replay build/dynamics/run_xxx.csv  # offline replay of a recorded sweep
 python examples/simulation/05_pick_place.py --robot xarm6 --mode sdk-sim --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
 python examples/simulation/08_dynamics.py --robot xarm6 --mode real-read-only --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
 ```

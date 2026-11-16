@@ -40,7 +40,7 @@ from .grippers import (
 )
 from .ik import solve_ik, solve_ik_trajectory
 from .kinematics import manipulability, pose_jacobian, solve_joint_velocity
-from .resource_paths import MODELS_ROOT
+from .model_paths import MODELS_ROOT
 from .robot_interface import RobotInterface
 from .trajectory import JointTrajectory, plan_cartesian_line, plan_ptp_quintic
 from .viewer import PassiveViewer, configure_low_power_rendering
@@ -146,10 +146,8 @@ class SimRobot(RobotInterface):
             mujoco.mj_resetDataKeyframe(self.model, self.data, 0)  # home
         else:
             mujoco.mj_resetData(self.model, self.data)
-        # MuJoCo < 3.15 pads incomplete keyframe qpos vectors with zeros while
-        # >= 3.15 pads with qpos0, which would drop free-joint scene props
-        # (e.g. the pick-place cube) to the world origin. Keyframes define the
-        # robot pose; floating props always keep their authored qpos0 pose.
+        # Keyframes define only the robot joints; restore floating scene props
+        # (e.g. the pick-place cube) to their authored qpos0 pose.
         for j in range(self.model.njnt):
             if int(self.model.jnt_type[j]) == int(mujoco.mjtJoint.mjJNT_FREE):
                 adr = self.model.jnt_qposadr[j]

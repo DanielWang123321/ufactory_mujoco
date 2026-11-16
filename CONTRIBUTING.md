@@ -35,7 +35,7 @@ CI runs these jobs on every pull request:
 | :--- | :--- |
 | `lint` | `ruff check .` with ruff 0.17.1 |
 | `test` | the test suite and the headless example smoke tests on Python 3.12, 3.13 and 3.14 with MuJoCo 4 |
-| `build` | sdist and wheel, `twine check`, `scripts/check_distribution.py` |
+| `build` | sdist and wheel, `twine check`, `scripts/accept_installed.py --check-dist` |
 | `installed` | the wheel installed into a clean environment on Python 3.12, 3.13 and 3.14, checked by `scripts/accept_installed.py` |
 
 ### Release Acceptance
@@ -45,13 +45,13 @@ Maintainers run a local acceptance before pushing a release. It covers Python 3.
 - the full `pytest` suite and the CI example smoke tests;
 - every `models/*/*.xml` compiles without errors or warnings;
 - zero drift: the 30 task reports (`pick-place` and `box-pack` variants for the five arms, written with `--report`) are byte-identical to the previous release in the same environment, unless the change is meant to alter them;
-- sdist and wheel built from the tree, `twine check --strict`, `scripts/check_distribution.py`, and the wheel installed into a clean virtual environment and checked by `scripts/accept_installed.py`.
+- sdist and wheel built from the tree, `twine check --strict`, `scripts/accept_installed.py --check-dist`, and the wheel installed into a clean virtual environment and checked by `scripts/accept_installed.py`.
 
 Commits that are not pushed do not need this acceptance.
 
 ## Changes That Need Extra Care
 
-**Models and meshes.** The arm, end-effector, camera and combination MJCF files under `models/` are written by `scripts/build_all_mjcf.py` and `scripts/build_camera_mjcf.py`, and the meshes by `scripts/convert_glb_to_obj.py`, `scripts/fix_g2_base_meshes.py` and `scripts/make_double_sided_objs.py`, in that order. Visual meshes keep the full upstream tessellation; do not decimate them. Change the script and regenerate; do not edit generated files by hand. The task scenes (`scene_reach.xml`, `scene_pick_place.xml`, `scene_box_pack.xml`, `scene_obstacles.xml`) are maintained by hand. `models/gripper_g2/source/` is an upstream snapshot checked by hash and must not be modified.
+**Models and meshes.** The arm, end-effector, camera and combination MJCF files under `models/` are written by `scripts/build_all_mjcf.py` and `scripts/build_camera_mjcf.py`, and the meshes by `scripts/convert_glb_to_obj.py`, `scripts/fix_g2_base_meshes.py` and `scripts/make_double_sided_objs.py`, in that order. Visual meshes keep the full upstream tessellation; do not decimate them. Change the script and regenerate; do not edit generated files by hand. The task scenes (`scene_pick_place.xml`, `scene_box_pack.xml`, `scene_obstacles.xml`) are maintained by hand.
 
 **Real robot.** Tests and CI never connect to a robot. A change to `ufactory_mujoco/xarm_robot.py`, `ufactory_mujoco/safety.py` or a hardware mode must keep the read-only default and the `--confirm-real` gate. Say in the pull request how you tested it (`sdk-sim` or a real arm). Do not add the controller address, serial number or calibration file of your own robot.
 

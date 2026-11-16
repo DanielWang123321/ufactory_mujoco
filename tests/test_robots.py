@@ -28,14 +28,13 @@ class ArmRegistryTests(unittest.TestCase):
 
     def test_bare_scenes_load(self):
         for key, dof in EXPECTED_DOF.items():
-            for scene in ("scene", "reach"):
-                with self.subTest(robot=key, scene=scene):
-                    path = resolve_arm_scene(key, None, scene)
-                    self.assertTrue(path.is_file())
-                    model = mujoco.MjModel.from_xml_path(str(path))
-                    site = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, "attachment_site")
-                    self.assertGreaterEqual(site, 0)
-                    self.assertEqual(model.nu, dof)
+            with self.subTest(robot=key):
+                path = resolve_arm_scene(key, None, "scene")
+                self.assertTrue(path.is_file())
+                model = mujoco.MjModel.from_xml_path(str(path))
+                site = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, "attachment_site")
+                self.assertGreaterEqual(site, 0)
+                self.assertEqual(model.nu, dof)
 
     def test_xarm6_gripper_scenes(self):
         scene = resolve_arm_scene("xarm6", "gripper_g2", "scene")
@@ -68,6 +67,6 @@ class ArmRegistryTests(unittest.TestCase):
             self.assertIn("not built yet", str(caught.exception))
             self.assertNotIn("does not support", str(caught.exception))
 
-    def test_reach_rejects_gripper(self):
+    def test_unknown_scene_rejected(self):
         with self.assertRaises(ConfigError):
-            resolve_arm_scene("xarm6", "gripper_g2", "reach")
+            resolve_arm_scene("xarm6", None, "reach")

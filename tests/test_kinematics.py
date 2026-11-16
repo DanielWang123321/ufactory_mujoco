@@ -1,7 +1,10 @@
 """FK / geometric Jacobian / velocity-level IK regressions."""
 
+import importlib
+import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import mujoco
 import numpy as np
@@ -211,6 +214,13 @@ class FreeJointModelTests(unittest.TestCase):
             np.testing.assert_allclose(
                 ref_data.site_xpos[site_id], target_pos, atol=1e-4
             )
+
+    def test_kinematics_demo_headless_passes(self):
+        kinematics_demo = importlib.import_module("examples.simulation.07_kinematics")
+        with patch.object(sys, "argv", ["07_kinematics.py", "--headless"]):
+            with self.assertRaises(SystemExit) as ctx:
+                kinematics_demo.main()
+        self.assertEqual(ctx.exception.code, 0, "kinematics demo reported FAIL")
 
 
 if __name__ == "__main__":

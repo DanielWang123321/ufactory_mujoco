@@ -37,8 +37,7 @@ class PickPlaceSceneTest(unittest.TestCase):
         np.testing.assert_allclose(m.geom_pos[marker_id], [0.30, 0.30, 0.015], atol=1e-12)
 
     def test_simrobot_init_keeps_cube_at_authored_pose(self):
-        """Keyframe state init must not drop the free-joint cube to the origin
-        (MuJoCo < 3.15 pads partial keyframe qpos vectors with zeros)."""
+        """Keyframe state init must keep the free-joint cube at its authored qpos0 pose."""
         from ufactory_mujoco import SimRobot
 
         with SimRobot(SCENE, viewer=False) as robot:

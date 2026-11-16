@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from ufactory_mujoco.config import ConfigError, load_task_config
+from ufactory_mujoco.config import ConfigError, _canonical_json_sha256, load_task_config
 
 
 class TaskConfigTests(unittest.TestCase):
@@ -45,6 +45,16 @@ class TaskConfigTests(unittest.TestCase):
         self.assertEqual(first.sha256, second.sha256)
         self.assertNotEqual(first.sha256, load_task_config().sha256)
         self.assertEqual(len(first.sha256), 64)
+
+    def test_canonical_json_digest_vector_and_key_order(self):
+        self.assertEqual(
+            _canonical_json_sha256({"b": 1, "a": [1.5, "é", None, True]}),
+            "4310c259a6f903aaf441de115a0b417227ea158ea1613ca86eff57e82894d4ba",
+        )
+        self.assertEqual(
+            _canonical_json_sha256({"x": 1, "y": 2}),
+            _canonical_json_sha256({"y": 2, "x": 1}),
+        )
 
     def _overlay(self, text: str):
         return _Overlay(self, text)

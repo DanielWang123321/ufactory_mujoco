@@ -7,6 +7,7 @@ Visual-mesh fix and end of MuJoCo 3 support. Only visual meshes and the `inertia
 ### Changed
 
 - MuJoCo 3 is no longer supported: the requirement is `mujoco>=4,<5` (was `>=3.15,<5`). Tested with MuJoCo 4.0.0 and 4.0.1 on Python 3.12–3.14.
+- Consolidated `ufactory_mujoco/resource_paths.py` into `ufactory_mujoco/model_paths.py`, inlined task config JSON hashing into `ufactory_mujoco/config.py`, and merged `scripts/check_distribution.py` into `scripts/accept_installed.py --check-dist`.
 
 ### Fixed
 
@@ -22,6 +23,8 @@ Visual-mesh fix and end of MuJoCo 3 support. Only visual meshes and the `inertia
 
 - `scripts/optimize_visual_objs.py`, and `pymeshlab` from the `assets` extra.
 - `requirements-lock-mujoco3.txt` and the MuJoCo 3 CI job.
+- Remaining RL-only scenes and interfaces (`models/*/scene_reach.xml`, `"reach"` in `SCENES`, `ReachWorkspace`, `RobotProfile`, `robot_profile`, `ROBOT_PROFILES`, `ScalarG2Controller`, and `ufactory_mujoco._hashing`).
+- Unreferenced Lite 6 gripper collision meshes (`finger1.stl`, `finger2.stl`), the `models/gripper_g2/source/` upstream GLB/STL/URDF snapshot (keeping the 85-pose reference CSV in `tests/fixtures/`), and historical xArm 6 comparison scripts (`scripts/compare_dynamics_xarm6.py`, `scripts/compare_torque_xarm6.py`).
 
 ## [0.1.4] - 2026-11-13
 

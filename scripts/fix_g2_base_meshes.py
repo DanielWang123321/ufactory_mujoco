@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 """Fix Gripper G2 base visual locating-pin bulge and split base collision into multi-convex STLs.
 
-Roadmap v0.1.3 (M2):
 1. ``models/gripper_g2/assets/gripper_g2/visual/base.obj``:
    - Clamp the (0, -25) mm ISO Ø6 locating-pin decimation polygon bulge (up to r=3.34 mm)
      radially inward to r <= 2.98 mm (strictly inside the nominal r=3.00 mm pin radius and
      the Ø6.10 mm / r=3.05 mm camera-bracket locating-pin hole).
    - Snap Draco-quantized housing bottom flange vertices in [-0.02, 0.0) mm to z = 0.0 mm
      so the G2 housing sits flush on z_link6 = +3.0 mm without micro-grazing the bracket.
-   - Leaves ``models/gripper_g2/source/`` completely untouched and preserves vertex/face counts
-     and overall AABB.
+   - Preserves vertex/face counts and overall AABB.
 2. ``models/gripper_g2/assets/gripper_g2/collision/base_link_col_00..NN.stl``:
    - Replace single-mesh ``base_link.stl`` (whose single MuJoCo convex hull bridged across
      z_g2 = -5..0 mm and swallowed the 3 mm camera mounting bracket) with deterministic
@@ -152,7 +150,7 @@ def fix_visual_base_obj() -> tuple[trimesh.Trimesh, list[np.ndarray], list[np.nd
     assert v_cursor == len(verts), f"Vertex count mismatch: {v_cursor} != {len(verts)}"
     BASE_OBJ.write_text("\n".join(out_lines) + "\n", encoding="utf-8")
 
-    updated_mesh = trimesh.Mesh if False else trimesh.Trimesh(vertices=verts, faces=faces, process=False)
+    updated_mesh = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
     return updated_mesh, boss_fg, pin_fg, housing_fg
 
 
