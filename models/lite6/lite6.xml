@@ -137,12 +137,12 @@
   </contact>
 
   <actuator>
-    <position joint="joint1" ctrlrange="-6.28319 6.28319" kp="2000" kv="200" forcerange="-81.6 81.6"/>
-    <position joint="joint2" ctrlrange="-2.61799 2.61799" kp="2000" kv="200" forcerange="-81.6 81.6"/>
-    <position joint="joint3" ctrlrange="-0.061087 5.23599" kp="2000" kv="200" forcerange="-30.6 30.6"/>
-    <position joint="joint4" ctrlrange="-6.28319 6.28319" kp="40" kv="8" forcerange="-1.364505 1.364505"/>
-    <position joint="joint5" ctrlrange="-2.1642 2.1642" kp="80" kv="16" forcerange="-3.274812 3.274812"/>
-    <position joint="joint6" ctrlrange="-6.28319 6.28319" kp="40" kv="8" forcerange="-1.364505 1.364505"/>
+    <position joint="joint1" ctrlrange="-6.28319 6.28319" kp="2000" kv="80" forcerange="-81.6 81.6"/>
+    <position joint="joint2" ctrlrange="-2.61799 2.61799" kp="2000" kv="80" forcerange="-81.6 81.6"/>
+    <position joint="joint3" ctrlrange="-0.061087 5.23599" kp="2000" kv="80" forcerange="-30.6 30.6"/>
+    <position joint="joint4" ctrlrange="-6.28319 6.28319" kp="160" kv="6.4" forcerange="-1.364505 1.364505"/>
+    <position joint="joint5" ctrlrange="-2.1642 2.1642" kp="320" kv="12.8" forcerange="-3.274812 3.274812"/>
+    <position joint="joint6" ctrlrange="-6.28319 6.28319" kp="160" kv="6.4" forcerange="-1.364505 1.364505"/>
   </actuator>
 
   <keyframe>
