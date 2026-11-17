@@ -54,7 +54,7 @@ def default_validation_poses(
         "xarm5": np.array([0.0, -0.5, -0.8, 0.5, 0.0]),
         "xarm6": np.array([0.0, -0.8, -1.2, 1.0, 0.3, 0.0]),
         "xarm7": np.array([0.0, -0.5, 0.0, 0.6, 0.0, 0.5, 0.0]),
-        "uf850": np.array([0.0, -0.5, -0.8, 0.0, 0.5, 0.0]),
+        "uf850": np.array([0.0, -0.5, 0.0, 0.0, 0.5, 0.0]),
     }
     poses: list[tuple[str, np.ndarray]] = [
         ("home", np.zeros(dof, dtype=np.float64)),

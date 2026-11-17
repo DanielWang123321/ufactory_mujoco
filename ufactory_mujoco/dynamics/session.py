@@ -15,7 +15,7 @@ from typing import Any
 
 import numpy as np
 
-from .runtime import DEFAULT_DYNAMICS_MOVE_SPEED_RAD_S
+from .runtime import DEFAULT_DYNAMICS_MOVE_SPEED_RAD_S, validate_dynamics_move_speed
 
 MODE_POSITION = 0
 REPORT_STATE_PAUSED = 3
@@ -400,6 +400,7 @@ class RealRobotSession:
         wait: bool = True,
         move_strategy: str = MOVE_STRATEGY_DIRECT,
     ) -> int:
+        checked_speed = validate_dynamics_move_speed(speed_rad_s)
         target = np.asarray(q, dtype=np.float64).reshape(-1)
         q_start, _, _ = self.get_joint_states()
         waypoints = build_motion_waypoints(q_start, target, strategy=move_strategy)
@@ -410,12 +411,12 @@ class RealRobotSession:
             self.ensure_ready(MODE_POSITION)
             print(
                 f"    waypoint {i}/{len(waypoints)} [{move_strategy}] "
-                f"speed={float(speed_rad_s):.4f} rad/s "
+                f"speed={checked_speed:.4f} rad/s "
                 f"q=[{', '.join(f'{v:.4f}' for v in waypoint)}]"
             )
             code = self.arm.set_servo_angle(
                 angle=waypoint.tolist(),
-                speed=float(speed_rad_s),
+                speed=checked_speed,
                 mvtime=0,
                 wait=wait,
                 is_radian=True,

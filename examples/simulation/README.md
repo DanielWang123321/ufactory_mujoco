@@ -129,7 +129,7 @@ tau_ff = dyn.feedforward_traj(q_traj, dt)  # feedforward torques along a traject
 Hardware modes require `xarm-python-sdk` (`pip install xarm-python-sdk`), which is not needed for simulation. Replace the IP address with your controller's (or set `XARM_IP`). Every hardware mode rejects a calibration YAML whose serial number or SHA-256 does not match the connected controller.
 
 - **Zero physical motion checks**: `kinematics_validation`, `08 --mode real-read-only`, and `--mode sdk-sim` (`05`, `08`, `10`) do not move the physical joints (`sdk-sim` replays trajectories inside the controller's built-in simulator and restores non-simulation mode on exit).
-- **Physical motion gate**: `--mode real` (`05`, `08`, `10`) requires healthy controller telemetry, passing preflight, and `--confirm-real`, and enforces `cycles == 1`. In non-`sim` modes, `08_dynamics.py` requires a single arm key (not `--robot all`).
+- **Physical motion gate**: `--mode real` (`05`, `08`, `10`) requires healthy controller telemetry, passing preflight, and `--confirm-real`, and enforces `cycles == 1`. In non-`sim` modes, `08_dynamics.py` requires a single arm key (not `--robot all`). All hardware dynamics validation commands (`dynamics-hardware-check`, `dynamics-sim-collision-check`, `08 --mode sdk-sim`/`real`) enforce a hard joint speed ceiling of `<= 40 °/s` (`0.6981 rad/s`).
 
 ```bash
 # 1. Extract the per-unit calibration YAML (calibrations/<arm>_kinematics_<SN>.yaml)

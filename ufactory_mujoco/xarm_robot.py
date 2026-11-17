@@ -85,11 +85,18 @@ class XArmRobot(RobotInterface):
         read_only: bool = True,
         approval: MotionApproval | None = None,
         arm_api: Any | None = None,
+        max_joint_speed_rad_s: float = 1.0,
     ) -> None:
+        max_speed = float(max_joint_speed_rad_s)
+        if not np.isfinite(max_speed) or max_speed <= 0.0:
+            raise ValueError(
+                f"max_joint_speed_rad_s must be finite and > 0 rad/s, got {max_joint_speed_rad_s!r}"
+            )
         self.ip = str(ip)
         self.robot_key = canonical_robot_key(robot)
         self.gripper_name = gripper
         self.read_only = bool(read_only)
+        self._max_joint_speed_rad_s = max_speed
         self._approval: MotionApproval | None = None
         self._calibration: KinematicsCalibration | None = None
         self._owns_connection = arm_api is None
@@ -326,7 +333,10 @@ class XArmRobot(RobotInterface):
         q_target = self._require_arm_q(q_goal, "q_goal")
         q_now = self.get_joint_positions()
         disp = float(np.max(np.abs(q_target - q_now)))
-        speed = float(np.clip(max(disp / duration * 1.5, 0.1), 0.05, 1.0))
+        cap = min(1.0, self._max_joint_speed_rad_s)
+        floor_lo = min(0.05, cap)
+        floor_default = min(0.1, cap)
+        speed = float(np.clip(max(disp / duration * 1.5, floor_default), floor_lo, cap))
         self._prepare_mode(0)
         code = int(
             self._arm.set_servo_angle(

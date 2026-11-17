@@ -12,10 +12,19 @@ from .report import (
     UrdfDynamicsIssue,
     ValidationStatus,
 )
+from .runtime import (
+    DEFAULT_DYNAMICS_MOVE_SPEED_RAD_S,
+    MAX_DYNAMICS_MOVE_SPEED_DEG_S,
+    MAX_DYNAMICS_MOVE_SPEED_RAD_S,
+    validate_dynamics_move_speed,
+)
 
 __all__ = [
     "ArmDynamics",
     "attach_payload",
+    "DEFAULT_DYNAMICS_MOVE_SPEED_RAD_S",
+    "MAX_DYNAMICS_MOVE_SPEED_DEG_S",
+    "MAX_DYNAMICS_MOVE_SPEED_RAD_S",
     "REPORT_SCHEMA_VERSION",
     "DynamicsRunConfig",
     "DynamicsSample",
@@ -25,4 +34,5 @@ __all__ = [
     "SimDynamicsSample",
     "UrdfDynamicsIssue",
     "ValidationStatus",
+    "validate_dynamics_move_speed",
 ]

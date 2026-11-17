@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import builtins
 import json
+import math
 from pathlib import Path
 import subprocess
 import sys
@@ -15,6 +16,9 @@ import numpy as np
 import pytest
 
 from ufactory_mujoco.dynamics import (
+    DEFAULT_DYNAMICS_MOVE_SPEED_RAD_S,
+    MAX_DYNAMICS_MOVE_SPEED_DEG_S,
+    MAX_DYNAMICS_MOVE_SPEED_RAD_S,
     REPORT_SCHEMA_VERSION,
     ArmDynamics,
     DynamicsRunConfig,
@@ -22,6 +26,7 @@ from ufactory_mujoco.dynamics import (
     SimDynamicsSample,
     ValidationStatus,
     attach_payload,
+    validate_dynamics_move_speed,
 )
 from ufactory_mujoco.dynamics import cli as dyn_cli
 from ufactory_mujoco.dynamics.analysis import (
@@ -67,7 +72,7 @@ from ufactory_mujoco.dynamics.report import (
     write_csv_report,
     write_jsonl_report,
 )
-from ufactory_mujoco.dynamics.runtime import DEFAULT_DYNAMICS_MOVE_SPEED_RAD_S, get_robot_runtime_profile
+from ufactory_mujoco.dynamics.runtime import get_robot_runtime_profile
 from ufactory_mujoco.dynamics.session import RealRobotSession, RobotMotionError
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -227,6 +232,14 @@ def test_kinematics_validation_default_poses_within_joint_limits(robot_key: str)
     for name, q in default_validation_poses(robot_key):
         assert q.shape == (runtime.model.dof,), (robot_key, name)
         assert np.all(q >= lo) and np.all(q <= hi), f"{robot_key}.{name} out of joint limits: {q}"
+
+
+def test_uf850_default_validation_ready_pose_aligns_with_runtime():
+    from ufactory_mujoco.kinematics_validation import default_validation_poses
+
+    runtime = get_robot_runtime_profile("uf850")
+    poses = dict(default_validation_poses("uf850"))
+    np.testing.assert_allclose(poses["ready"], np.asarray(runtime.arm.default_qpos, dtype=np.float64))
 
 
 # ---------------------------------------------------------------------------
@@ -637,6 +650,77 @@ def test_run_sim_collision_chain_records_order_and_failure():
     )
     assert [r.passed for r in results] == [True, False, True]
     assert results[1].error_code == 22
+
+
+def test_validate_dynamics_move_speed_and_runtime_defaults():
+    assert MAX_DYNAMICS_MOVE_SPEED_DEG_S == 40.0
+    assert math.isclose(MAX_DYNAMICS_MOVE_SPEED_RAD_S, math.radians(40.0), rel_tol=0.0, abs_tol=1e-12)
+    assert validate_dynamics_move_speed(0.1) == pytest.approx(0.1)
+    assert validate_dynamics_move_speed(math.radians(40.0)) <= MAX_DYNAMICS_MOVE_SPEED_RAD_S
+    for robot_key in ALL_ROBOTS:
+        speed = get_robot_runtime_profile(robot_key).dynamics.default_move_speed_rad_s
+        assert 0.0 < speed <= MAX_DYNAMICS_MOVE_SPEED_RAD_S
+    for bad_speed in (0.0, -0.1, float("nan"), float("inf"), 0.70, math.radians(40.01)):
+        with pytest.raises(ValueError):
+            validate_dynamics_move_speed(bad_speed)
+
+
+def test_cli_and_session_enforce_40deg_speed_ceiling():
+    with pytest.raises(SystemExit) as exc_hw:
+        dyn_cli.cli_hardware_check(["--robot", "xarm7", "--dry-run", "--speed", "0.70"])
+    assert exc_hw.value.code == 2
+
+    with pytest.raises(SystemExit) as exc_simcol:
+        dyn_cli.cli_sim_collision_check(["--robot", "xarm7", "--ip", "192.0.2.1", "--speed", "0.70"])
+    assert exc_simcol.value.code == 2
+
+    arm = MagicMock()
+    session = object.__new__(RealRobotSession)
+    session.arm = arm
+    session.dof = 6
+    session.home_qpos = np.zeros(6)
+    session._motion_mode = 0
+    with pytest.raises(ValueError, match="40.0 deg/s"):
+        session.move_to(np.zeros(6), speed_rad_s=0.70)
+    arm.set_servo_angle.assert_not_called()
+
+
+def test_xarm_robot_caps_joint_speed_when_configured():
+    from ufactory_mujoco.safety import authorize_real_motion
+    from ufactory_mujoco.xarm_robot import XArmRobot
+
+    calib_path = Path(__file__).resolve().parents[1] / "calibrations" / "xarm6_kinematics_L56A01.yaml"
+    arm = MagicMock()
+    arm.connected = True
+    arm.error_code = 0
+    arm.warn_code = 0
+    arm.state = 2
+    arm.axis = 6
+    arm.get_err_warn_code.return_value = (0, [0, 0])
+    arm.get_state.return_value = (0, 2)
+    arm.get_robot_sn.return_value = (0, "XI130505L56A01")
+    arm.get_servo_angle.return_value = (0, [0.0] * 7)
+    arm.motion_enable.return_value = 0
+    arm.set_mode.return_value = 0
+    arm.set_state.return_value = 0
+    arm.set_servo_angle.return_value = 0
+
+    approval = authorize_real_motion(
+        arm, robot="xarm6", calibration=calib_path, preflight_ok=True, confirm_real=True, cycles=1
+    )
+    with XArmRobot(
+        robot="xarm6",
+        calibration=calib_path,
+        read_only=False,
+        approval=approval,
+        arm_api=arm,
+        max_joint_speed_rad_s=MAX_DYNAMICS_MOVE_SPEED_RAD_S,
+    ) as robot:
+        robot.move_joints(np.array([0.8, 0.0, 0.0, 0.0, 0.0, 0.0]), duration=0.5, wait=True)
+
+    assert arm.set_servo_angle.call_count == 1
+    cmd_speed = arm.set_servo_angle.call_args.kwargs["speed"]
+    assert cmd_speed <= MAX_DYNAMICS_MOVE_SPEED_RAD_S
 
 
 # ---------------------------------------------------------------------------

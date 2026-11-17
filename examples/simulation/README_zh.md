@@ -129,7 +129,7 @@ tau_ff = dyn.feedforward_traj(q_traj, dt)  # 沿关节轨迹的前馈力矩序�
 真机及内部仿真模式需要安装 `xarm-python-sdk`（`pip install xarm-python-sdk`），纯仿真无需安装。请将命令中的 IP 替换为自己的控制器地址（或设置环境变量 `XARM_IP`）。所有真机相关模式都会拒绝序列号或 SHA-256 与当前机械臂不符的标定文件。
 
 - **零物理运动核验**：`kinematics_validation`、`08 --mode real-read-only` 以及 `05`/`08`/`10` 的 `--mode sdk-sim` 不会让物理机械臂运动（`sdk-sim` 在控制器内置仿真中重放轨迹，并在退出时恢复非仿真模式）。
-- **真机运动门禁**：`--mode real`（`05`、`08`、`10`）要求控制器状态正常、轨迹预检通过且显式传入 `--confirm-real`，并强制限制单周期运行（`cycles == 1`）。`08_dynamics.py` 在非 `sim` 模式下必须指定单台机型（不支持 `--robot all`）。
+- **真机运动门禁**：`--mode real`（`05`、`08`、`10`）要求控制器状态正常、轨迹预检通过且显式传入 `--confirm-real`，并强制限制单周期运行（`cycles == 1`）。`08_dynamics.py` 在非 `sim` 模式下必须指定单台机型（不支持 `--robot all`）。所有动力学验证真机命令（`dynamics-hardware-check`、`dynamics-sim-collision-check`、`08 --mode sdk-sim`/`real`）对关节速度强制实施 `<= 40 °/s`（`0.6981 rad/s`）安全上限。
 
 ```bash
 # 1. 提取单机运动学标定 YAML（输出至 calibrations/<arm>_kinematics_<SN>.yaml）

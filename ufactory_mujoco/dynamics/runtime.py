@@ -20,9 +20,24 @@ from ..robots import ARMS
 
 FloatTuple = tuple[float, ...]
 
-# ≈ 40°/s; matches ufactory_genesis real-robot dynamics validation move speed.
-DEFAULT_DYNAMICS_MOVE_SPEED_RAD_S = math.radians(40.0)
+# ≈ 40°/s; hard ceiling aligned with ufactory_genesis real-robot dynamics validation.
+MAX_DYNAMICS_MOVE_SPEED_DEG_S = 40.0
+MAX_DYNAMICS_MOVE_SPEED_RAD_S = math.radians(MAX_DYNAMICS_MOVE_SPEED_DEG_S)
+DEFAULT_DYNAMICS_MOVE_SPEED_RAD_S = MAX_DYNAMICS_MOVE_SPEED_RAD_S
 ABS_ERR_FRACTION = 0.10
+
+
+def validate_dynamics_move_speed(speed_rad_s: float) -> float:
+    """Validate and enforce the ``<= 40 deg/s`` dynamics motion speed ceiling."""
+    val = float(speed_rad_s)
+    if not math.isfinite(val) or val <= 0.0:
+        raise ValueError(f"dynamics joint speed must be finite and > 0 rad/s, got {speed_rad_s!r}")
+    if val > MAX_DYNAMICS_MOVE_SPEED_RAD_S + 1e-9:
+        raise ValueError(
+            f"dynamics joint speed {val:.4f} rad/s ({math.degrees(val):.2f} deg/s) exceeds "
+            f"safety ceiling {MAX_DYNAMICS_MOVE_SPEED_RAD_S:.4f} rad/s ({MAX_DYNAMICS_MOVE_SPEED_DEG_S:.1f} deg/s)"
+        )
+    return min(val, MAX_DYNAMICS_MOVE_SPEED_RAD_S)
 
 _PROFILE_KEYS = {
     "xarm5": "xarm5_1305",

@@ -123,7 +123,7 @@ ruff check .                      # 与 CI 相同的静态检查（pip install r
 
 ## 已知限制
 
-- 对齐 `ufactory_genesis` Schema v4 的裸臂 20 姿态真机静态力矩验证（`dynamics-hardware-check`）已在 Python 3.14.6、MuJoCo 4.0.1 下完成一台 xArm 6（固件 v2.8.0，20/20 PASS，L2 力矩误差 0.470–0.765 Nm）与一台 Lite 6（固件 v2.8.2，20/20 PASS，L2 力矩误差 0.028–0.156 Nm）实测；抓放/装箱真机模式已在 xArm 6（v2.8.0）上验证，3 kg 负载静态力矩比对（≤ 2.5 %）为单次历史实测。
+- 对齐 `ufactory_genesis` Schema v4 的裸臂 20 姿态真机静态力矩验证（`dynamics-hardware-check`，真机关节运动速度硬限制 `<= 40 °/s`）已在 Python 3.14.6、MuJoCo 4.0.1 下完成一台 xArm 6（固件 v2.8.0，20/20 PASS，L2 力矩误差 0.470–0.765 Nm）、一台 xArm 7（固件 v2.8.2，20/20 PASS，L2 力矩误差 0.816–3.303 Nm）、一台 Lite 6（固件 v2.8.2，20/20 PASS，L2 力矩误差 0.028–0.156 Nm）与一台 UF850（固件 v2.8.100，20/20 PASS，L2 力矩误差 0.086–0.569 Nm）实测；抓放/装箱真机模式已在 xArm 6（v2.8.0）上验证，3 kg 负载静态力矩比对（≤ 2.5 %）为单次历史实测。
 - 真空吸盘（`lite6_vacuum_gripper`、`vacuum_gripper` 及其机械臂组合）为静态模型，不含吸附模型。它们与独立相机、`camera_stand*`、`<机械臂>_with_d435` 都没有夹爪执行器，`04_gripper_control.py` 会拒绝这些模型（退出码 `2`）。
 - 深度相机与 `camera_stand` 模型提供外观几何、安装面/螺钉孔 `<site>`（`group=4`）与近似碰撞体（`group=3`），`mass=0` 且不含 MuJoCo `<camera>` 光学成像传感器；动力学场景请通过 `attach_payload` 注入相机与支架负载。
 - 任务报告在 MuJoCo 4.0.0 与 4.0.1 下逐字节一致；其他 MuJoCo 版本可能使结果在数值上不同。

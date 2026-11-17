@@ -61,6 +61,7 @@ from .runtime import (
     RobotRuntimeProfile,
     get_robot_runtime_profile,
     robot_runtime_cli_choices,
+    validate_dynamics_move_speed,
 )
 from ..calibration import (
     KinematicsCalibration,
@@ -504,7 +505,12 @@ def cli_hardware_check(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--confirm-real", action="store_true", help="Required before any controller access")
     parser.add_argument("--hold-current-only", action="store_true", help="Read real torque at current pose")
     parser.add_argument("--clear-tcp-offset", action="store_true", help="Zero controller tcp_offset before checks")
-    parser.add_argument("--speed", type=float, default=None, help="Joint speed (rad/s) for real moves")
+    parser.add_argument(
+        "--speed",
+        type=float,
+        default=None,
+        help="Joint speed in rad/s (default & max: 40 deg/s = 0.6981 rad/s)",
+    )
     parser.add_argument("--move-strategy", choices=MOVE_STRATEGIES, default=MOVE_STRATEGY_DIRECT)
     parser.add_argument("--sample-duration", type=float, default=3.0, help="Seconds of hold samples per pose")
     parser.add_argument("--sample-poll", type=float, default=0.1, help="Seconds between hold samples")
@@ -519,6 +525,10 @@ def cli_hardware_check(argv: Sequence[str] | None = None) -> int:
         args.z_min_mm = runtime.dynamics.default_z_min_mm
     if args.speed is None:
         args.speed = runtime.dynamics.default_move_speed_rad_s
+    try:
+        args.speed = validate_dynamics_move_speed(args.speed)
+    except ValueError as exc:
+        parser.error(str(exc))
 
     if not args.dry_run and not args.ip:
         args.ip = (os.environ.get("XARM_IP") or "").strip() or None
@@ -1070,7 +1080,12 @@ def cli_sim_collision_check(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--robot", default="xarm6", choices=robot_runtime_cli_choices())
     parser.add_argument("--clear-tcp-offset", action="store_true", help="Zero controller tcp_offset before checks")
     parser.add_argument("--poses", type=str, default=None, help="Comma-separated pose names to run")
-    parser.add_argument("--speed", type=float, default=None, help="Joint speed (rad/s)")
+    parser.add_argument(
+        "--speed",
+        type=float,
+        default=None,
+        help="Joint speed in rad/s (default & max: 40 deg/s = 0.6981 rad/s)",
+    )
     parser.add_argument("--move-strategy", choices=MOVE_STRATEGIES, default=MOVE_STRATEGY_DIRECT)
     parser.add_argument("--report", type=str, default=None, help="CSV report output path")
     args = parser.parse_args(argv)
@@ -1082,6 +1097,10 @@ def cli_sim_collision_check(argv: Sequence[str] | None = None) -> int:
     runtime = get_robot_runtime_profile(args.robot)
     if args.speed is None:
         args.speed = runtime.dynamics.default_move_speed_rad_s
+    try:
+        args.speed = validate_dynamics_move_speed(args.speed)
+    except ValueError as exc:
+        parser.error(str(exc))
 
     configs = dynamics_default_configs(runtime.model.robot_name)
     configs, missing = _select_poses(configs, args.poses)

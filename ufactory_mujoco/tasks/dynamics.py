@@ -22,6 +22,7 @@ import numpy as np
 from ufactory_mujoco.calibration import apply_calibration_to_model
 from ufactory_mujoco.collision import CollisionChecker
 from ufactory_mujoco.dynamics import ArmDynamics
+from ufactory_mujoco.dynamics.runtime import MAX_DYNAMICS_MOVE_SPEED_RAD_S
 from ufactory_mujoco.model_paths import MODELS_ROOT
 from ufactory_mujoco.robots import ARMS, resolve_arm_scene
 from ufactory_mujoco.safety import (
@@ -587,6 +588,7 @@ def run_hardware_dynamics_validation(
             model_path=scene_path,
             calibration=calibration,
             read_only=True,
+            max_joint_speed_rad_s=MAX_DYNAMICS_MOVE_SPEED_RAD_S,
         ) as hw_robot:
             calib = hw_robot.calibration
             state = hw_robot.read_state()
@@ -639,7 +641,7 @@ def run_hardware_dynamics_validation(
             # Build velocity-bounded shadow stream for sdk-sim / real
             def _seg(a: np.ndarray, b: np.ndarray) -> np.ndarray:
                 disp = float(np.max(np.abs(b - a)))
-                dur = max(0.6, disp * 1.875 / 0.8)
+                dur = max(0.6, disp * 1.875 / MAX_DYNAMICS_MOVE_SPEED_RAD_S)
                 return plan_ptp_quintic(a, b, duration=dur, dt=0.02).q
 
             shadow_chunks = [
@@ -681,7 +683,10 @@ def run_hardware_dynamics_validation(
             )
             hw_robot.unlock_motion(approval)
             for seg in segments:
-                hw_robot.move_joints(seg.goal, duration=seg.duration, wait=True)
+                q_cur = hw_robot.get_joint_positions()
+                disp = float(np.max(np.abs(seg.goal - q_cur)))
+                safe_dur = max(float(seg.duration), disp * 1.5 / MAX_DYNAMICS_MOVE_SPEED_RAD_S)
+                hw_robot.move_joints(seg.goal, duration=safe_dur, wait=True)
             q_end = hw_robot.get_joint_positions()
             arrival_err = float(np.max(np.abs(q_end - ready)))
             report["real_motion"] = {
