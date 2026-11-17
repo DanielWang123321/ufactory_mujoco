@@ -95,6 +95,10 @@ python examples/simulation/08_dynamics.py
 python examples/simulation/08_dynamics.py --headless
 python examples/simulation/08_dynamics.py --robot lite6 --headless --samples 32 --seed 0
 python examples/simulation/08_dynamics.py --robot all --headless --report build/dynamics/report.json
+
+# Schema v4 动力学验证（对齐 ufactory_genesis，20 姿态 + 随机姿态离线检查）
+dynamics-sim-check --robot xarm6 --random-count 20 --require-reference
+dynamics-hardware-check --robot lite6 --dry-run --require-reference --strict-static --strict-static-layers l2b
 ```
 
 `08_dynamics.py`（`ufactory-mujoco dynamics`）在不连接 xArm SDK 的情况下校验全部五款裸臂：
@@ -103,7 +107,9 @@ python examples/simulation/08_dynamics.py --robot all --headless --report build/
 - **8.4 s 监测运动**：依次执行 `home -> ready (1.5 s) -> target (3.0 s) -> ready (3.0 s)`（每段后收敛 `0.3 s`）。运动前按物理步长预检全部命令，积分后每个物理步由独立 `CollisionChecker` 检查实际关节位置（穿透 `<= 1e-6 m`、超限 `<= 1e-6 rad`、收敛到位误差 `< 0.01 rad`；非有限状态、MuJoCo 警告、提前结束或完成前关闭视窗均判失败）。`--robot all` 保留各臂结果并在单臂失败后继续其余机型。
 - **报告与基线**：`--report` 输出严格 JSON，包含版本、环境、路径、阈值、指标与失败原因（退出码：`0` 通过，`1` 失败/未完成，`2` 参数非法）。`xarm6` 另保留 `3 kg` 负载前馈演示与六轴重力基线回归（`<= 1e-6 Nm`；J2/J3 沿用历史 5% 参考容差，不重新连接真机）。固定姿态、阈值与基线定义在 [`ufactory_mujoco/tasks/dynamics.py`](../../ufactory_mujoco/tasks/dynamics.py)。
 
-#### 动力学模块编程接口 (`ufactory_mujoco/dynamics.py`)
+如需执行对齐 `ufactory_genesis` 的 20 姿态静态力矩验证（PD 持位力矩 vs 解析参考/真机 SDK、L1 主判定与 L2a/L2b/L3a/L3b 分层诊断、Schema v4 CSV/JSONL 报告及 `_torque.png` 绘图），请使用 `dynamics-sim-check`、`dynamics-hardware-check --dry-run` 与 `dynamics-report-compare`（或 `python -m ufactory_mujoco.dynamics <子命令>`）。
+
+#### 动力学模块编程接口 (`ufactory_mujoco/dynamics`)
 
 ```python
 from ufactory_mujoco.dynamics import ArmDynamics
@@ -127,18 +133,22 @@ tau_ff = dyn.feedforward_traj(q_traj, dt)  # 沿关节轨迹的前馈力矩序�
 
 ```bash
 # 1. 提取单机运动学标定 YAML（输出至 calibrations/<arm>_kinematics_<SN>.yaml）
-python scripts/gen_kinematics_params.py 192.168.1.60
+python -m ufactory_mujoco.dynamics export-calibration 192.168.1.60 --output-dir calibrations
 
-# 2. 只读 FK/IK 对照与只读静态动力学检查（无运动）
+# 2. 只读 FK/IK 对照与零物理运动静态动力学检查
 python -m ufactory_mujoco.kinematics_validation --robot xarm6 --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
 python examples/simulation/08_dynamics.py --robot xarm6 --mode real-read-only --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
+dynamics-hardware-check --robot lite6 --ip 192.168.1.60 --confirm-real --hold-current-only --require-reference
 
-# 3. 控制器内置仿真重放（单周期，不驱动物理关节）
+# 3. 控制器内置仿真重放（不驱动物理关节）
 python examples/simulation/05_pick_place.py --robot xarm6 --mode sdk-sim --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
 python examples/simulation/10_box_pack.py --robot xarm6 --mode sdk-sim --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
+dynamics-sim-collision-check --robot lite6 --ip 192.168.1.60
 
-# 4. 单周期真机物理运动（必须加 --confirm-real；请确保工作区安全且急停可用）
+# 4. 真机物理运动（必须加 --confirm-real；请确保工作区安全且急停可用）
 ufactory-mujoco pick-place --robot xarm6 --mode real --confirm-real --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
+dynamics-hardware-check --robot xarm6 --ip 192.168.1.60 --confirm-real --require-reference
+dynamics-report-compare reports/dyn_ver_<SN>/<old>.jsonl reports/dyn_ver_<SN>/<new>.jsonl
 ```
 
 ## 3. 命令行参数汇总

@@ -63,7 +63,8 @@ def resource_reference():
     for path in sorted(CONFIGS_ROOT.rglob("*.yaml")):
         key = path.relative_to(CONFIGS_ROOT).as_posix()
         result["configs"][key] = digest(path)
-        result["config_hashes"][key] = load_task_config(None if key == "default.yaml" else path).sha256
+        if key == "default.yaml" or key.startswith(("pick_place/", "box_pack/")):
+            result["config_hashes"][key] = load_task_config(None if key == "default.yaml" else path).sha256
     licenses = RESOURCE_ROOT / "licenses"
     for path in sorted(licenses.iterdir()):
         if path.is_file():
@@ -75,7 +76,7 @@ def resource_reference():
         if path.is_file():
             result["licenses"][name] = digest(path)
     assert len(result["models"]) >= 99 and len(result["meshes"]) >= 444
-    assert len(result["configs"]) == 11 and len(result["licenses"]) == 6
+    assert len(result["configs"]) == 12 and len(result["config_hashes"]) == 11 and len(result["licenses"]) == 6
     return result
 
 
@@ -87,8 +88,16 @@ def check_archive(path, reference):
             assert not any(stat.S_ISLNK(e.external_attr >> 16) for e in entries), "Wheel contains symlink"
             files = {e.filename: archive.read(e) for e in entries if not e.is_dir()}
         assert not any(n.endswith("_build_support.py") for n in files)
-        assert any(n.endswith(".dist-info/entry_points.txt") and b"ufactory-mujoco" in b
-                   for n, b in files.items()), "Missing console entry point"
+        entry_points = next((b for n, b in files.items() if n.endswith(".dist-info/entry_points.txt")), None)
+        assert entry_points is not None, "Missing .dist-info/entry_points.txt"
+        for script_name in (
+            b"ufactory-mujoco",
+            b"dynamics-sim-check",
+            b"dynamics-sim-collision-check",
+            b"dynamics-hardware-check",
+            b"dynamics-report-compare",
+        ):
+            assert script_name in entry_points, f"Missing console entry point: {script_name.decode()}"
         for name in reference["licenses"]:
             assert any(".dist-info/licenses/" in n and n.endswith("/" + name) for n in files), name
     else:
@@ -198,12 +207,11 @@ def accept(args, summary):
     package.parent.chmod(0o555)
 
     out = args.out_dir.resolve()
-    command = Path(sys.executable).with_name("ufactory-mujoco")
     env = dict(os.environ)
     env.pop("PYTHONPATH", None)
     env.pop("UFACTORY_MUJOCO_MODELS", None)
 
-    def run(label, arguments, expected=0, *, overrides=None, no_steps=False):
+    def run(label, arguments, expected=0, *, overrides=None, no_steps=False, executable="ufactory-mujoco"):
         if no_steps:
             code = (
                 "import runpy; from unittest.mock import patch; "
@@ -212,7 +220,7 @@ def accept(args, summary):
             )
             cmd = [sys.executable, "-I", "-c", code, *arguments]
         else:
-            cmd = [str(command), *arguments]
+            cmd = [str(Path(sys.executable).with_name(executable)), *arguments]
         result = subprocess.run(cmd, cwd=out, env=env | (overrides or {}),
                                 text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=600)
         (out / f"{label}.log").write_text(result.stdout, encoding="utf-8")
@@ -254,6 +262,17 @@ def accept(args, summary):
     assert all(r["success"] and r["motion"]["steps"] > 0 for r in dynamics["robots"])
     payload = next(r["payload"] for r in dynamics["robots"] if r["robot"] == "xarm6")
     assert payload["success"] and payload["max_baseline_error_nm"] <= 1e-6
+    run("dynamics-sim-check-xarm6",
+        ["--robot", "xarm6", "--random-count", "2", "--require-reference", "--report", "dyn-sim/xarm6.csv"],
+        executable="dynamics-sim-check")
+    assert (out / "dyn-sim/xarm6.csv").is_file() and (out / "dyn-sim/xarm6.jsonl").is_file()
+    run("dynamics-hw-dry-lite6",
+        ["--robot", "lite6", "--dry-run", "--require-reference", "--poses", "0,1,9"],
+        executable="dynamics-hardware-check")
+    assert list((out / "reports/dyn_ver_lite6").glob("*/*.csv")), "Missing default CWD dynamics report"
+    run("dynamics-report-compare",
+        ["dyn-sim/xarm6.jsonl", "dyn-sim/xarm6.jsonl"],
+        executable="dynamics-report-compare")
     for task in ("pick-place", "box-pack", "dynamics"):
         run(f"{task}-invalid-robot", [task, "--robot", "invalid", "--headless"], 2)
         run(f"{task}-invalid-models", [task, "--headless", "--report", f"{task}-invalid-models.json"], 1,

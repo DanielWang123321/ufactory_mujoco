@@ -34,7 +34,7 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
-from .grippers import GRIPPER_ACTUATOR_NAMES
+from ..grippers import GRIPPER_ACTUATOR_NAMES
 
 
 def attach_payload(model_path: str | Path, mass: float, com,

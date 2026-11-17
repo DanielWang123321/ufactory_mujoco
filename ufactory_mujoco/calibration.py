@@ -16,8 +16,12 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 import hashlib
+import ipaddress
 import math
 from pathlib import Path
+import socket
+import struct
+import sys
 from typing import Any
 
 import mujoco
@@ -377,4 +381,136 @@ def apply_calibration_to_model(
         )
     target_data = data if data is not None else mujoco.MjData(model)
     mujoco.mj_forward(model, target_data)
+
+
+def validate_ipv4_address(value: str) -> str:
+    """Validate and normalize an IPv4 dotted-decimal controller address."""
+    try:
+        addr = ipaddress.ip_address(value)
+    except ValueError as exc:
+        raise ValueError(
+            f"invalid IPv4 address {value!r}; use dotted-decimal form, e.g. 192.168.1.60"
+        ) from exc
+    if addr.version != 4:
+        raise ValueError(f"IPv6 is not supported by xArm controller: {value!r}")
+    return str(addr)
+
+
+def robot_name_from_firmware(dof: int, robot_type: int) -> str:
+    """Resolve canonical robot name from firmware kinematics header bytes."""
+    if dof == 6 and robot_type == 9:
+        return "lite6"
+    if dof == 6 and robot_type == 12:
+        return "uf850"
+    if dof in (5, 6, 7):
+        return f"xarm{dof}"
+    raise ValueError(f"unsupported firmware robot descriptor: dof={dof}, type={robot_type}")
+
+
+def fetch_kinematics_bytes(robot_ip: str, timeout: float = 10.0) -> bytes:
+    """Read 179-byte factory kinematics register block from TCP port 502."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.settimeout(timeout)
+        sock.connect((robot_ip, 502))
+        sock.sendall(bytes([0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x08]))
+        return sock.recv(179)
+
+
+def decode_kinematics_payload(recv_data: bytes, *, serial_number: str) -> tuple[str, dict[str, Any]]:
+    """Decode a 179-byte port-502 kinematics block into a schema-v1 payload."""
+    if len(recv_data) != 179 or not recv_data[8]:
+        valid = 0 if len(recv_data) < 9 else recv_data[8]
+        raise CalibrationError(f"invalid port-502 kinematics response: recv_len={len(recv_data)}, valid={valid}")
+    robot_dof = int(recv_data[9])
+    robot_type = int(recv_data[10])
+    robot_name = robot_name_from_firmware(robot_dof, robot_type)
+    params = struct.unpack("<42f", recv_data[11:])
+    joints: dict[str, dict[str, float]] = {}
+    for i in range(robot_dof):
+        joint_param: dict[str, float] = {}
+        for axis_idx, axis in enumerate(("x", "y", "z", "roll", "pitch", "yaw")):
+            value = float(params[i * 6 + axis_idx])
+            if axis in ("x", "y", "z") and abs(value) > 1.0:
+                value /= 1000.0
+            joint_param[axis] = value
+        joints[f"joint{i + 1}"] = joint_param
+    payload = {
+        "schema_version": 1,
+        "robot_key": f"{robot_name}_1305" if robot_name.startswith("xarm") else robot_name,
+        "serial_number": serial_number,
+        "units": {"position": "m", "angle": "rad"},
+        "joints": joints,
+    }
+    return robot_name, payload
+
+
+def fetch_robot_sn_from_ip(robot_ip: str) -> str:
+    """Connect transiently via XArmAPI (read-only) and return the robot serial number."""
+    from xarm.wrapper import XArmAPI
+
+    arm = XArmAPI(robot_ip, is_radian=True)
+    try:
+        if not getattr(arm, "connected", False):
+            connect_fn = getattr(arm, "connect", None)
+            if callable(connect_fn):
+                connect_fn()
+        if not getattr(arm, "connected", False):
+            raise ConnectionError(f"cannot connect to {robot_ip}")
+        return get_robot_sn(arm)
+    finally:
+        disconnect_fn = getattr(arm, "disconnect", None)
+        if callable(disconnect_fn):
+            try:
+                disconnect_fn()
+            except Exception:
+                pass
+
+
+def export_kinematics_calibration(
+    robot_ip: str,
+    output_dir: str | Path,
+    *,
+    suffix: str | None = None,
+    force: bool = False,
+    timeout: float = 10.0,
+) -> int:
+    """Export per-robot schema-v1 kinematics YAML from an xArm controller; returns exit code (0/1/2)."""
+    try:
+        sn = fetch_robot_sn_from_ip(robot_ip)
+    except Exception as exc:
+        print(f"[Failed] cannot connect to {robot_ip}: {exc}", file=sys.stderr)
+        return 1
+
+    resolved_suffix = suffix or kinematics_suffix_from_sn(sn)
+    print(f"serial_number    : {sn}")
+    print(f"kinematics_suffix: {resolved_suffix}")
+
+    try:
+        recv_data = fetch_kinematics_bytes(robot_ip, timeout=timeout)
+    except OSError as exc:
+        print(f"[Failed] cannot read kinematics from {robot_ip}:502: {exc}", file=sys.stderr)
+        return 1
+
+    try:
+        robot_name, payload = decode_kinematics_payload(recv_data, serial_number=sn)
+    except (CalibrationError, ValueError) as exc:
+        print(f"[Failed] {exc}", file=sys.stderr)
+        return 1
+
+    print(f"robot_name       : {robot_name}")
+    if not force and not has_per_unit_kinematics_calibration(sn, robot_name):
+        code = parse_sn_model_code(sn)
+        print(
+            f"[Skipped] SN model code {code} has no per-unit compensation. Pass --force to override.",
+            file=sys.stderr,
+        )
+        return 2
+
+    out_dir = Path(output_dir).expanduser().resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_file = out_dir / f"{robot_name}_kinematics_{resolved_suffix}.yaml"
+    with out_file.open("w", encoding="utf-8") as f:
+        yaml.safe_dump(payload, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    print(f"[Success] saved to {out_file}")
+    return 0
 

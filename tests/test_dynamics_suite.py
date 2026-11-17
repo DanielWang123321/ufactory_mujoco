@@ -1,0 +1,709 @@
+"""Tests for ufactory_mujoco.dynamics validation suite, Schema v4 reporting, and safety gates."""
+
+from __future__ import annotations
+
+import builtins
+import json
+from pathlib import Path
+import subprocess
+import sys
+import tomllib
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+
+import numpy as np
+import pytest
+
+from ufactory_mujoco.dynamics import (
+    REPORT_SCHEMA_VERSION,
+    ArmDynamics,
+    DynamicsRunConfig,
+    SafePose,
+    SimDynamicsSample,
+    ValidationStatus,
+    attach_payload,
+)
+from ufactory_mujoco.dynamics import cli as dyn_cli
+from ufactory_mujoco.dynamics.analysis import (
+    LAYER_L2A,
+    LAYER_L2B,
+    LAYER_L3A,
+    LAYER_L3B,
+    StaticPoseAnalysis,
+    analyze_mass_matrices,
+    analyze_ref_vs_real,
+    analyze_sim_internal,
+    build_dynamics_sample,
+    build_static_pose_analysis,
+    classify_torque_result,
+    estimate_pd_residual,
+    evaluate_pd_hold_gate,
+    parse_strict_static_layers,
+    sim_sample_for_torque_compare,
+    summarize_static_layers,
+    validate_mjcf_dynamics,
+)
+from ufactory_mujoco.dynamics.cli import cli_sim_check, print_compare_table
+from ufactory_mujoco.dynamics.plot import torque_plot_layout, write_torque_plot
+from ufactory_mujoco.dynamics.poses import (
+    DYNAMICS_VALIDATION_POSES_YAML,
+    check_joint_limit_path,
+    dynamics_default_configs,
+    expand_round_trip,
+    filter_safe_configs,
+    load_dynamics_pose_lists,
+    parse_joint_limits,
+)
+from ufactory_mujoco.dynamics.reference import default_urdf_for_robot, load_reference_backend
+from ufactory_mujoco.dynamics.report import (
+    ABS_ERR_LIMITS,
+    DEFAULT_REPORT_ROOT,
+    compare_report_records,
+    dynamics_report_paths,
+    joint_torque_rows,
+    read_report_records,
+    sanitize_report_identity,
+    torque_summary,
+    write_csv_report,
+    write_jsonl_report,
+)
+from ufactory_mujoco.dynamics.runtime import DEFAULT_DYNAMICS_MOVE_SPEED_RAD_S, get_robot_runtime_profile
+from ufactory_mujoco.dynamics.session import RealRobotSession, RobotMotionError
+
+ROOT = Path(__file__).resolve().parent.parent
+ALL_ROBOTS = ("xarm5", "xarm6", "xarm7", "lite6", "uf850")
+
+
+def _sim_sample(
+    dof: int = 6,
+    *,
+    pd_hold: np.ndarray | None = None,
+    dof_force: np.ndarray | None = None,
+    settled: bool = True,
+) -> SimDynamicsSample:
+    pd = np.asarray(pd_hold if pd_hold is not None else np.ones(dof), dtype=np.float64)
+    dof_arr = np.asarray(dof_force if dof_force is not None else pd, dtype=np.float64)
+    return SimDynamicsSample(
+        q_actual=np.zeros(dof),
+        qvel=np.zeros(dof),
+        pd_hold_tau=pd,
+        actual_dof_force=dof_arr,
+        mass_matrix=np.eye(dof),
+        settled=settled,
+        saturated=False,
+        pos_err=0.0,
+        vel_mag=0.0,
+    )
+
+
+def _load_jsonl(path: Path):
+    out = []
+    with path.open(encoding="utf-8") as f:
+        for line in f:
+            item = json.loads(line)
+            if item.get("type") == "sample":
+                out.append(item["data"])
+            elif item.get("type") == "run_config":
+                out.append(("run_config", item["data"]))
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Packaging, backward compatibility, and CLI entry points
+# ---------------------------------------------------------------------------
+
+
+def test_package_exports_and_pyproject_scripts():
+    import ufactory_mujoco
+
+    assert ufactory_mujoco.ArmDynamics is ArmDynamics
+    assert ufactory_mujoco.attach_payload is attach_payload
+    assert DYNAMICS_VALIDATION_POSES_YAML.is_file()
+    assert DEFAULT_REPORT_ROOT == Path("reports")
+
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    scripts = project["scripts"]
+    expected = {
+        "dynamics-sim-check": "ufactory_mujoco.dynamics.cli:cli_sim_check",
+        "dynamics-sim-collision-check": "ufactory_mujoco.dynamics.cli:cli_sim_collision_check",
+        "dynamics-hardware-check": "ufactory_mujoco.dynamics.cli:cli_hardware_check",
+        "dynamics-report-compare": "ufactory_mujoco.dynamics.cli:cli_report_compare",
+    }
+    for name, target in expected.items():
+        assert scripts.get(name) == target
+
+
+def test_module_cli_help_and_entrypoint():
+    assert dyn_cli.main(["--help"]) == 0
+    proc = subprocess.run(
+        [sys.executable, "-m", "ufactory_mujoco.dynamics", "--help"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert proc.returncode == 0
+    assert "sim-check" in proc.stdout
+    assert "hardware-check" in proc.stdout
+
+
+# ---------------------------------------------------------------------------
+# Poses and runtime configuration
+# ---------------------------------------------------------------------------
+
+
+def test_all_robots_have_twenty_expanded_poses():
+    for robot_key in ALL_ROBOTS:
+        configs = dynamics_default_configs(robot_key)
+        assert len(configs) == 20
+        assert [name for name, _ in configs] == [str(i) for i in range(20)]
+
+
+def test_xarm6_include_stress_has_no_extra_poses():
+    configs = dynamics_default_configs("xarm6", include_stress=True)
+    assert len(configs) == 20
+    assert configs[-1][0] == "19"
+
+
+def test_expand_round_trip_xarm6_first_leg():
+    home = [0, 0, 0, 0, 0, 0]
+    end = [90, -90, -60, 170, 160, -179]
+    leg = expand_round_trip(home, end)
+    assert len(leg) == 10
+    np.testing.assert_allclose(leg[0], np.deg2rad(np.asarray(home) + 0.2 * (np.asarray(end) - np.asarray(home))))
+    np.testing.assert_allclose(leg[4], np.deg2rad(end))
+    np.testing.assert_allclose(leg[9], np.zeros(6))
+
+
+def test_xarm6_second_leg_starts_after_first():
+    default, _ = load_dynamics_pose_lists("xarm6")
+    assert len(default) == 20
+    np.testing.assert_allclose(default[9], np.zeros(6))
+    np.testing.assert_allclose(
+        default[10],
+        np.deg2rad(np.asarray([-90, -90, -60, -170, -20, 179]) * 0.2),
+    )
+
+
+@pytest.mark.parametrize(
+    ("robot_key", "expected_dof"),
+    [("xarm5", 5), ("xarm6", 6), ("xarm7", 7), ("lite6", 6), ("uf850", 6)],
+)
+def test_runtime_profile_matches_mjcf(robot_key: str, expected_dof: int):
+    runtime = get_robot_runtime_profile(robot_key)
+    assert runtime.dynamics.supports_hardware_validation
+    assert runtime.model.dof == expected_dof
+    assert len(runtime.dynamics.default_configs) == 20
+    assert len(runtime.arm.effort_limits) == expected_dof
+    assert len(runtime.dynamics.abs_err_limits) == expected_dof
+    lo, hi = parse_joint_limits(runtime.model.model_path, runtime.arm.joint_names)
+    assert lo.shape == (expected_dof,)
+    assert np.all(hi > lo)
+
+
+def test_filter_safe_configs_and_joint_limit_path():
+    configs = [("a", np.zeros(6)), ("b", np.ones(6) * 0.2), ("c", np.ones(6) * 0.3)]
+    safe, rejected = filter_safe_configs(
+        configs,
+        {"a": 100.0, "b": 20.0, "c": 120.0},
+        z_min_mm=50.0,
+        colliding_names={"c"},
+    )
+    assert [p.name for p in safe] == ["a"]
+    assert [name for name, _ in rejected] == ["b", "c"]
+
+    lo = np.full(6, -1.0)
+    hi = np.full(6, 1.0)
+    assert check_joint_limit_path(np.zeros(6), np.full(6, 0.5), lo, hi) == []
+    assert check_joint_limit_path(np.zeros(6), np.full(6, 0.99), lo, hi, margin_rad=0.02)
+
+
+@pytest.mark.parametrize("robot_key", ALL_ROBOTS)
+def test_kinematics_validation_default_poses_within_joint_limits(robot_key: str):
+    from ufactory_mujoco.kinematics_validation import default_validation_poses
+
+    runtime = get_robot_runtime_profile(robot_key)
+    lo, hi = parse_joint_limits(runtime.model.model_path, runtime.arm.joint_names)
+    for name, q in default_validation_poses(robot_key):
+        assert q.shape == (runtime.model.dof,), (robot_key, name)
+        assert np.all(q >= lo) and np.all(q <= hi), f"{robot_key}.{name} out of joint limits: {q}"
+
+
+# ---------------------------------------------------------------------------
+# Static MJCF checks, L1 classification, L2/L3 diagnostics, PD hold gate
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("robot_key", ALL_ROBOTS)
+def test_mjcf_dynamics_static_checks_have_no_errors(robot_key: str):
+    runtime = get_robot_runtime_profile(robot_key)
+    issues = validate_mjcf_dynamics(runtime.model.scene_path, dof=runtime.model.dof)
+    assert [issue for issue in issues if issue.severity == "ERROR"] == []
+
+
+def test_estimate_pd_residual_matches_formula():
+    kp = np.array([100.0, 200.0])
+    kv = np.array([10.0, 20.0])
+    residual = estimate_pd_residual([0.1, 0.2], [0.0, 0.0], [0.05, 0.1], kp=kp, kv=kv)
+    expected = np.array([100.0 * 0.1 - 10.0 * 0.05, 200.0 * 0.2 - 20.0 * 0.1])
+    np.testing.assert_allclose(residual, expected)
+
+
+def test_torque_classification_distinguishes_bias_and_model_failure():
+    abs_err = np.array([0.1, 0.2, 0.1, 0.1, 0.1, ABS_ERR_LIMITS[5] + 0.05])
+    rel_err = abs_err / (ABS_ERR_LIMITS / 0.10)
+    status = classify_torque_result(
+        settled=True,
+        saturated=False,
+        tau_real=np.zeros(6),
+        abs_err=abs_err,
+        rel_err=rel_err,
+        l2_err=float(np.linalg.norm(abs_err)),
+    )
+    assert status == ValidationStatus.FAIL_BIAS
+
+    big_err = np.full(6, 50.0)
+    status2 = classify_torque_result(
+        settled=True,
+        saturated=False,
+        tau_real=np.zeros(6),
+        abs_err=big_err,
+        rel_err=big_err / (ABS_ERR_LIMITS / 0.10),
+        l2_err=float(np.linalg.norm(big_err)),
+    )
+    assert status2 == ValidationStatus.FAIL_MODEL
+
+
+def test_l2a_and_l3a_and_l3b_layers():
+    runtime = get_robot_runtime_profile("xarm6")
+    sample = _sim_sample()
+    assert analyze_sim_internal(sample, runtime_profile=runtime).severity == "pass"
+    bad_sample = _sim_sample(pd_hold=np.ones(6), dof_force=np.zeros(6))
+    assert analyze_sim_internal(bad_sample, runtime_profile=runtime).severity in {"warn", "fail"}
+
+    layer, rel = analyze_mass_matrices(np.eye(6), np.eye(6) * 1.02, runtime_profile=runtime)
+    assert layer.layer == LAYER_L3A and rel > 0.0 and layer.passed
+
+    tau_real = np.zeros(6)
+    tau_real[0] = runtime.dynamics.abs_err_limits[0] * runtime.dynamics.ref_vs_real_abs_scale + 0.01
+    l3b = analyze_ref_vs_real(np.zeros(6), tau_real, runtime_profile=runtime)
+    assert l3b.layer == LAYER_L3B and l3b.severity == "fail"
+
+
+def test_build_static_pose_analysis_and_l1_isolation():
+    pose = SafePose("0", np.zeros(6), 108.0)
+    runtime = get_robot_runtime_profile("xarm6")
+    gravity = np.zeros(6, dtype=np.float64)
+    gravity[0] = 1.0 + float(runtime.dynamics.abs_err_limits[0]) + 5.0
+    reference = MagicMock()
+    reference.gravity.return_value = gravity
+    reference.rnea.return_value = gravity
+    reference.mass_matrix.return_value = np.eye(6) * 2.0
+
+    sample = build_dynamics_sample(
+        pose,
+        _sim_sample(),
+        runtime_profile=runtime,
+        tau_real=np.ones(6),
+        reference=reference,
+    )
+    assert sample.status == ValidationStatus.PASS
+    l2b = next(layer for layer in sample.static_layers if layer.layer == LAYER_L2B)
+    assert l2b.severity in {"warn", "fail"}
+
+    analysis = build_static_pose_analysis("0", np.zeros(6), _sim_sample(), runtime_profile=runtime, reference=None)
+    assert [layer.layer for layer in analysis.layers] == [LAYER_L2A]
+
+
+def test_strict_static_summary_and_aliases():
+    warn_layer = SimpleNamespace(layer=LAYER_L3B, severity="warn")
+    _, strict_fail = summarize_static_layers(
+        [StaticPoseAnalysis(pose="0", layers=[warn_layer])],
+        strict_layers=frozenset({LAYER_L3B}),
+    )
+    assert strict_fail is True
+    assert "L2a" in parse_strict_static_layers("l2")
+    assert len(parse_strict_static_layers("all")) == 4
+
+
+def test_pd_hold_gate_tracking_saturation_bypass():
+    runtime = get_robot_runtime_profile("xarm5")
+    target_q = np.deg2rad([90.0, -90.0, -60.0, 160.0, -90.0])
+    q_actual = np.deg2rad([90.0, -90.216, -59.898, 155.574, -90.005])
+    j4_effort = float(runtime.arm.effort_limits[3])
+    sample = SimDynamicsSample(
+        q_actual=q_actual,
+        qvel=np.zeros(5),
+        pd_hold_tau=np.array([0.0006, 11.318, -3.549, j4_effort, 0.0824]),
+        actual_dof_force=np.zeros(5),
+        mass_matrix=np.eye(5),
+        settled=False,
+        saturated=True,
+        pos_err=float(np.abs(q_actual - target_q).max()),
+        vel_mag=0.0,
+    )
+    reference = MagicMock()
+    reference.gravity.return_value = np.array([0.0, 11.317, -3.548, -0.897, 0.0], dtype=np.float64)
+
+    gate = evaluate_pd_hold_gate(sample, target_q, runtime_profile=runtime, reference=reference)
+    assert gate.block_hardware is False
+    assert gate.reason == "pd_tracking_saturation"
+    assert gate.tracking_limited_joints == (3,)
+
+    compare_sample = sim_sample_for_torque_compare(sample, gate)
+    assert compare_sample.settled is True
+    assert compare_sample.saturated is False
+    assert compare_sample.pd_hold_tau[3] == pytest.approx(-0.897, abs=0.05)
+
+
+# ---------------------------------------------------------------------------
+# Reporting, cross-repo compatibility, and torque plots
+# ---------------------------------------------------------------------------
+
+
+def test_report_jsonl_and_csv_roundtrip(tmp_path: Path):
+    runtime = get_robot_runtime_profile("xarm6")
+    pose = SafePose("0", np.zeros(6), 108.0)
+    sample = build_dynamics_sample(pose, _sim_sample(), runtime_profile=runtime, tau_real=np.ones(6), n_real_samples=3)
+    run_config = DynamicsRunConfig(robot_key="xarm6_1305", model_path="models/xarm6/xarm6.xml", mode="unit")
+
+    jsonl = tmp_path / "report.jsonl"
+    csv_file = tmp_path / "report.csv"
+    write_jsonl_report([sample], jsonl, run_config=run_config, runtime_profile=runtime)
+    write_csv_report([sample], csv_file, runtime_profile=runtime)
+
+    assert read_report_records(jsonl)[0]["pose"] == "0"
+    csv_recs = read_report_records(csv_file)
+    assert csv_recs[0]["pose"] == "0"
+    assert csv_recs[0]["schema_version"] == REPORT_SCHEMA_VERSION
+    csv_text = csv_file.read_text(encoding="utf-8")
+    assert "mujoco_tau_J1_nm" in csv_text
+    assert "sdk_tau_mean_J1_nm" in csv_text
+    assert "l3a_mass_rel_fro" in csv_text
+
+
+def test_default_dynamics_report_paths_and_explicit_precedence(tmp_path: Path):
+    csv_path, jsonl_path, plot_path = dynamics_report_paths(
+        identity="XI1305/ABC 123",
+        report_root=tmp_path,
+        stamp="20261116_170001",
+    )
+    assert sanitize_report_identity("XI1305/ABC 123") == "XI1305_ABC_123"
+    assert (
+        csv_path
+        == tmp_path / "dyn_ver_XI1305_ABC_123" / "20261116_1700" / "dyn_ver_XI1305_ABC_123_20261116_170001.csv"
+    )
+    assert jsonl_path == csv_path.with_suffix(".jsonl")
+    assert plot_path == csv_path.with_name("dyn_ver_XI1305_ABC_123_20261116_170001_torque.png")
+
+    c2, j2, p2 = dynamics_report_paths(
+        identity="XI1305",
+        report=tmp_path / "manual.csv",
+        jsonl_report=tmp_path / "manual-report.jsonl",
+    )
+    assert c2 == tmp_path / "manual.csv"
+    assert j2 == tmp_path / "manual-report.jsonl"
+    assert p2 == tmp_path / "manual_torque.png"
+
+
+def test_read_report_records_cross_repo_genesis_and_legacy_csv(tmp_path: Path):
+    genesis_csv = tmp_path / "genesis_v4.csv"
+    genesis_csv.write_text(
+        "schema_version,pose,status,torque_l2_err_nm,q_cmd_J1_rad,genesis_tau_J1_nm,sdk_tau_mean_J1_nm,abs_err_J1_nm\n"
+        "4,0,PASS,1.0,0.0,3.5,2.0,1.5\n",
+        encoding="utf-8",
+    )
+    rec = read_report_records(genesis_csv)[0]
+    assert rec["schema_version"] == "4"
+    assert rec["signed_err"] == [1.5]
+
+    legacy_csv = tmp_path / "legacy_v2.csv"
+    legacy_csv.write_text(
+        "schema_version,pose,status,l2_err,q1,pd_hold_tau1,tau_real1,abs_err1\n"
+        "2,home,PASS,1.0,0.0,3.0,1.0,2.0\n",
+        encoding="utf-8",
+    )
+    rec2 = read_report_records(legacy_csv)[0]
+    assert rec2["signed_err"] == [2.0]
+
+
+def test_compare_report_records_and_failure_detail_print(capsys):
+    old = [{"signed_err": [1, 2, 3, 4, 5, 6, 7]}]
+    new = [{"signed_err": [1, 2, 3, 4, 5, 6, 9]}]
+    stats = compare_report_records(old, new)
+    assert len(stats) == 7
+    assert stats[6]["bias_delta"] == 2
+
+    runtime7 = get_robot_runtime_profile("xarm7")
+    pose = SafePose("5", np.zeros(7), 500.0)
+    sim = _sim_sample(
+        7,
+        pd_hold=np.array([0.0, 20.824854, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        dof_force=np.zeros(7),
+    )
+    sample = build_dynamics_sample(
+        pose,
+        sim,
+        runtime_profile=runtime7,
+        tau_real=np.array([0.0, 40.824854, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        tau_real_std=np.array([0.0, 0.298257, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        n_real_samples=31,
+    )
+    summary = torque_summary(sample, runtime_profile=runtime7)
+    assert summary["worst_joint"] == "J2"
+    rows = joint_torque_rows(sample, runtime_profile=runtime7)
+    assert rows[1]["mujoco_tau_nm"] == 20.824854
+    print_compare_table([sample], runtime_profile=runtime7)
+    out = capsys.readouterr().out
+    assert "mujoco_tau_nm" in out
+    assert "20.824854" in out
+
+
+def test_torque_plot_layouts_generation_and_optional_matplotlib_skip(tmp_path: Path, monkeypatch):
+    assert torque_plot_layout(6) == (2, 3)
+    assert torque_plot_layout(7) == (3, 3)
+
+    runtime6 = get_robot_runtime_profile("xarm6")
+    pose6 = SafePose("0", np.zeros(6), 100.0)
+    sim6 = _sim_sample()
+    sample6 = build_dynamics_sample(pose6, sim6, runtime_profile=runtime6, tau_real=np.ones(6), n_real_samples=3)
+
+    dry_sample = build_dynamics_sample(pose6, sim6, runtime_profile=runtime6, skip_reason="dry-run")
+    assert not write_torque_plot([dry_sample], tmp_path / "dry.png", runtime_profile=runtime6)
+
+    orig_import = builtins.__import__
+
+    def _block_matplotlib(name, *args, **kwargs):
+        if name == "matplotlib" or name.startswith("matplotlib."):
+            raise ImportError("blocked for test")
+        return orig_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _block_matplotlib)
+    assert not write_torque_plot([sample6], tmp_path / "no_mpl.png", runtime_profile=runtime6)
+    monkeypatch.undo()
+
+    pytest.importorskip("matplotlib")
+    out6 = tmp_path / "xarm6_torque.png"
+    assert write_torque_plot([sample6], out6, runtime_profile=runtime6)
+    assert out6.exists() and out6.stat().st_size > 0
+
+
+# ---------------------------------------------------------------------------
+# Mocked hardware safety gates and RealRobotSession
+# ---------------------------------------------------------------------------
+
+
+def test_check_controller_tcp_offset_z_blocks_nonzero_offset_below_table():
+    session = object.__new__(RealRobotSession)
+    arm = MagicMock()
+    arm.tcp_offset = [0.0, 0.0, 172.0, 0.0, 0.0, 0.0]
+
+    def fk(angles, input_is_radian=True, return_is_radian=True):
+        del input_is_radian, return_is_radian
+        if np.allclose(angles, np.zeros(6)):
+            return 0, [207.0, 0.0, -60.0, 3.14, 0.0, 0.0]
+        return 0, [300.0, 0.0, 200.0, 3.14, 0.0, 0.0]
+
+    arm.get_forward_kinematics.side_effect = fk
+    session.arm = arm
+
+    poses = [
+        SafePose("0", np.array([0.5, -0.5, 0.0, 0.0, 0.0, 0.0]), 200.0),
+        SafePose("9", np.zeros(6), 112.0),
+    ]
+    reasons = dyn_cli._check_controller_tcp_offset_z(session, poses, np.zeros(6))
+    assert reasons == ["home: EE z -60.00 mm <= 0.00 mm"]
+
+    arm.tcp_offset = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    assert dyn_cli._check_controller_tcp_offset_z(session, poses, np.zeros(6)) == []
+
+
+def test_cli_hardware_check_aborts_before_motion_when_tcp_offset_fails_z_precheck(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(dyn_cli, "_fetch_robot_sn_from_ip", lambda ip: "XI130505L56A01")
+    fake_session = MagicMock()
+    fake_session.arm.tcp_offset = [0.0, 0.0, 172.0, 0.0, 0.0, 0.0]
+    fake_session.arm.get_forward_kinematics.return_value = (0, [207.0, 0.0, -60.0, 3.14, 0.0, 0.0])
+    monkeypatch.setattr("ufactory_mujoco.dynamics.session.RealRobotSession", lambda *args, **kwargs: fake_session)
+
+    rc = dyn_cli.cli_hardware_check(
+        [
+            "--robot",
+            "xarm6",
+            "--ip",
+            "192.168.1.60",
+            "--confirm-real",
+            "--nominal-model",
+            "--poses",
+            "0,9",
+            "--report",
+            str(tmp_path / "abort.csv"),
+        ]
+    )
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "Controller has non-zero tcp_offset and failed EE z > 0 precheck" in out
+    fake_session.configure_for_dynamics.assert_not_called()
+    fake_session.sample_at_hold.assert_not_called()
+    fake_session.return_home.assert_not_called()
+    fake_session.disconnect.assert_called_once()
+
+
+def test_configure_for_dynamics_re_enables_after_gravity_and_load():
+    arm = MagicMock()
+    arm.error_code = 0
+    arm.warn_code = 0
+    arm.state = 2
+    arm.get_err_warn_code.return_value = (0, [0, 0])
+    arm.get_state.return_value = (0, 2)
+    arm.motion_enable.return_value = 0
+    arm.set_mode.return_value = 0
+    arm.set_state.return_value = 0
+    arm.set_gravity_direction.return_value = 0
+    arm.set_tcp_load.return_value = 0
+    arm.set_report_tau_or_i.return_value = 0
+
+    session = object.__new__(RealRobotSession)
+    session.arm = arm
+    session.dof = 6
+    session.home_qpos = np.zeros(6)
+    session._motion_mode = 0
+
+    session.configure_for_dynamics()
+    arm.set_gravity_direction.assert_called_once_with([0.0, 0.0, -1.0])
+    arm.set_tcp_load.assert_called_once_with(0, [0, 0, 0])
+    arm.set_report_tau_or_i.assert_called_once_with(0)
+    assert arm.motion_enable.call_count == 3
+
+
+def test_ensure_ready_refuses_faulted_controller():
+    arm = MagicMock()
+    arm.get_err_warn_code.return_value = (0, [22, 0])
+    arm.get_state.return_value = (0, 4)
+
+    session = object.__new__(RealRobotSession)
+    session.arm = arm
+    session._motion_mode = 0
+    with pytest.raises(RuntimeError, match="controller is not healthy"):
+        session.ensure_ready()
+    arm.clean_error.assert_not_called()
+
+
+def test_real_robot_collect_hold_samples_uses_statistics():
+    session = object.__new__(RealRobotSession)
+    arm = MagicMock()
+    arm.get_joint_states.return_value = (0, [np.zeros(7).tolist(), np.zeros(7).tolist(), np.ones(7).tolist()])
+    arm.get_joints_torque.return_value = (0, np.ones(7).tolist())
+    session.arm = arm
+    session.dof = 6
+    session.home_qpos = np.zeros(6)
+
+    sample = session.collect_hold_samples(duration_s=0.0)
+    assert sample.n_samples == 1
+    np.testing.assert_allclose(sample.tau, np.ones(6))
+    np.testing.assert_allclose(sample.tau_direct, np.ones(6))
+
+
+def test_run_sim_collision_chain_records_order_and_failure():
+    arm = MagicMock()
+    arm.error_code = 0
+    session = object.__new__(RealRobotSession)
+    session.arm = arm
+    session.dof = 6
+
+    def move_to(q, *, speed_rad_s, wait, move_strategy):
+        del speed_rad_s, wait, move_strategy
+        if float(np.asarray(q)[0]) == 0.2:
+            raise RobotMotionError(
+                "collision",
+                code=22,
+                waypoint_index=1,
+                waypoint_count=1,
+                target_q=q,
+                waypoint_q=q,
+            )
+        return 0
+
+    session.move_to = move_to
+    poses = [
+        ("0", np.zeros(6)),
+        ("bad", np.array([0.2, 0.0, 0.0, 0.0, 0.0, 0.0])),
+        ("next", np.array([0.3, 0.0, 0.0, 0.0, 0.0, 0.0])),
+    ]
+    results = dyn_cli.run_sim_collision_chain(
+        session,
+        poses,
+        speed_rad_s=DEFAULT_DYNAMICS_MOVE_SPEED_RAD_S,
+        move_strategy="direct",
+    )
+    assert [r.passed for r in results] == [True, False, True]
+    assert results[1].error_code == 22
+
+
+# ---------------------------------------------------------------------------
+# Five-arm simulation regression and optional Pinocchio URDF cross-check
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("robot_key", ALL_ROBOTS)
+def test_dynamics_sim_regression_all_robots(tmp_path: Path, robot_key: str):
+    runtime = get_robot_runtime_profile(robot_key)
+    n_dof = runtime.model.dof
+    csv_path = tmp_path / f"sim_{robot_key}.csv"
+    jsonl_path = tmp_path / f"sim_{robot_key}.jsonl"
+    rc = cli_sim_check(
+        [
+            "--robot",
+            robot_key,
+            "--random-count",
+            "0",
+            "--require-reference",
+            "--z-min-mm",
+            "0",
+            "--report",
+            str(csv_path),
+            "--jsonl-report",
+            str(jsonl_path),
+        ]
+    )
+    assert rc == 0
+
+    records = _load_jsonl(jsonl_path)
+    run_config = next(r[1] for r in records if isinstance(r, tuple) and r[0] == "run_config")
+    samples = [r for r in records if not isinstance(r, tuple)]
+    assert len(samples) == 20
+    assert run_config["version"] == "4"
+    assert run_config.get("joint_frictionloss") is not None
+
+    bad_poses = [s for s in samples if s["status"] in {"NOT_SETTLED", "SATURATED"}]
+    assert bad_poses == []
+
+    for s in samples:
+        tau = np.asarray(s["pd_hold_tau"], dtype=np.float64)
+        ref_g = np.asarray(s["reference_gravity_tau"], dtype=np.float64)
+        mass = np.asarray(s["mass_matrix"], dtype=np.float64)
+        assert np.isfinite(tau).all()
+        assert np.isfinite(ref_g).all()
+        assert mass.shape == (n_dof, n_dof)
+        assert np.allclose(mass, mass.T, atol=1e-6)
+        assert (np.linalg.eigvalsh(mass) > 0.0).all()
+        assert s["l2b_l2_err"] < 0.05
+        assert s["l3a_mass_rel_fro"] < 1e-5
+
+
+@pytest.mark.parametrize("robot_key", ALL_ROBOTS)
+def test_mujoco_rnea_matches_pinocchio_urdf_reference(robot_key: str):
+    pytest.importorskip("pinocchio")
+    urdf = default_urdf_for_robot(robot_key)
+    if urdf is None:
+        pytest.skip(f"Sibling URDF not found for {robot_key}")
+
+    mj_ref = load_reference_backend(robot_key, backend="mujoco-rnea", required=True)
+    pin_ref = load_reference_backend(robot_key, backend="pinocchio", urdf_path=urdf, required=True)
+    assert mj_ref is not None and pin_ref is not None
+
+    for _pose_name, q in dynamics_default_configs(robot_key)[:6]:
+        np.testing.assert_allclose(mj_ref.gravity(q), pin_ref.gravity(q), atol=1e-3)
+        m_mj = mj_ref.mass_matrix(q)
+        m_pin = pin_ref.mass_matrix(q)
+        rel_fro = float(np.linalg.norm(m_mj - m_pin) / np.linalg.norm(m_pin))
+        assert rel_fro < 1e-4

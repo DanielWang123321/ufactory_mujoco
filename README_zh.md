@@ -22,7 +22,7 @@ python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose
 
 - **模型**：全部 5 款机械臂、5 款末端工具、4 款深度相机、相机支架及组合 MJCF 模型，视觉网格与多凸包碰撞体分离。Gripper G2 与 Bio Gripper G2 采用标定动力学与限速位置/力伺服（`g2_model.py`、`g2_controller.py`、`bio_g2_model.py`、`bio_g2_controller.py`）。
 - **运动学与规划**：正运动学、雅可比、阻尼最小二乘逆解、五次/LSPB/样条轨迹、笛卡尔直线、碰撞检测与 RRT-Connect（`kinematics.py`、`ik.py`、`trajectory.py`、`collision.py`、`path_planning.py`）。
-- **动力学**：质量矩阵、重力/科氏力、正逆动力学、负载，以及五臂验收命令（`dynamics.py`、`tasks/dynamics.py`）。
+- **动力学**：质量矩阵、重力/科氏力、正逆动力学、负载、五臂运动验收命令（`tasks/dynamics.py`），以及对齐 `ufactory_genesis` 的 Schema v4 真机静态力矩验证工具链（`dynamics/`，提供 `dynamics-sim-check`、`dynamics-sim-collision-check`、`dynamics-hardware-check`、`dynamics-report-compare`）。
 - **脚本化任务**：5 组机械臂/夹爪的方块抓放与装箱，含预检（关节限位、穿透、RRT-Connect 绕行）和 JSON 报告（`tasks/`、`preflight.py`）。
 - **真机**：`XArmRobot` 默认只读；运动需单机标定、控制器状态检查和 `--confirm-real`。`sdk-sim` 在控制器内置仿真中重放轨迹（`xarm_robot.py`、`calibration.py`、`safety.py`）。
 
@@ -46,7 +46,8 @@ python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose
 | **MuJoCo** | **≥ 4.0、< 5** | `4.0.0`、`4.0.1` | 自 `v0.1.5` 起不再支持 MuJoCo 3.x |
 | 核心依赖 | `numpy>=2.0,<3`、`scipy>=1.14,<2`、`pyyaml>=6.0,<7` | 见 `requirements-lock.txt` | 执行 `pip install -e .` 时自动安装 |
 | `.[test]`（可选） | `pytest>=8` | — | 仅运行单元测试套件时需要 |
-| `xarm-python-sdk`（可选） | 与控制器匹配的版本 | — | 仅 `--mode sdk-sim` / `real` / `real-read-only` 及 `scripts/gen_kinematics_params.py` 需要 |
+| `xarm-python-sdk`（可选） | 与控制器匹配的版本 | — | 仅 `--mode sdk-sim` / `real` / `real-read-only`、`dynamics-hardware-check` / `dynamics-sim-collision-check` 与标定导出需要 |
+| `matplotlib`（可选） | `>=3.8` | — | 可选；用于在 `dynamics-hardware-check` 生成 `_torque.png` 力矩对比图（未安装时自动跳过） |
 
 网格体积较大，请使用 `--depth 1` 克隆。可通过 `venv` 或 `conda` 创建隔离环境：
 
@@ -73,7 +74,7 @@ pip uninstall -y mujoco && pip install "mujoco>=4,<5"
 
 环境已经损坏时，用 `pip install --force-reinstall --no-deps mujoco mujoco-core mujoco-studio` 修复。新建的环境不受影响。
 
-**wheel**：自 v0.1.0 起，[GitHub Release](https://github.com/DanielWang123321/ufactory_mujoco/releases) 附带自包含 wheel，内含全部模型、场景、任务配置和许可证（下载约 112 MiB，安装后资源约 630 MiB）。用 `pip install ufactory_mujoco-0.1.5-py3-none-any.whl` 安装后，`ufactory-mujoco` 命令可在任意目录运行。也可用 `python -m build` 自行构建。
+**wheel**：自 v0.1.0 起，[GitHub Release](https://github.com/DanielWang123321/ufactory_mujoco/releases) 附带自包含 wheel，内含全部模型、场景、任务配置和许可证（下载约 112 MiB，安装后资源约 630 MiB）。用 `pip install ufactory_mujoco-0.1.6-py3-none-any.whl` 安装后，`ufactory-mujoco` 与 `dynamics-*` 命令可在任意目录运行。也可用 `python -m build` 自行构建。
 
 ## 命令行任务
 
@@ -122,7 +123,7 @@ ruff check .                      # 与 CI 相同的静态检查（pip install r
 
 ## 已知限制
 
-- 真机模式仅在一台 xArm 6（固件 v2.8.0）上验证。静态力矩比对（3 kg 负载，≤ 2.5 %）为单次历史实测。
+- 对齐 `ufactory_genesis` Schema v4 的裸臂 20 姿态真机静态力矩验证（`dynamics-hardware-check`）已在 Python 3.14.6、MuJoCo 4.0.1 下完成一台 xArm 6（固件 v2.8.0，20/20 PASS，L2 力矩误差 0.470–0.765 Nm）与一台 Lite 6（固件 v2.8.2，20/20 PASS，L2 力矩误差 0.028–0.156 Nm）实测；抓放/装箱真机模式已在 xArm 6（v2.8.0）上验证，3 kg 负载静态力矩比对（≤ 2.5 %）为单次历史实测。
 - 真空吸盘（`lite6_vacuum_gripper`、`vacuum_gripper` 及其机械臂组合）为静态模型，不含吸附模型。它们与独立相机、`camera_stand*`、`<机械臂>_with_d435` 都没有夹爪执行器，`04_gripper_control.py` 会拒绝这些模型（退出码 `2`）。
 - 深度相机与 `camera_stand` 模型提供外观几何、安装面/螺钉孔 `<site>`（`group=4`）与近似碰撞体（`group=3`），`mass=0` 且不含 MuJoCo `<camera>` 光学成像传感器；动力学场景请通过 `attach_payload` 注入相机与支架负载。
 - 任务报告在 MuJoCo 4.0.0 与 4.0.1 下逐字节一致；其他 MuJoCo 版本可能使结果在数值上不同。
@@ -131,7 +132,8 @@ ruff check .                      # 与 CI 相同的静态检查（pip install r
 
 ```text
 calibrations/              单机运动学标定 YAML（SHA-256 校验）
-configs/                   任务配置：default.yaml、pick_place/<机械臂>.yaml、box_pack/<机械臂>.yaml
+configs/                   任务与验证配置：default.yaml、dynamics_validation_pose.yaml、
+                           pick_place/<机械臂>.yaml、box_pack/<机械臂>.yaml
 models/                    MJCF 模型与网格：机械臂、夹爪、相机、支架及组合；
                            场景变体 scene、scene_pick_place、scene_box_pack、scene_obstacles
 ufactory_mujoco/
@@ -152,7 +154,7 @@ ufactory_mujoco/
   task_geometry.py         任务与预检共用的抓取高度和姿态
   ik.py, kinematics.py     DLS 逆解；正运动学、雅可比、可操作度
   trajectory.py            JointTrajectory、五次/LSPB、样条、笛卡尔直线
-  dynamics.py              质量矩阵、重力/科氏力、正逆动力学、负载
+  dynamics/                质量矩阵、重力/科氏力、正逆动力学、负载与 Schema v4 真机力矩验证工具链（`dynamics-*`）
   collision.py             碰撞与间隙查询
   path_planning.py         RRT-Connect 与路径剪枝
   tasks/                   pick-place、box-pack、dynamics 命令

@@ -95,6 +95,10 @@ python examples/simulation/08_dynamics.py
 python examples/simulation/08_dynamics.py --headless
 python examples/simulation/08_dynamics.py --robot lite6 --headless --samples 32 --seed 0
 python examples/simulation/08_dynamics.py --robot all --headless --report build/dynamics/report.json
+
+# Schema v4 dynamics validation (aligned with ufactory_genesis, 20-pose + random offline check)
+dynamics-sim-check --robot xarm6 --random-count 20 --require-reference
+dynamics-hardware-check --robot lite6 --dry-run --require-reference --strict-static --strict-static-layers l2b
 ```
 
 `08_dynamics.py` (`ufactory-mujoco dynamics`) verifies all five bare arms without requiring an xArm SDK:
@@ -103,7 +107,9 @@ python examples/simulation/08_dynamics.py --robot all --headless --report build/
 - **8.4 s monitored motion**: runs `home -> ready (1.5 s) -> target (3.0 s) -> ready (3.0 s)` with `0.3 s` settling after each move. Commands are preflighted at every physics step, and an independent `CollisionChecker` inspects integrated joint positions after every step (`penetration <= 1e-6 m`, `joint_limit_excess <= 1e-6 rad`, settled arrival error `< 0.01 rad`; NaN/Inf states, MuJoCo warnings, early exits, or closing the viewer fail validation). `--robot all` retains every arm's result and continues after a single-arm failure.
 - **Reports and baselines**: `--report` writes strict JSON with versions, environment, paths, thresholds, metrics, and failure reasons (exit codes: `0` pass, `1` fail, `2` invalid arguments). `xarm6` additionally preserves the 3 kg payload feedforward check and six-axis gravity regression (`<= 1e-6 Nm`; J2/J3 retain a historical 5% tolerance without re-running hardware). Fixed poses, thresholds, and baselines live in [`ufactory_mujoco/tasks/dynamics.py`](../../ufactory_mujoco/tasks/dynamics.py).
 
-#### Programmatic Dynamics API (`ufactory_mujoco/dynamics.py`)
+For `ufactory_genesis`-aligned 20-pose static torque verification (PD hold vs analytical reference and hardware SDK, L1 + L2a/L2b/L3a/L3b layered checks, Schema v4 CSV/JSONL reports, and `_torque.png` plots), use `dynamics-sim-check`, `dynamics-hardware-check --dry-run`, and `dynamics-report-compare` (or `python -m ufactory_mujoco.dynamics <subcommand>`).
+
+#### Programmatic Dynamics API (`ufactory_mujoco/dynamics`)
 
 ```python
 from ufactory_mujoco.dynamics import ArmDynamics
@@ -127,18 +133,22 @@ Hardware modes require `xarm-python-sdk` (`pip install xarm-python-sdk`), which 
 
 ```bash
 # 1. Extract the per-unit calibration YAML (calibrations/<arm>_kinematics_<SN>.yaml)
-python scripts/gen_kinematics_params.py 192.168.1.60
+python -m ufactory_mujoco.dynamics export-calibration 192.168.1.60 --output-dir calibrations
 
-# 2. Read-only FK/IK comparison and read-only static dynamics check (no motion)
+# 2. Read-only FK/IK comparison and zero-motion static dynamics checks
 python -m ufactory_mujoco.kinematics_validation --robot xarm6 --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
 python examples/simulation/08_dynamics.py --robot xarm6 --mode real-read-only --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
+dynamics-hardware-check --robot lite6 --ip 192.168.1.60 --confirm-real --hold-current-only --require-reference
 
-# 3. Controller built-in simulator replay (single cycle, no physical motion)
+# 3. Controller built-in simulator replay (no physical joint motion)
 python examples/simulation/05_pick_place.py --robot xarm6 --mode sdk-sim --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
 python examples/simulation/10_box_pack.py --robot xarm6 --mode sdk-sim --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
+dynamics-sim-collision-check --robot lite6 --ip 192.168.1.60
 
-# 4. Physical single-cycle motion (requires --confirm-real; ensure clear workspace & E-stop)
+# 4. Physical motion (requires --confirm-real; ensure clear workspace & E-stop)
 ufactory-mujoco pick-place --robot xarm6 --mode real --confirm-real --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
+dynamics-hardware-check --robot xarm6 --ip 192.168.1.60 --confirm-real --require-reference
+dynamics-report-compare reports/dyn_ver_<SN>/<old>.jsonl reports/dyn_ver_<SN>/<new>.jsonl
 ```
 
 ## 3. CLI Options Summary

@@ -65,10 +65,15 @@ def default_validation_poses(
         ),
     ]
     if dof >= 6:
+        pose_b = (
+            [0.0, 0.2, 0.6, 0.5, 0.5, 0.0]
+            if key == "lite6"
+            else [0.0, -0.5, -0.1, 0.5, 0.5, 0.0, *([0.0] * max(0, dof - 6))]
+        )
         poses.append(
             (
                 "pose_b",
-                np.asarray([0.0, -0.5, -0.1, 0.5, 0.5, 0.0, *([0.0] * max(0, dof - 6))], dtype=np.float64)[:dof],
+                np.asarray(pose_b, dtype=np.float64)[:dof],
             )
         )
     if current_q is not None:
@@ -155,6 +160,10 @@ def validate_fk_ik_with_controller(
             )
         ik_sdk_tcp = np.asarray(ik_sdk_raw[:6], dtype=np.float64)
 
+        mj_ik_pos_err_mm = float(np.linalg.norm(ik_mj_tcp[:3] - sdk_tcp[:3]))
+        mj_ik_rpy_err_deg = float(
+            max(angle_diff_deg(a, b) for a, b in zip(ik_mj_tcp[3:6], sdk_tcp[3:6]))
+        )
         ik_pos_err_mm = float(np.linalg.norm(ik_sdk_tcp[:3] - sdk_tcp[:3]))
         ik_rpy_err_deg = float(
             max(angle_diff_deg(a, b) for a, b in zip(ik_sdk_tcp[3:6], sdk_tcp[3:6]))
@@ -167,11 +176,16 @@ def validate_fk_ik_with_controller(
             if isinstance(res_ik, tuple) and len(res_ik) == 2:
                 sdk_ik_code = int(res_ik[0])
 
-        ik_ok = bool(ik_converged and ik_pos_err_mm < pos_tol_mm and ik_rpy_err_deg < rpy_tol_deg)
+        ik_ok = bool(
+            mj_ik_pos_err_mm < pos_tol_mm
+            and mj_ik_rpy_err_deg < rpy_tol_deg
+            and ik_pos_err_mm < pos_tol_mm
+            and ik_rpy_err_deg < rpy_tol_deg
+        )
         if not ik_ok:
             failures.append(
-                f"IK[{name}]: converged={ik_converged}, pos_err={ik_pos_err_mm:.4f} mm, "
-                f"rpy_err={ik_rpy_err_deg:.4f} deg"
+                f"IK[{name}]: converged={ik_converged}, mj_pos_err={mj_ik_pos_err_mm:.4f} mm, "
+                f"pos_err={ik_pos_err_mm:.4f} mm, rpy_err={ik_rpy_err_deg:.4f} deg"
             )
         ik_results.append({
             "pose": name,

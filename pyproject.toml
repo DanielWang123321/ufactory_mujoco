@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ufactory_mujoco"
-version = "0.1.5"
+version = "0.1.6"
 description = "MuJoCo simulation suite for UFACTORY robot arms (xArm 5/6/7, UF850, Lite 6), grippers, and depth cameras"
 readme = "README.md"
 license = "MIT AND BSD-3-Clause AND Apache-2.0"
@@ -29,6 +29,10 @@ test = ["pytest>=8"]
 
 [project.scripts]
 ufactory-mujoco = "ufactory_mujoco.cli:main"
+dynamics-sim-check = "ufactory_mujoco.dynamics.cli:cli_sim_check"
+dynamics-sim-collision-check = "ufactory_mujoco.dynamics.cli:cli_sim_collision_check"
+dynamics-hardware-check = "ufactory_mujoco.dynamics.cli:cli_hardware_check"
+dynamics-report-compare = "ufactory_mujoco.dynamics.cli:cli_report_compare"
 
 [project.urls]
 Homepage = "https://github.com/DanielWang123321/ufactory_mujoco"

@@ -34,3 +34,8 @@ Thumbs.db
 
 # Local diagnostics
 dev/
+
+# Local dynamics reports and per-unit robot calibrations
+reports/
+calibrations/*.yaml
+!calibrations/xarm6_kinematics_L56A01.yaml

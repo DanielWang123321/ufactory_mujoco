@@ -22,7 +22,7 @@ Without a display, run a task headless: `ufactory-mujoco pick-place --robot xarm
 
 - **Models**: all five arms, five end effectors, four depth cameras, mounting bracket, and combined MJCF assemblies with separate visual meshes and multi-convex collision shapes. Gripper G2 and Bio Gripper G2 use calibrated dynamics and rate-limited position/force servos (`g2_model.py`, `g2_controller.py`, `bio_g2_model.py`, `bio_g2_controller.py`).
 - **Kinematics and planning**: FK, Jacobians, damped least-squares IK, quintic/LSPB/spline trajectories, Cartesian lines, collision checking, and RRT-Connect (`kinematics.py`, `ik.py`, `trajectory.py`, `collision.py`, `path_planning.py`).
-- **Dynamics**: mass matrix, gravity/Coriolis, inverse/forward dynamics, payloads, and a five-arm validation command (`dynamics.py`, `tasks/dynamics.py`).
+- **Dynamics**: mass matrix, gravity/Coriolis, inverse/forward dynamics, payloads, five-arm motion validation (`tasks/dynamics.py`), and `ufactory_genesis`-aligned Schema v4 static torque validation (`dynamics-sim-check`, `dynamics-sim-collision-check`, `dynamics-hardware-check`, `dynamics-report-compare` in `dynamics/`).
 - **Scripted tasks**: cube pick-and-place and box packing for five arm/gripper pairs, with preflight (joint limits, penetration, RRT-Connect detours) and JSON reports (`tasks/`, `preflight.py`).
 - **Real robot**: `XArmRobot` is read-only by default; motion needs a per-unit calibration, controller checks, and `--confirm-real`. `sdk-sim` replays trajectories in the controller's built-in simulator (`xarm_robot.py`, `calibration.py`, `safety.py`).
 
@@ -46,7 +46,8 @@ The repository ships **44 model directories** under `models/`: 5 bare arms, 5 st
 | **MuJoCo** | **≥ 4.0, < 5** | `4.0.0`, `4.0.1` | MuJoCo 3.x is no longer supported from `v0.1.5` |
 | Core deps | `numpy>=2.0,<3`, `scipy>=1.14,<2`, `pyyaml>=6.0,<7` | see `requirements-lock.txt` | Installed automatically with `pip install -e .` |
 | `.[test]` (optional) | `pytest>=8` | — | Needed only to run the unit test suite |
-| `xarm-python-sdk` (optional) | matching controller SDK | — | Needed only for `--mode sdk-sim` / `real` / `real-read-only` and `scripts/gen_kinematics_params.py` |
+| `xarm-python-sdk` (optional) | matching controller SDK | — | Needed only for `--mode sdk-sim` / `real` / `real-read-only`, `dynamics-hardware-check` / `dynamics-sim-collision-check`, and calibration export |
+| `matplotlib` (optional) | `>=3.8` | — | Optional; generates `_torque.png` comparison plots in `dynamics-hardware-check` (skipped when absent) |
 
 The visual meshes are large, so clone with `--depth 1`. Create an isolated environment with `venv` or `conda`:
 
@@ -73,7 +74,7 @@ pip uninstall -y mujoco && pip install "mujoco>=4,<5"
 
 If the environment is already broken, repair it with `pip install --force-reinstall --no-deps mujoco mujoco-core mujoco-studio`. New environments are not affected.
 
-**Wheel**: [GitHub Releases](https://github.com/DanielWang123321/ufactory_mujoco/releases) from v0.1.0 on include a self-contained wheel with all models, scenes, task configs and licenses (about 112 MiB download, 630 MiB of resources once installed). Install it with `pip install ufactory_mujoco-0.1.5-py3-none-any.whl`; the `ufactory-mujoco` commands then run from any directory. Build one yourself with `python -m build`.
+**Wheel**: [GitHub Releases](https://github.com/DanielWang123321/ufactory_mujoco/releases) from v0.1.0 on include a self-contained wheel with all models, scenes, task configs and licenses (about 112 MiB download, 630 MiB of resources once installed). Install it with `pip install ufactory_mujoco-0.1.6-py3-none-any.whl`; the `ufactory-mujoco` and `dynamics-*` commands then run from any directory. Build one yourself with `python -m build`.
 
 ## Command-Line Tasks
 
@@ -122,7 +123,7 @@ Tests that need optional packages (`trimesh`) or maintainer-only source snapshot
 
 ## Known Limitations
 
-- Hardware modes were validated on one xArm 6 (firmware v2.8.0). The static torque comparison (≤ 2.5 % with a 3 kg payload) is a single historical measurement.
+- Bare-arm 20-pose static torque validation (`dynamics-hardware-check`, aligned with `ufactory_genesis` Schema v4) was verified on one xArm 6 (firmware v2.8.0; 20/20 PASS, L2 torque error 0.470–0.765 Nm) and one Lite 6 (firmware v2.8.2; 20/20 PASS, L2 torque error 0.028–0.156 Nm) under Python 3.14.6 and MuJoCo 4.0.1; hardware task modes (`pick-place` / `box-pack`) were validated on one xArm 6 (v2.8.0), and the 3 kg payload static torque comparison (≤ 2.5 %) is a single historical measurement.
 - The vacuum grippers (`lite6_vacuum_gripper`, `vacuum_gripper` and their arm combinations) are static models without a suction model. They, standalone cameras, `camera_stand*`, and `<arm>_with_d435` have no jaw actuator, so `04_gripper_control.py` rejects them (exit code `2`).
 - Depth camera and `camera_stand` models provide visual geometry, mounting/screw-hole `<site>`s (`group=4`), and approximate collision geometry (`group=3`) with `mass=0` and no MuJoCo `<camera>` optical sensor; inject camera/bracket inertia via `attach_payload` for dynamics tasks.
 - Task reports are byte-identical on MuJoCo 4.0.0 and 4.0.1; other MuJoCo versions can change results numerically.
@@ -131,7 +132,8 @@ Tests that need optional packages (`trimesh`) or maintainer-only source snapshot
 
 ```text
 calibrations/              Per-unit kinematic calibration YAML (SHA-256 checked)
-configs/                   Task configs: default.yaml, pick_place/<arm>.yaml, box_pack/<arm>.yaml
+configs/                   Task and validation configs: default.yaml, dynamics_validation_pose.yaml,
+                           pick_place/<arm>.yaml, box_pack/<arm>.yaml
 models/                    MJCF models and meshes: arms, grippers, cameras, brackets and combinations;
                            scene variants scene, scene_pick_place, scene_box_pack, scene_obstacles
 ufactory_mujoco/
@@ -152,7 +154,7 @@ ufactory_mujoco/
   task_geometry.py         Grasp heights and orientation shared by tasks and preflight
   ik.py, kinematics.py     DLS IK; FK, Jacobians, manipulability
   trajectory.py            JointTrajectory, quintic/LSPB, spline, Cartesian line
-  dynamics.py              Mass matrix, gravity/Coriolis, inverse/forward dynamics, payload
+  dynamics/                Mass matrix, gravity/Coriolis, inverse/forward dynamics, payload, and Schema v4 torque validation CLI (`dynamics-*`)
   collision.py             Collision and clearance queries
   path_planning.py         RRT-Connect and shortcutting
   tasks/                   pick-place, box-pack and dynamics commands
