@@ -146,8 +146,10 @@ python examples/simulation/10_box_pack.py --robot xarm6 --mode sdk-sim --ip 192.
 dynamics-sim-collision-check --robot lite6 --ip 192.168.1.60
 
 # 4. Physical motion (requires --confirm-real; ensure clear workspace & E-stop)
+#    Units whose port-502 export is skipped (older SNs or xArm 5 parallel-axis kinematics) pass --nominal-model
 ufactory-mujoco pick-place --robot xarm6 --mode real --confirm-real --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
 dynamics-hardware-check --robot xarm6 --ip 192.168.1.60 --confirm-real --require-reference
+dynamics-hardware-check --robot xarm5 --ip 192.168.1.60 --confirm-real --nominal-model --require-reference
 dynamics-report-compare reports/dyn_ver_<SN>/<old>.jsonl reports/dyn_ver_<SN>/<new>.jsonl
 ```
 

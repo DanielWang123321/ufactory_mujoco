@@ -473,8 +473,15 @@ def test_compare_report_records_and_failure_detail_print(capsys):
 
 
 def test_torque_plot_layouts_generation_and_optional_matplotlib_skip(tmp_path: Path, monkeypatch):
+    assert torque_plot_layout(5) == (2, 3)
     assert torque_plot_layout(6) == (2, 3)
     assert torque_plot_layout(7) == (3, 3)
+
+    runtime5 = get_robot_runtime_profile("xarm5")
+    pose5 = SafePose("0", np.zeros(5), 112.0)
+    sample5 = build_dynamics_sample(
+        pose5, _sim_sample(5), runtime_profile=runtime5, tau_real=np.ones(5), n_real_samples=3
+    )
 
     runtime6 = get_robot_runtime_profile("xarm6")
     pose6 = SafePose("0", np.zeros(6), 100.0)
@@ -496,6 +503,10 @@ def test_torque_plot_layouts_generation_and_optional_matplotlib_skip(tmp_path: P
     monkeypatch.undo()
 
     pytest.importorskip("matplotlib")
+    out5 = tmp_path / "xarm5_torque.png"
+    assert write_torque_plot([sample5], out5, runtime_profile=runtime5)
+    assert out5.exists() and out5.stat().st_size > 0
+
     out6 = tmp_path / "xarm6_torque.png"
     assert write_torque_plot([sample6], out6, runtime_profile=runtime6)
     assert out6.exists() and out6.stat().st_size > 0
@@ -791,3 +802,61 @@ def test_mujoco_rnea_matches_pinocchio_urdf_reference(robot_key: str):
         m_pin = pin_ref.mass_matrix(q)
         rel_fro = float(np.linalg.norm(m_mj - m_pin) / np.linalg.norm(m_pin))
         assert rel_fro < 1e-4
+
+
+def test_port502_calibration_decode_and_xarm5_degeneracy_skip(tmp_path: Path, monkeypatch, capsys):
+    import struct
+    import yaml
+
+    from ufactory_mujoco.calibration import (
+        CalibrationError,
+        DegenerateCalibrationError,
+        decode_kinematics_payload,
+        export_kinematics_calibration,
+        load_kinematics_calibration,
+    )
+
+    sn = "XF130500TEST01"
+
+    # Valid port-502 payloads are preserved directly in meters/radians without heuristic /= 1000 scaling.
+    valid_flat = [0.0] * 42
+    valid_flat[0 * 6 + 2] = 0.267
+    valid_flat[1 * 6 + 3] = -1.5708
+    valid_flat[2 * 6 + 0] = 0.0535
+    valid_flat[2 * 6 + 1] = -0.2845
+    valid_flat[3 * 6 + 0] = 0.0775
+    valid_flat[3 * 6 + 1] = 1.25  # > 1.0 m and <= 2.0 m must remain unscaled (in meters)
+    valid_flat[4 * 6 + 0] = 0.076
+    valid_flat[4 * 6 + 1] = 0.097
+    valid_flat[4 * 6 + 3] = -1.5708
+    valid_pkt = bytes([0, 1, 0, 2, 0, 173, 8, 16, 1, 5, 5]) + struct.pack("<42f", *valid_flat)
+    robot_name, payload = decode_kinematics_payload(valid_pkt, serial_number=sn)
+    assert robot_name == "xarm5"
+    assert payload["joints"]["joint4"]["y"] == pytest.approx(1.25)
+
+    yaml_path = tmp_path / "xarm5_kinematics_TEST01.yaml"
+    yaml_path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    loaded = load_kinematics_calibration(yaml_path, robot="xarm5", serial_number=sn)
+    assert loaded.serial_number == sn
+    assert loaded.joints["joint4"]["y"] == pytest.approx(1.25)
+
+    # Degenerate port-502 parallel-axis payload (~31.9 m) is rejected as DegenerateCalibrationError.
+    bad_flat = [0.0] * 42
+    bad_flat[6 + 1] = -31.9366
+    bad_flat[12 + 2] = 31.9377
+    bad_pkt = bytes([0, 1, 0, 2, 0, 173, 8, 16, 1, 5, 5]) + struct.pack("<42f", *bad_flat)
+    with pytest.raises(DegenerateCalibrationError, match="--nominal-model") as exc_info:
+        decode_kinematics_payload(bad_pkt, serial_number=sn)
+    assert isinstance(exc_info.value, CalibrationError)
+
+    # export_kinematics_calibration skips with exit code 2 and writes no YAML file.
+    monkeypatch.setattr("ufactory_mujoco.calibration.fetch_robot_sn_from_ip", lambda _ip: sn)
+    monkeypatch.setattr("ufactory_mujoco.calibration.fetch_kinematics_bytes", lambda _ip, timeout=10.0: bad_pkt)
+    out_dir = tmp_path / "out_cal"
+    capsys.readouterr()
+    rc = export_kinematics_calibration("192.0.2.76", out_dir)
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert "[Skipped]" in captured.err
+    assert "--nominal-model" in captured.err
+    assert not out_dir.exists() or list(out_dir.iterdir()) == []

@@ -48,6 +48,10 @@ class CalibrationError(ConfigError):
     """Raised when kinematic calibration is missing, invalid, or mismatches hardware."""
 
 
+class DegenerateCalibrationError(CalibrationError):
+    """Raised when controller port-502 returns non-physical parallel-axis offsets."""
+
+
 @dataclass(frozen=True)
 class KinematicsCalibration:
     """Strictly validated, robot-bound kinematic calibration."""
@@ -427,19 +431,26 @@ def decode_kinematics_payload(recv_data: bytes, *, serial_number: str) -> tuple[
     params = struct.unpack("<42f", recv_data[11:])
     joints: dict[str, dict[str, float]] = {}
     for i in range(robot_dof):
+        joint_name = f"joint{i + 1}"
         joint_param: dict[str, float] = {}
         for axis_idx, axis in enumerate(("x", "y", "z", "roll", "pitch", "yaw")):
             value = float(params[i * 6 + axis_idx])
-            if axis in ("x", "y", "z") and abs(value) > 1.0:
-                value /= 1000.0
+            if not math.isfinite(value):
+                raise CalibrationError(f"port-502: {joint_name}.{axis} must be finite")
+            if axis in ("x", "y", "z") and abs(value) > 2.0:
+                raise DegenerateCalibrationError(
+                    f"port-502 returned degenerate kinematics ({joint_name}.{axis}={value:.4f} m exceeds ±2.0 m); "
+                    "use --nominal-model"
+                )
             joint_param[axis] = value
-        joints[f"joint{i + 1}"] = joint_param
+        joints[joint_name] = joint_param
+    validated = _validate_joints(joints, dof=robot_dof, source="port-502")
     payload = {
         "schema_version": 1,
         "robot_key": f"{robot_name}_1305" if robot_name.startswith("xarm") else robot_name,
         "serial_number": serial_number,
         "units": {"position": "m", "angle": "rad"},
-        "joints": joints,
+        "joints": validated,
     }
     return robot_name, payload
 
@@ -491,9 +502,16 @@ def export_kinematics_calibration(
         print(f"[Failed] cannot read kinematics from {robot_ip}:502: {exc}", file=sys.stderr)
         return 1
 
+    if len(recv_data) != 179 or not recv_data[8]:
+        valid = 0 if len(recv_data) < 9 else recv_data[8]
+        print(
+            f"[Failed] invalid port-502 kinematics response: recv_len={len(recv_data)}, valid={valid}",
+            file=sys.stderr,
+        )
+        return 1
     try:
-        robot_name, payload = decode_kinematics_payload(recv_data, serial_number=sn)
-    except (CalibrationError, ValueError) as exc:
+        robot_name = robot_name_from_firmware(int(recv_data[9]), int(recv_data[10]))
+    except ValueError as exc:
         print(f"[Failed] {exc}", file=sys.stderr)
         return 1
 
@@ -505,6 +523,15 @@ def export_kinematics_calibration(
             file=sys.stderr,
         )
         return 2
+
+    try:
+        _, payload = decode_kinematics_payload(recv_data, serial_number=sn)
+    except DegenerateCalibrationError as exc:
+        print(f"[Skipped] {exc}", file=sys.stderr)
+        return 2
+    except (CalibrationError, ValueError) as exc:
+        print(f"[Failed] {exc}", file=sys.stderr)
+        return 1
 
     out_dir = Path(output_dir).expanduser().resolve()
     out_dir.mkdir(parents=True, exist_ok=True)

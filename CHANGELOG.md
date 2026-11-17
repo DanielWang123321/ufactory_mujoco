@@ -1,15 +1,15 @@
 # Changelog
 
-## [0.1.6] - Unreleased
+## [0.1.6] - 2026-11-17
 
-Integrated `ufactory_genesis`-aligned Schema v4 dynamics validation and real-robot static torque verification into the public `ufactory_mujoco.dynamics` subpackage and console scripts, enforced a `<= 40 °/s` hardware dynamics speed ceiling, and validated bare-arm hardware runs on xArm 6, xArm 7, Lite 6, and UF850.
+Integrated `ufactory_genesis`-aligned Schema v4 dynamics validation and real-robot static torque verification into the public `ufactory_mujoco.dynamics` subpackage and console scripts, enforced a `<= 40 °/s` hardware dynamics speed ceiling, and validated bare-arm hardware runs across all five arm families (xArm 5, xArm 6, xArm 7, Lite 6, and UF850).
 
 ### Added
 
 - `ufactory_mujoco.dynamics` subpackage (preserving `ArmDynamics` and `attach_payload` exports at both `ufactory_mujoco` and `ufactory_mujoco.dynamics`), adding Schema v4 validation dataclasses, five-arm 20-pose expansion (`configs/dynamics_validation_pose.yaml`), closed-loop MuJoCo PD-hold probing, independent `MujocoRneaReference` / optional `PinocchioReference` oracles, L1/L2a/L2b/L3a/L3b static diagnostics, PD tracking-saturation gating, `RealRobotSession` safety checks, CSV/JSONL/`_torque.png` reporting (gracefully skipping plots when `matplotlib` is absent), and `python -m ufactory_mujoco.dynamics <subcommand>` CLI.
 - Four `ufactory_genesis`-aligned console scripts in `pyproject.toml`: `dynamics-sim-check`, `dynamics-sim-collision-check`, `dynamics-hardware-check`, and `dynamics-report-compare`.
-- Shared port-502 calibration extraction helpers in `ufactory_mujoco.calibration` (`robot_name_from_firmware`, `fetch_kinematics_bytes`, `decode_kinematics_payload`, `export_kinematics_calibration`), reused by both `scripts/gen_kinematics_params.py` and `python -m ufactory_mujoco.dynamics export-calibration`.
-- `tests/test_dynamics_suite.py` covering five-arm 20-pose simulation regressions, Schema v4 cross-repo CSV/JSONL compatibility, mocked `RealRobotSession` safety gates, `<= 40 °/s` speed-ceiling enforcement, optional `PinocchioReference` cross-engine checks, and `default_validation_poses` joint-limit bounds.
+- Shared port-502 calibration extraction helpers in `ufactory_mujoco.calibration` (`robot_name_from_firmware`, `fetch_kinematics_bytes`, `decode_kinematics_payload`, `DegenerateCalibrationError`, `export_kinematics_calibration`), reused by both `scripts/gen_kinematics_params.py` and `python -m ufactory_mujoco.dynamics export-calibration`.
+- `tests/test_dynamics_suite.py` covering five-arm 20-pose simulation regressions, Schema v4 cross-repo CSV/JSONL compatibility, mocked `RealRobotSession` safety gates, `<= 40 °/s` speed-ceiling enforcement, `xarm_ros2`-aligned port-502 decode and `xarm5` degeneracy skip tests (`exit 2`), optional `PinocchioReference` cross-engine checks, and `default_validation_poses` joint-limit bounds.
 
 ### Changed
 
@@ -19,10 +19,12 @@ Integrated `ufactory_genesis`-aligned Schema v4 dynamics validation and real-rob
 
 ### Fixed
 
+- `ufactory_mujoco.calibration`: aligned `decode_kinematics_payload` directly with `xarm_ros2` (removing the legacy `abs(value) > 1.0 -> /= 1000.0` heuristic) and raised `DegenerateCalibrationError` so `export_kinematics_calibration` skips non-physical `> ±2.0 m` port-502 parallel-axis packets (e.g. `xarm5`) cleanly with exit code `2` and directs users to `--nominal-model` without writing invalid YAMLs.
 - `ufactory_mujoco.kinematics_validation`: adjusted `default_validation_poses("lite6")["pose_b"]` (`J3 = 0.6 rad`) to stay within Lite 6's `joint3` range `[-0.061087, 5.23599] rad`, aligned `default_validation_poses("uf850")["ready"]` (`[0.0, -0.5, 0.0, 0.0, 0.5, 0.0]`) with `ufactory_genesis` / runtime defaults, and aligned `ik_ok` with the declared `1.0 mm` / `0.5°` tolerance on both MuJoCo and controller FK reprojections so singular wrist poses (`home`) do not fail solely on the inner solver's `0.1 mm` polish flag.
 
 ### Hardware Validation
 
+- **xArm 5** (bare flange, firmware `v2.8.2`, `--nominal-model`, Python `3.14.6`, MuJoCo `4.0.1`): controller internal simulation self-collision check `20/20 PASS` (`0.000002 rad` physical drift); full 20-pose hardware static torque check `20/20 PASS` (`torque_l2` error `0.520–0.780 Nm`, mean `0.622 Nm`, L2a/L2b/L3a/L3b all `20/20 pass`).
 - **xArm 6** (bare flange, firmware `v2.8.0`, Python `3.14.6`, MuJoCo `4.0.1`): controller internal simulation self-collision check `20/20 PASS` (`0.000000 rad` physical drift); full 20-pose hardware static torque check `20/20 PASS` (`torque_l2` error `0.470–0.765 Nm`, mean `0.619 Nm`, L2a/L2b/L3a/L3b all `20/20 pass`).
 - **xArm 7** (bare flange, firmware `v2.8.2`, Python `3.14.6`, MuJoCo `4.0.1`): standard FK/IK validation `PASS` (FK `<= 0.0003 mm`, IK `<= 0.095 mm`), controller internal simulation self-collision check `20/20 PASS` (`0.000004 rad` physical drift); full 20-pose hardware static torque check `20/20 PASS` (`torque_l2` error `0.816–3.303 Nm`, mean `1.750 Nm`, L2a/L2b/L3a/L3b all `20/20 pass`).
 - **Lite 6** (bare flange, firmware `v2.8.2`, Python `3.14.6`, MuJoCo `4.0.1`): standard FK/IK validation `PASS` (FK `<= 0.649 mm`, IK `<= 0.660 mm`), controller internal simulation self-collision check `20/20 PASS` (`0.000080 rad` physical drift); full 20-pose hardware static torque check `20/20 PASS` (`torque_l2` error `0.028–0.156 Nm`, mean `0.094 Nm`, L2a/L2b/L3a/L3b all `20/20 pass`).
