@@ -2,45 +2,49 @@
 
 [English](README.md) | [中文](README_zh.md)
 
-MuJoCo simulation examples (`01`–`10`) covering interactive model inspection, joint and Cartesian control, gripper servoing, cube pick-and-place, time-parameterized trajectory planning, RRT-Connect obstacle avoidance, box-packing showcase, kinematics/dynamics toolkits, and gated real-robot workflows.
+MuJoCo simulation examples (`01`–`11`) covering interactive model inspection, joint and Cartesian control, gripper servoing, cube pick-and-place, time-parameterized trajectory planning, RRT-Connect obstacle avoidance, box-packing showcase, kinematics/dynamics toolkits, AI1500 6-axis force/torque sensing, and gated real-robot workflows.
 
-Requires Python **3.12–3.14** and the core install (see the [installation guide](../../README.md#installation)). Examples `05`, `08` and `10` invoke the packaged CLI tasks `ufactory-mujoco pick-place`, `dynamics` and `box-pack`, which also work from an installed wheel outside the repository checkout. See [Section 3](#3-cli-options-summary) for flags, [Section 4](#4-commands-by-model) for all 44 models, and [Section 5](#5-viewer-controls) for viewer shortcuts.
+Requires Python **3.12–3.14** and the core install (see the [installation guide](../../README.md#installation)). Examples `05`, `08` and `10` invoke the packaged CLI tasks `ufactory-mujoco pick-place`, `dynamics` and `box-pack`, which also work from an installed wheel outside the repository checkout. See [Section 3](#3-cli-options-summary) for flags, [Section 4](#4-commands-by-model) for all 65 models, and [Section 5](#5-viewer-controls) for viewer shortcuts.
 
 ## 1. Examples Overview
 
 | Script | Core Module(s) | Supported Models | Description |
 | :--- | :--- | :--- | :--- |
-| `01_load_and_view.py` | `ufactory_mujoco.viewer`, `ufactory_mujoco.model_paths` | All 44 models (arms, grippers, cameras, brackets & combos) | Load MJCF scene at `home` or `ready` keyframe in the interactive viewer |
-| `02_joint_control.py` | `ufactory_mujoco.sim_robot` | All 30 arm & combination models | Speed-based quintic joint interpolation (`xarm6` runs 20 dynamics poses by default) |
+| `01_load_and_view.py` | `ufactory_mujoco.viewer`, `ufactory_mujoco.model_paths` | All 65 models (arms, grippers, cameras, brackets, F/T sensor, base plates & combos) | Load MJCF scene at `home` or `ready` keyframe in the interactive viewer |
+| `02_joint_control.py` | `ufactory_mujoco.sim_robot` | All 47 arm & combination models | Speed-based quintic joint interpolation (`xarm6` runs 20 dynamics poses by default) |
 | `03_cartesian_ik.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.ik` | `xarm6` | Cartesian straight-line (`move_tcp`) and X-Z circle tracking via DLS IK |
-| `04_gripper_control.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.g2_controller`, `ufactory_mujoco.bio_g2_controller` | 19 jaw-gripper models (standalone & combos) | Cycle `close (1.0) -> open (0.0) -> half (0.5) -> open (0.0)`; G2 and Bio G2 support `--speed-percent` & `--force-percent` |
+| `04_gripper_control.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.g2_controller`, `ufactory_mujoco.bio_g2_controller` | 23 jaw-gripper models (standalone & combos) | Cycle `close (1.0) -> open (0.0) -> half (0.5) -> open (0.0)`; G2 and Bio G2 support `--speed-percent` & `--force-percent` |
 | `05_pick_place.py` | `ufactory_mujoco.tasks.pick_place`, `ufactory_mujoco.sim_robot`, `ufactory_mujoco.preflight` | Five arm+gripper task combos | Cube pick-and-place with bilateral contact check & preflight (`place_error < 50 mm`, `home_drift < 10 mm`) |
 | `06_trajectory_planning.py` | `ufactory_mujoco.trajectory`, `ufactory_mujoco.dynamics` | `xarm6` | Analytical PTP quintic, C2 multi-waypoint spline, Cartesian SLERP line & feedforward torques |
 | `07_kinematics.py` | `ufactory_mujoco.kinematics` | `xarm6` | Per-site FK, analytical vs finite-difference Jacobian, velocity-level DLS IK, manipulability |
 | `08_dynamics.py` | `ufactory_mujoco.tasks.dynamics`, `ufactory_mujoco.dynamics`, `ufactory_mujoco.collision` | All five bare arms | Dynamics, fixed collision fixtures, command preflight & monitored motion; xArm6 3 kg payload regression |
 | `09_obstacle_avoidance.py` | `ufactory_mujoco.collision`, `ufactory_mujoco.path_planning` | `xarm6` (`scene_obstacles.xml`) | RRT-Connect + shortcutting + spline/quintic time parameterization around pillar & board |
 | `10_box_pack.py` | `ufactory_mujoco.tasks.box_pack`, `ufactory_mujoco.sim_robot`, `ufactory_mujoco.preflight` | Five arm+gripper task combos | Box-packing showcase: cubes released 50 mm above the rim free-fall into the box (1 mm tolerance); multi-cycle & speed multiplier |
+| `11_force_torque_sensor.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.ft_sensor` | All 13 `ft_sensor` models (`ft_sensor` & xArm/UF850 combos) | Record static tool-gravity baseline, apply local wrench at `ft_sensor_site`, and verify `200 Hz` `AI1500Reader` net delta |
 
 ## 2. Running the Examples
 
-All scripts need only the core install. `--headless` runs `02`–`10` without a viewer and prints verification metrics; `01 --headless` only loads the model and prints a summary.
+All scripts need only the core install. `--headless` runs `02`–`11` without a viewer and prints verification metrics; `01 --headless` only loads the model and prints a summary.
 
-### 2.1 Model Viewing & Basic Control (`01`–`04`)
+### 2.1 Model Viewing & Basic Control (`01`–`04`, `11`)
 
 ```bash
-# 01: Interactive viewer (all 44 models)
+# 01: Interactive viewer (all 65 models)
 python examples/simulation/01_load_and_view.py
 python examples/simulation/01_load_and_view.py --model lite6 --pose ready
 python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose ready
 python examples/simulation/01_load_and_view.py --model camera_stand_with_d405
 python examples/simulation/01_load_and_view.py --model xarm6_with_d435 --pose ready
 python examples/simulation/01_load_and_view.py --model uf850_with_gripper_and_d435 --pose ready
+python examples/simulation/01_load_and_view.py --model xarm6_with_ft_sensor_and_gripper --pose ready
+python examples/simulation/01_load_and_view.py --model xarm6_with_base_plate --pose ready
 
-# 02: Joint-space quintic trajectory control (all 30 arm & combination models)
+# 02: Joint-space quintic trajectory control (all 47 arm & combination models)
 python examples/simulation/02_joint_control.py --model lite6
 python examples/simulation/02_joint_control.py --model xarm6 --speed 120
 python examples/simulation/02_joint_control.py --model xarm6 --motion demo --duration 2.5
 python examples/simulation/02_joint_control.py --model xarm7_with_d435 --headless
+python examples/simulation/02_joint_control.py --model xarm6_with_base_plate --headless
 
 # 03: Cartesian IK trajectory tracking (line + circle)
 python examples/simulation/03_cartesian_ik.py
@@ -49,8 +53,15 @@ python examples/simulation/03_cartesian_ik.py --headless
 # 04: Gripper open/close control (Gripper G2, Bio Gripper G2, Lite 6 Gripper)
 python examples/simulation/04_gripper_control.py --model xarm6_with_gripper
 python examples/simulation/04_gripper_control.py --model xarm6_with_gripper --speed-percent 80 --force-percent 75
+python examples/simulation/04_gripper_control.py --model xarm6_with_ft_sensor_and_gripper --cycles 1
 python examples/simulation/04_gripper_control.py --model lite6_with_gripper
 python examples/simulation/04_gripper_control.py --model bio_gripper_g2 --cycles 5
+
+# 11: 6-axis force/torque sensor (AI1500, 1 ms physics / 200 Hz sampling)
+python examples/simulation/11_force_torque_sensor.py
+python examples/simulation/11_force_torque_sensor.py --headless
+python examples/simulation/11_force_torque_sensor.py --model ft_sensor --force 0 0 -5 --headless
+python examples/simulation/11_force_torque_sensor.py --model xarm6_with_ft_sensor_and_vacuum_gripper --headless
 ```
 
 > **Notes on `02_joint_control.py`**:
@@ -175,18 +186,20 @@ dynamics-report-compare reports/dyn_ver_<SN>/<old>.jsonl reports/dyn_ver_<SN>/<n
 | `--confirm-real` | `05`, `08`, `10` | `False` | Explicit safety confirmation required before `--mode real` motion |
 | `--headless` | `05`, `08`, `10` | `False` | Run without a viewer and print verification metrics |
 
-### 3.2 Script-Specific Options (`01`–`04`, `06`, `07`, `09`)
+### 3.2 Script-Specific Options (`01`–`04`, `06`, `07`, `09`, `11`)
 
 Examples `03` and `07` accept only `--headless`.
 
 | Option | Scripts | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `--headless` | `01`–`04`, `06`, `07`, `09` | `False` | Run without a viewer and print metrics (`01`: load and print summary only) |
-| `--model <name>` | `01`, `02`, `04` | `xarm6` (`04`: `xarm6_with_gripper`) | Model directory name or path to an MJCF XML file |
+| `--headless` | `01`–`04`, `06`, `07`, `09`, `11` | `False` | Run without a viewer and print metrics (`01`: load and print summary only) |
+| `--model <name>` | `01`, `02`, `04`, `11` | `xarm6` (`04`: `xarm6_with_gripper`, `11`: `xarm6_with_ft_sensor_and_gripper`) | Model directory name or path to an MJCF XML file |
 | `--pose <home\|ready>` | `01` | `home` | Initial keyframe pose |
 | `--motion <mode>` | `02` | `auto` | Motion preset: `auto`, `dynamics` (20 poses, bare `xarm6` only), or `demo` |
 | `--speed <deg/s>` | `02`, `06` | `90.0` | Peak target joint speed in degrees/s |
-| `--duration <s>` | `02` | `None` | Fixed seconds per segment (overrides `--speed`) |
+| `--duration <s>` | `02`, `11` | `None` (`11`: `1.0`) | Fixed seconds per segment (`02`) or wrench application duration (`11`) |
+| `--force <FX FY FZ>` | `11` | `0 0 -10` | Local force (N) applied at `ft_sensor_site` |
+| `--torque <TX TY TZ>` | `11` | `0 0.2 0` | Local torque (N*m) applied at `ft_sensor_site` |
 | `--sync-hz <Hz>` | `02` | `30.0` | Viewer state-sync rate (physics timestep remains `2 ms`) |
 | `--render-quality` | `02` | `fast` | `fast` (disables shadows/reflections) or `full` |
 | `--cycles <N>` | `04` | `3` | Number of open/close demonstration cycles |
@@ -199,25 +212,26 @@ Examples `03` and `07` accept only `--headless`.
 
 ## 4. Commands by Model
 
-`01`, `02` and `04` take a model name with `--model`; `05`, `08` and `10` take an arm key with `--robot`. Every command opens the viewer unless `--headless` is given.
+`01`, `02`, `04` and `11` take a model name with `--model`; `05`, `08` and `10` take an arm key with `--robot`. Every command opens the viewer unless `--headless` is given.
 
 ### 4.1 Arms and Combinations
 
 | Arm | Bare arm (`--model`) | Combinations (`--model`) | Arm key (`--robot`) |
 | :--- | :--- | :--- | :--- |
-| Lite 6 | `lite6` | `lite6_with_gripper`, `lite6_with_vacuum_gripper` | `lite6` |
-| xArm 5 | `xarm5` | `xarm5_with_gripper`, `xarm5_with_bio_gripper`, `xarm5_with_vacuum_gripper`, `xarm5_with_d435`, `xarm5_with_gripper_and_d435` | `xarm5` |
-| xArm 6 | `xarm6` | `xarm6_with_gripper`, `xarm6_with_bio_gripper`, `xarm6_with_vacuum_gripper`, `xarm6_with_d435`, `xarm6_with_gripper_and_<camera>` | `xarm6` |
-| xArm 7 | `xarm7` | `xarm7_with_gripper`, `xarm7_with_bio_gripper`, `xarm7_with_vacuum_gripper`, `xarm7_with_d435`, `xarm7_with_gripper_and_d435` | `xarm7` |
-| UF850 | `uf850` | `uf850_with_gripper`, `uf850_with_bio_gripper`, `uf850_with_vacuum_gripper`, `uf850_with_d435`, `uf850_with_gripper_and_d435` | `uf850` |
+| Lite 6 | `lite6` | `lite6_with_gripper`, `lite6_with_vacuum_gripper`, `lite6_with_base_plate` | `lite6` |
+| xArm 5 | `xarm5` | `xarm5_with_gripper`, `xarm5_with_bio_gripper`, `xarm5_with_vacuum_gripper`, `xarm5_with_d435`, `xarm5_with_gripper_and_d435`, `xarm5_with_ft_sensor`, `xarm5_with_ft_sensor_and_gripper`, `xarm5_with_ft_sensor_and_vacuum_gripper`, `xarm5_with_base_plate` | `xarm5` |
+| xArm 6 | `xarm6` | `xarm6_with_gripper`, `xarm6_with_bio_gripper`, `xarm6_with_vacuum_gripper`, `xarm6_with_d435`, `xarm6_with_gripper_and_<camera>`, `xarm6_with_ft_sensor`, `xarm6_with_ft_sensor_and_gripper`, `xarm6_with_ft_sensor_and_vacuum_gripper`, `xarm6_with_base_plate` | `xarm6` |
+| xArm 7 | `xarm7` | `xarm7_with_gripper`, `xarm7_with_bio_gripper`, `xarm7_with_vacuum_gripper`, `xarm7_with_d435`, `xarm7_with_gripper_and_d435`, `xarm7_with_ft_sensor`, `xarm7_with_ft_sensor_and_gripper`, `xarm7_with_ft_sensor_and_vacuum_gripper`, `xarm7_with_base_plate` | `xarm7` |
+| UF850 | `uf850` | `uf850_with_gripper`, `uf850_with_bio_gripper`, `uf850_with_vacuum_gripper`, `uf850_with_d435`, `uf850_with_gripper_and_d435`, `uf850_with_ft_sensor`, `uf850_with_ft_sensor_and_gripper`, `uf850_with_ft_sensor_and_vacuum_gripper`, `uf850_with_base_plate` | `uf850` |
 
 `<arm>_with_gripper` mounts Gripper G2 (the Lite 6 gripper on Lite 6). `<camera>` is `d405`, `d435`, `gemini_305` or `zed_x_nano`.
 
-Model applicability across scripts (`44` model directories in total):
+Model applicability across scripts (`65` model directories in total):
 
-- `01_load_and_view.py`: all `44` models (bare arms, combinations, standalone tools/cameras/brackets).
-- `02_joint_control.py`: all `30` models with an arm (`5` bare arms + `25` arm combinations).
-- `04_gripper_control.py`: all `19` models with a jaw actuator (`3` standalone grippers + `16` arm/camera combinations with a jaw gripper).
+- `01_load_and_view.py`: all `65` models (bare arms, combinations, standalone tools/cameras/brackets/F/T sensor/base plates).
+- `02_joint_control.py`: all `47` models with an arm (`5` bare arms + `42` arm combinations).
+- `04_gripper_control.py`: all `23` models with a jaw actuator (`3` standalone grippers + `20` arm/accessory combinations with a jaw gripper).
+- `11_force_torque_sensor.py`: all `13` models with an AI1500 sensor (`1` standalone `ft_sensor` + `12` xArm/UF850 combinations).
 - `05_pick_place.py`, `10_box_pack.py`: `5` task pairs selected by `--robot` (`lite6` with `lite6_gripper`; the other four with `gripper_g2`).
 - `08_dynamics.py`: `5` bare arms via `--robot` (plus `all` in `sim` mode). Examples `03`, `06`, `07` and `09` run on the bare `xarm6` only.
 
@@ -236,26 +250,28 @@ python examples/simulation/10_box_pack.py --robot uf850 --cycles 3
 python examples/simulation/08_dynamics.py --robot all --headless
 ```
 
-### 4.2 Standalone End Effectors, Cameras and Brackets
+### 4.2 Standalone End Effectors, Accessories, Cameras and Base Plates
 
-| Model (`--model`) | `01_load_and_view.py` | `04_gripper_control.py` |
-| :--- | :---: | :--- |
-| `gripper_g2` | yes | open/close with `--speed-percent`, `--force-percent` |
-| `bio_gripper_g2` | yes | open/close with `--speed-percent`, `--force-percent` |
-| `lite6_gripper` | yes | open/close |
-| `lite6_vacuum_gripper`, `vacuum_gripper` | yes | rejected (no jaw actuator, exit code `2`) |
-| `d405`, `d435`, `gemini_305`, `zed_x_nano` | yes | rejected (exit code `2`) |
-| `camera_stand`, `camera_stand_with_<camera>` | yes | rejected (exit code `2`) |
+| Model (`--model`) | `01_load_and_view.py` | `04_gripper_control.py` | `11_force_torque_sensor.py` |
+| :--- | :---: | :--- | :--- |
+| `gripper_g2` | yes | open/close with `--speed-percent`, `--force-percent` | rejected (exit code `2`) |
+| `bio_gripper_g2` | yes | open/close with `--speed-percent`, `--force-percent` | rejected (exit code `2`) |
+| `lite6_gripper` | yes | open/close | rejected (exit code `2`) |
+| `lite6_vacuum_gripper`, `vacuum_gripper` | yes | rejected (no jaw actuator, exit code `2`) | rejected (exit code `2`) |
+| `d405`, `d435`, `gemini_305`, `zed_x_nano` | yes | rejected (exit code `2`) | rejected (exit code `2`) |
+| `camera_stand`, `camera_stand_with_<camera>` | yes | rejected (exit code `2`) | rejected (exit code `2`) |
+| `ft_sensor` | yes | rejected (exit code `2`) | `200 Hz` wrench demo |
+| `xarm_base_plate`, `uf850_base_plate`, `lite6_base_plate` | yes | rejected (exit code `2`) | rejected (exit code `2`) |
 
-Camera and bracket models have `mass=0` and no optical sensor. Enable Site Group `4` in the viewer's right panel to show their mounting faces and screw holes.
+Camera and bracket models have `mass=0` and no optical sensor. Base plates place their top mounting plane at `z=0` with `floor` at `-thickness` (`-8 / -10 / -5 mm`) and expose `arm_mount` in Site Group `4`. Enable Site Group `4` in the viewer's right panel to show mounting faces, `ft_sensor_site`, and screw holes.
 
 ### 4.3 Keyframes
 
-- **Bare xArm 5/6/7 and UF850**: `home` and `ready` are all-zero joint angles.
-- **Lite 6 (bare and combinations)**: `home` is all zeros; `ready` is the Studio factory pose `[0, 9.9, 31.8, 0, 21.9, 0]°` (flange near `[200, 0, 200]` mm, orientation `[180, 0, 0]°`).
-- **xArm 5/6/7 and UF850 combinations**: `ready` is the zero-roll downward IK pose placing Gripper G2's TCP at `(300, 0, 300)` mm with `RPY = (180, 0, 0)°` (`xArm 6` uses the same pose for `home`; `xArm 5`, `xArm 7`, and `UF850` define their own `home` in each MJCF—note that `uf850_with_*` uses all-zero `home`, so `--pose ready` is recommended when inspecting combinations).
-- **Tool offsets and D435 orientation**: combination TCPs include the mounted tool offset; `<arm>_with_d435` shifts `attachment_site` `+3 mm` along flange `+Z` for the bracket plate thickness. Mounted `d435` assemblies orient the camera for a human-eye upright view (image top toward base `+X`, USB-C port on flange `+Y` / base `Y-` in tool-down poses).
-- **Standalone models**: movable grippers (`gripper_g2`, `bio_gripper_g2`, `lite6_gripper`) define `open` and `close` keyframes; passive vacuum grippers, cameras, and stands have no keyframes (`nkey == 0`) and load in their default pose.
+- **Bare xArm 5/6/7 and UF850 (and `*_with_base_plate`)**: `home` and `ready` are all-zero joint angles.
+- **Lite 6 (bare, `lite6_with_base_plate`, and combinations)**: `home` is all zeros; `ready` is the Studio factory pose `[0, 9.9, 31.8, 0, 21.9, 0]°` (flange near `[200, 0, 200]` mm, orientation `[180, 0, 0]°`).
+- **xArm 5/6/7 and UF850 combinations**: `ready` is the zero-roll downward IK pose placing Gripper G2's TCP at `(300, 0, 300)` mm with `RPY = (180, 0, 0)°` (`xArm 6` uses the same pose for `home`; `xArm 5`, `xArm 7`, and `UF850` define their own `home` in each MJCF—note that `uf850_with_*` uses all-zero `home`, so `--pose ready` is recommended when inspecting combinations). `<arm>_with_ft_sensor` reuses `<arm>_with_vacuum_gripper` keyframes so the mounted sensor stays elevated and points downward at `ready`.
+- **Tool offsets and D435 orientation**: combination TCPs include the mounted tool offset; `<arm>_with_d435` shifts `attachment_site` `+3 mm` along flange `+Z` for the bracket plate thickness, and `ft_sensor` shifts downstream bodies and `attachment_site` `+58.6 mm` along flange `+Z` (running at `timestep="0.001"`). Mounted `d435` assemblies orient the camera for a human-eye upright view (image top toward base `+X`, USB-C port on flange `+Y` / base `Y-` in tool-down poses).
+- **Standalone models**: movable grippers (`gripper_g2`, `bio_gripper_g2`, `lite6_gripper`) define `open` and `close` keyframes; passive vacuum grippers, cameras, stands, `ft_sensor`, and `*_base_plate` have no keyframes (`nkey == 0`) and load in their default pose.
 
 ## 5. Viewer Controls
 

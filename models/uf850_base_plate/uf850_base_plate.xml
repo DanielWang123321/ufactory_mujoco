@@ -1,0 +1,17 @@
+<mujoco model="uf850_base_plate">
+  <!-- UFACTORY UF850 mounting base plate (top mounting surface z=0, thickness=10 mm; Roadmap 0.1.7). -->
+  <compiler angle="radian" autolimits="true" meshdir="assets" />
+  <option integrator="implicitfast" />
+  <asset>
+    <material name="uf850_plate_material" rgba="0.65 0.67 0.70 1" specular="0.6" shininess="0.5" />
+    <mesh name="uf850_plate_visual_mesh" file="uf850_base_plate/visual/visual.stl" />
+    <mesh name="uf850_plate_collision_00" file="uf850_base_plate/collision/collision_00.stl" />
+  </asset>
+  <worldbody>
+    <body name="base_plate">
+      <geom name="base_plate_visual" type="mesh" mesh="uf850_plate_visual_mesh" material="uf850_plate_material" group="2" contype="0" conaffinity="0" />
+      <geom name="base_plate_collision_00" type="mesh" mesh="uf850_plate_collision_00" group="3" rgba="0.2 0.7 0.3 0.45" solref="0.004 1" solmix="1000" />
+      <site name="arm_mount" pos="0 0 0" size="0.002" group="4" />
+    </body>
+  </worldbody>
+</mujoco>

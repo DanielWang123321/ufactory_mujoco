@@ -56,25 +56,30 @@ jobs:
           python examples/simulation/01_load_and_view.py --headless --model xarm6_with_gripper --pose ready
           for m in d405 d435 gemini_305 zed_x_nano camera_stand camera_stand_with_d405 xarm6_with_gripper_and_d405 \
                    xarm5_with_d435 uf850_with_gripper_and_d435 \
-                   vacuum_gripper xarm6_with_vacuum_gripper xarm5_with_bio_gripper; do
+                   vacuum_gripper xarm6_with_vacuum_gripper xarm5_with_bio_gripper \
+                   ft_sensor xarm6_with_ft_sensor_and_gripper xarm6_with_ft_sensor_and_vacuum_gripper \
+                   xarm_base_plate uf850_base_plate lite6_base_plate xarm6_with_base_plate lite6_with_base_plate; do
             python examples/simulation/01_load_and_view.py --headless --model $m
           done
           python examples/simulation/04_gripper_control.py --headless --model xarm6_with_gripper_and_d405 --cycles 1
+          python examples/simulation/11_force_torque_sensor.py --headless
+          python examples/simulation/11_force_torque_sensor.py --headless --model ft_sensor --force 0 0 -5
           for s in 02_joint_control 03_cartesian_ik 05_pick_place 06_trajectory_planning 07_kinematics 08_dynamics 09_obstacle_avoidance; do
             echo "::group::$s"; python examples/simulation/$s.py --headless; echo "::endgroup::"
           done
           echo "::group::10_box_pack"; python examples/simulation/10_box_pack.py --headless --cycles 1; echo "::endgroup::"
           for m in xarm5 xarm7 uf850 lite6 xarm6_with_gripper xarm6_with_bio_gripper lite6_with_gripper \
                    uf850_with_gripper xarm5_with_vacuum_gripper xarm6_with_gripper_and_d405 \
-                   xarm7_with_d435 uf850_with_gripper_and_d435; do
+                   xarm7_with_d435 uf850_with_gripper_and_d435 \
+                   xarm6_with_ft_sensor_and_gripper xarm6_with_ft_sensor_and_vacuum_gripper xarm6_with_base_plate; do
             python examples/simulation/02_joint_control.py --headless --model $m
           done
           for m in xarm6_with_gripper xarm6_with_bio_gripper lite6_with_gripper gripper_g2 bio_gripper_g2 \
-                   xarm7_with_bio_gripper; do
+                   xarm7_with_bio_gripper xarm6_with_ft_sensor_and_gripper; do
             python examples/simulation/04_gripper_control.py --headless --model $m
           done
           # models without a jaw actuator must fail with a non-zero exit code
-          for m in lite6_vacuum_gripper vacuum_gripper xarm6_with_d435; do
+          for m in lite6_vacuum_gripper vacuum_gripper xarm6_with_d435 ft_sensor xarm6_with_ft_sensor xarm_base_plate xarm6_with_base_plate; do
             if python examples/simulation/04_gripper_control.py --headless --model $m; then exit 1; fi
           done
       - name: Upload core logs

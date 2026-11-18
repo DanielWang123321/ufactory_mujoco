@@ -1,0 +1,67 @@
+<mujoco model="ft_sensor">
+  <!-- UFACTORY AI1500 6-axis force/torque sensor (mass=0.6 kg, +58.6 mm output frame, 1 ms / 200 Hz sensing; Roadmap 0.1.7). -->
+  <compiler angle="radian" autolimits="true" meshdir="assets" />
+  <option integrator="implicitfast" timestep="0.001" />
+  <asset>
+    <material name="ft_sensor_part_00_mat" rgba="0.96 0.965 0.97 1" specular="0.78" shininess="0.52" />
+    <mesh name="ft_sensor_part_00" file="ft_sensor/visual/part_00.obj" inertia="shell" />
+    <material name="ft_sensor_part_01_mat" rgba="0.952941 0.952941 0.94902 1" specular="0.8" shininess="0.365755" />
+    <mesh name="ft_sensor_part_01" file="ft_sensor/visual/part_01.obj" inertia="shell" />
+    <material name="ft_sensor_part_02_mat" rgba="0.952941 0.952941 0.94902 1" specular="0.8" shininess="0.365755" />
+    <mesh name="ft_sensor_part_02" file="ft_sensor/visual/part_02.obj" inertia="shell" />
+    <material name="ft_sensor_part_03_mat" rgba="0.96 0.965 0.97 1" specular="0.78" shininess="0.52" />
+    <mesh name="ft_sensor_part_03" file="ft_sensor/visual/part_03.obj" inertia="shell" />
+    <material name="ft_sensor_part_04_mat" rgba="0.045 0.048 0.052 1" specular="0.1" shininess="0.28" />
+    <mesh name="ft_sensor_part_04" file="ft_sensor/visual/part_04.obj" inertia="shell" />
+    <material name="ft_sensor_part_05_mat" rgba="0.96 0.965 0.97 1" specular="0.78" shininess="0.52" />
+    <mesh name="ft_sensor_part_05" file="ft_sensor/visual/part_05.obj" inertia="shell" />
+    <material name="ft_sensor_part_06_mat" rgba="0.83 0.64 0.24 1" specular="0.8" shininess="0.62" />
+    <mesh name="ft_sensor_part_06" file="ft_sensor/visual/part_06.obj" inertia="shell" />
+    <material name="ft_sensor_part_07_mat" rgba="0.96 0.965 0.97 1" specular="0.78" shininess="0.52" />
+    <mesh name="ft_sensor_part_07" file="ft_sensor/visual/part_07.obj" inertia="shell" />
+    <material name="ft_sensor_part_08_mat" rgba="0.83 0.64 0.24 1" specular="0.8" shininess="0.62" />
+    <mesh name="ft_sensor_part_08" file="ft_sensor/visual/part_08.obj" inertia="shell" />
+    <material name="ft_sensor_part_09_mat" rgba="0.045 0.048 0.052 1" specular="0.1" shininess="0.28" />
+    <mesh name="ft_sensor_part_09" file="ft_sensor/visual/part_09.obj" inertia="shell" />
+    <material name="ft_sensor_part_10_mat" rgba="0.09 0.094 0.1 1" specular="0.8" shininess="0.365755" />
+    <mesh name="ft_sensor_part_10" file="ft_sensor/visual/part_10.obj" inertia="shell" />
+    <material name="ft_sensor_part_11_mat" rgba="0.96 0.965 0.97 1" specular="0.78" shininess="0.52" />
+    <mesh name="ft_sensor_part_11" file="ft_sensor/visual/part_11.obj" inertia="shell" />
+    <material name="ft_sensor_part_12_mat" rgba="0.09 0.094 0.1 1" specular="0.8" shininess="0.365755" />
+    <mesh name="ft_sensor_part_12" file="ft_sensor/visual/part_12.obj" inertia="shell" />
+    <material name="ft_sensor_part_13_mat" rgba="0.96 0.965 0.97 1" specular="0.78" shininess="0.52" />
+    <mesh name="ft_sensor_part_13" file="ft_sensor/visual/part_13.obj" inertia="shell" />
+    <material name="ft_sensor_part_14_mat" rgba="0.09 0.094 0.1 1" specular="0.8" shininess="0.365755" />
+    <mesh name="ft_sensor_part_14" file="ft_sensor/visual/part_14.obj" inertia="shell" />
+    <mesh name="ft_sensor_collision_mesh" file="ft_sensor/collision/hull.stl" />
+  </asset>
+  <worldbody>
+    <body name="ft_sensor_base" pos="0 0 0.08">
+      <inertial pos="0 0 0.022" mass="0.6" diaginertia="0.000428064 0.000428064 0.000451632" />
+      <geom name="ft_sensor_part_00_visual" type="mesh" mesh="ft_sensor_part_00" material="ft_sensor_part_00_mat" contype="0" conaffinity="0" group="2" />
+      <geom name="ft_sensor_part_01_visual" type="mesh" mesh="ft_sensor_part_01" material="ft_sensor_part_01_mat" contype="0" conaffinity="0" group="2" />
+      <geom name="ft_sensor_part_02_visual" type="mesh" mesh="ft_sensor_part_02" material="ft_sensor_part_02_mat" contype="0" conaffinity="0" group="2" />
+      <geom name="ft_sensor_part_03_visual" type="mesh" mesh="ft_sensor_part_03" material="ft_sensor_part_03_mat" contype="0" conaffinity="0" group="2" />
+      <geom name="ft_sensor_part_04_visual" type="mesh" mesh="ft_sensor_part_04" material="ft_sensor_part_04_mat" contype="0" conaffinity="0" group="2" />
+      <geom name="ft_sensor_part_05_visual" type="mesh" mesh="ft_sensor_part_05" material="ft_sensor_part_05_mat" contype="0" conaffinity="0" group="2" />
+      <geom name="ft_sensor_part_06_visual" type="mesh" mesh="ft_sensor_part_06" material="ft_sensor_part_06_mat" contype="0" conaffinity="0" group="2" />
+      <geom name="ft_sensor_part_07_visual" type="mesh" mesh="ft_sensor_part_07" material="ft_sensor_part_07_mat" contype="0" conaffinity="0" group="2" />
+      <geom name="ft_sensor_part_08_visual" type="mesh" mesh="ft_sensor_part_08" material="ft_sensor_part_08_mat" contype="0" conaffinity="0" group="2" />
+      <geom name="ft_sensor_part_09_visual" type="mesh" mesh="ft_sensor_part_09" material="ft_sensor_part_09_mat" contype="0" conaffinity="0" group="2" />
+      <geom name="ft_sensor_part_10_visual" type="mesh" mesh="ft_sensor_part_10" material="ft_sensor_part_10_mat" contype="0" conaffinity="0" group="2" />
+      <geom name="ft_sensor_part_11_visual" type="mesh" mesh="ft_sensor_part_11" material="ft_sensor_part_11_mat" contype="0" conaffinity="0" group="2" />
+      <geom name="ft_sensor_part_12_visual" type="mesh" mesh="ft_sensor_part_12" material="ft_sensor_part_12_mat" contype="0" conaffinity="0" group="2" />
+      <geom name="ft_sensor_part_13_visual" type="mesh" mesh="ft_sensor_part_13" material="ft_sensor_part_13_mat" contype="0" conaffinity="0" group="2" />
+      <geom name="ft_sensor_part_14_visual" type="mesh" mesh="ft_sensor_part_14" material="ft_sensor_part_14_mat" contype="0" conaffinity="0" group="2" />
+      <geom name="ft_sensor_collision" type="mesh" mesh="ft_sensor_collision_mesh" group="3" contype="1" conaffinity="1" />
+      <body name="ft_sensor_output" pos="0 0 0.0586">
+        <site name="ft_sensor_site" pos="0 0 0" size="0.002" group="4" />
+        <site name="attachment_site" pos="0 0 0" size="0.001" group="4" />
+      </body>
+    </body>
+  </worldbody>
+  <sensor>
+    <force name="ft_sensor_force" site="ft_sensor_site" />
+    <torque name="ft_sensor_torque" site="ft_sensor_site" />
+  </sensor>
+</mujoco>

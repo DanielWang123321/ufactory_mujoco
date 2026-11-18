@@ -1,0 +1,49 @@
+<mujoco model="xarm_base_plate">
+  <!-- UFACTORY xArm series mounting base plate (top mounting surface z=0, thickness=8 mm; Roadmap 0.1.7). -->
+  <compiler angle="radian" autolimits="true" meshdir="assets" />
+  <option integrator="implicitfast" />
+  <asset>
+    <material name="xarm_plate_material" rgba="0.65 0.67 0.70 1" specular="0.6" shininess="0.5" />
+    <mesh name="xarm_plate_visual_mesh" file="xarm_base_plate/visual/visual.stl" />
+    <mesh name="xarm_plate_collision_00" file="xarm_base_plate/collision/collision_00.stl" />
+    <mesh name="xarm_plate_collision_01" file="xarm_base_plate/collision/collision_01.stl" />
+    <mesh name="xarm_plate_collision_02" file="xarm_base_plate/collision/collision_02.stl" />
+    <mesh name="xarm_plate_collision_03" file="xarm_base_plate/collision/collision_03.stl" />
+    <mesh name="xarm_plate_collision_04" file="xarm_base_plate/collision/collision_04.stl" />
+    <mesh name="xarm_plate_collision_05" file="xarm_base_plate/collision/collision_05.stl" />
+    <mesh name="xarm_plate_collision_06" file="xarm_base_plate/collision/collision_06.stl" />
+    <mesh name="xarm_plate_collision_07" file="xarm_base_plate/collision/collision_07.stl" />
+    <mesh name="xarm_plate_collision_08" file="xarm_base_plate/collision/collision_08.stl" />
+    <mesh name="xarm_plate_collision_09" file="xarm_base_plate/collision/collision_09.stl" />
+    <mesh name="xarm_plate_collision_10" file="xarm_base_plate/collision/collision_10.stl" />
+    <mesh name="xarm_plate_collision_11" file="xarm_base_plate/collision/collision_11.stl" />
+    <mesh name="xarm_plate_collision_12" file="xarm_base_plate/collision/collision_12.stl" />
+    <mesh name="xarm_plate_collision_13" file="xarm_base_plate/collision/collision_13.stl" />
+    <mesh name="xarm_plate_collision_14" file="xarm_base_plate/collision/collision_14.stl" />
+    <mesh name="xarm_plate_collision_15" file="xarm_base_plate/collision/collision_15.stl" />
+    <mesh name="xarm_plate_collision_16" file="xarm_base_plate/collision/collision_16.stl" />
+  </asset>
+  <worldbody>
+    <body name="base_plate">
+      <geom name="base_plate_visual" type="mesh" mesh="xarm_plate_visual_mesh" material="xarm_plate_material" group="2" contype="0" conaffinity="0" />
+      <geom name="base_plate_collision_00" type="mesh" mesh="xarm_plate_collision_00" group="3" rgba="0.2 0.7 0.3 0.45" solref="0.004 1" solmix="1000" />
+      <geom name="base_plate_collision_01" type="mesh" mesh="xarm_plate_collision_01" group="3" rgba="0.2 0.7 0.3 0.45" solref="0.004 1" solmix="1000" />
+      <geom name="base_plate_collision_02" type="mesh" mesh="xarm_plate_collision_02" group="3" rgba="0.2 0.7 0.3 0.45" solref="0.004 1" solmix="1000" />
+      <geom name="base_plate_collision_03" type="mesh" mesh="xarm_plate_collision_03" group="3" rgba="0.2 0.7 0.3 0.45" solref="0.004 1" solmix="1000" />
+      <geom name="base_plate_collision_04" type="mesh" mesh="xarm_plate_collision_04" group="3" rgba="0.2 0.7 0.3 0.45" solref="0.004 1" solmix="1000" />
+      <geom name="base_plate_collision_05" type="mesh" mesh="xarm_plate_collision_05" group="3" rgba="0.2 0.7 0.3 0.45" solref="0.004 1" solmix="1000" />
+      <geom name="base_plate_collision_06" type="mesh" mesh="xarm_plate_collision_06" group="3" rgba="0.2 0.7 0.3 0.45" solref="0.004 1" solmix="1000" />
+      <geom name="base_plate_collision_07" type="mesh" mesh="xarm_plate_collision_07" group="3" rgba="0.2 0.7 0.3 0.45" solref="0.004 1" solmix="1000" />
+      <geom name="base_plate_collision_08" type="mesh" mesh="xarm_plate_collision_08" group="3" rgba="0.2 0.7 0.3 0.45" solref="0.004 1" solmix="1000" />
+      <geom name="base_plate_collision_09" type="mesh" mesh="xarm_plate_collision_09" group="3" rgba="0.2 0.7 0.3 0.45" solref="0.004 1" solmix="1000" />
+      <geom name="base_plate_collision_10" type="mesh" mesh="xarm_plate_collision_10" group="3" rgba="0.2 0.7 0.3 0.45" solref="0.004 1" solmix="1000" />
+      <geom name="base_plate_collision_11" type="mesh" mesh="xarm_plate_collision_11" group="3" rgba="0.2 0.7 0.3 0.45" solref="0.004 1" solmix="1000" />
+      <geom name="base_plate_collision_12" type="mesh" mesh="xarm_plate_collision_12" group="3" rgba="0.2 0.7 0.3 0.45" solref="0.004 1" solmix="1000" />
+      <geom name="base_plate_collision_13" type="mesh" mesh="xarm_plate_collision_13" group="3" rgba="0.2 0.7 0.3 0.45" solref="0.004 1" solmix="1000" />
+      <geom name="base_plate_collision_14" type="mesh" mesh="xarm_plate_collision_14" group="3" rgba="0.2 0.7 0.3 0.45" solref="0.004 1" solmix="1000" />
+      <geom name="base_plate_collision_15" type="mesh" mesh="xarm_plate_collision_15" group="3" rgba="0.2 0.7 0.3 0.45" solref="0.004 1" solmix="1000" />
+      <geom name="base_plate_collision_16" type="mesh" mesh="xarm_plate_collision_16" group="3" rgba="0.2 0.7 0.3 0.45" solref="0.004 1" solmix="1000" />
+      <site name="arm_mount" pos="0 0 0" size="0.002" group="4" />
+    </body>
+  </worldbody>
+</mujoco>

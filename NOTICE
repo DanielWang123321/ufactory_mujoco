@@ -42,6 +42,19 @@ licenses/ (and in ufactory_mujoco/data/licenses/ in installed distributions).
      decomposition) and mass="0" MJCF definitions are authored in this project
      for visual and mounting-clearance simulation only.
 
+5. 6-Axis Force/Torque Sensor Models (models/ft_sensor, models/*_with_ft_sensor*)
+   - Derived from the published UFACTORY AI1500 3D STEP model
+     (6 Axis Force Torque Sensor(AI1500)_20260413.STEP) and the derived
+     visual meshes and convex collision hull from ufactory_robot_viewer,
+     licensed under the BSD 3-Clause License (Copyright (c) 2026, UFACTORY
+     Robot Viewer contributors; see licenses/ufactory_robot_viewer.LICENSE).
+
+6. Mounting Base Plate Models (models/*_base_plate, models/*_with_base_plate)
+   - Visual STL meshes are tessellated from publicly published UFACTORY
+     mechanical STEP files for the xArm series, UF850, and Lite 6 mounting
+     plates; hole-filled convex collision prism STLs and static MJCF definitions
+     are authored in this project for visual and mounting-clearance simulation.
+
 Trademarks: xArm, UF850, Lite 6 and UFACTORY are trademarks of UFACTORY;
 RealSense is a trademark of Intel Corporation; Orbbec and Gemini are trademarks
 of Orbbec Inc.; Stereolabs and ZED are trademarks of Stereolabs Inc. Their use

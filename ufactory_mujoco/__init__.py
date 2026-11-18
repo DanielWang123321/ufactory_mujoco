@@ -14,6 +14,7 @@ from .calibration import CalibrationError, KinematicsCalibration, load_kinematic
 from .collision import CollisionChecker
 from .config import ConfigError, TaskConfig, load_task_config
 from .dynamics import ArmDynamics, attach_payload
+from .ft_sensor import AI1500Reader, FTSensorReader, SensorReading, apply_ft_sensor_wrench
 from .g2_controller import G2Controller
 from .grippers import GraspError, GripperSpec, identify_gripper
 from .ik import solve_ik
@@ -60,6 +61,11 @@ __all__ = [
     # dynamics
     "ArmDynamics",
     "attach_payload",
+    # force/torque sensor
+    "AI1500Reader",
+    "FTSensorReader",
+    "SensorReading",
+    "apply_ft_sensor_wrench",
     # collision-free planning
     "CollisionChecker",
     "plan_collision_free",

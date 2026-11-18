@@ -52,6 +52,27 @@ ALL_MODELS = [
     "xarm5_with_gripper_and_d435",
     "xarm7_with_gripper_and_d435",
     "uf850_with_gripper_and_d435",
+    "ft_sensor",
+    "xarm5_with_ft_sensor",
+    "xarm6_with_ft_sensor",
+    "xarm7_with_ft_sensor",
+    "uf850_with_ft_sensor",
+    "xarm5_with_ft_sensor_and_gripper",
+    "xarm6_with_ft_sensor_and_gripper",
+    "xarm7_with_ft_sensor_and_gripper",
+    "uf850_with_ft_sensor_and_gripper",
+    "xarm5_with_ft_sensor_and_vacuum_gripper",
+    "xarm6_with_ft_sensor_and_vacuum_gripper",
+    "xarm7_with_ft_sensor_and_vacuum_gripper",
+    "uf850_with_ft_sensor_and_vacuum_gripper",
+    "xarm_base_plate",
+    "uf850_base_plate",
+    "lite6_base_plate",
+    "xarm5_with_base_plate",
+    "xarm6_with_base_plate",
+    "xarm7_with_base_plate",
+    "uf850_with_base_plate",
+    "lite6_with_base_plate",
 ]
 
 
@@ -159,7 +180,16 @@ class AllModelsLoadingTest(unittest.TestCase):
 
         last_links = {"xarm5": "link5", "xarm6": "link6", "xarm7": "link7", "uf850": "link6"}
         for arm, last_link in last_links.items():
-            for suffix in ("gripper", "bio_gripper", "vacuum_gripper", "d435", "gripper_and_d435"):
+            for suffix in (
+                "gripper",
+                "bio_gripper",
+                "vacuum_gripper",
+                "d435",
+                "gripper_and_d435",
+                "ft_sensor",
+                "ft_sensor_and_gripper",
+                "ft_sensor_and_vacuum_gripper",
+            ):
                 name = f"{arm}_with_{suffix}"
                 with self.subTest(model=name):
                     m = mujoco.MjModel.from_xml_path(str(MODELS_ROOT / name / "scene.xml"))

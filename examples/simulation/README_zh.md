@@ -2,45 +2,49 @@
 
 [English](README.md) | [中文](README_zh.md)
 
-基于 MuJoCo 的机器人运动控制与仿真示例集（`01`–`10`），涵盖模型交互预览、关节/笛卡尔控制、夹爪伺服、方块抓放、时间参数化轨迹规划、RRT-Connect 避障规划、装箱展示、运动学/刚体动力学工具链以及真机安全门控流程。
+基于 MuJoCo 的机器人运动控制与仿真示例集（`01`–`11`），涵盖模型交互预览、关节/笛卡尔控制、夹爪伺服、方块抓放、时间参数化轨迹规划、RRT-Connect 避障规划、装箱展示、运动学/刚体动力学工具链、AI1500 六维力矩传感以及真机安全门控流程。
 
-需要 Python **3.12–3.14** 与核心安装（详见[安装说明](../../README_zh.md#安装)）。示例 `05`、`08`、`10` 直接调用已安装命令 `ufactory-mujoco pick-place`、`dynamics` 与 `box-pack`，通过 wheel 安装后也可脱离源码目录运行。参数汇总见[第 3 节](#3-命令行参数汇总)，全部 44 套模型名与启动命令见[第 4 节](#4-按机型的命令)，视窗快捷键见[第 5 节](#5-视窗操作)。
+需要 Python **3.12–3.14** 与核心安装（详见[安装说明](../../README_zh.md#安装)）。示例 `05`、`08`、`10` 直接调用已安装命令 `ufactory-mujoco pick-place`、`dynamics` 与 `box-pack`，通过 wheel 安装后也可脱离源码目录运行。参数汇总见[第 3 节](#3-命令行参数汇总)，全部 65 套模型名与启动命令见[第 4 节](#4-按机型的命令)，视窗快捷键见[第 5 节](#5-视窗操作)。
 
 ## 1. 示例概览
 
 | 脚本 | 核心模块 | 支持模型 | 功能说明 |
 | :--- | :--- | :--- | :--- |
-| `01_load_and_view.py` | `ufactory_mujoco.viewer`, `ufactory_mujoco.model_paths` | 全部 44 套模型（机械臂、夹爪、相机、支架及组合） | 载入 MJCF 场景（支持 `home` / `ready` 关键帧）并启动交互视窗 |
-| `02_joint_control.py` | `ufactory_mujoco.sim_robot` | 全部 30 套含机械臂及组合模型 | 基于速度的五次多项式关节插值控制（裸臂 `xarm6` 默认运行 20 姿态动力学轨迹） |
+| `01_load_and_view.py` | `ufactory_mujoco.viewer`, `ufactory_mujoco.model_paths` | 全部 65 套模型（机械臂、夹爪、相机、支架、力矩传感器、安装底板及组合） | 载入 MJCF 场景（支持 `home` / `ready` 关键帧）并启动交互视窗 |
+| `02_joint_control.py` | `ufactory_mujoco.sim_robot` | 全部 47 套含机械臂及组合模型 | 基于速度的五次多项式关节插值控制（裸臂 `xarm6` 默认运行 20 姿态动力学轨迹） |
 | `03_cartesian_ik.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.ik` | `xarm6` | 基于阻尼最小二乘法（DLS）IK 的笛卡尔直线往返与 X-Z 平面圆弧轨迹跟踪 |
-| `04_gripper_control.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.g2_controller`, `ufactory_mujoco.bio_g2_controller` | 19 套可动夹爪模型（独立夹爪及组合） | 执行 `闭合 (1.0) -> 全开 (0.0) -> 半开 (0.5) -> 全开 (0.0)` 循环；G2 与 Bio G2 支持 `--speed-percent` 与 `--force-percent` |
+| `04_gripper_control.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.g2_controller`, `ufactory_mujoco.bio_g2_controller` | 23 套可动夹爪模型（独立夹爪及组合） | 执行 `闭合 (1.0) -> 全开 (0.0) -> 半开 (0.5) -> 全开 (0.0)` 循环；G2 与 Bio G2 支持 `--speed-percent` 与 `--force-percent` |
 | `05_pick_place.py` | `ufactory_mujoco.tasks.pick_place`, `ufactory_mujoco.sim_robot`, `ufactory_mujoco.preflight` | 5 组机械臂+夹爪任务组合 | 方块抓放任务：支持双侧指垫接触判据与轨迹预检（放置误差 `< 50 mm`、回零漂移 `< 10 mm`） |
 | `06_trajectory_planning.py` | `ufactory_mujoco.trajectory`, `ufactory_mujoco.dynamics` | `xarm6` | 点到点五次多项式、多路点 C2 样条平滑、笛卡尔 SLERP 直线规划与动力学前馈力矩 |
 | `07_kinematics.py` | `ufactory_mujoco.kinematics` | `xarm6` | 任意 site 正运动学、解析雅可比与有限差分校验、速度级 DLS 逆解、可操作度/奇异性指标 |
 | `08_dynamics.py` | `ufactory_mujoco.tasks.dynamics`, `ufactory_mujoco.dynamics`, `ufactory_mujoco.collision` | 五款裸臂 | 动力学、固定碰撞姿态、命令预检与逐步运动监测；xArm6 3 kg 负载回归 |
 | `09_obstacle_avoidance.py` | `ufactory_mujoco.collision`, `ufactory_mujoco.path_planning` | `xarm6` (`scene_obstacles.xml`) | 立柱+横板场景下的 RRT-Connect 避障规划、路径剪枝（shortcut）与时间参数化执行 |
 | `10_box_pack.py` | `ufactory_mujoco.tasks.box_pack`, `ufactory_mujoco.sim_robot`, `ufactory_mujoco.preflight` | 5 组机械臂+夹爪任务组合 | 装箱展示：方块在盒沿上方 50 mm 释放自由落体，最终碰撞边界须在盒内（1 mm 容差）；支持多周期与速度倍率 |
+| `11_force_torque_sensor.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.ft_sensor` | 全部 13 套 `ft_sensor` 模型（独立传感器及 xArm/UF850 组合） | 记录静态工具重力基线，在 `ft_sensor_site` 施加局部外力/力矩并校验 `200 Hz` `AI1500Reader` 净增量 |
 
 ## 2. 运行指南
 
-所有脚本只需核心安装。`--headless` 让 `02`–`10` 不开视窗运行并输出验收指标；`01 --headless` 只加载模型并打印摘要。
+所有脚本只需核心安装。`--headless` 让 `02`–`11` 不开视窗运行并输出验收指标；`01 --headless` 只加载模型并打印摘要。
 
-### 2.1 模型预览与基础运动控制 (`01`–`04`)
+### 2.1 模型预览与基础运动控制 (`01`–`04`, `11`)
 
 ```bash
-# 01: 交互式查看器（全部 44 套模型）
+# 01: 交互式查看器（全部 65 套模型）
 python examples/simulation/01_load_and_view.py
 python examples/simulation/01_load_and_view.py --model lite6 --pose ready
 python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose ready
 python examples/simulation/01_load_and_view.py --model camera_stand_with_d405
 python examples/simulation/01_load_and_view.py --model xarm6_with_d435 --pose ready
 python examples/simulation/01_load_and_view.py --model uf850_with_gripper_and_d435 --pose ready
+python examples/simulation/01_load_and_view.py --model xarm6_with_ft_sensor_and_gripper --pose ready
+python examples/simulation/01_load_and_view.py --model xarm6_with_base_plate --pose ready
 
-# 02: 关节空间五次多项式轨迹控制（全部 30 套含机械臂模型）
+# 02: 关节空间五次多项式轨迹控制（全部 47 套含机械臂模型）
 python examples/simulation/02_joint_control.py --model lite6
 python examples/simulation/02_joint_control.py --model xarm6 --speed 120
 python examples/simulation/02_joint_control.py --model xarm6 --motion demo --duration 2.5
 python examples/simulation/02_joint_control.py --model xarm7_with_d435 --headless
+python examples/simulation/02_joint_control.py --model xarm6_with_base_plate --headless
 
 # 03: 笛卡尔空间 IK 轨迹跟踪（直线 + 圆弧）
 python examples/simulation/03_cartesian_ik.py
@@ -49,8 +53,15 @@ python examples/simulation/03_cartesian_ik.py --headless
 # 04: 夹爪开闭控制（Gripper G2、Bio Gripper G2、Lite 6 Gripper）
 python examples/simulation/04_gripper_control.py --model xarm6_with_gripper
 python examples/simulation/04_gripper_control.py --model xarm6_with_gripper --speed-percent 80 --force-percent 75
+python examples/simulation/04_gripper_control.py --model xarm6_with_ft_sensor_and_gripper --cycles 1
 python examples/simulation/04_gripper_control.py --model lite6_with_gripper
 python examples/simulation/04_gripper_control.py --model bio_gripper_g2 --cycles 5
+
+# 11: 六维力/力矩传感器（AI1500，1 ms 物理步长 / 200 Hz 采样）
+python examples/simulation/11_force_torque_sensor.py
+python examples/simulation/11_force_torque_sensor.py --headless
+python examples/simulation/11_force_torque_sensor.py --model ft_sensor --force 0 0 -5 --headless
+python examples/simulation/11_force_torque_sensor.py --model xarm6_with_ft_sensor_and_vacuum_gripper --headless
 ```
 
 > **`02_joint_control.py` 说明**：
@@ -175,18 +186,20 @@ dynamics-report-compare reports/dyn_ver_<SN>/<old>.jsonl reports/dyn_ver_<SN>/<n
 | `--confirm-real` | `05`, `08`, `10` | `False` | `--mode real` 真机运动必需的显式安全确认标志 |
 | `--headless` | `05`, `08`, `10` | `False` | 不开视窗运行并输出验收指标 |
 
-### 3.2 示例专属参数 (`01`–`04`、`06`、`07`、`09`)
+### 3.2 示例专属参数 (`01`–`04`、`06`、`07`、`09`、`11`)
 
 示例 `03` 与 `07` 仅接受 `--headless` 参数。
 
 | 参数 | 适用脚本 | 默认值 | 说明 |
 | :--- | :--- | :--- | :--- |
-| `--headless` | `01`–`04`, `06`, `07`, `09` | `False` | 不开视窗运行并输出指标（`01` 只加载模型并打印摘要） |
-| `--model <name>` | `01`, `02`, `04` | `xarm6`（`04` 为 `xarm6_with_gripper`） | 模型目录名或自定义 MJCF XML 路径 |
+| `--headless` | `01`–`04`, `06`, `07`, `09`, `11` | `False` | 不开视窗运行并输出指标（`01` 只加载模型并打印摘要） |
+| `--model <name>` | `01`, `02`, `04`, `11` | `xarm6`（`04` 为 `xarm6_with_gripper`，`11` 为 `xarm6_with_ft_sensor_and_gripper`） | 模型目录名或自定义 MJCF XML 路径 |
 | `--pose <home\|ready>` | `01` | `home` | 初始加载关键帧姿态 |
 | `--motion <mode>` | `02` | `auto` | 动作模式：`auto`、`dynamics`（20 姿态，仅限裸臂 `xarm6`）或 `demo` |
 | `--speed <deg/s>` | `02`, `06` | `90.0` | 关节峰值目标速度（度/秒） |
-| `--duration <s>` | `02` | `None` | 固定单段运动时长（秒，优先级高于 `--speed`） |
+| `--duration <s>` | `02`, `11` | `None`（`11` 为 `1.0`） | 固定单段运动时长（`02`）或外力加载持续时长（`11`） |
+| `--force <FX FY FZ>` | `11` | `0 0 -10` | 施加在 `ft_sensor_site` 局部坐标系的力（N） |
+| `--torque <TX TY TZ>` | `11` | `0 0.2 0` | 施加在 `ft_sensor_site` 局部坐标系的力矩（N·m） |
 | `--sync-hz <Hz>` | `02` | `30.0` | 查看器状态同步频率（物理步长保持 `2 ms`） |
 | `--render-quality` | `02` | `fast` | 渲染质量：`fast`（关闭阴影/反射）或 `full` |
 | `--cycles <N>` | `04` | `3` | 夹爪开闭演示循环次数 |
@@ -199,25 +212,26 @@ dynamics-report-compare reports/dyn_ver_<SN>/<old>.jsonl reports/dyn_ver_<SN>/<n
 
 ## 4. 按机型的命令
 
-`01`、`02`、`04` 用 `--model` 指定模型名；`05`、`08`、`10` 用 `--robot` 指定机械臂键名。所有命令默认打开视窗，加 `--headless` 可无头运行。
+`01`、`02`、`04`、`11` 用 `--model` 指定模型名；`05`、`08`、`10` 用 `--robot` 指定机械臂键名。所有命令默认打开视窗，加 `--headless` 可无头运行。
 
 ### 4.1 机械臂与组合
 
 | 机械臂 | 裸臂（`--model`） | 组合模型（`--model`） | 机械臂键名（`--robot`） |
 | :--- | :--- | :--- | :--- |
-| Lite 6 | `lite6` | `lite6_with_gripper`、`lite6_with_vacuum_gripper` | `lite6` |
-| xArm 5 | `xarm5` | `xarm5_with_gripper`、`xarm5_with_bio_gripper`、`xarm5_with_vacuum_gripper`、`xarm5_with_d435`、`xarm5_with_gripper_and_d435` | `xarm5` |
-| xArm 6 | `xarm6` | `xarm6_with_gripper`、`xarm6_with_bio_gripper`、`xarm6_with_vacuum_gripper`、`xarm6_with_d435`、`xarm6_with_gripper_and_<相机>` | `xarm6` |
-| xArm 7 | `xarm7` | `xarm7_with_gripper`、`xarm7_with_bio_gripper`、`xarm7_with_vacuum_gripper`、`xarm7_with_d435`、`xarm7_with_gripper_and_d435` | `xarm7` |
-| UF850 | `uf850` | `uf850_with_gripper`、`uf850_with_bio_gripper`、`uf850_with_vacuum_gripper`、`uf850_with_d435`、`uf850_with_gripper_and_d435` | `uf850` |
+| Lite 6 | `lite6` | `lite6_with_gripper`、`lite6_with_vacuum_gripper`、`lite6_with_base_plate` | `lite6` |
+| xArm 5 | `xarm5` | `xarm5_with_gripper`、`xarm5_with_bio_gripper`、`xarm5_with_vacuum_gripper`、`xarm5_with_d435`、`xarm5_with_gripper_and_d435`、`xarm5_with_ft_sensor`、`xarm5_with_ft_sensor_and_gripper`、`xarm5_with_ft_sensor_and_vacuum_gripper`、`xarm5_with_base_plate` | `xarm5` |
+| xArm 6 | `xarm6` | `xarm6_with_gripper`、`xarm6_with_bio_gripper`、`xarm6_with_vacuum_gripper`、`xarm6_with_d435`、`xarm6_with_gripper_and_<相机>`、`xarm6_with_ft_sensor`、`xarm6_with_ft_sensor_and_gripper`、`xarm6_with_ft_sensor_and_vacuum_gripper`、`xarm6_with_base_plate` | `xarm6` |
+| xArm 7 | `xarm7` | `xarm7_with_gripper`、`xarm7_with_bio_gripper`、`xarm7_with_vacuum_gripper`、`xarm7_with_d435`、`xarm7_with_gripper_and_d435`、`xarm7_with_ft_sensor`、`xarm7_with_ft_sensor_and_gripper`、`xarm7_with_ft_sensor_and_vacuum_gripper`、`xarm7_with_base_plate` | `xarm7` |
+| UF850 | `uf850` | `uf850_with_gripper`、`uf850_with_bio_gripper`、`uf850_with_vacuum_gripper`、`uf850_with_d435`、`uf850_with_gripper_and_d435`、`uf850_with_ft_sensor`、`uf850_with_ft_sensor_and_gripper`、`uf850_with_ft_sensor_and_vacuum_gripper`、`uf850_with_base_plate` | `uf850` |
 
 `<机械臂>_with_gripper` 安装的是 Gripper G2（Lite 6 为 Lite 6 夹爪）。`<相机>` 为 `d405`、`d435`、`gemini_305` 或 `zed_x_nano`。
 
-各脚本的模型适用范围（共 `44` 套模型目录）：
+各脚本的模型适用范围（共 `65` 套模型目录）：
 
-- `01_load_and_view.py`：支持全部 `44` 套模型（裸臂、组合、独立末端/相机/支架）。
-- `02_joint_control.py`：支持全部 `30` 套含机械臂的模型（`5` 款裸臂 + `25` 套机械臂组合）。
-- `04_gripper_control.py`：支持全部 `19` 套带可动夹爪执行器的模型（`3` 款独立夹爪 + `16` 套带夹爪的机械臂/相机组合）。
+- `01_load_and_view.py`：支持全部 `65` 套模型（裸臂、组合、独立末端/相机/支架/力矩传感器/安装底板）。
+- `02_joint_control.py`：支持全部 `47` 套含机械臂的模型（`5` 款裸臂 + `42` 套机械臂组合）。
+- `04_gripper_control.py`：支持全部 `23` 套带可动夹爪执行器的模型（`3` 款独立夹爪 + `20` 套带夹爪的机械臂/配件组合）。
+- `11_force_torque_sensor.py`：支持全部 `13` 套含 AI1500 力矩传感器的模型（`1` 套独立 `ft_sensor` + `12` 套 xArm/UF850 组合）。
 - `05_pick_place.py`、`10_box_pack.py`：通过 `--robot` 选择 `5` 套任务组合（`lite6` 配 `lite6_gripper`，其余四臂配 `gripper_g2`）。
 - `08_dynamics.py`：通过 `--robot` 选择 `5` 款裸臂（`sim` 模式另支持 `all`）；示例 `03`、`06`、`07`、`09` 只支持裸臂 `xarm6`。
 
@@ -236,26 +250,28 @@ python examples/simulation/10_box_pack.py --robot uf850 --cycles 3
 python examples/simulation/08_dynamics.py --robot all --headless
 ```
 
-### 4.2 独立末端工具、相机与支架
+### 4.2 独立末端工具、配件、相机与底板
 
-| 模型（`--model`） | `01_load_and_view.py` | `04_gripper_control.py` |
-| :--- | :---: | :--- |
-| `gripper_g2` | 支持 | 开合，支持 `--speed-percent`、`--force-percent` |
-| `bio_gripper_g2` | 支持 | 开合，支持 `--speed-percent`、`--force-percent` |
-| `lite6_gripper` | 支持 | 开合 |
-| `lite6_vacuum_gripper`、`vacuum_gripper` | 支持 | 拒绝（没有夹爪执行器，退出码 `2`） |
-| `d405`、`d435`、`gemini_305`、`zed_x_nano` | 支持 | 拒绝（退出码 `2`） |
-| `camera_stand`、`camera_stand_with_<相机>` | 支持 | 拒绝（退出码 `2`） |
+| 模型（`--model`） | `01_load_and_view.py` | `04_gripper_control.py` | `11_force_torque_sensor.py` |
+| :--- | :---: | :--- | :--- |
+| `gripper_g2` | 支持 | 开合，支持 `--speed-percent`、`--force-percent` | 拒绝（退出码 `2`） |
+| `bio_gripper_g2` | 支持 | 开合，支持 `--speed-percent`、`--force-percent` | 拒绝（退出码 `2`） |
+| `lite6_gripper` | 支持 | 开合 | 拒绝（退出码 `2`） |
+| `lite6_vacuum_gripper`、`vacuum_gripper` | 支持 | 拒绝（没有夹爪执行器，退出码 `2`） | 拒绝（退出码 `2`） |
+| `d405`、`d435`、`gemini_305`、`zed_x_nano` | 支持 | 拒绝（退出码 `2`） | 拒绝（退出码 `2`） |
+| `camera_stand`、`camera_stand_with_<相机>` | 支持 | 拒绝（退出码 `2`） | 拒绝（退出码 `2`） |
+| `ft_sensor` | 支持 | 拒绝（退出码 `2`） | `200 Hz` 六维力矩演示 |
+| `xarm_base_plate`、`uf850_base_plate`、`lite6_base_plate` | 支持 | 拒绝（退出码 `2`） | 拒绝（退出码 `2`） |
 
-相机与支架模型 `mass=0`，不含光学成像传感器。在查看器右侧面板开启 Site Group `4` 可显示安装面与螺钉孔位。
+相机与支架模型 `mass=0`，不含光学成像传感器。安装底板上表面位于 `z=0`，场景地面位于 `-thickness`（`-8 / -10 / -5 mm`），并在 Site Group `4` 暴露 `arm_mount`。在查看器右侧面板开启 Site Group `4` 可显示安装基准、`ft_sensor_site` 与螺钉孔位。
 
 ### 4.3 关键帧
 
-- **裸臂 xArm 5/6/7 与 UF850**：`home` 与 `ready` 均为全零关节角。
-- **Lite 6（裸臂及组合）**：`home` 为全零；`ready` 为 Studio 出厂位姿 `[0, 9.9, 31.8, 0, 21.9, 0]°`（法兰约在 `[200, 0, 200]` mm，姿态 `[180, 0, 0]°`）。
-- **xArm 5/6/7 与 UF850 组合**：`ready` 为安装 Gripper G2 时 TCP 位于 `(300, 0, 300)` mm、姿态 `(180, 0, 0)°` 的无滚转朝下 IK 位姿（`xArm 6` 的 `home` 与之相同；`xArm 5`、`xArm 7` 与 `UF850` 组合的 `home` 各自定义在 MJCF 中——注意 `uf850_with_*` 的 `home` 为全零竖直姿态，预览组合模型时建议使用 `--pose ready`）。
-- **工具偏移与 D435 视野朝向**：组合模型的 TCP 包含夹爪或吸盘的工具偏移；`<机械臂>_with_d435` 将 `attachment_site` 沿法兰 `+Z` 偏移 `+3 mm`（相机支架板厚）。安装在机械臂上的 `d435` 组合采用与人眼一致的正向视野（工具朝下时画面上方朝基座 `+X`，USB-C 接口位于法兰 `+Y` / 基座 `Y-` 侧）。
-- **独立模型**：独立可动夹爪（`gripper_g2`、`bio_gripper_g2`、`lite6_gripper`）定义 `open` 与 `close` 关键帧；真空吸盘、独立相机及支架无关键帧（`nkey == 0`），以默认姿态加载。
+- **裸臂 xArm 5/6/7 与 UF850（及对应 `*_with_base_plate`）**：`home` 与 `ready` 均为全零关节角。
+- **Lite 6（裸臂、`lite6_with_base_plate` 及组合）**：`home` 为全零；`ready` 为 Studio 出厂位姿 `[0, 9.9, 31.8, 0, 21.9, 0]°`（法兰约在 `[200, 0, 200]` mm，姿态 `[180, 0, 0]°`）。
+- **xArm 5/6/7 与 UF850 组合**：`ready` 为安装 Gripper G2 时 TCP 位于 `(300, 0, 300)` mm、姿态 `(180, 0, 0)°` 的无滚转朝下 IK 位姿（`xArm 6` 的 `home` 与之相同；`xArm 5`、`xArm 7` 与 `UF850` 组合的 `home` 各自定义在 MJCF 中——注意 `uf850_with_*` 的 `home` 为全零竖直姿态，预览组合模型时建议使用 `--pose ready`）。`<机械臂>_with_ft_sensor` 复用 `<机械臂>_with_vacuum_gripper` 关键帧，保证传感器在抬高姿态下垂直朝下。
+- **工具偏移与 D435 视野朝向**：组合模型的 TCP 包含夹爪或吸盘的工具偏移；`<机械臂>_with_d435` 将 `attachment_site` 沿法兰 `+Z` 偏移 `+3 mm`（相机支架板厚）；`ft_sensor` 将下游工具体与 `attachment_site` 沿法兰 `+Z` 偏移 `+58.6 mm`（物理步长 `timestep="0.001"`）。安装在机械臂上的 `d435` 组合采用与人眼一致的正向视野（工具朝下时画面上方朝基座 `+X`，USB-C 接口位于法兰 `+Y` / 基座 `Y-` 侧）。
+- **独立模型**：独立可动夹爪（`gripper_g2`、`bio_gripper_g2`、`lite6_gripper`）定义 `open` 与 `close` 关键帧；真空吸盘、独立相机、支架、`ft_sensor` 及 `*_base_plate` 无关键帧（`nkey == 0`），以默认姿态加载。
 
 ## 5. 视窗操作
 

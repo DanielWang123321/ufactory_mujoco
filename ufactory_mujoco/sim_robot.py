@@ -16,6 +16,7 @@ from .bio_g2_model import (
     STROKE_PER_FINGER_M as BIO_G2_STROKE_M,
     q_to_gap as bio_g2_q_to_gap,
 )
+from .ft_sensor import AI1500Reader, SensorReading, has_ft_sensor
 from .g2_controller import ControlOutput, G2Controller
 from .g2_model import (
     GRIPPER_G2_SIM_CLOSE_DRIVE,
@@ -191,6 +192,13 @@ class SimRobot(RobotInterface):
             self._bio_g2_controller.command(init_gap_mm, speed_percent=100.0, force_percent=100.0)
 
         mujoco.mj_forward(self.model, self.data)
+        self._ft_sensor: AI1500Reader | None = None
+        self._ft_sensor_last_reading: SensorReading | None = None
+        if has_ft_sensor(self.model):
+            if not np.isclose(self.model.opt.timestep, 0.001, rtol=0.0, atol=1e-12):
+                raise ValueError("FT sensor models require timestep=0.001 s")
+            self._ft_sensor = AI1500Reader(self.model, self.data)
+            self._update_ft_sensor()
         if viewer:
             self._viewer = PassiveViewer(self.model, self.data)
         # wall-clock origin for real-time sync (only used when viewer is open)
@@ -259,6 +267,14 @@ class SimRobot(RobotInterface):
             self._bio_g2_last_output = self._bio_g2_controller.apply(dt)
         mujoco.mj_step(self.model, self.data)
         self.data.qfrc_applied[:] = 0.0
+        if self._ft_sensor is not None:
+            last_time = self._ft_sensor._last_time
+            needs_reset = (
+                last_time is not None
+                and abs(self.data.time - last_time - self.model.opt.timestep) > 1e-9
+                and abs(self.data.time - last_time) > 1e-9
+            )
+            self._update_ft_sensor(reset=needs_reset)
         # real-time sync: sleep until wall-clock catches up with sim time
         if self._viewer is not None:
             wall_elapsed = time.monotonic() - self._wall_start
@@ -464,6 +480,48 @@ class SimRobot(RobotInterface):
     def bio_g2_controller(self) -> BioGripperG2Controller | None:
         """Calibrated Bio Gripper G2 controller instance when Bio Gripper G2 is mounted."""
         return self._bio_g2_controller
+
+    # -- force/torque sensor -----------------------------------------------
+    @property
+    def has_ft_sensor(self) -> bool:
+        """Whether an AI1500 6-axis force/torque sensor is present in the model."""
+        return self._ft_sensor is not None
+
+    @property
+    def ft_sensor(self) -> AI1500Reader | None:
+        """Attached AI1500Reader instance, or None when no sensor is present."""
+        return self._ft_sensor
+
+    @property
+    def ft_sensor_reading(self) -> SensorReading | None:
+        """Most recent 6-axis sensor reading, or None when no sensor is present."""
+        return self._ft_sensor_last_reading
+
+    def _update_ft_sensor(self, *, reset: bool = False) -> SensorReading:
+        if self._ft_sensor is None:
+            raise RuntimeError("This robot has no force/torque sensor")
+        if self._n_arm_dof > 0:
+            # Match _step()'s gravity-compensated arm state so mj_forward does not
+            # evaluate F/T readings as if the arm were free-falling without compensation.
+            mujoco.mj_forward(self.model, self.data)
+            self.data.qfrc_applied[: self._n_arm_dof] = self.data.qfrc_bias[: self._n_arm_dof]
+        if reset:
+            self._ft_sensor.reset()
+        try:
+            reading = self._ft_sensor.update()
+        finally:
+            if self._n_arm_dof > 0:
+                self.data.qfrc_applied[: self._n_arm_dof] = 0.0
+        self._ft_sensor_last_reading = reading
+        return reading
+
+    def get_ft_sensor_reading(self) -> SensorReading:
+        """Refresh and return the current 6-axis force/torque sensor reading."""
+        return self._update_ft_sensor()
+
+    def reset_ft_sensor(self) -> SensorReading:
+        """Reset the 200 Hz sample schedule and take an immediate reading."""
+        return self._update_ft_sensor(reset=True)
 
     @property
     def gripper_control_output(self) -> ControlOutput | BioG2ControlOutput | None:

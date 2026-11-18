@@ -75,8 +75,8 @@ def resource_reference():
         path = RESOURCE_ROOT / name
         if path.is_file():
             result["licenses"][name] = digest(path)
-    assert len(result["models"]) >= 99 and len(result["meshes"]) >= 444
-    assert len(result["configs"]) == 12 and len(result["config_hashes"]) == 11 and len(result["licenses"]) == 6
+    assert len(result["models"]) >= 141 and len(result["meshes"]) >= 482
+    assert len(result["configs"]) == 12 and len(result["config_hashes"]) == 11 and len(result["licenses"]) == 7
     return result
 
 
@@ -171,6 +171,7 @@ def strict_json(path):
 
 
 def accept(args, summary):
+    import numpy as np
     import ufactory_mujoco
     from ufactory_mujoco.model_paths import CONFIGS_ROOT, RESOURCE_ROOT
 
@@ -200,6 +201,13 @@ def accept(args, summary):
     with SimRobot(resolve_arm_scene("xarm6", "vacuum_gripper", "scene")) as robot:
         assert robot.gripper_kind == "vacuum" and not robot.has_gripper
     summary["end_effectors_0_1_3"] = "pass"
+    from ufactory_mujoco.model_paths import resolve_model_path
+    with SimRobot(resolve_model_path("xarm6_with_ft_sensor_and_gripper")) as robot:
+        assert robot.has_ft_sensor
+        assert np.isfinite(robot.get_ft_sensor_reading().sampled).all()
+    with SimRobot(resolve_model_path("xarm6_with_base_plate")) as robot:
+        assert not robot.has_ft_sensor and robot.n_arm == 6
+    summary["accessories_0_1_7"] = "pass"
     # Exercise commands with a read-only installation. JSON belongs in the
     # working directory, and Python can import without writing bytecode here.
     for path in package.parent.rglob("*"):

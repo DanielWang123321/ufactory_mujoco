@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.7] - Unreleased
+
+Integrated the UFACTORY AI1500 6-axis force/torque sensor (`ft_sensor`) and three official mounting base plates (`*_base_plate`), expanding `models/` from 44 to 65 model directories (141 XMLs, 482 canonical meshes) with zero modifications to existing models.
+
+### Added
+
+- **Force/Torque Sensor (`ft_sensor`)**: 13 new MJCF model directories (`ft_sensor` plus `{xarm5,xarm6,xarm7,uf850}_with_ft_sensor`, `*_with_ft_sensor_and_gripper`, and `*_with_ft_sensor_and_vacuum_gripper`) using 15 double-sided visual OBJs (`inertia="shell"`) and a convex collision STL hull (`mass=0.6 kg`, `+58.6 mm` flange `+Z` output frame, `timestep="0.001"`).
+- **Sensor Reader & `SimRobot` Integration**: `ufactory_mujoco.ft_sensor` (`AI1500Reader`, `FTSensorReader`, `SensorReading`, `apply_ft_sensor_wrench`), re-exported from `ufactory_mujoco`, providing deterministic `200 Hz` (`5`-step) sample-and-hold, `0.4 N / 0.01 Nm` round-to-even quantization, and `±400 N / ±20 Nm` overrange / `±600 N / ±30 Nm` overload tracking. `SimRobot` automatically attaches `AI1500Reader` on sensor models (with gravity-compensated wrench updates via `has_ft_sensor`, `ft_sensor`, `ft_sensor_reading`, `get_ft_sensor_reading()`, and `reset_ft_sensor()`).
+- **Simulation Example 11**: `examples/simulation/11_force_torque_sensor.py` demonstrating static tool-gravity baseline capture and local-frame wrench verification across all 13 `ft_sensor` models.
+- **Mounting Base Plates (`base_plate`)**: 8 new MJCF model directories (`{xarm,uf850,lite6}_base_plate` and `{xarm5,xarm6,xarm7,uf850,lite6}_with_base_plate`) with CAD-derived visual STLs (`group=2`), hole-filled convex collision prism STLs (`group=3`), top mounting planes at `z=0`, scene floors at `-thickness` (`-8 / -10 / -5 mm`), and least-squares mounting-hole alignments (`< 0.01 mm` fit residual).
+- **Licenses & Tests**: added `licenses/ufactory_robot_viewer.LICENSE` (BSD-3-Clause) and Sections 5–6 in `NOTICE`; added `tests/test_ft_sensor.py` and `tests/test_base_plates.py`.
+
+### Changed
+
+- Updated `pyproject.toml` version to `0.1.7`, `tests/test_all_models.py` (`65` models and `ft_sensor*` downward `ready` checks), `tests/test_converted_assets.py` (`DOUBLE_SIDED_COUNT = 51`), `scripts/accept_installed.py` (`>= 141` XMLs, `>= 482` meshes, `7` licenses, and read-only checks for `xarm6_with_ft_sensor_and_gripper` / `xarm6_with_base_plate`), `.github/workflows/ci.yml`, `README.md`, `README_zh.md`, `examples/simulation/README.md`, and `examples/simulation/README_zh.md`.
+
 ## [0.1.6] - 2026-11-17
 
 Integrated `ufactory_genesis`-aligned Schema v4 dynamics validation and real-robot static torque verification into the public `ufactory_mujoco.dynamics` subpackage and console scripts, enforced a `<= 40 °/s` hardware dynamics speed ceiling, and validated bare-arm hardware runs across all five arm families (xArm 5, xArm 6, xArm 7, Lite 6, and UF850).

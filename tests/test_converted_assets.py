@@ -33,8 +33,8 @@ VISUAL_OBJ_MAX_MIB = 650
 FLAT_NORMAL_DOT = 0.8
 FLAT_AREA_MAX = 0.005
 
-# Thin-walled visual OBJs carrying reversed twin faces (0.1.5); MJCF must load them with inertia="shell".
-DOUBLE_SIDED_COUNT = 36
+# Thin-walled visual OBJs carrying reversed twin faces (0.1.5 + 0.1.7 ft_sensor); MJCF must load with inertia="shell".
+DOUBLE_SIDED_COUNT = 51
 
 
 def _is_double_sided(path: Path) -> bool:
