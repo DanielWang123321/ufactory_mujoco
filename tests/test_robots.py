@@ -48,6 +48,12 @@ class ArmRegistryTests(unittest.TestCase):
         with self.assertRaises(ConfigError) as caught:
             resolve_arm_scene("lite6", "gripper_g2", "scene")
         self.assertIn("does not support", str(caught.exception))
+        for ft_combo in ("ft_sensor", "ft_sensor_and_gripper", "ft_sensor_and_vacuum_gripper"):
+            with self.assertRaises(ConfigError) as ft_caught:
+                resolve_arm_scene("lite6", ft_combo, "scene")
+            self.assertIn("does not support", str(ft_caught.exception))
+        for keys in robots_mod._PICK_PLACE_DIRS:
+            self.assertNotIn("ft_sensor", keys[1] or "")
 
     def test_all_declared_combos_resolve(self):
         for arm_key, spec in ARMS.items():

@@ -17,15 +17,27 @@ _COMBO_DIRS: dict[tuple[str, str], str] = {
     ("xarm5", "gripper_g2"): "xarm5_with_gripper",
     ("xarm5", "bio_gripper_g2"): "xarm5_with_bio_gripper",
     ("xarm5", "vacuum_gripper"): "xarm5_with_vacuum_gripper",
+    ("xarm5", "ft_sensor"): "xarm5_with_ft_sensor",
+    ("xarm5", "ft_sensor_and_gripper"): "xarm5_with_ft_sensor_and_gripper",
+    ("xarm5", "ft_sensor_and_vacuum_gripper"): "xarm5_with_ft_sensor_and_vacuum_gripper",
     ("xarm6", "gripper_g2"): "xarm6_with_gripper",
     ("xarm6", "bio_gripper_g2"): "xarm6_with_bio_gripper",
     ("xarm6", "vacuum_gripper"): "xarm6_with_vacuum_gripper",
+    ("xarm6", "ft_sensor"): "xarm6_with_ft_sensor",
+    ("xarm6", "ft_sensor_and_gripper"): "xarm6_with_ft_sensor_and_gripper",
+    ("xarm6", "ft_sensor_and_vacuum_gripper"): "xarm6_with_ft_sensor_and_vacuum_gripper",
     ("xarm7", "gripper_g2"): "xarm7_with_gripper",
     ("xarm7", "bio_gripper_g2"): "xarm7_with_bio_gripper",
     ("xarm7", "vacuum_gripper"): "xarm7_with_vacuum_gripper",
+    ("xarm7", "ft_sensor"): "xarm7_with_ft_sensor",
+    ("xarm7", "ft_sensor_and_gripper"): "xarm7_with_ft_sensor_and_gripper",
+    ("xarm7", "ft_sensor_and_vacuum_gripper"): "xarm7_with_ft_sensor_and_vacuum_gripper",
     ("uf850", "gripper_g2"): "uf850_with_gripper",
     ("uf850", "bio_gripper_g2"): "uf850_with_bio_gripper",
     ("uf850", "vacuum_gripper"): "uf850_with_vacuum_gripper",
+    ("uf850", "ft_sensor"): "uf850_with_ft_sensor",
+    ("uf850", "ft_sensor_and_gripper"): "uf850_with_ft_sensor_and_gripper",
+    ("uf850", "ft_sensor_and_vacuum_gripper"): "uf850_with_ft_sensor_and_vacuum_gripper",
 }
 
 _PICK_PLACE_DIRS: dict[tuple[str, str], str] = {
@@ -53,10 +65,54 @@ def _arm(key: str, dof: int, grippers: tuple[str, ...]) -> ArmSpec:
 
 ARMS: dict[str, ArmSpec] = {
     "lite6": _arm("lite6", 6, ("lite6_gripper", "lite6_vacuum_gripper")),
-    "xarm5": _arm("xarm5", 5, ("gripper_g2", "bio_gripper_g2", "vacuum_gripper")),
-    "xarm6": _arm("xarm6", 6, ("gripper_g2", "bio_gripper_g2", "vacuum_gripper")),
-    "xarm7": _arm("xarm7", 7, ("gripper_g2", "bio_gripper_g2", "vacuum_gripper")),
-    "uf850": _arm("uf850", 6, ("gripper_g2", "bio_gripper_g2", "vacuum_gripper")),
+    "xarm5": _arm(
+        "xarm5",
+        5,
+        (
+            "gripper_g2",
+            "bio_gripper_g2",
+            "vacuum_gripper",
+            "ft_sensor",
+            "ft_sensor_and_gripper",
+            "ft_sensor_and_vacuum_gripper",
+        ),
+    ),
+    "xarm6": _arm(
+        "xarm6",
+        6,
+        (
+            "gripper_g2",
+            "bio_gripper_g2",
+            "vacuum_gripper",
+            "ft_sensor",
+            "ft_sensor_and_gripper",
+            "ft_sensor_and_vacuum_gripper",
+        ),
+    ),
+    "xarm7": _arm(
+        "xarm7",
+        7,
+        (
+            "gripper_g2",
+            "bio_gripper_g2",
+            "vacuum_gripper",
+            "ft_sensor",
+            "ft_sensor_and_gripper",
+            "ft_sensor_and_vacuum_gripper",
+        ),
+    ),
+    "uf850": _arm(
+        "uf850",
+        6,
+        (
+            "gripper_g2",
+            "bio_gripper_g2",
+            "vacuum_gripper",
+            "ft_sensor",
+            "ft_sensor_and_gripper",
+            "ft_sensor_and_vacuum_gripper",
+        ),
+    ),
 }
 
 

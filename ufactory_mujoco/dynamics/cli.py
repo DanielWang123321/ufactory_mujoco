@@ -74,6 +74,7 @@ from ..calibration import (
     parse_sn_model_code,
     validate_ipv4_address,
 )
+from ..ft_sensor import is_hardware_ft_sensor_enabled, read_hardware_ft_sensor
 from ..model_paths import RESOURCE_ROOT
 
 DEFAULT_CALIBRATIONS_DIR = Path("calibrations")
@@ -527,6 +528,18 @@ def _run_hold_current_only(session: Any, reference: Any) -> int:
                 )
         except (TypeError, ValueError):
             pass
+    if is_hardware_ft_sensor_enabled(session.arm):
+        print(
+            "[NOTE] Controller reports an enabled F/T sensor; "
+            "bare-arm ref_G reflects flange-only model without sensor mass."
+        )
+        try:
+            ft_reading = read_hardware_ft_sensor(session.arm)
+        except Exception as exc:
+            print(f"[NOTE] F/T sensor read unavailable: {exc}")
+        else:
+            print(f"ft_raw (F/T)       : {format_torque_row(ft_reading.raw)}")
+            print(f"ft_ext (F/T)       : {format_torque_row(ft_reading.ext)}")
     q, qvel, tau = session.get_joint_states()
     tau_direct = session.get_joints_torque()
     print(f"\nCurrent q          : {format_torque_row(q)}")
@@ -547,6 +560,18 @@ def _validate_hardware_preconditions(
     safe_poses: Sequence[Any],
     home_qpos: np.ndarray,
 ) -> bool:
+    if is_hardware_ft_sensor_enabled(session.arm):
+        robot_hint = getattr(args, "robot", None) or "xarm6"
+        session.print_config()
+        print(
+            "\n[FAIL] Controller reports an enabled F/T sensor; "
+            "bare-arm hardware check refuses to move without F/T sensor collision & mass modeling."
+        )
+        print(
+            f"[HINT] Use `ufactory-mujoco dynamics --robot {robot_hint} "
+            "--gripper ft_sensor --mode sdk-sim ...` for F/T-equipped validation."
+        )
+        return False
     raw_load = getattr(session.arm, "tcp_load", None)
     load_kg = 0.0
     if isinstance(raw_load, (list, tuple)) and len(raw_load) >= 1:

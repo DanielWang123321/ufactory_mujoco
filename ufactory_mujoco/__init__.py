@@ -20,6 +20,9 @@ from .ft_sensor import (
     SensorReading,
     apply_ft_sensor_wrench,
     clear_ft_sensor_wrench,
+    is_hardware_ft_sensor_enabled,
+    read_hardware_ft_sensor,
+    read_hardware_ft_sensor_config,
 )
 from .g2_controller import G2Controller
 from .grippers import GraspError, GripperSpec, identify_gripper
@@ -84,6 +87,9 @@ __all__ = [
     "SensorReading",
     "apply_ft_sensor_wrench",
     "clear_ft_sensor_wrench",
+    "is_hardware_ft_sensor_enabled",
+    "read_hardware_ft_sensor",
+    "read_hardware_ft_sensor_config",
     # collision-free planning
     "CollisionChecker",
     "plan_collision_free",

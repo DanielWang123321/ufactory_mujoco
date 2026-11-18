@@ -15,7 +15,17 @@ import mujoco
 import numpy as np
 import pytest
 
-from ufactory_mujoco import AI1500Reader, FTSensorReader, SimRobot, apply_ft_sensor_wrench
+from ufactory_mujoco import (
+    AI1500Reader,
+    FTSensorReader,
+    SafetyGateError,
+    SimRobot,
+    apply_ft_sensor_wrench,
+    is_hardware_ft_sensor_enabled,
+    read_hardware_ft_sensor,
+    read_hardware_ft_sensor_config,
+)
+from ufactory_mujoco.ft_sensor import EXT_NOISE_STD, RAW_NOISE_STD
 from ufactory_mujoco.model_paths import MODELS_ROOT, resolve_model_path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -128,9 +138,19 @@ def test_mjcf_authoring_and_scene_step_contracts(name):
     model = mujoco.MjModel.from_xml_path(str(resolve_model_path(name)))
     assert model.opt.timestep == pytest.approx(0.001)
     sensor_base = _name_id(model, mujoco.mjtObj.mjOBJ_BODY, "ft_sensor_base")
-    assert model.body_mass[sensor_base] == pytest.approx(0.6)
-    np.testing.assert_allclose(model.body_ipos[sensor_base], [0.0, 0.0, 0.022], atol=1e-12)
+    sensor_out = _name_id(model, mujoco.mjtObj.mjOBJ_BODY, "ft_sensor_output")
+    m_base = float(model.body_mass[sensor_base])
+    m_out = float(model.body_mass[sensor_out])
+    assert m_base == pytest.approx(0.45)
+    assert m_out == pytest.approx(0.15)
+    assert m_base + m_out == pytest.approx(0.6)
+    np.testing.assert_allclose(model.body_ipos[sensor_out], [0.0, 0.0, -0.02273], atol=1e-12)
+    com_combined_z = (
+        m_base * model.body_ipos[sensor_base, 2] + m_out * (0.0586 + model.body_ipos[sensor_out, 2])
+    ) / 0.6
+    assert com_combined_z == pytest.approx(0.022, abs=1e-12)
     site_id = _name_id(model, mujoco.mjtObj.mjOBJ_SITE, "ft_sensor_site")
+    np.testing.assert_allclose(model.site_pos[site_id], [0.0, 0.0, -0.0266], atol=1e-12)
     assert int(model.site_group[site_id]) == 4
 
     data = _key_data(model, "home")
@@ -226,15 +246,17 @@ def test_each_applied_axis_and_direction(axis, sign):
     wrench[axis] = sign * (4.0 if axis < 3 else 2.0)
     apply_ft_sensor_wrench(model, data, wrench[:3], wrench[3:])
     reading = AI1500Reader(model, data).update()
-    np.testing.assert_allclose(reading.raw, -wrench, atol=1e-8, rtol=0)
+    expected_grav = np.array([0.0, 0.0, -0.15 * 9.81, 0.0, 0.0, 0.0])
+    np.testing.assert_allclose(reading.ext, wrench, atol=1e-8, rtol=0)
+    np.testing.assert_allclose(reading.raw, wrench + expected_grav, atol=1e-8, rtol=0)
 
 
 def test_output_load_gravity_offset_and_rotated_frame():
     spec = mujoco.MjSpec.from_file(str(MODELS_ROOT / "ft_sensor" / "ft_sensor.xml"))
-    spec.body("ft_sensor_output").add_geom(
+    payload_body = spec.body("ft_sensor_output").add_body(name="payload", pos=[0.1, 0.0, 0.0])
+    payload_body.add_geom(
         name="payload",
         type=mujoco.mjtGeom.mjGEOM_SPHERE,
-        pos=[0.1, 0.0, 0.0],
         size=[0.01, 0.0, 0.0],
         mass=1.0,
         contype=0,
@@ -243,15 +265,28 @@ def test_output_load_gravity_offset_and_rotated_frame():
     model = spec.compile()
     data = _key_data(model)
     reading = AI1500Reader(model, data).update()
-    np.testing.assert_allclose(reading.raw, [0.0, 0.0, 9.81, 0.0, -0.981, 0.0], atol=1e-8, rtol=0)
+    np.testing.assert_allclose(reading.raw, [0.0, 0.0, -1.15 * 9.81, 0.0, 0.981, 0.0], atol=1e-8, rtol=0)
+    np.testing.assert_allclose(reading.ext, np.zeros(6), atol=1e-8, rtol=0)
 
+    # Rotate 90 deg about +X so sensor +Z points along -Y world and +Y points along +Z world (gravity along -Y_local)
     spec_rot = mujoco.MjSpec.from_file(str(MODELS_ROOT / "ft_sensor" / "ft_sensor.xml"))
-    spec_rot.body("ft_sensor_base").quat = [np.sqrt(0.5), 0.0, 0.0, np.sqrt(0.5)]
+    spec_rot.body("ft_sensor_base").quat = [np.sqrt(0.5), np.sqrt(0.5), 0.0, 0.0]
     rot_model = spec_rot.compile()
     rot_data = _key_data(rot_model)
+    unloaded = AI1500Reader(rot_model, rot_data).update()
+    np.testing.assert_allclose(unloaded.ext, np.zeros(6), atol=1e-8, rtol=0)
+    np.testing.assert_allclose(unloaded.raw[:3], [0.0, -0.15 * 9.81, 0.0], atol=1e-8, rtol=0)
+
     local = np.array([2.0, 3.0, 4.0, 0.5, -0.7, 0.9])
     apply_ft_sensor_wrench(rot_model, rot_data, local[:3], local[3:])
-    np.testing.assert_allclose(AI1500Reader(rot_model, rot_data).update().raw, -local, atol=1e-8, rtol=0)
+    loaded = AI1500Reader(rot_model, rot_data).update()
+    np.testing.assert_allclose(loaded.ext, local, atol=1e-8, rtol=0)
+
+    # Force applied at +58.6 mm output face (+26.6 mm ahead of sensing site) induces r x F torque
+    clear_model, clear_data = _standalone()
+    apply_ft_sensor_wrench(clear_model, clear_data, [10.0, 0.0, 0.0], [0.0, 0.0, 0.0], at_output_face=True)
+    face_reading = AI1500Reader(clear_model, clear_data).update()
+    np.testing.assert_allclose(face_reading.ext, [10.0, 0.0, 0.0, 0.0, 0.266, 0.0], atol=1e-8, rtol=0)
 
 
 def test_200hz_sample_hold_and_reset():
@@ -260,7 +295,8 @@ def test_200hz_sample_hold_and_reset():
     assert reader.update().sample_time_s == 0.0
     apply_ft_sensor_wrench(model, data, [2.0, 0.0, 0.0], [0.0, 0.0, 0.0])
     same_time = reader.update()
-    assert same_time.raw[0] == pytest.approx(-2.0)
+    assert same_time.raw[0] == pytest.approx(2.0)
+    assert same_time.ext[0] == pytest.approx(2.0)
     assert same_time.sampled[0] == 0.0
     for _ in range(4):
         mujoco.mj_step(model, data)
@@ -270,7 +306,7 @@ def test_200hz_sample_hold_and_reset():
     mujoco.mj_step(model, data)
     sample = reader.update()
     assert sample.sample_time_s == pytest.approx(0.005)
-    assert sample.sampled[0] == pytest.approx(-2.0)
+    assert sample.sampled[0] == pytest.approx(2.0)
 
     mujoco.mj_step(model, data)
     mujoco.mj_step(model, data)
@@ -304,9 +340,8 @@ def test_range_overload_and_quantization(axis, limit, overload, sign):
         reading = reader.update()
         assert bool(reading.overrange[axis]) is expected_range
         assert bool(reading.overload[axis]) is expected_overload
-        assert reading.raw[axis] == pytest.approx(-sign * value)
-        step = 0.4 if axis < 3 else 0.01
-        assert reading.sampled[axis] == pytest.approx(np.rint(-sign * value / step) * step)
+        assert reading.raw[axis] == pytest.approx(sign * value)
+        assert reading.sampled[axis] == float(np.float32(reading.raw[axis]))
 
 
 def test_invalid_timestep_rejected_by_reader_and_sim_robot():
@@ -349,7 +384,9 @@ def test_downstream_contact_reaches_sensor():
         peak = max(peak, abs(float(reader.update().raw[2])))
     assert peak > 1.0
     assert data.ncon > 0
-    assert reader.update().raw[2] == pytest.approx(0.981, abs=0.02)
+    rest_reading = reader.update()
+    assert rest_reading.raw[2] == pytest.approx(-(0.15 + 0.1) * 9.81, abs=0.02)
+    assert rest_reading.ext[2] == pytest.approx(-0.981, abs=0.02)
     assert not any(w.number for w in data.warning)
 
 
@@ -358,7 +395,7 @@ def test_sim_robot_auto_attaches_reader_and_g2_works():
         assert not bare.has_ft_sensor
         assert bare.ft_sensor is None
         assert bare.ft_sensor_reading is None
-        with pytest.raises(RuntimeError, match="no force/torque sensor"):
+        with pytest.raises(NotImplementedError, match="no force/torque sensor"):
             bare.get_ft_sensor_reading()
 
     with SimRobot(resolve_model_path("xarm6_with_ft_sensor_and_gripper")) as robot:
@@ -376,8 +413,14 @@ def test_sim_robot_auto_attaches_reader_and_g2_works():
         reading = robot.get_ft_sensor_reading()
         assert np.isfinite(reading.sampled).all()
         assert reading.sample_time_s > 0.0
-        # At ready (tool pointing vertically down), static reading equals G2 weight (~7.37 N along -Z).
-        np.testing.assert_allclose(reading.raw[:3], [0.0, 0.0, -7.3714], atol=0.05, rtol=0)
+        assert reading.source == "sim"
+        # At ready (tool pointing vertically down), static raw equals G2 + floating head weight (+8.84 N along +Z).
+        np.testing.assert_allclose(reading.raw[:3], [0.0, 0.0, 8.8429], atol=0.05, rtol=0)
+        np.testing.assert_allclose(reading.ext, np.zeros(6), atol=0.02, rtol=0)
+        apply_ft_sensor_wrench(robot.model, robot.data, [3.0, -2.0, 0.0], [0.0, 0.0, 0.0])
+        tared = robot.zero_ft_sensor()
+        np.testing.assert_allclose(tared.ext, np.zeros(6), atol=1e-6, rtol=0)
+        robot.data.xfrc_applied[:] = 0.0
         reset_reading = robot.reset_ft_sensor()
         assert reset_reading.sample_time_s == pytest.approx(robot.data.time)
 
@@ -417,3 +460,104 @@ def test_clear_ft_sensor_wrench_zeros_applied_load():
         clear_ft_sensor_wrench(robot.model, robot.data)
         cleared = robot.get_ft_sensor_reading().raw.copy()
         np.testing.assert_allclose(cleared, base, atol=1e-9)
+
+
+def test_two_body_split_preserves_mass_matrix_and_gravity_bias():
+    xml_path = MODELS_ROOT / "xarm6_with_ft_sensor" / "xarm6_with_ft_sensor.xml"
+    m_split = mujoco.MjModel.from_xml_path(str(xml_path))
+    d_split = mujoco.MjData(m_split)
+
+    # Merge the two sensor inertials back into ft_sensor_base to verify dynamics equivalence
+    spec = mujoco.MjSpec.from_file(str(xml_path))
+    base_b = spec.body("ft_sensor_base")
+    out_b = spec.body("ft_sensor_output")
+    radius, height = 0.0388, 0.0636
+    base_b.mass = 0.6
+    base_b.ipos = [0.0, 0.0, 0.022]
+    base_b.inertia = [
+        0.6 * (3 * radius**2 + height**2) / 12,
+        0.6 * (3 * radius**2 + height**2) / 12,
+        0.6 * radius**2 / 2,
+    ]
+    out_b.mass = 0.0
+    out_b.inertia = [0.0, 0.0, 0.0]
+    m_single = spec.compile()
+    d_single = mujoco.MjData(m_single)
+
+    rng = np.random.default_rng(7)
+    for _ in range(5):
+        q = rng.uniform(-1.0, 1.0, m_split.nq)
+        qd = rng.uniform(-1.0, 1.0, m_split.nv)
+        for m, d in ((m_split, d_split), (m_single, d_single)):
+            d.qpos[:] = q
+            d.qvel[:] = qd
+            mujoco.mj_forward(m, d)
+        m_a = np.zeros((m_split.nv, m_split.nv))
+        m_b = np.zeros((m_single.nv, m_single.nv))
+        mujoco.mj_fullM(m_split, d_split, m_a)
+        mujoco.mj_fullM(m_single, d_single, m_b)
+        np.testing.assert_allclose(m_a, m_b, atol=1e-14, rtol=0)
+        np.testing.assert_allclose(d_split.qfrc_bias, d_single.qfrc_bias, atol=1e-14, rtol=0)
+
+
+def test_calibrated_noise_and_hardware_ft_helpers():
+    model, data = _standalone()
+    reader = AI1500Reader(model, data, noise_std="calibrated", seed=0)
+    samples_raw = []
+    samples_ext = []
+    for _ in range(500):
+        mujoco.mj_step(model, data)
+        rd = reader.update()
+        samples_raw.append(rd.raw)
+        samples_ext.append(rd.ext)
+    np.testing.assert_allclose(np.std(samples_raw, axis=0), RAW_NOISE_STD, rtol=0.18, atol=1e-4)
+    np.testing.assert_allclose(np.std(samples_ext, axis=0), EXT_NOISE_STD, rtol=0.18, atol=1e-4)
+
+    class _FakeHW:
+        def __init__(self) -> None:
+            self.ft_sensor_is_enable = True
+            self.err_calls = 0
+            self.error_code = 0
+
+        def get_err_warn_code(self):
+            return 0, (self.error_code, 0)
+
+        def get_ft_sensor_config(self):
+            return 0, [0, 1, 1, 1, 200, 0.17, 0.0, [0.0, 0.0, 0.0042], [0.0] * 6]
+
+        def get_ft_sensor_data(self, is_raw: bool = False):
+            return 0, ([1.0, 2.0, 3.0, 0.1, 0.2, 0.3] if is_raw else [0.1, 0.0, -0.2, 0.0, 0.01, 0.0])
+
+        def get_ft_sensor_error(self):
+            self.err_calls += 1
+            return 0, 0
+
+    hw = _FakeHW()
+    assert is_hardware_ft_sensor_enabled(hw) is True
+    cfg = read_hardware_ft_sensor_config(hw)
+    assert cfg["ft_freq_hz"] == 200 and cfg["ft_mass_kg"] == pytest.approx(0.17)
+    rd = read_hardware_ft_sensor(hw)
+    assert rd.source == "hardware"
+    np.testing.assert_allclose(rd.raw, [1.0, 2.0, 3.0, 0.1, 0.2, 0.3], atol=1e-6)
+    np.testing.assert_allclose(rd.ext, [0.1, 0.0, -0.2, 0.0, 0.01, 0.0], atol=1e-6)
+    assert hw.err_calls == 0
+
+    hw.error_code = 11
+    with pytest.raises(SafetyGateError, match="controller error"):
+        read_hardware_ft_sensor(hw)
+
+
+@pytest.mark.parametrize("name", ALL_FT_MODELS)
+def test_adapter_ring_stainless_material_and_scene_specular(name):
+    """Flange adapter ring (part_02) renders as bright cool stainless steel, distinct from matte part_01."""
+    model = mujoco.MjModel.from_xml_path(str(resolve_model_path(name)))
+    ring_mat = _name_id(model, mujoco.mjtObj.mjOBJ_MATERIAL, "ft_sensor_part_02_mat")
+    output_mat = _name_id(model, mujoco.mjtObj.mjOBJ_MATERIAL, "ft_sensor_part_01_mat")
+
+    ring_rgba = model.mat_rgba[ring_mat]
+    assert ring_rgba[0] < ring_rgba[1] < ring_rgba[2] < 0.85
+    assert float(model.mat_specular[ring_mat]) >= 0.95
+    assert float(model.mat_metallic[ring_mat]) >= 0.9
+    assert 0.0 <= float(model.mat_roughness[ring_mat]) <= 0.2
+    assert float(model.mat_specular[output_mat]) <= 0.4
+    assert np.all(model.vis.headlight.specular > 0.0)

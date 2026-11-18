@@ -20,7 +20,7 @@
 | `08_dynamics.py` | `ufactory_mujoco.tasks.dynamics`, `ufactory_mujoco.dynamics`, `ufactory_mujoco.collision` | 五款裸臂 | 动力学、固定碰撞姿态、命令预检与逐步运动监测；xArm6 3 kg 负载回归 |
 | `09_obstacle_avoidance.py` | `ufactory_mujoco.collision`, `ufactory_mujoco.path_planning` | `xarm6` (`scene_obstacles.xml`) | 立柱+横板场景下的 RRT-Connect 避障规划、路径剪枝（shortcut）与时间参数化执行 |
 | `10_box_pack.py` | `ufactory_mujoco.tasks.box_pack`, `ufactory_mujoco.sim_robot`, `ufactory_mujoco.preflight` | 5 组机械臂+夹爪任务组合 | 装箱展示：方块在盒沿上方 50 mm 释放自由落体，最终碰撞边界须在盒内（1 mm 容差）；支持多周期与速度倍率 |
-| `11_force_torque_sensor.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.ft_sensor` | 全部 13 套 `ft_sensor` 模型（独立传感器及 xArm/UF850 组合） | 记录静态工具重力基线，在 `ft_sensor_site` 施加局部外力/力矩并校验 `200 Hz` `AI1500Reader` 净增量 |
+| `11_force_torque_sensor.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.xarm_robot`, `ufactory_mujoco.ft_sensor` | 全部 13 套 `ft_sensor` 模型及真机只读模式（`--ip`） | 在仿真校验正极性（`+外加载荷`）`200 Hz` `fp32` `raw`/`ext` 双通道增量，或只读采样真机 AI1500 |
 
 ## 2. 运行指南
 
@@ -57,11 +57,12 @@ python examples/simulation/04_gripper_control.py --model xarm6_with_ft_sensor_an
 python examples/simulation/04_gripper_control.py --model lite6_with_gripper
 python examples/simulation/04_gripper_control.py --model bio_gripper_g2 --cycles 5
 
-# 11: 六维力/力矩传感器（AI1500，1 ms 物理步长 / 200 Hz 采样）
+# 11: 六维力/力矩传感器（AI1500，1 ms 物理 / 200 Hz fp32 采样 + 真机只读采样）
 python examples/simulation/11_force_torque_sensor.py
 python examples/simulation/11_force_torque_sensor.py --headless
 python examples/simulation/11_force_torque_sensor.py --model ft_sensor --force 0 0 -5 --headless
 python examples/simulation/11_force_torque_sensor.py --model xarm6_with_ft_sensor_and_vacuum_gripper --headless
+python examples/simulation/11_force_torque_sensor.py --ip <ROBOT_IP> --robot xarm6 --gripper ft_sensor --duration 0.5 --headless
 ```
 
 > **`02_joint_control.py` 说明**：
@@ -199,8 +200,9 @@ dynamics-report-compare reports/dyn_ver_<SN>/<old>.jsonl reports/dyn_ver_<SN>/<n
 | `--motion <mode>` | `02` | `auto` | 动作模式：`auto`、`dynamics`（20 姿态，仅限裸臂 `xarm6`）或 `demo` |
 | `--speed <deg/s>` | `02`, `06` | `90.0` | 关节峰值目标速度（度/秒） |
 | `--duration <s>` | `02`, `11` | `None`（`11` 为 `1.0`） | 固定单段运动时长（`02`）或外力加载持续时长（`11`） |
-| `--force <FX FY FZ>` | `11` | `0 0 -10` | 施加在 `ft_sensor_site` 局部坐标系的力（N） |
-| `--torque <TX TY TZ>` | `11` | `0 0.2 0` | 施加在 `ft_sensor_site` 局部坐标系的力矩（N·m） |
+| `--force <FX FY FZ>` | `11` | `0 0 -10` | 施加于传感器局部坐标系的力（N，正极性） |
+| `--torque <TX TY TZ>` | `11` | `0 0.2 0` | 施加于传感器局部坐标系的力矩（N·m，正极性） |
+| `--ip <addr>` | `11` | `None` | 真机只读 AI1500 力矩实时采样的控制器 IP |
 | `--sync-hz <Hz>` | `02` | `30.0` | 查看器状态同步频率（物理步长保持 `2 ms`） |
 | `--render-quality` | `02` | `fast` | 渲染质量：`fast`（关闭阴影/反射）或 `full` |
 | `--cycles <N>` | `04` | `3` | 夹爪开闭演示循环次数 |

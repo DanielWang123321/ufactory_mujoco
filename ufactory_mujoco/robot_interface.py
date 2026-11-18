@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 if TYPE_CHECKING:
+    from .ft_sensor import SensorReading
     from .trajectory import JointTrajectory
 
 
@@ -158,6 +159,16 @@ class RobotInterface(ABC):
 
     def settle(self, duration: float = 1.0) -> None:
         """Step physics for a while (default no-op; overridden by sim)."""
+
+    # -- force/torque sensor -----------------------------------------------
+    @property
+    def has_ft_sensor(self) -> bool:
+        """Whether a 6-axis force/torque sensor is available on this robot."""
+        return False
+
+    def get_ft_sensor_reading(self) -> SensorReading:
+        """Read the current 6-axis force/torque sensor wrench."""
+        raise NotImplementedError("This robot has no force/torque sensor")
 
     # -- lifecycle ----------------------------------------------------------
     def close(self) -> None:

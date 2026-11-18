@@ -20,7 +20,7 @@ Requires Python **3.12–3.14** and the core install (see the [installation guid
 | `08_dynamics.py` | `ufactory_mujoco.tasks.dynamics`, `ufactory_mujoco.dynamics`, `ufactory_mujoco.collision` | All five bare arms | Dynamics, fixed collision fixtures, command preflight & monitored motion; xArm6 3 kg payload regression |
 | `09_obstacle_avoidance.py` | `ufactory_mujoco.collision`, `ufactory_mujoco.path_planning` | `xarm6` (`scene_obstacles.xml`) | RRT-Connect + shortcutting + spline/quintic time parameterization around pillar & board |
 | `10_box_pack.py` | `ufactory_mujoco.tasks.box_pack`, `ufactory_mujoco.sim_robot`, `ufactory_mujoco.preflight` | Five arm+gripper task combos | Box-packing showcase: cubes released 50 mm above the rim free-fall into the box (1 mm tolerance); multi-cycle & speed multiplier |
-| `11_force_torque_sensor.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.ft_sensor` | All 13 `ft_sensor` models (`ft_sensor` & xArm/UF850 combos) | Record static tool-gravity baseline, apply local wrench at `ft_sensor_site`, and verify `200 Hz` `AI1500Reader` net delta |
+| `11_force_torque_sensor.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.xarm_robot`, `ufactory_mujoco.ft_sensor` | All 13 `ft_sensor` models (`ft_sensor` & xArm/UF850 combos) or live hardware (`--ip`) | Verify dual `raw`/`ext` `200 Hz` `fp32` channels (`+applied` polarity) in sim, or read-only sample a live AI1500 sensor |
 
 ## 2. Running the Examples
 
@@ -57,11 +57,12 @@ python examples/simulation/04_gripper_control.py --model xarm6_with_ft_sensor_an
 python examples/simulation/04_gripper_control.py --model lite6_with_gripper
 python examples/simulation/04_gripper_control.py --model bio_gripper_g2 --cycles 5
 
-# 11: 6-axis force/torque sensor (AI1500, 1 ms physics / 200 Hz sampling)
+# 11: 6-axis force/torque sensor (AI1500, 1 ms physics / 200 Hz fp32 sampling + read-only hardware mode)
 python examples/simulation/11_force_torque_sensor.py
 python examples/simulation/11_force_torque_sensor.py --headless
 python examples/simulation/11_force_torque_sensor.py --model ft_sensor --force 0 0 -5 --headless
 python examples/simulation/11_force_torque_sensor.py --model xarm6_with_ft_sensor_and_vacuum_gripper --headless
+python examples/simulation/11_force_torque_sensor.py --ip <ROBOT_IP> --robot xarm6 --gripper ft_sensor --duration 0.5 --headless
 ```
 
 > **Notes on `02_joint_control.py`**:
@@ -199,8 +200,9 @@ Examples `03` and `07` accept only `--headless`.
 | `--motion <mode>` | `02` | `auto` | Motion preset: `auto`, `dynamics` (20 poses, bare `xarm6` only), or `demo` |
 | `--speed <deg/s>` | `02`, `06` | `90.0` | Peak target joint speed in degrees/s |
 | `--duration <s>` | `02`, `11` | `None` (`11`: `1.0`) | Fixed seconds per segment (`02`) or wrench application duration (`11`) |
-| `--force <FX FY FZ>` | `11` | `0 0 -10` | Local force (N) applied at `ft_sensor_site` |
-| `--torque <TX TY TZ>` | `11` | `0 0.2 0` | Local torque (N*m) applied at `ft_sensor_site` |
+| `--force <FX FY FZ>` | `11` | `0 0 -10` | Local force (N) applied onto the sensor (`+applied` polarity) |
+| `--torque <TX TY TZ>` | `11` | `0 0.2 0` | Local torque (N*m) applied onto the sensor (`+applied` polarity) |
+| `--ip <addr>` | `11` | `None` | Controller IP for strictly read-only live hardware F/T sampling |
 | `--sync-hz <Hz>` | `02` | `30.0` | Viewer state-sync rate (physics timestep remains `2 ms`) |
 | `--render-quality` | `02` | `fast` | `fast` (disables shadows/reflections) or `full` |
 | `--cycles <N>` | `04` | `3` | Number of open/close demonstration cycles |

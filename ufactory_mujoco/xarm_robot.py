@@ -31,6 +31,13 @@ from .calibration import (
     read_tcp_offset,
 )
 from .collision import arm_joint_limits
+from .ft_sensor import (
+    SensorReading,
+    has_ft_sensor as model_has_ft_sensor,
+    is_hardware_ft_sensor_enabled,
+    read_hardware_ft_sensor,
+    read_hardware_ft_sensor_config,
+)
 from .g2_model import checked, sdk_position_counts, sdk_speed_rpm, speed_mm_s
 from .grippers import (
     GRIPPER_ACTUATOR_NAMES,
@@ -196,6 +203,31 @@ class XArmRobot(RobotInterface):
         """Controller TCP offset as reported by the SDK."""
         return read_tcp_offset(self._arm)
 
+    @property
+    def has_ft_sensor(self) -> bool:
+        """True when the connected hardware controller reports an enabled F/T sensor."""
+        return is_hardware_ft_sensor_enabled(self._arm)
+
+    def get_ft_sensor_config(self) -> dict[str, Any]:
+        """Read hardware F/T sensor configuration non-intrusively."""
+        if not self.has_ft_sensor:
+            raise NotImplementedError("This robot has no force/torque sensor")
+        return read_hardware_ft_sensor_config(self._arm)
+
+    def get_ft_sensor_reading(self) -> SensorReading:
+        """Read current raw and compensated external 6-axis wrench from hardware."""
+        if not self.has_ft_sensor:
+            raise NotImplementedError("This robot has no force/torque sensor")
+        return read_hardware_ft_sensor(self._arm)
+
+    def _assert_ft_sensor_model_match(self) -> None:
+        if is_hardware_ft_sensor_enabled(self._arm) and not model_has_ft_sensor(self.model):
+            raise SafetyGateError(
+                "Hardware controller reports an enabled F/T sensor while the loaded MuJoCo model "
+                "has no F/T sensor; pass gripper='ft_sensor', 'ft_sensor_and_gripper', or "
+                "'ft_sensor_and_vacuum_gripper'"
+            )
+
     def unlock_motion(self, approval: MotionApproval) -> None:
         """Unlock motion on this session after verifying the MotionApproval token."""
         if not isinstance(approval, MotionApproval):
@@ -215,6 +247,7 @@ class XArmRobot(RobotInterface):
         if approval.cycles != 1:
             raise SafetyGateError(f"approval cycles must be 1, got {approval.cycles}")
         assert_controller_healthy(self._arm)
+        self._assert_ft_sensor_model_match()
         self._approval = approval
         self.read_only = False
 
@@ -224,6 +257,7 @@ class XArmRobot(RobotInterface):
                 f"{action} refused: session is read-only or lacks MotionApproval (--confirm-real)"
             )
         assert_controller_healthy(self._arm)
+        self._assert_ft_sensor_model_match()
 
     def _prepare_mode(self, mode: int) -> None:
         self._require_motion_unlocked(f"set_mode({mode})")
@@ -332,6 +366,7 @@ class XArmRobot(RobotInterface):
             "q_rad": q.tolist(),
             "tcp_offset": self.tcp_offset.tolist(),
             "tcp_load": load,
+            "ft_sensor_enabled": is_hardware_ft_sensor_enabled(self._arm),
             "state": state_val,
             "mode": int(getattr(self._arm, "mode", 0) or 0),
             "error_code": err,

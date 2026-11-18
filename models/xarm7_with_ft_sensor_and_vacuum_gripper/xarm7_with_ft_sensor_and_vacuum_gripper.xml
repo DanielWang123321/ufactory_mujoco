@@ -85,35 +85,35 @@
     <mesh name="vac_hull_030_cup_05" file="vacuum_gripper/collision/hull_030_cup_05.stl" />
     <mesh name="vac_hull_031_cup_05" file="vacuum_gripper/collision/hull_031_cup_05.stl" />
     <mesh name="vac_hull_032_cup_05" file="vacuum_gripper/collision/hull_032_cup_05.stl" />
-    <material name="ft_sensor_part_00_mat" rgba="0.96 0.965 0.97 1" specular="0.78" shininess="0.52" />
+    <material name="ft_sensor_part_00_mat" rgba="0.74 0.77 0.81 1" specular="0.95" shininess="0.12" metallic="0.9" roughness="0.18" />
     <mesh name="ft_sensor_part_00" file="ft_sensor/visual/part_00.obj" inertia="shell" />
-    <material name="ft_sensor_part_01_mat" rgba="0.952941 0.952941 0.94902 1" specular="0.8" shininess="0.365755" />
+    <material name="ft_sensor_part_01_mat" rgba="0.952941 0.952941 0.94902 1" specular="0.25" shininess="0.365755" />
     <mesh name="ft_sensor_part_01" file="ft_sensor/visual/part_01.obj" inertia="shell" />
-    <material name="ft_sensor_part_02_mat" rgba="0.952941 0.952941 0.94902 1" specular="0.8" shininess="0.365755" />
+    <material name="ft_sensor_part_02_mat" rgba="0.7 0.73 0.78 1" specular="1" shininess="0.08" reflectance="0.08" metallic="0.95" roughness="0.12" />
     <mesh name="ft_sensor_part_02" file="ft_sensor/visual/part_02.obj" inertia="shell" />
-    <material name="ft_sensor_part_03_mat" rgba="0.96 0.965 0.97 1" specular="0.78" shininess="0.52" />
+    <material name="ft_sensor_part_03_mat" rgba="0.74 0.77 0.81 1" specular="0.95" shininess="0.12" metallic="0.9" roughness="0.18" />
     <mesh name="ft_sensor_part_03" file="ft_sensor/visual/part_03.obj" inertia="shell" />
     <material name="ft_sensor_part_04_mat" rgba="0.045 0.048 0.052 1" specular="0.1" shininess="0.28" />
     <mesh name="ft_sensor_part_04" file="ft_sensor/visual/part_04.obj" inertia="shell" />
-    <material name="ft_sensor_part_05_mat" rgba="0.96 0.965 0.97 1" specular="0.78" shininess="0.52" />
+    <material name="ft_sensor_part_05_mat" rgba="0.74 0.77 0.81 1" specular="0.95" shininess="0.12" metallic="0.9" roughness="0.18" />
     <mesh name="ft_sensor_part_05" file="ft_sensor/visual/part_05.obj" inertia="shell" />
     <material name="ft_sensor_part_06_mat" rgba="0.83 0.64 0.24 1" specular="0.8" shininess="0.62" />
     <mesh name="ft_sensor_part_06" file="ft_sensor/visual/part_06.obj" inertia="shell" />
-    <material name="ft_sensor_part_07_mat" rgba="0.96 0.965 0.97 1" specular="0.78" shininess="0.52" />
+    <material name="ft_sensor_part_07_mat" rgba="0.74 0.77 0.81 1" specular="0.95" shininess="0.12" metallic="0.9" roughness="0.18" />
     <mesh name="ft_sensor_part_07" file="ft_sensor/visual/part_07.obj" inertia="shell" />
     <material name="ft_sensor_part_08_mat" rgba="0.83 0.64 0.24 1" specular="0.8" shininess="0.62" />
     <mesh name="ft_sensor_part_08" file="ft_sensor/visual/part_08.obj" inertia="shell" />
     <material name="ft_sensor_part_09_mat" rgba="0.045 0.048 0.052 1" specular="0.1" shininess="0.28" />
     <mesh name="ft_sensor_part_09" file="ft_sensor/visual/part_09.obj" inertia="shell" />
-    <material name="ft_sensor_part_10_mat" rgba="0.09 0.094 0.1 1" specular="0.8" shininess="0.365755" />
+    <material name="ft_sensor_part_10_mat" rgba="0.09 0.094 0.1 1" specular="0.2" shininess="0.365755" />
     <mesh name="ft_sensor_part_10" file="ft_sensor/visual/part_10.obj" inertia="shell" />
-    <material name="ft_sensor_part_11_mat" rgba="0.96 0.965 0.97 1" specular="0.78" shininess="0.52" />
+    <material name="ft_sensor_part_11_mat" rgba="0.74 0.77 0.81 1" specular="0.95" shininess="0.12" metallic="0.9" roughness="0.18" />
     <mesh name="ft_sensor_part_11" file="ft_sensor/visual/part_11.obj" inertia="shell" />
-    <material name="ft_sensor_part_12_mat" rgba="0.09 0.094 0.1 1" specular="0.8" shininess="0.365755" />
+    <material name="ft_sensor_part_12_mat" rgba="0.09 0.094 0.1 1" specular="0.2" shininess="0.365755" />
     <mesh name="ft_sensor_part_12" file="ft_sensor/visual/part_12.obj" inertia="shell" />
-    <material name="ft_sensor_part_13_mat" rgba="0.96 0.965 0.97 1" specular="0.78" shininess="0.52" />
+    <material name="ft_sensor_part_13_mat" rgba="0.74 0.77 0.81 1" specular="0.95" shininess="0.12" metallic="0.9" roughness="0.18" />
     <mesh name="ft_sensor_part_13" file="ft_sensor/visual/part_13.obj" inertia="shell" />
-    <material name="ft_sensor_part_14_mat" rgba="0.09 0.094 0.1 1" specular="0.8" shininess="0.365755" />
+    <material name="ft_sensor_part_14_mat" rgba="0.09 0.094 0.1 1" specular="0.2" shininess="0.365755" />
     <mesh name="ft_sensor_part_14" file="ft_sensor/visual/part_14.obj" inertia="shell" />
     <mesh name="ft_sensor_collision_mesh" file="ft_sensor/collision/hull.stl" />
   </asset>
@@ -209,7 +209,7 @@
                     <geom class="visual" mesh="link7_black_vis" material="black" />
                     <geom class="collision" mesh="xarm7_link7_col_00" />
                     <body name="ft_sensor_base">
-                      <inertial pos="0 0 0.022" mass="0.6" diaginertia="0.000428064 0.000428064 0.000451632" />
+                      <inertial pos="0 0 0.017376666666666665" mass="0.44999999999999996" diaginertia="0.00032675012000000012 0.00032675012000000012 0.00033872399999999999" />
                       <geom name="ft_sensor_part_00_visual" type="mesh" mesh="ft_sensor_part_00" material="ft_sensor_part_00_mat" contype="0" conaffinity="0" group="2" />
                       <geom name="ft_sensor_part_01_visual" type="mesh" mesh="ft_sensor_part_01" material="ft_sensor_part_01_mat" contype="0" conaffinity="0" group="2" />
                       <geom name="ft_sensor_part_02_visual" type="mesh" mesh="ft_sensor_part_02" material="ft_sensor_part_02_mat" contype="0" conaffinity="0" group="2" />
@@ -227,7 +227,8 @@
                       <geom name="ft_sensor_part_14_visual" type="mesh" mesh="ft_sensor_part_14" material="ft_sensor_part_14_mat" contype="0" conaffinity="0" group="2" />
                       <geom name="ft_sensor_collision" type="mesh" mesh="ft_sensor_collision_mesh" group="3" contype="1" conaffinity="1" />
                       <body name="ft_sensor_output" pos="0 0 0.0586">
-                        <site name="ft_sensor_site" pos="0 0 0" size="0.002" group="4" />
+                        <inertial pos="0 0 -0.02273" mass="0.14999999999999999" diaginertia="6.2838499999999991e-05 6.2838499999999991e-05 0.000112908" />
+                        <site name="ft_sensor_site" pos="0 0 -0.0266" size="0.002" group="4" />
                         <body name="xarm_vacuum_gripper_link">
                           <inertial pos="0 0 0.053" mass="0.61" fullinertia="0.00047106 0.00033072 0.00025642 0.00000039292 0.0000026537 -0.000010975" />
                           <geom class="visual" mesh="vacuum_silver_vis" material="silver" />

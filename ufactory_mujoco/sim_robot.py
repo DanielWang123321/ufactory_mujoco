@@ -603,17 +603,19 @@ class SimRobot(RobotInterface):
         """Most recent 6-axis sensor reading, or None when no sensor is present."""
         return self._ft_sensor_last_reading
 
-    def _update_ft_sensor(self, *, reset: bool = False) -> SensorReading:
+    def _update_ft_sensor(self, *, reset: bool = False, zero: bool = False) -> SensorReading:
         if self._ft_sensor is None:
-            raise RuntimeError("This robot has no force/torque sensor")
+            raise NotImplementedError("This robot has no force/torque sensor")
         if self._n_arm_dof > 0:
             # Match _step()'s gravity-compensated arm state so mj_forward does not
             # evaluate F/T readings as if the arm were free-falling without compensation.
             mujoco.mj_forward(self.model, self.data)
             self.data.qfrc_applied[: self._n_arm_dof] = self.data.qfrc_bias[: self._n_arm_dof]
-        if reset:
-            self._ft_sensor.reset()
         try:
+            if zero:
+                self._ft_sensor.zero()
+            if reset:
+                self._ft_sensor.reset()
             reading = self._ft_sensor.update()
         finally:
             if self._n_arm_dof > 0:
@@ -628,6 +630,10 @@ class SimRobot(RobotInterface):
     def reset_ft_sensor(self) -> SensorReading:
         """Reset the 200 Hz sample schedule and take an immediate reading."""
         return self._update_ft_sensor(reset=True)
+
+    def zero_ft_sensor(self) -> SensorReading:
+        """Tare the F/T sensor at the current state so ``ext`` reads zero."""
+        return self._update_ft_sensor(reset=True, zero=True)
 
     @property
     def gripper_control_output(self) -> ControlOutput | BioG2ControlOutput | None:

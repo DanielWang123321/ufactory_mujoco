@@ -58,6 +58,10 @@ class FakeXArmAPI:
         self.is_simulation_robot = False
         self.tcp_load = [0.82, [0.0, 0.0, 48.0]]
         self.tcp_offset = [0.0, 0.0, 172.0, 0.0, 0.0, 0.0]
+        self.ft_sensor_is_enable = False
+        self.ft_sensor_config = [0, 0, 1, 1, 200, 0.17, 0.0, [0.0, 0.0, 0.0042], [0.0] * 6]
+        self.ft_raw = [0.0, 0.0, 1.4715, 0.0, 0.0, 0.0]
+        self.ft_ext = [0.0] * 6
 
         self.physical_q = np.array([0.0, -0.5, -0.4, 0.0, 0.9, 0.0, 0.0], dtype=float)
         self.virtual_q = self.physical_q.copy()
@@ -191,6 +195,20 @@ class FakeXArmAPI:
         self.calls.append(("set_gripper_position", (float(pos),)))
         self.gripper_pos = float(pos)
         return 0
+
+    def get_ft_sensor_config(self):
+        self.calls.append(("get_ft_sensor_config", ()))
+        return 0, list(self.ft_sensor_config)
+
+    def get_ft_sensor_data(self, is_raw: bool = False):
+        self.calls.append(("get_ft_sensor_data", (bool(is_raw),)))
+        return 0, list(self.ft_raw if is_raw else self.ft_ext)
+
+    def get_ft_sensor_error(self):
+        self.calls.append(("get_ft_sensor_error", ()))
+        # Emulate v2.8.0 SERVO_R16B quirk: drops ready controller state to 5.
+        self.state = 5
+        return 0, 0
 
     def disconnect(self):
         self.calls.append(("disconnect", ()))
@@ -634,6 +652,78 @@ class CliAndDynamicsGateTests(unittest.TestCase):
             )
             self.assertTrue(rep_ok["success"], rep_ok["failures"])
             self.assertEqual(rep_ok["preflight"]["start_q_rad"], [0.0, -0.5, -0.4, 0.0, 0.9, 0.0])
+
+    def test_ft_sensor_read_only_and_safety_gates(self):
+        from ufactory_mujoco.tasks.dynamics import run_hardware_dynamics_validation
+
+        fake = FakeXArmAPI()
+        fake.state = 2
+        fake.tcp_load = [0.0, [0.0, 0.0, 0.0]]
+        fake.tcp_offset = [0.0] * 6
+        fake.ft_sensor_is_enable = True
+        fake.ft_sensor_config[1] = 1
+        fake.ft_raw = [-20.0, 70.0, 65.0, 1.5, 0.9, -1.7]
+        fake.ft_ext = [0.02, -0.01, 0.03, 0.001, -0.002, 0.0]
+
+        def connect_fake(_ip: str):
+            fake.connected = True
+            return fake
+
+        with patch("ufactory_mujoco.xarm_robot._connect_xarm_sdk", side_effect=connect_fake):
+            # 1. Read-only FT read succeeds with zero motion calls and without calling get_ft_sensor_error
+            with XArmRobot(
+                "192.168.1.60", robot="xarm6", gripper="ft_sensor", calibration=CALIB_PATH, read_only=True
+            ) as ro_robot:
+                self.assertTrue(ro_robot.has_ft_sensor)
+                cfg = ro_robot.get_ft_sensor_config()
+                self.assertTrue(cfg["ft_is_started"])
+                self.assertEqual(cfg["ft_freq_hz"], 200)
+                rd = ro_robot.get_ft_sensor_reading()
+                self.assertEqual(rd.source, "hardware")
+                np.testing.assert_allclose(rd.raw, fake.ft_raw, atol=1e-5)
+                np.testing.assert_allclose(rd.ext, fake.ft_ext, atol=1e-5)
+                state = ro_robot.read_state()
+                self.assertTrue(state["ft_sensor_enabled"])
+            self.assertEqual(fake.motion_calls, [])
+
+            # 2. Bare-arm motion unlock & sdk-sim/real dynamics refuse enabled FT sensor even with tcp_load=0
+            with XArmRobot(
+                "192.168.1.60", robot="xarm6", gripper=None, calibration=CALIB_PATH, read_only=True
+            ) as bare_ro:
+                approval = authorize_real_motion(
+                    fake, robot="xarm6", calibration=CALIB_PATH, preflight_ok=True, confirm_real=True, cycles=1
+                )
+                with self.assertRaisesRegex(SafetyGateError, "ft_sensor"):
+                    bare_ro.unlock_motion(approval)
+            for blocked_mode in ("sdk-sim", "real"):
+                rep_blocked = run_hardware_dynamics_validation(
+                    "xarm6",
+                    mode=blocked_mode,
+                    ip="192.168.1.60",
+                    calibration=CALIB_PATH,
+                    confirm_real=(blocked_mode == "real"),
+                )
+                self.assertFalse(rep_blocked["success"])
+                self.assertTrue(any("ft_sensor" in f for f in rep_blocked["failures"]))
+            self.assertEqual(fake.motion_calls, [])
+
+            # 3. With --gripper ft_sensor, sdk-sim passes using 0.6 kg sensor gravity and preserves state=2
+            rep_ft = run_hardware_dynamics_validation(
+                "xarm6",
+                mode="sdk-sim",
+                ip="192.168.1.60",
+                calibration=CALIB_PATH,
+                gripper="ft_sensor",
+            )
+            self.assertTrue(rep_ft["success"], rep_ft["failures"])
+            self.assertTrue(rep_ft["ft_sensor_enabled"])
+            self.assertTrue(rep_ft["tcp_load"]["controller_tcp_load_unconfigured_for_sensor"])
+            self.assertIn("ft_sensor_observation", rep_ft)
+            # Gravity norm with 0.6 kg sensor (~2.37 Nm) is substantially above bare arm (~0.70 Nm)
+            grav_l2 = float(np.linalg.norm(rep_ft["static_observation"]["tau_mujoco_gravity_nm"]))
+            self.assertGreater(grav_l2, 2.0)
+            self.assertEqual([c for c in fake.calls if c[0] == "get_ft_sensor_error"], [])
+            self.assertEqual(fake.state, 2)
 
 
 if __name__ == "__main__":

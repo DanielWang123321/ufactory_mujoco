@@ -1040,3 +1040,56 @@ def test_compare_report_records_rejects_mismatched_joint_counts(tmp_path: Path):
     f6.write_text(json.dumps({"type": "sample", "data": {"signed_err": [0.1] * 6}}) + "\n", encoding="utf-8")
     f7.write_text(json.dumps({"type": "sample", "data": {"signed_err": [0.1] * 7}}) + "\n", encoding="utf-8")
     assert dyn_cli.cli_report_compare([str(f6), str(f7)]) == 2
+
+
+def test_cli_hardware_check_blocks_enabled_ft_sensor_and_hold_only_reads_ft(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(dyn_cli, "_fetch_robot_sn_from_ip", lambda ip: "XI130505L56A01")
+    fake_session = MagicMock()
+    fake_session.arm.tcp_load = [0.0, [0.0, 0.0, 0.0]]
+    fake_session.arm.tcp_offset = [0.0] * 6
+    fake_session.arm.ft_sensor_is_enable = True
+    fake_session.arm.get_err_warn_code.return_value = (0, (0, 0))
+    fake_session.arm.get_ft_sensor_config.return_value = (
+        0,
+        [0, 1, 1, 1, 200, 0.17, 0.0, [0.0, 0.0, 0.0042], [0.0] * 6],
+    )
+    fake_session.arm.get_ft_sensor_data.side_effect = (
+        lambda is_raw=False: (
+            0,
+            [1.0, 2.0, 3.0, 0.1, 0.2, 0.3] if is_raw else [0.01, -0.02, 0.03, 0.0, 0.0, 0.0],
+        )
+    )
+    fake_session.get_joint_states.return_value = (np.zeros(6), np.zeros(6), np.zeros(6))
+    fake_session.get_joints_torque.return_value = np.zeros(6)
+    monkeypatch.setattr("ufactory_mujoco.dynamics.session.RealRobotSession", lambda *args, **kwargs: fake_session)
+
+    # Hold-current-only succeeds strictly read-only and prints F/T telemetry
+    rc_hold = dyn_cli.cli_hardware_check(
+        ["--robot", "xarm6", "--ip", "192.0.2.1", "--hold-current-only", "--nominal-model", "--poses", "0"]
+    )
+    assert rc_hold == 0
+    out_hold = capsys.readouterr().out
+    assert "enabled F/T sensor" in out_hold
+    assert "ft_raw (F/T)" in out_hold and "ft_ext (F/T)" in out_hold
+    fake_session.configure_for_dynamics.assert_not_called()
+
+    # Non-hold bare-arm check refuses motion with --gripper ft_sensor hint
+    rc_block = dyn_cli.cli_hardware_check(
+        [
+            "--robot",
+            "xarm6",
+            "--ip",
+            "192.0.2.1",
+            "--confirm-real",
+            "--nominal-model",
+            "--poses",
+            "0",
+            "--report",
+            str(tmp_path / "ft_block.csv"),
+        ]
+    )
+    assert rc_block == 1
+    out_block = capsys.readouterr().out
+    assert "--gripper ft_sensor" in out_block
+    fake_session.sample_at_hold.assert_not_called()
+    fake_session.arm.get_ft_sensor_error.assert_not_called()

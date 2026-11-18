@@ -23,6 +23,7 @@ from ufactory_mujoco.calibration import apply_calibration_to_model
 from ufactory_mujoco.collision import CollisionChecker
 from ufactory_mujoco.dynamics import ArmDynamics
 from ufactory_mujoco.dynamics.runtime import MAX_DYNAMICS_MOVE_SPEED_RAD_S
+from ufactory_mujoco.ft_sensor import has_ft_sensor, is_hardware_ft_sensor_enabled
 from ufactory_mujoco.model_paths import MODELS_ROOT
 from ufactory_mujoco.robots import ARMS, resolve_arm_scene
 from ufactory_mujoco.safety import (
@@ -601,6 +602,15 @@ def run_hardware_dynamics_validation(
             com_mm = load_raw[1] if isinstance(load_raw, (list, tuple)) and len(load_raw) >= 2 else [0.0, 0.0, 0.0]
             com_m = (np.asarray(com_mm, dtype=float) / 1000.0).tolist()
             offset_xyz_norm_mm = float(np.linalg.norm(np.asarray(state["tcp_offset"][:3], dtype=float)))
+            ft_enabled = is_hardware_ft_sensor_enabled(hw_robot._arm)
+            model_has_ft = has_ft_sensor(hw_robot.model)
+
+            if mode in ("sdk-sim", "real") and ft_enabled and not model_has_ft:
+                raise SafetyGateError(
+                    "controller reports an enabled F/T sensor while the selected MuJoCo model "
+                    "has no F/T sensor; pass --gripper ft_sensor (or ft_sensor_and_gripper / "
+                    "ft_sensor_and_vacuum_gripper) so collision preflight and dynamics include the sensor"
+                )
 
             if mode in ("sdk-sim", "real") and gripper is None and (mass_kg > 0.05 or offset_xyz_norm_mm > 1.0):
                 raise SafetyGateError(
@@ -609,7 +619,11 @@ def run_hardware_dynamics_validation(
                     "pass --gripper (e.g. --gripper gripper_g2) so collision preflight includes the end effector"
                 )
 
-            if mass_kg > 1e-6:
+            tcp_load_info: dict[str, object] = {"mass_kg": mass_kg, "com_m": com_m}
+            if model_has_ft and mass_kg <= 0.05:
+                dyn = ArmDynamics(scene_path)
+                tcp_load_info["controller_tcp_load_unconfigured_for_sensor"] = True
+            elif mass_kg > 1e-6:
                 dyn = ArmDynamics(model_path, payload=(mass_kg, com_m))
             elif gripper is not None:
                 dyn = ArmDynamics(scene_path)
@@ -629,7 +643,8 @@ def run_hardware_dynamics_validation(
             report.update(
                 serial_number=hw_robot.serial_number,
                 calibration_sha256=calib.sha256,
-                tcp_load={"mass_kg": mass_kg, "com_m": com_m},
+                tcp_load=tcp_load_info,
+                ft_sensor_enabled=ft_enabled,
                 static_observation={
                     "q_rad": q_now.tolist(),
                     "tau_real_nm": tau_real.tolist(),
@@ -646,6 +661,11 @@ def run_hardware_dynamics_validation(
                     "failures": preflight["failures"],
                 },
             )
+            if hw_robot.has_ft_sensor:
+                report["ft_sensor_observation"] = {
+                    "config": hw_robot.get_ft_sensor_config(),
+                    "reading": hw_robot.get_ft_sensor_reading().as_dict(),
+                }
             if not preflight["success"]:
                 report["failures"].extend(f"preflight: {f}" for f in preflight["failures"])
                 return report
