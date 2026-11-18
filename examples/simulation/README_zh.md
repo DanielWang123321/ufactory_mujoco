@@ -123,10 +123,11 @@ dynamics-hardware-check --robot lite6 --dry-run --require-reference --strict-sta
 #### 动力学模块编程接口 (`ufactory_mujoco/dynamics`)
 
 ```python
+from ufactory_mujoco import MODELS_ROOT
 from ufactory_mujoco.dynamics import ArmDynamics
 
 # payload=(质量 kg, attachment_site 坐标系下的质心 [x, y, z] m)
-dyn = ArmDynamics("models/xarm6/xarm6.xml", payload=(3.0, [0, 0, 0.021]))
+dyn = ArmDynamics(MODELS_ROOT / "xarm6" / "xarm6.xml", payload=(3.0, [0, 0, 0.021]))
 M = dyn.mass_matrix(q)                     # 稠密质量矩阵 M(q)
 g = dyn.gravity(q)                         # 重力项 g(q)
 c = dyn.coriolis(q, qd)                    # 科氏/离心项 C(q,qd)qd
@@ -203,7 +204,7 @@ dynamics-report-compare reports/dyn_ver_<SN>/<old>.jsonl reports/dyn_ver_<SN>/<n
 | `--sync-hz <Hz>` | `02` | `30.0` | 查看器状态同步频率（物理步长保持 `2 ms`） |
 | `--render-quality` | `02` | `fast` | 渲染质量：`fast`（关闭阴影/反射）或 `full` |
 | `--cycles <N>` | `04` | `3` | 夹爪开闭演示循环次数 |
-| `--speed-percent <pct>` | `04` | `100.0` | Gripper G2 / Bio Gripper G2 速度百分比（`0..100`；Lite 6 夹爪忽略） |
+| `--speed-percent <pct>` | `04` | `100.0` | Gripper G2 / Bio Gripper G2 速度百分比（`0..100`，`0` 为暂停保持；Lite 6 夹爪忽略） |
 | `--force-percent <pct>` | `04` | `100.0` | Gripper G2 / Bio Gripper G2 力控百分比（`1..100`；Lite 6 夹爪忽略） |
 | `--seed <N>` | `09` | `0` | RRT-Connect 与路径剪枝随机种子 |
 | `--safety-margin <m>` | `09` | `0.002` | 规划最小安全间隙阈值（米） |

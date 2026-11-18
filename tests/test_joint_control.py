@@ -64,7 +64,7 @@ class JointControlTests(unittest.TestCase):
                 model = mujoco.MjModel.from_xml_path(str(resolve_model_path(name)))
                 data = mujoco.MjData(model)
                 n = ARMS[name.split("_with_")[0]].dof
-                ready, demo = joint_control.get_arm_targets(SimpleNamespace(model=model, _n_arm_qpos=n), name)
+                ready, demo = joint_control.get_arm_targets(SimpleNamespace(model=model, n_arm=n), name)
                 key = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_KEY, "ready")
                 np.testing.assert_allclose(ready, model.key(key).qpos[:n], atol=1e-9)
                 for q in (ready, demo):
@@ -154,6 +154,18 @@ class JointControlTests(unittest.TestCase):
             ctrl = robot.data.ctrl.copy()
             with self.assertRaises(ValueError):
                 robot.move_joints(np.zeros(robot.n_arm - 1), duration=0.1)
+            np.testing.assert_array_equal(robot.data.ctrl, ctrl)
+
+    def test_arm_commands_reject_nan_and_out_of_limits(self):
+        with SimRobot() as robot:
+            ctrl = robot.data.ctrl.copy()
+            q_nan = np.zeros(robot.n_arm)
+            q_nan[0] = np.nan
+            for bad_q in (q_nan, np.full(robot.n_arm, 10.0), np.full(robot.n_arm, -10.0)):
+                with self.assertRaises(ValueError):
+                    robot.set_joint_positions(bad_q)
+                with self.assertRaises(ValueError):
+                    robot.move_joints(bad_q, duration=0.2)
             np.testing.assert_array_equal(robot.data.ctrl, ctrl)
 
 

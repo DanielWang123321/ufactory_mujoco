@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 import hashlib
 import json
@@ -119,17 +120,26 @@ def _merge_strict(base: dict[str, Any], overlay: Mapping[str, Any], *, path: str
             base[key] = value
 
 
+def _as_float(value: Any, field: str) -> float:
+    if isinstance(value, bool):
+        raise ConfigError(f"{field} must be a number, not a boolean")
+    try:
+        return float(value)
+    except (TypeError, ValueError) as exc:
+        raise ConfigError(f"{field} must be a number") from exc
+
+
 def _vec2(value: Any, field: str) -> tuple[float, float]:
     if not isinstance(value, list | tuple) or len(value) != 2:
         raise ConfigError(f"{field} must be an array of length 2")
-    xy = tuple(float(item) for item in value)
+    xy = (_as_float(value[0], f"{field}[0]"), _as_float(value[1], f"{field}[1]"))
     if not all(math.isfinite(item) for item in xy):
         raise ConfigError(f"{field} must contain finite numbers")
     return xy
 
 
 def _positive(value: Any, field: str, *, allow_zero: bool = False) -> float:
-    number = float(value)
+    number = _as_float(value, field)
     if not math.isfinite(number) or (number < 0.0 if allow_zero else number <= 0.0):
         raise ConfigError(f"{field} must be a {'non-negative' if allow_zero else 'positive'} number")
     return number
@@ -225,15 +235,18 @@ def _box_pack_payload(task: BoxPackConfig) -> dict[str, Any]:
     }
 
 
-def load_task_config(overlay: str | Path | None = None,
-                     overrides: Mapping[str, Any] | None = None) -> TaskConfig:
-    """Load configs/default.yaml and apply a strict partial overlay."""
+def load_task_config(
+    overlay: str | Path | Sequence[str | Path] | None = None,
+    overrides: Mapping[str, Any] | None = None,
+) -> TaskConfig:
+    """Load configs/default.yaml and apply one or more strict partial overlays."""
     base = _read_yaml(DEFAULT_CONFIG_PATH)
     sources = [str(DEFAULT_CONFIG_PATH)]
     if overlay is not None:
-        overlay_path = Path(overlay)
-        _merge_strict(base, _read_yaml(overlay_path))
-        sources.append(str(overlay_path))
+        overlay_paths = [Path(overlay)] if isinstance(overlay, str | Path) else [Path(p) for p in overlay]
+        for overlay_path in overlay_paths:
+            _merge_strict(base, _read_yaml(overlay_path))
+            sources.append(str(overlay_path))
     if overrides:
         _merge_strict(base, overrides)
     schema_version = base["schema_version"]

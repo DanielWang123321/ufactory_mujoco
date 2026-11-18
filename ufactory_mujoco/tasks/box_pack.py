@@ -81,7 +81,7 @@ def run_box_pack(robot: SimRobot, config, cycles: int = 1, *,
     n_arm = robot.n_arm
 
     def viewer_closed() -> bool:
-        return robot._viewer is not None and not robot._viewer.is_running()
+        return robot.has_viewer and not robot.viewer_is_running
 
     results = []
     for i in range(cycles):
@@ -190,7 +190,7 @@ def run_box_pack(robot: SimRobot, config, cycles: int = 1, *,
     return results
 
 
-def _load(robot: str, gripper: str | None, executor: str | None, config: str | None,
+def _load(robot: str | None, gripper: str | None, executor: str | None, config: str | None,
           speed: float | None):
     extra = {"box_pack": {"speed_scale": speed}} if speed is not None else None
     return _motion.load_overlay(PACK_CONFIGS, robot, gripper, executor, config, extra)

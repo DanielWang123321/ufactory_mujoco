@@ -14,11 +14,24 @@ from .calibration import CalibrationError, KinematicsCalibration, load_kinematic
 from .collision import CollisionChecker
 from .config import ConfigError, TaskConfig, load_task_config
 from .dynamics import ArmDynamics, attach_payload
-from .ft_sensor import AI1500Reader, FTSensorReader, SensorReading, apply_ft_sensor_wrench
+from .ft_sensor import (
+    AI1500Reader,
+    FTSensorReader,
+    SensorReading,
+    apply_ft_sensor_wrench,
+    clear_ft_sensor_wrench,
+)
 from .g2_controller import G2Controller
 from .grippers import GraspError, GripperSpec, identify_gripper
 from .ik import solve_ik
-from .kinematics import fk_pose, manipulability, pose_jacobian, site_jacobian, solve_joint_velocity
+from .kinematics import (
+    fk_pose,
+    manipulability,
+    pose_jacobian,
+    quat_error,
+    site_jacobian,
+    solve_joint_velocity,
+)
 from .model_paths import MODELS_ROOT, resolve_model_path
 from .path_planning import PlanningError, plan_collision_free, shortcut_path
 from .robot_interface import RobotInterface
@@ -48,6 +61,7 @@ __all__ = [
     # kinematics
     "fk_pose",
     "solve_ik",
+    "quat_error",
     "site_jacobian",
     "pose_jacobian",
     "solve_joint_velocity",
@@ -66,6 +80,7 @@ __all__ = [
     "FTSensorReader",
     "SensorReading",
     "apply_ft_sensor_wrench",
+    "clear_ft_sensor_wrench",
     # collision-free planning
     "CollisionChecker",
     "plan_collision_free",

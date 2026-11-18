@@ -100,20 +100,16 @@ def run_avoidance(robot: SimRobot, checker: CollisionChecker, *, seed: int = 0,
         _preview(robot, traj.q[:: max(len(traj.q) // 40, 1)], [0.2, 0.9, 0.2, 0.8])
 
     monitor = {"max_penetration": 0.0}
-    original_step = robot._step
 
-    def checked_step():
-        original_step()
+    def check_contacts() -> None:
         for contact in robot.data.contact:
-            monitor["max_penetration"] = max(monitor["max_penetration"],
-                                             -float(contact.dist))
+            monitor["max_penetration"] = max(
+                monitor["max_penetration"], -float(contact.dist)
+            )
 
-    robot._step = checked_step
-    try:
-        robot.move_joints(q_start[: robot._n_arm_qpos], duration=1.5)
+    with robot.step_hook(check_contacts):
+        robot.move_joints(q_start[: robot.n_arm], duration=1.5)
         robot.execute_trajectory(traj)
-    finally:
-        robot._step = original_step
 
     error = float(np.max(np.abs(robot.get_joint_positions() - q_goal)))
     metrics["final_error_rad"] = error
@@ -129,7 +125,7 @@ def run_avoidance(robot: SimRobot, checker: CollisionChecker, *, seed: int = 0,
 
 def _preview(robot: SimRobot, q_states: np.ndarray, rgba) -> None:
     """Walk a marker along the FK path (GUI only, best effort)."""
-    if robot._viewer is None:
+    if not robot.has_viewer:
         return
     try:
         marker_id = mujoco.mj_name2id(robot.model, mujoco.mjtObj.mjOBJ_GEOM,
@@ -140,8 +136,29 @@ def _preview(robot: SimRobot, q_states: np.ndarray, rgba) -> None:
     robot.model.geom_rgba[marker_id] = rgba
     for p in robot.fk_positions(q_states):
         robot.data.mocap_pos[mocap_id] = p
-        robot._viewer.sync()
+        robot.sync_viewer()
         time.sleep(0.02)
+
+
+def _positive_float(value: str) -> float:
+    number = float(value)
+    if not np.isfinite(number) or number <= 0.0:
+        raise argparse.ArgumentTypeError("must be finite and positive")
+    return number
+
+
+def _nonnegative_float(value: str) -> float:
+    number = float(value)
+    if not np.isfinite(number) or number < 0.0:
+        raise argparse.ArgumentTypeError("must be finite and non-negative")
+    return number
+
+
+def _positive_int(value: str) -> int:
+    number = int(value)
+    if number < 1:
+        raise argparse.ArgumentTypeError("must be >= 1")
+    return number
 
 
 def main() -> None:
@@ -149,10 +166,10 @@ def main() -> None:
         description="Collision-free planning around obstacles (xArm 6).")
     ap.add_argument("--headless", action="store_true", help="no viewer, print metrics")
     ap.add_argument("--seed", type=int, default=0, help="RRT/shortcut seed (default: 0)")
-    ap.add_argument("--safety-margin", type=float, default=0.002,
+    ap.add_argument("--safety-margin", type=_nonnegative_float, default=0.002,
                     help="planning clearance in meters (default: 0.002)")
-    ap.add_argument("--step", type=float, default=0.15, help="RRT steer step (rad)")
-    ap.add_argument("--max-iter", type=int, default=2000)
+    ap.add_argument("--step", type=_positive_float, default=0.15, help="RRT steer step (rad)")
+    ap.add_argument("--max-iter", type=_positive_int, default=2000)
     args = ap.parse_args()
 
     checker = CollisionChecker(SCENE, safety_margin=args.safety_margin)

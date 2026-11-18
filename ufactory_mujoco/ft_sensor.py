@@ -71,7 +71,15 @@ def apply_ft_sensor_wrench(
     force: np.ndarray | tuple[float, float, float] | list[float],
     torque: np.ndarray | tuple[float, float, float] | list[float],
 ) -> None:
-    """Apply local-frame force (N) and torque (N*m) at the sensor output site."""
+    """Apply local-frame force (N) and torque (N*m) at the sensor output site.
+
+    Converts ``(force, torque)`` from the current ``ft_sensor_site`` frame into
+    world-frame ``data.xfrc_applied`` on the sensor output body. When the arm is
+    moving/rotating, call this helper before each physics step so the world
+    wrench tracks the rotating site frame, and call ``clear_ft_sensor_wrench``
+    afterwards. Note that MuJoCo force/torque sensors report internal reaction
+    wrenches, so an applied external wrench produces ``net_delta ~= -applied``.
+    """
     f_local = np.asarray(force, dtype=float)
     t_local = np.asarray(torque, dtype=float)
     if f_local.shape != (3,) or t_local.shape != (3,):
@@ -98,6 +106,16 @@ def apply_ft_sensor_wrench(
     data.xfrc_applied[body_id, 3:] = world_torque + np.cross(
         data.site_xpos[site_id] - data.xipos[body_id], world_force
     )
+
+
+def clear_ft_sensor_wrench(model: mujoco.MjModel, data: mujoco.MjData) -> None:
+    """Clear any external wrench applied to the FT sensor output body."""
+    for body_name, _site_name in _WRENCH_TARGETS:
+        b = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, body_name)
+        if b >= 0:
+            data.xfrc_applied[b] = 0.0
+            return
+    raise ValueError("FT sensor output body is missing")
 
 
 class AI1500Reader:

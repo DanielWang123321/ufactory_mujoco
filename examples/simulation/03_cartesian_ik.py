@@ -45,19 +45,19 @@ def main() -> None:
         # --- 1) straight line: +0.15 m along X, then back (pose fully constrained)
         robot.move_tcp(p0 + np.array([0.15, 0, 0]), q0, duration=2.5)
         p1, _ = robot.get_tcp_pose()
+        line_err_mm = float(np.linalg.norm(p1 - (p0 + [0.15, 0, 0])) * 1e3)
         robot.move_tcp(p0, q0, duration=2.5)
-        print(f"line segment done, max deviation from line goal: "
-              f"{np.linalg.norm(p1 - (p0 + [0.15, 0, 0])) * 1e3:.2f} mm")
+        print(f"line segment done, max deviation from line goal: {line_err_mm:.2f} mm")
 
         # --- 2) circle in X-Z plane, orientation locked, IK waypoint tracking
         waypoints = circle_waypoints(p0, CIRCLE_RADIUS, CIRCLE_POINTS)
-        q_traj, ok = robot.ik_trajectory(waypoints, q0, pos_tol=5e-5)
-        if not ok:
+        q_traj, ik_ok = robot.ik_trajectory(waypoints, q0, pos_tol=5e-5)
+        if not ik_ok:
             print("WARNING: some circle waypoints did not fully converge")
 
         for q in q_traj:
             robot.move_joints(q, duration=4 * robot.model.opt.timestep, wait=False)
-            if robot._viewer is not None and not robot._viewer.is_running():
+            if robot.has_viewer and not robot.viewer_is_running:
                 return
         robot.settle(0.5)
 
@@ -66,9 +66,10 @@ def main() -> None:
         errs = np.linalg.norm(fk - waypoints, axis=1) * 1e3
         print(f"circle tracking error (FK vs command): mean={errs.mean():.3f} mm  "
               f"max={errs.max():.3f} mm")
-        if args.headless:
-            ok = errs.max() < 1.0
-            print("PASS" if ok else "FAIL", f"(max {errs.max():.3f} mm < 1 mm)")
+        ok = bool(ik_ok and line_err_mm < 2.0 and errs.max() < 1.0)
+        print("PASS" if ok else "FAIL", f"(line {line_err_mm:.2f} mm < 2 mm, circle max {errs.max():.3f} mm < 1 mm)")
+        if not ok:
+            sys.exit(1)
 
 
 if __name__ == "__main__":

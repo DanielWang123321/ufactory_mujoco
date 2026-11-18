@@ -87,7 +87,7 @@ ufactory-mujoco dynamics --robot all --headless --report reports/dynamics.json
 - `python -m ufactory_mujoco <命令>` 与之等价；示例 `05`、`08`、`10` 运行的是同一份代码。
 - `命令 --help` 列出参数；完整参数表见 [examples/simulation/README_zh.md](examples/simulation/README_zh.md#3-命令行参数汇总)。
 - `--dry-run` 只做预检，不步进物理。
-- 退出码：`0` 成功；`1` 运行、预检、安全门或报告失败；`2` 参数或配置非法。
+- 退出码：`0` 成功；`1` 运行、预检、安全门、模型资源缺失（`UFACTORY_MUJOCO_MODELS`）或报告失败；`2` 参数或配置非法（含任务与场景类型不匹配）。
 - `--report` 路径相对当前目录，自动创建父目录。
 - 真机模式（`--mode sdk-sim` / `real`，`dynamics` 另有 `real-read-only`）需要 `--ip`（或 `XARM_IP`）和匹配的 `--calibration` 标定文件；`real` 还需 `--confirm-real`；`sdk-sim` 与 `real` 只运行一个周期。
 
@@ -126,7 +126,8 @@ ruff check .                      # 与 CI 相同的静态检查（pip install r
 - 对齐 `ufactory_genesis` Schema v4 的裸臂 20 姿态真机静态力矩验证（`dynamics-hardware-check`，真机关节运动速度硬限制 `<= 40 °/s`）已在 Python 3.14.6、MuJoCo 4.0.1 下完成全部五款机型实测：xArm 5（固件 v2.8.2，`--nominal-model`，20/20 PASS，L2 力矩误差 0.520–0.780 Nm —— 因控制盒 502 端口 `0x08` 在平行轴构型下返回退化参数，`export-calibration` 返回退出码 `2` 跳过，验证改用名义 MJCF 模型，静态力矩与标定前一致，仅相对控制盒 POE 存在约 `2.6–4.2 mm` 笛卡尔正运动学差异）、xArm 6（固件 v2.8.0，20/20 PASS，L2 力矩误差 0.470–0.765 Nm）、xArm 7（固件 v2.8.2，20/20 PASS，L2 力矩误差 0.816–3.303 Nm）、Lite 6（固件 v2.8.2，20/20 PASS，L2 力矩误差 0.028–0.156 Nm）与 UF850（固件 v2.8.100，20/20 PASS，L2 力矩误差 0.086–0.569 Nm）各一台；抓放/装箱真机模式已在 xArm 6（v2.8.0）上验证，3 kg 负载静态力矩比对（≤ 2.5 %）为单次历史实测。
 - 真空吸盘（`lite6_vacuum_gripper`、`vacuum_gripper` 及其机械臂组合）为静态模型，不含吸附模型。它们与独立相机、`camera_stand*`、`<机械臂>_with_d435`、`ft_sensor`、`<机械臂>_with_ft_sensor`、`*_base_plate`、`<机械臂>_with_base_plate` 都没有夹爪执行器，`04_gripper_control.py` 会拒绝这些模型（退出码 `2`）。
 - 深度相机与 `camera_stand` 模型提供外观几何、安装面/螺钉孔 `<site>`（`group=4`）与近似碰撞体（`group=3`），`mass=0` 且不含 MuJoCo `<camera>` 光学成像传感器；动力学场景请通过 `attach_payload` 注入相机与支架负载。
-- `ft_sensor` 系列模型将 UFACTORY AI1500（`0.6 kg`、`+58.6 mm` 输出偏置、`1 ms` 步长 / `200 Hz` 确定性保持、`0.4 N` / `0.01 Nm` 量化、`±400 N / ±20 Nm` 超量程、`±600 N / ±30 Nm` 过载）作为理想刚体传感器在 `ft_sensor_site` 处采样，未模拟滞后、串扰、噪声、漂移、温漂与硬件滤波；`lite6`（物理/通信不兼容）与 `bio_gripper_g2` 未构建 `ft_sensor` 组合。
+- `ft_sensor` 系列模型将 UFACTORY AI1500（`0.6 kg`、`+58.6 mm` 输出偏置、`1 ms` 步长 / `200 Hz` 确定性保持、`0.4 N` / `0.01 Nm` 量化、`±400 N / ±20 Nm` 超量程、`±600 N / ±30 Nm` 过载）作为理想刚体支反力传感器在 `ft_sensor_site` 处采样（净增量 `≈ -外加载荷`），未模拟滞后、串扰、噪声、漂移、温漂与硬件滤波；`lite6`（物理/通信不兼容）与 `bio_gripper_g2` 未构建 `ft_sensor` 组合。
+- 跨后端契约差异（`RobotInterface`）：`SimRobot.move_tcp` 执行笛卡尔直线与 SLERP 插值，而 `XArmRobot.move_tcp` 求解目标位姿 IK 后走关节空间运动（`XArmRobot.move_joints` 受 `max_joint_speed_rad_s` 限速约束，`SimRobot` 中 `wait=False` 仅跳过末尾 `settle`）；需跨仿真与真机严格走同一空间直线时请统一调用 `plan_cartesian_trajectory` + `execute_trajectory`。Gripper G2 / Bio Gripper G2 传入 `speed_percent=0` 会暂停夹爪运动并维持接触预紧，后续省略 `speed_percent` 的指令会自动恢复上一次正速度。
 - 安装底板（`*_base_plate`）碰撞网格（`group=3`）采用填孔凸棱柱以便在默认步长下稳定接触；视觉网格（`group=2`）保留完整通孔与安装槽，因此碰撞检测不适用于模拟螺栓穿孔。
 - 任务报告在 MuJoCo 4.0.0 与 4.0.1 下逐字节一致；其他 MuJoCo 版本可能使结果在数值上不同。
 

@@ -13,7 +13,7 @@ from typing import Any
 import mujoco
 import numpy as np
 
-from ..config import load_task_config
+from ..config import ConfigError, _read_yaml, load_task_config
 from ..task_geometry import GRIP_DOWN_QUAT
 from ..trajectory import JointTrajectory, plan_joint_waypoints
 
@@ -92,10 +92,15 @@ def print_phases(report) -> None:
         print(f"  {phase.name}: {phase.status}{reason}")
 
 
-def load_overlay(configs_dir: Path, robot: str, gripper: str | None, executor: str | None,
+def load_overlay(configs_dir: Path, robot: str | None, gripper: str | None, executor: str | None,
                  config: str | None, extra: dict[str, Any] | None = None):
-    """Load ``config`` (or ``configs_dir/<robot>.yaml``) with optional CLI overrides."""
-    overlay = config or (configs_dir / f"{robot}.yaml")
+    """Load ``config`` (or ``configs_dir/<robot>.yaml``) with optional CLI overrides.
+
+    When both ``robot`` and ``config`` are explicitly supplied:
+    - if ``config`` declares a different ``robot``, raise ``ConfigError``;
+    - otherwise layer ``configs_dir/<robot>.yaml`` beneath ``config`` so partial
+      overlays inherit the requested robot's task geometry and gripper defaults.
+    """
     overrides: dict[str, Any] = {}
     if gripper:
         overrides["gripper"] = gripper
@@ -103,4 +108,19 @@ def load_overlay(configs_dir: Path, robot: str, gripper: str | None, executor: s
         overrides["executor"] = executor
     if extra:
         overrides.update(extra)
-    return load_task_config(overlay, overrides or None)
+
+    if config is None:
+        effective_robot = robot or "xarm6"
+        return load_task_config(configs_dir / f"{effective_robot}.yaml", overrides or None)
+
+    config_path = Path(config)
+    if robot is None:
+        return load_task_config(config_path, overrides or None)
+
+    custom_raw = _read_yaml(config_path)
+    if "robot" in custom_raw and custom_raw["robot"] != robot:
+        raise ConfigError(
+            f"--robot {robot!r} conflicts with robot {custom_raw['robot']!r} in {config_path}"
+        )
+    preset_path = configs_dir / f"{robot}.yaml"
+    return load_task_config((preset_path, config_path), overrides or None)

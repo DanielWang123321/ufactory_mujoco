@@ -746,6 +746,8 @@ def main(argv=None) -> None:
     args = parser.parse_args(argv)
     if args.mode == "sim" and args.gripper is not None:
         parser.error("--gripper is only supported in hardware modes (--mode real-read-only, sdk-sim, real)")
+    if args.mode != "sim" and args.robot == "all":
+        parser.error("--robot all is only supported in --mode sim")
     if args.mode != "sim":
         report = run_hardware_dynamics_validation(
             args.robot,

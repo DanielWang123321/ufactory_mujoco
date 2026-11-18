@@ -38,6 +38,17 @@ class TaskConfigTests(unittest.TestCase):
             with self.assertRaises(ConfigError):
                 load_task_config(self.overlay_path)
 
+    def test_booleans_rejected_for_numeric_fields(self):
+        for snippet in (
+            "pick_place:\n  lift_z_m: true\n",
+            "pick_place:\n  grasp_gap_m: false\n",
+            "pick_place:\n  cube_xy: [true, 0.1]\n",
+            "box_pack:\n  speed_scale: true\n",
+        ):
+            with self.subTest(snippet=snippet), self._overlay(snippet):
+                with self.assertRaises(ConfigError):
+                    load_task_config(self.overlay_path)
+
     def test_hash_is_stable_and_changes_with_robot(self):
         with self._overlay("robot: lite6\n"):
             first = load_task_config(self.overlay_path)

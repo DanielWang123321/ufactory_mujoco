@@ -213,7 +213,8 @@ def manipulation_main(command, argv=None):
     """Shared CLI for ``pick-place`` and ``box-pack``: parse arguments, run the mode, return the exit code."""
     task = importlib.import_module(f"ufactory_mujoco.tasks.{command.replace('-', '_')}")
     parser = argparse.ArgumentParser(prog=f"ufactory-mujoco {command}", description=task.__doc__)
-    parser.add_argument("--robot", choices=tuple(ARMS), default="xarm6")
+    parser.add_argument("--robot", choices=tuple(ARMS), default=None,
+                        help="arm key (defaults to xarm6 when --config is omitted)")
     parser.add_argument("--gripper", help="override the overlay gripper")
     parser.add_argument("--executor", choices=EXECUTORS)
     parser.add_argument("--config", help="overlay YAML instead of the robot default")
@@ -246,6 +247,11 @@ def manipulation_main(command, argv=None):
         if command == "box-pack":
             load_args.append(args.speed)
         config = task._load(*load_args)
+        expected_scene = "pick_place" if command == "pick-place" else "box_pack"
+        if config.scene != expected_scene:
+            raise ConfigError(
+                f"{command} requires scene={expected_scene!r}, got {config.scene!r}"
+            )
         if command == "box-pack" and args.cycles > len(config.box_pack.feed_xy):
             raise ConfigError(f"cycles must be in 1..{len(config.box_pack.feed_xy)}")
     except ModelResourceError as exc:

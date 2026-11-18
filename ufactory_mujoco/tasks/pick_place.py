@@ -57,7 +57,7 @@ def run_pick_place(robot: SimRobot, config, cycles: int = 1, *,
     target3 = np.array([task.target_xy[0], task.target_xy[1], cube_z])
 
     def viewer_closed() -> bool:
-        return robot._viewer is not None and not robot._viewer.is_running()
+        return robot.has_viewer and not robot.viewer_is_running
 
     results = []
     for cycle in range(1, cycles + 1):
@@ -143,7 +143,7 @@ def run_pick_place(robot: SimRobot, config, cycles: int = 1, *,
     return results
 
 
-def _load(robot: str, gripper: str | None, executor: str | None, config: str | None):
+def _load(robot: str | None, gripper: str | None, executor: str | None, config: str | None):
     return _motion.load_overlay(PICK_CONFIGS, robot, gripper, executor, config)
 
 

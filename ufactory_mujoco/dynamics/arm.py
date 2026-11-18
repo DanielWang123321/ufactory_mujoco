@@ -112,6 +112,8 @@ class ArmDynamics:
         v = np.asarray(v, dtype=float)
         if v.ndim != 1:
             raise ValueError("expected a one-dimensional joint vector")
+        if not np.all(np.isfinite(v)):
+            raise ValueError("joint vector must contain only finite values")
         if v.size == n:
             return v
         if v.size == self.n_arm:
@@ -133,10 +135,10 @@ class ArmDynamics:
 
     # -- dynamics terms -------------------------------------------------------
     def mass_matrix(self, q, full: bool = False) -> np.ndarray:
-        """Dense symmetric positive-definite mass matrix M(q), shape (nv, nv).
+        """Dense symmetric positive-definite mass matrix M(q), shape (n_arm, n_arm) or (nv, nv).
 
-        Leaves data.qM as the unfactored inertia (mj_crb output), so callers
-        may mj_factorM + mj_solveM against it directly afterwards.
+        Evaluates composite rigid-body inertia via ``mj_crb`` and unpacks the
+        dense matrix with ``mj_fullM``.
         """
         self._set(q)
         mujoco.mj_kinematics(self.model, self.data)
@@ -215,9 +217,16 @@ class ArmDynamics:
         exactly zero derivatives. Moving grippers with nonzero acceleration
         require full=True. Returns (N, n_arm), or (N, nv) when full=True.
         """
+        dt = float(dt)
+        if not np.isfinite(dt) or dt <= 0.0:
+            raise ValueError(f"dt must be finite and strictly positive, got {dt!r}")
         q = np.asarray(q_traj, dtype=float)
-        if q.ndim != 2 or q.shape[1] not in (self.n_arm, self.model.nq):
-            raise ValueError(f"q_traj must be (N, {self.n_arm}) or (N, {self.model.nq})")
+        if q.ndim != 2 or q.shape[0] < 2 or q.shape[1] not in (self.n_arm, self.model.nq):
+            raise ValueError(
+                f"q_traj must have shape (N >= 2, {self.n_arm}) or (N >= 2, {self.model.nq}), got {q.shape}"
+            )
+        if not np.all(np.isfinite(q)):
+            raise ValueError("q_traj must contain only finite values")
         qd = np.gradient(q, dt, axis=0, edge_order=2)
         qdd = np.gradient(qd, dt, axis=0, edge_order=2)
         stationary = np.all(q == q[0], axis=0)

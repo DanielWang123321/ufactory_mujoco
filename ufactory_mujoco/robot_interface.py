@@ -44,15 +44,27 @@ class RobotInterface(ABC):
 
     @abstractmethod
     def move_joints(self, q_goal: np.ndarray, duration: float, wait: bool = True) -> None:
-        """Move arm to q_goal with quintic interpolation over `duration` seconds.
+        """Move arm to ``q_goal`` (shape ``(n_arm,)``) over ``duration`` seconds.
 
-        ``q_goal`` must have shape ``(n_arm,)``.
+        Backend notes:
+        - ``SimRobot`` steps a quintic trajectory for ``duration`` seconds (``wait=False``
+          skips only the trailing ``settle``).
+        - ``XArmRobot`` commands controller joint PTP capped by ``max_joint_speed_rad_s``
+          (actual duration may exceed ``duration`` when speed-limited; ``wait=False``
+          returns immediately after dispatching the SDK command).
         """
 
     @abstractmethod
     def move_tcp(self, pos: np.ndarray, quat: np.ndarray, duration: float,
                  wait: bool = True) -> None:
-        """Move TCP to pose (pos (3,), quat wxyz (4,)) using IK, interpolated."""
+        """Move TCP to pose ``(pos (3,), quat wxyz (4,))``.
+
+        Backend notes:
+        - ``SimRobot`` interpolates a straight Cartesian path with shortest-path SLERP.
+        - ``XArmRobot`` solves endpoint IK and moves in joint space via ``move_joints``.
+        To execute identical straight-line Cartesian paths on both backends, use
+        ``plan_cartesian_trajectory`` followed by ``execute_trajectory``.
+        """
 
     @abstractmethod
     def execute_trajectory(self, traj: JointTrajectory, wait: bool = True) -> None:

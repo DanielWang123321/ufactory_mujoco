@@ -110,14 +110,14 @@ def get_arm_targets(robot: SimRobot, model_name: str) -> tuple[np.ndarray, np.nd
     arm = model_name.split("_with_")[0]
     if arm in PRESETS and ready_id >= 0:
         # The bare arm's all-zero ready pose would put a mounted tool into the floor.
-        ready = robot.model.key(ready_id).qpos[:robot._n_arm_qpos].copy()
+        ready = robot.model.key(ready_id).qpos[:robot.n_arm].copy()
         return ready, np.array(PRESETS[arm][1], dtype=float)
 
     # Fallback: extract from keyframe 'ready'
     if ready_id >= 0:
-        ready = robot.model.key(ready_id).qpos[:robot._n_arm_qpos].copy()
+        ready = robot.model.key(ready_id).qpos[:robot.n_arm].copy()
     else:
-        ready = np.zeros(robot._n_arm_qpos)
+        ready = np.zeros(robot.n_arm)
 
     demo = ready.copy()
     demo[0] += 0.2
@@ -154,7 +154,7 @@ def main() -> None:
 
     with SimRobot(model_path=model_path, viewer=not args.headless, viewer_hz=args.sync_hz,
                   low_power_rendering=args.render_quality == "fast") as robot:
-        print(f"Loaded: {args.model} ({robot._n_arm_actuators} arm actuators)")
+        print(f"Loaded: {args.model} ({robot.n_arm_actuators} arm actuators)")
         if motion == "dynamics":
             ready_q, targets = get_dynamics_targets()
         else:
@@ -167,8 +167,8 @@ def main() -> None:
             print(f"Rendering: {args.render_quality}, state sync {args.sync_hz:g} Hz")
 
         # Set initial pose to ready
-        robot.data.qpos[:robot._n_arm_qpos] = ready_q
-        robot.data.ctrl[:robot._n_arm_actuators] = ready_q
+        robot.data.qpos[:robot.n_arm] = ready_q
+        robot.data.ctrl[:robot.n_arm_actuators] = ready_q
         mujoco.mj_forward(robot.model, robot.data)
         robot.settle(0.5)
 
@@ -176,16 +176,16 @@ def main() -> None:
 
         worst_error = 0.0
         for target_name, q in targets:
-            if robot._viewer is not None and not robot._viewer.is_running():
+            if robot.has_viewer and not robot.viewer_is_running:
                 print("Viewer closed; motion stopped.")
                 return
             duration = args.duration if args.duration is not None else move_duration(
-                robot.data.ctrl[:robot._n_arm_actuators], q, args.speed,
+                robot.data.ctrl[:robot.n_arm_actuators], q, args.speed,
                 robot.model.opt.timestep,
             )
             print(f"Moving to {target_name} pose ({duration:.3f} s)...")
             robot.move_joints(q, duration=duration)
-            if robot._viewer is not None and not robot._viewer.is_running():
+            if robot.has_viewer and not robot.viewer_is_running:
                 print("Viewer closed; motion stopped.")
                 return
             worst_error = max(worst_error, float(np.max(np.abs(robot.get_joint_positions() - q))))

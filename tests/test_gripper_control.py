@@ -230,6 +230,48 @@ class GripperControlTest(unittest.TestCase):
 
             self.assertFalse(penetrating_contacts, f"Unexpected contacts: {penetrating_contacts}")
 
+    def test_speed_zero_pause_resumes_on_subsequent_default_commands(self):
+        """A2: speed_percent=0 pauses jaw motion, and a subsequent open/close without speed_percent resumes."""
+        for model_name, closed_gap_m, open_gap_m in (
+            ("xarm6_with_gripper", 0.0, 0.084),
+            ("xarm6_with_bio_gripper", 0.071, 0.150),
+        ):
+            with self.subTest(model=model_name):
+                with SimRobot(MODELS_ROOT / model_name / "scene.xml", viewer=False) as robot:
+                    robot.open_gripper(wait=True, speed_percent=100.0)
+                    gap_before = robot.get_gripper_gap(measured=True)
+                    self.assertAlmostEqual(gap_before, open_gap_m, delta=0.004)
+
+                    # Command close with speed_percent=0 -> paused, physical gap stays open
+                    robot.close_gripper(wait=True, speed_percent=0.0)
+                    self.assertAlmostEqual(robot.get_gripper_gap(measured=True), gap_before, delta=0.002)
+
+                    # Subsequent close_gripper() omitting speed_percent must resume and actually close
+                    robot.close_gripper(wait=True)
+                    self.assertAlmostEqual(robot.get_gripper_gap(measured=True), closed_gap_m, delta=0.004)
+
+                    # Pause again on open, then resume on default open_gripper()
+                    robot.open_gripper(wait=True, speed_percent=0.0)
+                    self.assertAlmostEqual(robot.get_gripper_gap(measured=True), closed_gap_m, delta=0.004)
+                    robot.open_gripper(wait=True)
+                    self.assertAlmostEqual(robot.get_gripper_gap(measured=True), open_gap_m, delta=0.004)
+
+    def test_set_gripper_rejects_nan_without_corrupting_arm_state(self):
+        """A3: NaN gripper inputs raise ValueError and never reset arm ctrl/qpos to zero."""
+        with SimRobot(MODELS_ROOT / "lite6_with_gripper" / "scene.xml", viewer=False) as robot:
+            q_safe = np.array([0.4, 0.2, 0.6, 0.0, 0.4, -0.2])
+            robot.move_joints(q_safe, duration=0.8, wait=True)
+            q_before = robot.get_joint_positions()
+            ctrl_before = robot.data.ctrl.copy()
+            for bad in (float("nan"), float("inf"), -float("inf")):
+                with self.assertRaises(ValueError):
+                    robot.set_gripper(bad)
+                with self.assertRaises(ValueError):
+                    robot.set_gripper_gap(bad)
+            robot.settle(0.1)
+            np.testing.assert_allclose(robot.get_joint_positions(), q_before, atol=1e-3)
+            np.testing.assert_allclose(robot.data.ctrl[:6], ctrl_before[:6], atol=1e-12)
+
 
 if __name__ == "__main__":
     unittest.main()

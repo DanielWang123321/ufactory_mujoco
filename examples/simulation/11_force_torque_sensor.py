@@ -24,7 +24,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
 
-from ufactory_mujoco import SimRobot, apply_ft_sensor_wrench  # noqa: E402
+from ufactory_mujoco import SimRobot, apply_ft_sensor_wrench, clear_ft_sensor_wrench  # noqa: E402
+from ufactory_mujoco.ft_sensor import RESOLUTION  # noqa: E402
 from ufactory_mujoco.model_paths import resolve_model_path  # noqa: E402
 
 
@@ -107,14 +108,14 @@ def main() -> None:
         n_steps = max(1, round(args.duration / robot.model.opt.timestep))
         stopped_early = False
         for _ in range(n_steps):
-            if robot._viewer is not None and not robot._viewer.is_running():
+            if robot.has_viewer and not robot.viewer_is_running:
                 stopped_early = True
                 break
             apply_ft_sensor_wrench(robot.model, robot.data, force, torque)
-            robot._step()
+            robot.step()
 
         loaded = robot.get_ft_sensor_reading()
-        robot.data.xfrc_applied[:] = 0.0
+        clear_ft_sensor_wrench(robot.model, robot.data)
         mujoco.mj_forward(robot.model, robot.data)
 
         if stopped_early:
@@ -122,9 +123,14 @@ def main() -> None:
             return
 
         net_delta = loaded.raw - baseline.raw
+        sampled_delta = loaded.sampled - baseline.sampled
         expected_delta = -np.concatenate((force, torque))
         force_err = float(np.linalg.norm(net_delta[:3] - expected_delta[:3]))
         torque_err = float(np.linalg.norm(net_delta[3:] - expected_delta[3:]))
+        sampled_force_err = float(np.linalg.norm(sampled_delta[:3] - expected_delta[:3]))
+        sampled_torque_err = float(np.linalg.norm(sampled_delta[3:] - expected_delta[3:]))
+        quant_force_tol = float(0.5 + np.linalg.norm(RESOLUTION[:3]))
+        quant_torque_tol = float(0.05 + np.linalg.norm(RESOLUTION[3:]))
 
         print(f"Applied local wrench [F, T]:      {np.round(np.concatenate((force, torque)), 4)}")
         print(f"Loaded raw wrench:                {np.round(loaded.raw, 4)}")
@@ -134,9 +140,16 @@ def main() -> None:
         print(f"Overrange axes: {loaded.overrange.tolist()}  Overload axes: {loaded.overload.tolist()}")
         print(f"Net error: force={force_err:.4f} N (< 0.5), torque={torque_err:.4f} Nm (< 0.05)")
 
-        ok = force_err < 0.5 and torque_err < 0.05 and np.isfinite(loaded.raw).all()
+        ok = (
+            force_err < 0.5
+            and torque_err < 0.05
+            and sampled_force_err < quant_force_tol
+            and sampled_torque_err < quant_torque_tol
+            and np.isfinite(loaded.raw).all()
+            and np.isfinite(loaded.sampled).all()
+        )
         print("PASS" if ok else "FAIL")
-        if args.headless and not ok:
+        if not ok:
             sys.exit(1)
 
 

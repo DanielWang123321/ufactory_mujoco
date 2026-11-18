@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 import numpy as np  # noqa: E402
 
 from ufactory_mujoco import (  # noqa: E402
+    MODELS_ROOT,
     SimRobot,
     plan_joint_waypoints,
 )
@@ -35,10 +36,18 @@ WAYPOINTS = np.array([
 ])
 
 
+def _positive_float(value: str) -> float:
+    number = float(value)
+    if not np.isfinite(number) or number <= 0.0:
+        raise argparse.ArgumentTypeError("must be finite and positive")
+    return number
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Trajectory planning and execution example.")
     parser.add_argument("--headless", action="store_true", help="run headless without 3D viewer")
-    parser.add_argument("--speed", type=float, default=90.0, help="max joint speed in deg/s (default: 90)")
+    parser.add_argument("--speed", type=_positive_float, default=90.0,
+                        help="max joint speed in deg/s (default: 90)")
     args = parser.parse_args()
 
     max_vel = np.deg2rad(args.speed)
@@ -103,6 +112,7 @@ def main() -> None:
         print(f"\n[4] Planning Cartesian Straight Line: {np.round(p_now, 3)} -> {np.round(p_line_target, 3)} "
               f"(dist: {np.linalg.norm(p_line_target - p_now) * 1000:.1f} mm)...")
 
+        cart_err_mm = float("inf")
         cart_traj, ok = robot.plan_cartesian_trajectory(p_line_target, quat_now, max_lin_vel=0.15, max_lin_acc=0.8)
         if not ok:
             print("    WARNING: Cartesian IK did not fully converge!")
@@ -111,22 +121,33 @@ def main() -> None:
             print("    Executing Cartesian trajectory...")
             robot.execute_trajectory(cart_traj, wait=True)
             p_final, _ = robot.get_tcp_pose()
-            cart_err_mm = np.linalg.norm(p_final - p_line_target) * 1000.0
+            cart_err_mm = float(np.linalg.norm(p_final - p_line_target) * 1000.0)
             print(f"    Cartesian arrival error: {cart_err_mm:.2f} mm")
 
         # -----------------------------------------------------------------
         # 4. Trajectory-Dynamics Integration (Feedforward Torques)
         # -----------------------------------------------------------------
         print("\n[5] Trajectory Feedforward Dynamics Integration...")
-        dyn = ArmDynamics("models/xarm6/xarm6.xml")
+        dyn = ArmDynamics(MODELS_ROOT / "xarm6" / "xarm6.xml")
         tau_ff = dyn.feedforward_traj(spline_traj.q, dt=spline_traj.dt)
         print(f"    Computed feedforward torques for {len(tau_ff)} trajectory frames.")
         print(f"    Torque envelope across motion: min={np.round(np.min(tau_ff, axis=0), 2)} Nm, "
               f"max={np.round(np.max(tau_ff, axis=0), 2)} Nm")
 
+        if robot.has_viewer and not robot.viewer_is_running:
+            return
+        all_ok = bool(
+            ptp_err < 0.01
+            and spline_err < 0.01
+            and ok
+            and cart_err_mm < 2.0
+            and np.all(np.isfinite(tau_ff))
+        )
         print("\n=================================================================")
-        print("                  All Trajectory Tests PASS!                     ")
+        print("                  All Trajectory Tests " + ("PASS!" if all_ok else "FAIL!") + "                     ")
         print("=================================================================")
+        if not all_ok:
+            sys.exit(1)
 
 
 if __name__ == "__main__":

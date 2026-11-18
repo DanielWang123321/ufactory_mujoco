@@ -59,6 +59,39 @@ class CommandTests(unittest.TestCase):
         for speed in ("0", "-1", "nan", "inf"):
             self.assertEqual(exit_code(["box-pack", "--speed", speed, "--headless"]), 2)
         self.assertEqual(exit_code(["box-pack", "--cycles", "4", "--headless"]), 2)
+        # dynamics --robot all is invalid in hardware modes -> exit code 2
+        for hw_mode in ("real-read-only", "sdk-sim", "real"):
+            self.assertEqual(exit_code(["dynamics", "--robot", "all", "--mode", hw_mode]), 2)
+
+    def test_config_and_robot_interaction_and_scene_mismatch_exit_code_2(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as tmp:
+            minimal = Path(tmp) / "minimal.yaml"
+            minimal.write_text("schema_version: 1\n", encoding="utf-8")
+            # Without --robot, minimal overlay leaves scene='scene' -> ConfigError exit code 2
+            self.assertEqual(exit_code(["pick-place", "--config", str(minimal), "--dry-run"]), 2)
+            # Passing box_pack config to pick-place -> scene mismatch exit code 2
+            self.assertEqual(
+                exit_code(["pick-place", "--config", str(CONFIGS_ROOT / "box_pack/xarm6.yaml"), "--dry-run"]),
+                2,
+            )
+            # Conflicting --robot vs YAML robot -> ConfigError exit code 2
+            self.assertEqual(
+                exit_code([
+                    "pick-place", "--robot", "lite6",
+                    "--config", str(CONFIGS_ROOT / "pick_place/xarm6.yaml"), "--dry-run",
+                ]),
+                2,
+            )
+            # Partial overlay + explicit --robot lite6 inherits lite6 preset and runs lite6 (fixes A4)
+            rep_path = Path(tmp) / "lite6_rep.json"
+            self.assertEqual(
+                exit_code([
+                    "pick-place", "--robot", "lite6", "--config", str(minimal),
+                    "--dry-run", "--report", str(rep_path),
+                ]),
+                0,
+            )
+            self.assertEqual(json.loads(rep_path.read_text(encoding="utf-8"))["robot"], "lite6")
 
     def test_runtime_value_error_is_failure_not_argument_error(self):
         for command, module, function in (("pick-place", pick_place, "run_pick_place"),
@@ -154,6 +187,26 @@ class TaskPackagingTests(unittest.TestCase):
                          ["requirements-lock.txt"])
         project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
         self.assertEqual(set(project["optional-dependencies"]), {"test"})
+
+    def test_examples_avoid_private_robot_attributes_and_run_outside_repo_cwd(self):
+        for path in sorted((ROOT / "examples" / "simulation").glob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Attribute) and node.attr.startswith("_"):
+                    self.fail(f"{path.name}:{node.lineno} accesses private attribute .{node.attr}")
+
+        script_06 = ROOT / "examples" / "simulation" / "06_trajectory_planning.py"
+        with tempfile.TemporaryDirectory() as outside_cwd:
+            res = subprocess.run(
+                [sys.executable, str(script_06), "--headless"],
+                cwd=outside_cwd,
+                env=dict(os.environ, PYTHONPATH=str(ROOT)),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+        self.assertEqual(res.returncode, 0, res.stderr + res.stdout)
+        self.assertIn("PASS!", res.stdout)
 
 
 class SimRobotDefaultModelTests(unittest.TestCase):

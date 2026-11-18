@@ -25,12 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
 
-from ufactory_mujoco import SimRobot  # noqa: E402
-from ufactory_mujoco.kinematics import (  # noqa: E402
-    fk_pose,
-    pose_jacobian,
-    quat_error,
-)
+from ufactory_mujoco import SimRobot, fk_pose, pose_jacobian, quat_error  # noqa: E402
 from ufactory_mujoco.model_paths import MODELS_ROOT  # noqa: E402
 
 SCENE = MODELS_ROOT / "xarm6" / "scene.xml"
@@ -60,7 +55,7 @@ def check_jacobian(robot: SimRobot, q: np.ndarray, h: float = FD_STEP) -> float:
         dq = np.zeros(n)
         dq[i] = h
         q_plus = np.zeros(robot.model.nq)
-        q_plus[: robot._n_arm_qpos] = q
+        q_plus[: robot.n_arm] = q
         q_minus = q_plus.copy()
         mujoco.mj_integratePos(robot.model, q_plus, dq, 1.0)
         mujoco.mj_integratePos(robot.model, q_minus, dq, -1.0)

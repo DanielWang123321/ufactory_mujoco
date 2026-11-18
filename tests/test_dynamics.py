@@ -366,6 +366,22 @@ class CombinedDynamicsTest(unittest.TestCase):
                 self.assertEqual(dyn.feedforward_traj(trajectory, 0.01, full=True).shape,
                                  (5, dyn.nv))
 
+    def test_feedforward_and_dynamics_validate_dt_and_finite_inputs(self):
+        dyn = self.models["xarm6"]
+        q = self.position(dyn, 0.2)
+        traj = np.vstack([q, q + 0.01])
+        for bad_dt in (0.0, -0.01, float("nan"), float("inf")):
+            with self.assertRaises(ValueError):
+                dyn.feedforward_traj(traj, bad_dt)
+        with self.assertRaises(ValueError):
+            dyn.feedforward_traj(q[None, :], 0.01)
+        q_nan = q.copy()
+        q_nan[0] = np.nan
+        with self.assertRaises(ValueError):
+            dyn.gravity(q_nan)
+        with self.assertRaises(ValueError):
+            dyn.feedforward_traj(np.vstack([q, q_nan]), 0.01)
+
 
 if __name__ == "__main__":
     unittest.main()

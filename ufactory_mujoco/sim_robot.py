@@ -3,6 +3,9 @@ joint interpolation, optional passive viewer, IK-based TCP moves, and
 optional gripper control.
 """
 
+from collections.abc import Callable
+from contextlib import contextmanager
+import math
 import time
 from pathlib import Path
 
@@ -139,6 +142,20 @@ class SimRobot(RobotInterface):
         self._bio_g2_adapter: MuJoCoBioG2Adapter | None = None
         self._bio_g2_controller: BioGripperG2Controller | None = None
         self._bio_g2_last_output: BioG2ControlOutput | None = None
+        self._last_active_gripper_speed_percent: float = 100.0
+        self._step_hooks: list[Callable[[], None]] = []
+
+        self._arm_q_lo = np.full(self._n_arm_qpos, -np.inf, dtype=np.float64)
+        self._arm_q_hi = np.full(self._n_arm_qpos, np.inf, dtype=np.float64)
+        for j in range(self.model.njnt):
+            jtype = int(self.model.jnt_type[j])
+            if jtype in (int(mujoco.mjtJoint.mjJNT_HINGE), int(mujoco.mjtJoint.mjJNT_SLIDE)) and int(
+                self.model.jnt_limited[j]
+            ):
+                adr = int(self.model.jnt_qposadr[j])
+                if 0 <= adr < self._n_arm_qpos:
+                    self._arm_q_lo[adr] = float(self.model.jnt_range[j, 0])
+                    self._arm_q_hi[adr] = float(self.model.jnt_range[j, 1])
 
         # --- Initialise state ---
         self._viewer = None
@@ -212,6 +229,26 @@ class SimRobot(RobotInterface):
         """Arm joint count, excluding gripper joints."""
         return self._n_arm_qpos
 
+    @property
+    def n_arm_actuators(self) -> int:
+        """Number of arm actuators (excluding gripper actuator)."""
+        return self._n_arm_actuators
+
+    @property
+    def has_viewer(self) -> bool:
+        """Whether an interactive viewer window was opened for this session."""
+        return self._viewer is not None
+
+    @property
+    def viewer_is_running(self) -> bool:
+        """Whether an interactive viewer is currently open and running."""
+        return self._viewer is not None and self._viewer.is_running()
+
+    def sync_viewer(self) -> None:
+        """Synchronize the passive viewer immediately if one is open."""
+        if self._viewer is not None:
+            self._viewer.sync()
+
     def _tcp_site_name(self) -> str:
         return self.model.site(self._site).name
 
@@ -219,6 +256,15 @@ class SimRobot(RobotInterface):
         q = np.asarray(q, dtype=float)
         if q.shape != (self.n_arm,):
             raise ValueError(f"{name} must have shape ({self.n_arm},), got {q.shape}")
+        if not np.all(np.isfinite(q)):
+            raise ValueError(f"{name} must contain only finite values")
+        if self.n_arm > 0 and (
+            np.any(q < self._arm_q_lo - 1e-4) or np.any(q > self._arm_q_hi + 1e-4)
+        ):
+            raise ValueError(
+                f"{name} exceeds arm joint limits [{self._arm_q_lo.tolist()}, {self._arm_q_hi.tolist()}], "
+                f"got {q.tolist()}"
+            )
         return q
 
     def get_joint_positions(self) -> np.ndarray:
@@ -267,6 +313,8 @@ class SimRobot(RobotInterface):
             self._bio_g2_last_output = self._bio_g2_controller.apply(dt)
         mujoco.mj_step(self.model, self.data)
         self.data.qfrc_applied[:] = 0.0
+        for hook in tuple(self._step_hooks):
+            hook()
         if self._ft_sensor is not None:
             last_time = self._ft_sensor._last_time
             needs_reset = (
@@ -282,6 +330,20 @@ class SimRobot(RobotInterface):
             if sim_ahead > 0:
                 time.sleep(sim_ahead)
         self._sync()
+
+    def step(self) -> None:
+        """Advance simulation by one physics step with arm gravity compensation."""
+        self._step()
+
+    @contextmanager
+    def step_hook(self, callback: Callable[[], None]):
+        """Register ``callback`` to run immediately after each ``mj_step`` inside the ``with`` block."""
+        self._step_hooks.append(callback)
+        try:
+            yield
+        finally:
+            if callback in self._step_hooks:
+                self._step_hooks.remove(callback)
 
     def _step_until(self, condition, timeout: float) -> None:
         t0 = self.data.time
@@ -338,9 +400,14 @@ class SimRobot(RobotInterface):
     def move_tcp(self, pos: np.ndarray, quat: np.ndarray, duration: float,
                  wait: bool = True, *, steps: int = 50) -> None:
         """Move along a straight Cartesian path with shortest-path rotation."""
+        if not np.isfinite(duration) or duration <= 0:
+            raise ValueError("duration must be finite and positive")
+        pos = np.asarray(pos, dtype=float)
+        if pos.shape != (3,) or not np.all(np.isfinite(pos)):
+            raise ValueError(f"pos must be a finite 3-element vector, got {pos.shape}")
         pos0, quat0 = self.get_tcp_pose()
         s = np.linspace(0.0, 1.0, steps + 1)[1:]
-        waypoints = pos0 + s[:, None] * (np.asarray(pos) - pos0)
+        waypoints = pos0 + s[:, None] * (pos - pos0)
         quat_traj = None
         if quat is not None:
             quat_goal = np.asarray(quat, dtype=float)
@@ -380,6 +447,11 @@ class SimRobot(RobotInterface):
             )
         if traj.n_steps == 0:
             return
+        if self.n_arm > 0 and (
+            np.any(traj.q < self._arm_q_lo[None, :] - 1e-4)
+            or np.any(traj.q > self._arm_q_hi[None, :] + 1e-4)
+        ):
+            raise ValueError("trajectory contains joint positions outside arm joint limits")
 
         dt_sim = self.model.opt.timestep
         t_start = float(traj.times[0])
@@ -564,6 +636,27 @@ class SimRobot(RobotInterface):
             return self._g2_last_output
         return self._bio_g2_last_output
 
+    @property
+    def gripper_actuator_id(self) -> int | None:
+        """Actuator index of the attached gripper, or ``None`` if none is present."""
+        return self._gripper_actuator_id
+
+    @property
+    def gripper_ctrl_range(self) -> tuple[float, float] | None:
+        """Actuator control range ``(lo, hi)`` of the attached gripper, or ``None``."""
+        if self._gripper_ctrl_range is None:
+            return None
+        return (float(self._gripper_ctrl_range[0]), float(self._gripper_ctrl_range[1]))
+
+    @property
+    def gripper_qpos(self) -> np.ndarray:
+        """Non-arm joint positions (e.g. gripper mechanism joints), copied as 1-D array."""
+        return self.data.qpos[self._n_arm_qpos:].copy()
+
+    def gripper_wait_duration(self) -> float:
+        """Recommended settle duration in seconds for the current gripper command."""
+        return self._g2_wait_duration()
+
     def get_gripper_position(self) -> float:
         """Current gripper target (0.0 = fully open, 1.0 = fully closed)."""
         if not self.has_gripper:
@@ -576,6 +669,29 @@ class SimRobot(RobotInterface):
             return 0.0
         return float(np.clip((ctrl - self._gripper_open_ctrl) / span, 0.0, 1.0))
 
+    def _resolve_gripper_speed_force(
+        self,
+        cur_speed: float,
+        cur_force: float,
+        speed_percent: float | None,
+        force_percent: float | None,
+    ) -> tuple[float, float]:
+        if speed_percent is None:
+            spd = self._last_active_gripper_speed_percent if cur_speed <= 0.0 else cur_speed
+        else:
+            spd = float(speed_percent)
+            if not math.isfinite(spd) or not (0.0 <= spd <= 100.0):
+                raise ValueError(f"speed_percent must be finite in [0, 100], got {speed_percent!r}")
+            if spd > 0.0:
+                self._last_active_gripper_speed_percent = spd
+        if force_percent is None:
+            frc = cur_force
+        else:
+            frc = float(force_percent)
+            if not math.isfinite(frc) or not (1.0 <= frc <= 100.0):
+                raise ValueError(f"force_percent must be finite in [1, 100], got {force_percent!r}")
+        return spd, frc
+
     def set_gripper(
         self,
         pos: float,
@@ -583,15 +699,27 @@ class SimRobot(RobotInterface):
         speed_percent: float | None = None,
         force_percent: float | None = None,
     ) -> None:
-        """Set gripper target (0.0 = fully open, 1.0 = fully closed)."""
+        """Set gripper target (0.0 = fully open, 1.0 = fully closed).
+
+        For Gripper G2 / Bio Gripper G2, ``speed_percent=0`` pauses jaw motion while
+        holding contact preload; subsequent calls with ``speed_percent=None`` automatically
+        resume at the last positive speed percent.
+        """
         if not self.has_gripper:
             raise NotImplementedError("This robot has no gripper")
-        pos = float(np.clip(pos, 0.0, 1.0))
+        pos_f = float(pos)
+        if not math.isfinite(pos_f):
+            raise ValueError(f"gripper position must be finite, got {pos!r}")
+        pos_clamped = float(np.clip(pos_f, 0.0, 1.0))
         if (self._g2_controller is not None or self._bio_g2_controller is not None) and self._gripper_spec is not None:
-            gap_m = position_to_gap(self._gripper_spec, pos)
+            gap_m = position_to_gap(self._gripper_spec, pos_clamped)
             self.set_gripper_gap(gap_m, speed_percent=speed_percent, force_percent=force_percent)
             return
-        target_ctrl = self._gripper_open_ctrl + pos * (self._gripper_close_ctrl - self._gripper_open_ctrl)
+        if speed_percent is not None and not math.isfinite(float(speed_percent)):
+            raise ValueError(f"speed_percent must be finite, got {speed_percent!r}")
+        if force_percent is not None and not math.isfinite(float(force_percent)):
+            raise ValueError(f"force_percent must be finite, got {force_percent!r}")
+        target_ctrl = self._gripper_open_ctrl + pos_clamped * (self._gripper_close_ctrl - self._gripper_open_ctrl)
         self.data.ctrl[self._gripper_actuator_id] = target_ctrl
 
     def get_gripper_gap(self, *, measured: bool = False) -> float:
@@ -631,25 +759,40 @@ class SimRobot(RobotInterface):
         speed_percent: float | None = None,
         force_percent: float | None = None,
     ) -> None:
-        """Command a finger gap in meters, with optional speed/force percent for Gripper G2 / Bio Gripper G2."""
+        """Command a finger gap in meters, with optional speed/force percent for Gripper G2 / Bio Gripper G2.
+
+        ``speed_percent=0`` pauses jaw motion while holding contact preload; subsequent
+        commands omitting ``speed_percent`` resume at the last positive speed percent.
+        """
         if self.gripper_kind == "vacuum":
             raise NotImplementedError("vacuum gripper has no jaw gap")
+        gap_f = float(gap_m)
+        if not math.isfinite(gap_f):
+            raise ValueError(f"gap_m must be finite, got {gap_m!r}")
         spec = self._require_jaw()
-        norm_pos = gap_to_position(spec, gap_m)
+        norm_pos = gap_to_position(spec, gap_f)
         if self._g2_controller is not None and self._gripper_actuator_id is not None:
-            spd = float(self._g2_controller.speed_percent[0]) if speed_percent is None else float(speed_percent)
-            frc = float(self._g2_controller.force_percent[0]) if force_percent is None else float(force_percent)
-            self._g2_controller.command(float(gap_m) * 1000.0, speed_percent=spd, force_percent=frc)
+            spd, frc = self._resolve_gripper_speed_force(
+                float(self._g2_controller.speed_percent[0]),
+                float(self._g2_controller.force_percent[0]),
+                speed_percent,
+                force_percent,
+            )
+            self._g2_controller.command(gap_f * 1000.0, speed_percent=spd, force_percent=frc)
             limit = float(self._g2_controller.torque_limit_nm[0])
             self.model.actuator_forcerange[self._gripper_actuator_id] = (-limit, limit)
-            self.data.ctrl[self._gripper_actuator_id] = gripper_g2_gap_m_to_sim_drive(gap_m)
+            self.data.ctrl[self._gripper_actuator_id] = gripper_g2_gap_m_to_sim_drive(gap_f)
             return
         if self._bio_g2_controller is not None:
-            spd = float(self._bio_g2_controller.speed_percent) if speed_percent is None else float(speed_percent)
-            frc = float(self._bio_g2_controller.force_percent) if force_percent is None else float(force_percent)
-            self._bio_g2_controller.command(float(gap_m) * 1000.0, speed_percent=spd, force_percent=frc)
+            spd, frc = self._resolve_gripper_speed_force(
+                float(self._bio_g2_controller.speed_percent),
+                float(self._bio_g2_controller.force_percent),
+                speed_percent,
+                force_percent,
+            )
+            self._bio_g2_controller.command(gap_f * 1000.0, speed_percent=spd, force_percent=frc)
             return
-        self.set_gripper(norm_pos)
+        self.set_gripper(norm_pos, speed_percent=speed_percent, force_percent=force_percent)
 
     def bilateral_finger_contact(self, object_body: str) -> bool:
         """Whether both finger pads touch ``object_body``."""

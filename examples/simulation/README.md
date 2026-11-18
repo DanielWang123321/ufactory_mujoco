@@ -123,10 +123,11 @@ For `ufactory_genesis`-aligned 20-pose static torque verification (PD hold vs an
 #### Programmatic Dynamics API (`ufactory_mujoco/dynamics`)
 
 ```python
+from ufactory_mujoco import MODELS_ROOT
 from ufactory_mujoco.dynamics import ArmDynamics
 
 # Optional payload: (mass_kg, com_xyz_m) expressed in the attachment_site frame
-dyn = ArmDynamics("models/xarm6/xarm6.xml", payload=(3.0, [0, 0, 0.021]))
+dyn = ArmDynamics(MODELS_ROOT / "xarm6" / "xarm6.xml", payload=(3.0, [0, 0, 0.021]))
 M = dyn.mass_matrix(q)                     # dense mass matrix M(q)
 g = dyn.gravity(q)                         # gravity vector g(q)
 c = dyn.coriolis(q, qd)                    # velocity product term C(q,qd)qd
@@ -203,7 +204,7 @@ Examples `03` and `07` accept only `--headless`.
 | `--sync-hz <Hz>` | `02` | `30.0` | Viewer state-sync rate (physics timestep remains `2 ms`) |
 | `--render-quality` | `02` | `fast` | `fast` (disables shadows/reflections) or `full` |
 | `--cycles <N>` | `04` | `3` | Number of open/close demonstration cycles |
-| `--speed-percent <pct>` | `04` | `100.0` | Gripper G2 / Bio Gripper G2 speed percentage (`0..100`; ignored by Lite 6 gripper) |
+| `--speed-percent <pct>` | `04` | `100.0` | Gripper G2 / Bio Gripper G2 speed percentage (`0..100`, where `0` pauses jaw motion; ignored by Lite 6 gripper) |
 | `--force-percent <pct>` | `04` | `100.0` | Gripper G2 / Bio Gripper G2 force percentage (`1..100`; ignored by Lite 6 gripper) |
 | `--seed <N>` | `09` | `0` | RNG seed for RRT-Connect sampling and path shortcutting |
 | `--safety-margin <m>` | `09` | `0.002` | Minimum allowed obstacle clearance in meters |
