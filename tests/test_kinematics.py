@@ -135,6 +135,44 @@ class KinematicsTests(unittest.TestCase):
         w_sing = manipulability(self.model, self.data, self.site, q_sing)
         self.assertLess(w_sing, 1e-9 * w)
 
+    def test_simrobot_q_none_tracks_live_state_not_stale_eval_data(self):
+        # Populate eval_data at initial keyframe state
+        w_init = self.robot.tcp_manipulability()
+
+        # Move physical simulation state without passing q explicitly to eval helpers
+        self.robot.move_joints(_Q0, duration=0.8)
+        q_live = self.robot.get_joint_positions()
+
+        w_live = self.robot.tcp_manipulability()
+        w_explicit = self.robot.tcp_manipulability(q_live)
+        np.testing.assert_allclose(w_live, w_explicit, rtol=1e-9, atol=1e-12)
+        self.assertGreater(abs(w_live - w_init), 1e-3)
+        self.assertGreater(w_live, 5e-3)
+
+        twist = np.array([0.04, -0.02, 0.03, 0.1, -0.05, 0.08])
+        qd_live = self.robot.solve_tcp_velocity(twist)
+        qd_explicit = self.robot.solve_tcp_velocity(twist, q_live)
+        np.testing.assert_allclose(qd_live, qd_explicit, rtol=1e-9, atol=1e-12)
+
+        p_live, quat_live = self.robot.get_tcp_pose()
+        q_ik, ok = self.robot.solve_tcp(p_live + np.array([0.01, 0.0, 0.0]), quat_live)
+        self.assertTrue(ok)
+        self.assertLess(np.max(np.abs(q_ik - q_live)), 0.15)
+
+    def test_xarm5_with_gripper_manipulability_excludes_finger_dofs(self):
+        root = Path(__file__).resolve().parent.parent
+        q5 = np.array([0.2, -0.7, -1.0, 0.8, -0.2])
+        with SimRobot(root / "models" / "xarm5" / "scene.xml", viewer=False) as bare:
+            w_bare = bare.tcp_manipulability(q5)
+        with SimRobot(root / "models" / "xarm5_with_gripper" / "scene.xml", viewer=False) as grip:
+            self.assertEqual(grip.n_arm, 5)
+            self.assertGreater(grip.model.nv, 5)
+            w_grip = grip.tcp_manipulability(q5)
+            qd_grip = grip.solve_tcp_velocity(np.array([0.02, 0.0, -0.02, 0.0, 0.0, 0.1]), q5)
+        self.assertGreater(w_bare, 1e-3)
+        self.assertGreater(w_grip, 1e-3)
+        self.assertEqual(qd_grip.shape, (5,))
+
 
 class FreeJointModelTests(unittest.TestCase):
     """nq != nv (free-joint scene): full-q FK/Jacobian must still work."""
@@ -155,6 +193,24 @@ class FreeJointModelTests(unittest.TestCase):
         self.assertEqual(J.shape, (6, self.model.nv))
         with self.assertRaises(ValueError):
             fk_pose(self.model, self.data, "attachment_site", q[:-1])
+
+    def test_manipulability_and_arm_q_on_free_joint_scene(self):
+        scene = (
+            Path(__file__).resolve().parent.parent
+            / "models"
+            / "xarm6_with_gripper"
+            / "scene_pick_place.xml"
+        )
+        with SimRobot(scene, viewer=False) as robot:
+            self.assertEqual(robot.n_arm, 6)
+            self.assertGreater(robot.model.nq, 6)
+            w = robot.tcp_manipulability(_Q0)
+            self.assertGreater(w, 5e-3)
+            qd = robot.solve_tcp_velocity(np.array([0.03, 0.01, -0.02, 0.0, 0.1, 0.0]), _Q0)
+            self.assertEqual(qd.shape, (6,))
+            q_sol, ok = robot.solve_tcp(np.array([0.3, 0.0, 0.25]), None, q_init=_Q0)
+            self.assertTrue(ok)
+            self.assertEqual(q_sol.shape, (robot.model.nq,))
 
     def test_solve_ik_kinematics_fast_path_matches_mj_forward(self):
         rng = np.random.default_rng(42)

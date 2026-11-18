@@ -18,6 +18,8 @@ def _set_qpos(model: mujoco.MjModel, data: mujoco.MjData,
         q = np.asarray(q, dtype=float)
         if q.shape != (model.nq,):
             raise ValueError(f"q must have shape ({model.nq},), got {q.shape}")
+        if not np.all(np.isfinite(q)):
+            raise ValueError("q must contain only finite values")
         data.qpos[:] = q
     mujoco.mj_forward(model, data)
 
@@ -82,14 +84,36 @@ def solve_joint_velocity(model: mujoco.MjModel, data: mujoco.MjData, site_name: 
     return J.T @ np.linalg.solve(JJt, twist)
 
 
+def _site_chain_dof_indices(model: mujoco.MjModel, site_id: int) -> np.ndarray:
+    """DOF column indices belonging to joints on the ancestor kinematic chain of ``site_id``."""
+    chain_jnts: list[int] = []
+    body_id = int(model.site_bodyid[site_id])
+    while body_id > 0:
+        jnt_adr = int(model.body_jntadr[body_id])
+        jnt_num = int(model.body_jntnum[body_id])
+        for j in range(jnt_adr, jnt_adr + jnt_num):
+            chain_jnts.append(j)
+        body_id = int(model.body_parentid[body_id])
+    if not chain_jnts:
+        return np.empty(0, dtype=int)
+    return np.flatnonzero(np.isin(model.dof_jntid, chain_jnts))
+
+
 def manipulability(model: mujoco.MjModel, data: mujoco.MjData, site_name: str,
                    q: np.ndarray | None = None, *,
                    include_rotation: bool = True) -> float:
-    """Yoshikawa manipulability sqrt(det(J J^T)) = product of singular values.
+    """Yoshikawa manipulability across the kinematic chain driving ``site_name``.
 
-    Near zero at (or close to) a singularity. include_rotation=False uses the
-    3-row positional Jacobian only.
+    Equals ``sqrt(det(J J^T))`` for >=6-DOF arms (``sqrt(det(J^T J))`` for
+    underactuated 5-DOF arms), excluding downstream gripper finger DOFs and
+    unrelated free-joint scene props. Near zero at (or close to) a singularity.
+    ``include_rotation=False`` uses the 3-row positional Jacobian only.
     """
+    site_id = model.site(site_name).id
     J = pose_jacobian(model, data, site_name, q) if include_rotation \
         else site_jacobian(model, data, site_name, q)[0]
-    return float(np.prod(np.linalg.svd(J, compute_uv=False)))
+    dof_idx = _site_chain_dof_indices(model, site_id)
+    if dof_idx.size == 0:
+        return 0.0
+    J_chain = J[:, dof_idx]
+    return float(np.prod(np.linalg.svd(J_chain, compute_uv=False)))

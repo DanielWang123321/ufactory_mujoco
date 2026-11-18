@@ -367,6 +367,25 @@ class XArmRobotAndSafetyGateTests(unittest.TestCase):
             robot.set_gripper_gap(0.022)
             self.assertAlmostEqual(robot.get_gripper_gap(), 0.022, places=3)
 
+            # Plan and execute a Cartesian trajectory with rotation on gripper-equipped model (nq=12, n_arm=6)
+            p0, quat0 = robot.get_tcp_pose()
+            qz = np.empty(4)
+            quat1 = np.empty(4)
+            mujoco.mju_axisAngle2Quat(qz, np.array([0.0, 0.0, 1.0]), 0.25)
+            mujoco.mju_mulQuat(quat1, qz, quat0)
+            traj_c, ok_c = robot.plan_cartesian_trajectory(
+                p0 + np.array([0.0, 0.03, 0.02]),
+                quat1,
+                max_lin_vel=0.20,
+                max_lin_acc=1.0,
+                max_rot_vel=0.8,
+            )
+            self.assertTrue(ok_c)
+            self.assertEqual(traj_c.n_joints, 6)
+            with patch("ufactory_mujoco.xarm_robot.time.sleep", return_value=None):
+                robot.execute_trajectory(traj_c, wait=False)
+            np.testing.assert_allclose(robot.get_joint_positions(), traj_c.q[-1], atol=1e-4)
+
 
 class KinematicsAndSdkSimValidationTests(unittest.TestCase):
     def test_fk_ik_validation_with_controller_is_read_only_and_passes(self):

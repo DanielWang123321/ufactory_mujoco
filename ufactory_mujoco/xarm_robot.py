@@ -40,6 +40,7 @@ from .grippers import (
     position_to_gap,
 )
 from .ik import solve_ik
+from .kinematics import fk_pose
 from .robot_interface import RobotInterface
 from .robots import ARMS, resolve_arm_scene
 from .safety import (
@@ -52,7 +53,7 @@ from .safety import (
     read_arm_joint_positions,
     verify_hardware_identity_and_calibration,
 )
-from .trajectory import JointTrajectory, plan_cartesian_line, plan_ptp_quintic
+from .trajectory import DEFAULT_MAX_ROT_VEL, JointTrajectory, plan_cartesian_line, plan_ptp_quintic
 
 
 def _connect_xarm_sdk(ip: str) -> Any:
@@ -248,6 +249,12 @@ class XArmRobot(RobotInterface):
             if code != 0:
                 self._arm.set_state(REPORT_STATE_STOPPING)
                 raise SafetyGateError(f"{label} failed with SDK code {code}; controller stopped")
+        deadline = time.monotonic() + 0.5
+        while time.monotonic() < deadline:
+            reported_mode = getattr(self._arm, "mode", None)
+            if reported_mode is None or int(reported_mode) == mode:
+                break
+            time.sleep(0.01)
         self._motion_prepared_mode = mode
 
     def _require_arm_q(self, q: np.ndarray, name: str) -> np.ndarray:
@@ -455,9 +462,26 @@ class XArmRobot(RobotInterface):
         self.get_joint_positions()
 
     # -- planning helpers ---------------------------------------------------
+    def _eval_qpos(self, q: np.ndarray | None, name: str = "q") -> np.ndarray:
+        if q is None:
+            self.get_joint_positions()
+            return self.data.qpos.copy()
+        arr = np.asarray(q, dtype=np.float64)
+        if arr.ndim != 1 or not np.all(np.isfinite(arr)):
+            raise ValueError(f"{name} must be a finite 1-D array, got shape {arr.shape}")
+        if len(arr) == self.model.nq:
+            return arr.copy()
+        if len(arr) == self.n_arm:
+            full = self.data.qpos.copy()
+            full[: self.n_arm] = arr
+            return full
+        raise ValueError(
+            f"{name} must have length {self.n_arm} (n_arm) or {self.model.nq} (nq), got {len(arr)}"
+        )
+
     def solve_tcp(self, pos, quat=None, q_init=None):
         """Solve IK for a TCP pose on the local (calibrated) model; returns ``(q, converged)``."""
-        seed = self.data.qpos.copy() if q_init is None else np.asarray(q_init, dtype=float)
+        seed = self._eval_qpos(q_init, "q_init")
         return solve_ik(
             self.model,
             self.eval_data,
@@ -487,11 +511,17 @@ class XArmRobot(RobotInterface):
         max_lin_vel: float = 0.20,
         max_lin_acc: float = 1.0,
         site_name: str | None = None,
+        *,
+        max_rot_vel: float = DEFAULT_MAX_ROT_VEL,
     ) -> tuple[JointTrajectory, bool]:
-        """Plan a straight TCP line from the current pose; returns ``(trajectory, ok)``."""
+        """Plan an arm-joint straight Cartesian line from the current site pose; returns ``(trajectory, ok)``."""
         site = site_name if site_name is not None else self._tcp_site_name()
-        p0, quat0 = self.get_tcp_pose()
-        return plan_cartesian_line(
+        if site_name is None:
+            p0, quat0 = self.get_tcp_pose()
+        else:
+            self.get_joint_positions()
+            p0, quat0 = fk_pose(self.model, self.eval_data, site, self.data.qpos.copy())
+        traj_full, ok = plan_cartesian_line(
             p0,
             quat0,
             pos,
@@ -500,10 +530,19 @@ class XArmRobot(RobotInterface):
             site_name=site,
             max_lin_vel=max_lin_vel,
             max_lin_acc=max_lin_acc,
+            max_rot_vel=max_rot_vel,
             q_init=self.data.qpos.copy(),
             dt=self.model.opt.timestep,
             eval_data=self.eval_data,
         )
+        n = self.n_arm
+        arm_traj = JointTrajectory(
+            times=traj_full.times,
+            q=traj_full.q[:, :n],
+            qd=traj_full.qd[:, :n],
+            qdd=traj_full.qdd[:, :n],
+        )
+        return arm_traj, ok
 
     # -- gripper control (gated) --------------------------------------------
     @property

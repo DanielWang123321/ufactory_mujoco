@@ -23,7 +23,7 @@ _IGNORED_BODIES = ("cube", "pick_stand", "place_stand")
 _BOX_PACK_PREFIXES = ("cube", "feed_stand", "pick_stand", "place_stand")
 _BASE_BODIES = ("link_base", "xarm_base_plate", "uf850_base_plate", "lite6_base_plate")
 _FINGER_PAIR = ("uflite_finger1", "uflite_finger2")
-_CHECK_RES = 0.08
+_CHECK_RES = 0.02
 
 
 @dataclass

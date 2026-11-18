@@ -8,12 +8,22 @@ import numpy as np
 
 from ufactory_mujoco.collision import CollisionChecker
 from ufactory_mujoco.config import load_task_config
-from ufactory_mujoco.preflight import PHASES, make_checker, plan_segment
+from ufactory_mujoco.preflight import (
+    PHASES,
+    _CHECK_RES,
+    make_checker,
+    plan_segment,
+    preflight_box_pack,
+    preflight_pick_place,
+)
 from ufactory_mujoco.sim_robot import SimRobot
+from ufactory_mujoco.task_geometry import box_task_heights, tcp_task_heights
 
 ROOT = Path(__file__).resolve().parent.parent
 OBSTACLES = ROOT / "models" / "xarm6" / "scene_obstacles.xml"
 XARM6 = ROOT / "configs" / "pick_place" / "xarm6.yaml"
+XARM7_PP = ROOT / "configs" / "pick_place" / "xarm7.yaml"
+XARM7_BP = ROOT / "configs" / "box_pack" / "xarm7.yaml"
 
 
 def _key(model, name):
@@ -82,6 +92,39 @@ class PreflightTests(unittest.TestCase):
         self.assertEqual([phase.name for phase in report.phases], list(PHASES))
         self.assertTrue(all(phase.status == "ok" for phase in report.phases))
         self.assertTrue(all(not segment.detour for segment in report.segments.values()))
+
+    def test_xarm7_preflight_idempotent_and_matches_execution_geometry(self):
+        self.assertAlmostEqual(_CHECK_RES, 0.02)
+
+        pp_cfg = load_task_config(XARM7_PP)
+        with SimRobot(pp_cfg.scene_path, viewer=False) as robot:
+            plan1 = preflight_pick_place(robot, pp_cfg)
+            plan2 = preflight_pick_place(robot, pp_cfg)
+            self.assertTrue(plan1.ok)
+            self.assertTrue(plan2.ok)
+            q_home_1 = plan1.segments["return_home"].waypoints[-1]
+            q_home_2 = plan2.segments["return_home"].waypoints[-1]
+            np.testing.assert_allclose(q_home_1, q_home_2, atol=1e-12)
+            # Perturb eval_data to simulate mid-run state before execution geometry query
+            robot.eval_data.qpos[:7] = np.array([0.4, -0.5, 0.3, 1.1, -0.2, 0.8, -0.4])
+            _, q_exec_pp_full = tcp_task_heights(robot, pp_cfg.pick_place)
+            np.testing.assert_allclose(q_exec_pp_full[:7], q_home_1, atol=1e-12)
+
+        bp_cfg = load_task_config(XARM7_BP)
+        with SimRobot(bp_cfg.scene_path, viewer=False) as robot:
+            bp1 = preflight_box_pack(robot, bp_cfg)
+            bp2 = preflight_box_pack(robot, bp_cfg)
+            self.assertTrue(bp1.ok)
+            self.assertTrue(bp2.ok)
+            np.testing.assert_allclose(
+                bp1.segments["approach_deploy#1"].waypoints[-1],
+                bp2.segments["approach_deploy#1"].waypoints[-1],
+                atol=1e-12,
+            )
+            _, q_bp_ref = box_task_heights(robot, bp_cfg.box_pack)
+            robot.eval_data.qpos[:7] = np.array([-0.3, -0.4, -0.2, 0.9, 0.3, 0.7, 0.2])
+            _, q_exec_bp = box_task_heights(robot, bp_cfg.box_pack)
+            np.testing.assert_allclose(q_exec_bp[:7], q_bp_ref[:7], atol=1e-12)
 
 
 if __name__ == "__main__":

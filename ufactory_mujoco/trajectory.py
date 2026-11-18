@@ -52,14 +52,24 @@ class JointTrajectory:
         self.qd = np.asarray(self.qd, dtype=np.float64)
         self.qdd = np.asarray(self.qdd, dtype=np.float64)
 
-        if not (self.times.ndim == 1 and self.q.ndim == 2):
+        if not (self.times.ndim == 1 and self.q.ndim == 2 and self.qd.ndim == 2 and self.qdd.ndim == 2):
             raise ValueError(f"Shape mismatch: times {self.times.shape}, q {self.q.shape}")
         n = len(self.times)
-        if self.q.shape[0] != n or self.qd.shape[0] != n or self.qdd.shape[0] != n:
+        if n == 0:
+            raise ValueError("JointTrajectory times must not be empty")
+        if self.q.shape[0] != n or self.qd.shape != self.q.shape or self.qdd.shape != self.q.shape:
             raise ValueError(
-                f"Length mismatch: times({n}), q({self.q.shape[0]}), "
-                f"qd({self.qd.shape[0]}), qdd({self.qdd.shape[0]})"
+                f"Shape mismatch: times({n}), q{self.q.shape}, qd{self.qd.shape}, qdd{self.qdd.shape}"
             )
+        if not (
+            np.all(np.isfinite(self.times))
+            and np.all(np.isfinite(self.q))
+            and np.all(np.isfinite(self.qd))
+            and np.all(np.isfinite(self.qdd))
+        ):
+            raise ValueError("JointTrajectory arrays must contain only finite values")
+        if n > 1 and np.any(np.diff(self.times) < -_EPS):
+            raise ValueError("JointTrajectory times must be monotonically non-decreasing")
 
     @property
     def duration(self) -> float:
@@ -107,6 +117,38 @@ class JointTrajectory:
         )
 
 
+def _validate_dt(dt: float) -> float:
+    val = float(dt)
+    if not math.isfinite(val) or val <= 0.0:
+        raise ValueError(f"dt must be finite and positive, got {dt!r}")
+    return val
+
+
+def _validate_positive_limits(value: float | np.ndarray, n_joints: int, name: str) -> np.ndarray:
+    arr = np.broadcast_to(np.asarray(value, dtype=np.float64), (n_joints,)).copy()
+    if not np.all(np.isfinite(arr)) or np.any(arr <= 0.0):
+        raise ValueError(f"{name} must be finite and strictly positive, got {value!r}")
+    return arr
+
+
+def _validate_positive_scalar(value: float, name: str) -> float:
+    val = float(value)
+    if not math.isfinite(val) or val <= 0.0:
+        raise ValueError(f"{name} must be finite and strictly positive, got {value!r}")
+    return val
+
+
+def _normalize_quat_copy(quat: np.ndarray, name: str) -> np.ndarray:
+    arr = np.array(quat, dtype=np.float64, copy=True).reshape(4)
+    if not np.all(np.isfinite(arr)):
+        raise ValueError(f"{name} must contain finite values, got {quat!r}")
+    norm = float(np.linalg.norm(arr))
+    if norm < _EPS:
+        raise ValueError(f"{name} must have non-zero norm")
+    arr /= norm
+    return arr
+
+
 def _compute_quintic_duration(
     delta_q: np.ndarray,
     max_vel: np.ndarray,
@@ -121,8 +163,8 @@ def _compute_quintic_duration(
     if np.max(abs_d) < _EPS:
         return 0.0
 
-    t_v = np.max(1.875 * abs_d / np.maximum(max_vel, _EPS))
-    t_a = np.max(np.sqrt(5.7735 * abs_d / np.maximum(max_acc, _EPS)))
+    t_v = np.max(1.875 * abs_d / max_vel)
+    t_a = np.max(np.sqrt(5.7735 * abs_d / max_acc))
     return float(max(t_v, t_a))
 
 
@@ -138,21 +180,30 @@ def plan_ptp_quintic(
 
     Continuous position, velocity, and acceleration; zero vel and acc at endpoints.
     """
+    dt = _validate_dt(dt)
     q0 = np.asarray(q0, dtype=np.float64)
     q1 = np.asarray(q1, dtype=np.float64)
     if q0.shape != q1.shape:
         raise ValueError(f"q0 shape {q0.shape} != q1 shape {q1.shape}")
+    if not (np.all(np.isfinite(q0)) and np.all(np.isfinite(q1))):
+        raise ValueError("q0 and q1 must be finite")
 
     n_joints = q0.size
-    v_lim = np.broadcast_to(np.asarray(max_vel, dtype=np.float64), (n_joints,))
-    a_lim = np.broadcast_to(np.asarray(max_acc, dtype=np.float64), (n_joints,))
+    v_lim = _validate_positive_limits(max_vel, n_joints, "max_vel")
+    a_lim = _validate_positive_limits(max_acc, n_joints, "max_acc")
 
     dq = q1 - q0
+    t_min = _compute_quintic_duration(dq, v_lim, a_lim)
     if duration is None:
-        t_min = _compute_quintic_duration(dq, v_lim, a_lim)
         dur = max(t_min, dt)
     else:
-        dur = max(float(duration), dt)
+        dur_req = _validate_positive_scalar(duration, "duration")
+        if t_min > _EPS and dur_req < t_min - 1e-9:
+            raise ValueError(
+                f"duration ({dur_req:.4f} s) is shorter than minimum feasible quintic time "
+                f"({t_min:.4f} s) for given max_vel/max_acc"
+            )
+        dur = max(dur_req, dt)
 
     n_steps = max(1, int(math.ceil(dur / dt)))
     actual_duration = n_steps * dt
@@ -174,8 +225,8 @@ def plan_ptp_quintic(
 def _lspb_duration_scalar(dist: float, v_max: float, a_max: float) -> float:
     """Time-optimal LSPB duration for scalar displacement."""
     d = abs(float(dist))
-    v = max(float(v_max), _EPS)
-    a = max(float(a_max), _EPS)
+    v = float(v_max)
+    a = float(a_max)
     if d < _EPS:
         return 0.0
     d_a = v * v / (2.0 * a)
@@ -198,19 +249,31 @@ def plan_ptp_lspb(
 
     All joints are synchronized to reach the destination simultaneously.
     """
+    dt = _validate_dt(dt)
     q0 = np.asarray(q0, dtype=np.float64)
     q1 = np.asarray(q1, dtype=np.float64)
     if q0.shape != q1.shape:
         raise ValueError(f"q0 shape {q0.shape} != q1 shape {q1.shape}")
+    if not (np.all(np.isfinite(q0)) and np.all(np.isfinite(q1))):
+        raise ValueError("q0 and q1 must be finite")
 
     n_joints = q0.size
-    v_lim = np.broadcast_to(np.asarray(max_vel, dtype=np.float64), (n_joints,))
-    a_lim = np.broadcast_to(np.asarray(max_acc, dtype=np.float64), (n_joints,))
+    v_lim = _validate_positive_limits(max_vel, n_joints, "max_vel")
+    a_lim = _validate_positive_limits(max_acc, n_joints, "max_acc")
     dq = q1 - q0
 
     durations = [_lspb_duration_scalar(dq[i], v_lim[i], a_lim[i]) for i in range(n_joints)]
     t_opt = max(durations) if durations else 0.0
-    dur = max(t_opt if duration is None else float(duration), dt)
+    if duration is None:
+        dur = max(t_opt, dt)
+    else:
+        dur_req = _validate_positive_scalar(duration, "duration")
+        if t_opt > _EPS and dur_req < t_opt - 1e-9:
+            raise ValueError(
+                f"duration ({dur_req:.4f} s) is shorter than minimum feasible LSPB time "
+                f"({t_opt:.4f} s) for given max_vel/max_acc"
+            )
+        dur = max(dur_req, dt)
 
     n_steps = max(1, int(math.ceil(dur / dt)))
     actual_duration = n_steps * dt
@@ -230,14 +293,10 @@ def plan_ptp_lspb(
 
         sgn = 1.0 if dq[i] >= 0.0 else -1.0
         a = a_lim[i]
-        # Solve for blend time t_a fitting displacement d_i into actual_duration:
-        # a * t_a * (T - t_a) >= d_i => a * t_a^2 - a * T * t_a + d_i = 0
-        disc = actual_duration**2 - 4.0 * d_i / a
-        if disc >= 0.0:
-            t_a = 0.5 * (actual_duration - math.sqrt(disc))
-            t_a = max(_EPS, min(0.5 * actual_duration, t_a))
-        else:
-            t_a = 0.5 * actual_duration
+        # Since actual_duration >= t_opt >= 2 * sqrt(d_i / a), disc >= 0 up to FP roundoff.
+        disc = max(0.0, actual_duration**2 - 4.0 * d_i / a)
+        t_a = 0.5 * (actual_duration - math.sqrt(disc))
+        t_a = max(_EPS, min(0.5 * actual_duration, t_a))
 
         # Cruise velocity
         v_cruise = d_i / (actual_duration - t_a)
@@ -277,16 +336,19 @@ def plan_joint_waypoints(
     waypoints: (M, n_joints) waypoints with M >= 2.
     method:
       - 'spline': C2 continuous clamped cubic spline (zero endpoint velocities).
-                  Times are automatically scaled to strictly respect velocity and acceleration limits.
+                  Times are automatically scaled to respect velocity and acceleration limits.
       - 'stop': Stop-and-go sequence connecting waypoints via quintic PTP segments.
     """
+    dt = _validate_dt(dt)
     w = np.asarray(waypoints, dtype=np.float64)
     if w.ndim != 2 or w.shape[0] < 2:
         raise ValueError(f"Waypoints must have shape (M, n_joints) with M >= 2, got {w.shape}")
+    if not np.all(np.isfinite(w)):
+        raise ValueError("waypoints must contain only finite values")
 
     m_points, n_joints = w.shape
-    v_lim = np.broadcast_to(np.asarray(max_vel, dtype=np.float64), (n_joints,))
-    a_lim = np.broadcast_to(np.asarray(max_acc, dtype=np.float64), (n_joints,))
+    v_lim = _validate_positive_limits(max_vel, n_joints, "max_vel")
+    a_lim = _validate_positive_limits(max_acc, n_joints, "max_acc")
 
     if method == "stop":
         segments = []
@@ -305,8 +367,8 @@ def plan_joint_waypoints(
     delta_w = np.abs(np.diff(w, axis=0))
     seg_durations = np.empty(m_points - 1, dtype=np.float64)
     for k in range(m_points - 1):
-        t_v = np.max(delta_w[k] / np.maximum(v_lim, _EPS))
-        t_a = np.max(np.sqrt(delta_w[k] / np.maximum(a_lim, _EPS)))
+        t_v = np.max(delta_w[k] / v_lim)
+        t_a = np.max(np.sqrt(delta_w[k] / a_lim))
         seg_durations[k] = max(t_v, t_a, 0.1)
 
     knot_times = np.concatenate([[0.0], np.cumsum(seg_durations)])
@@ -363,31 +425,36 @@ def plan_cartesian_line(
 ) -> tuple[JointTrajectory, bool]:
     """Plan a Cartesian straight-line trajectory with SLERP orientation and IK.
 
-    Returns (JointTrajectory, ik_converged).
+    Returns (JointTrajectory, ik_converged_and_continuous).
     """
+    dt = _validate_dt(dt)
+    max_lin_vel = _validate_positive_scalar(max_lin_vel, "max_lin_vel")
+    max_lin_acc = _validate_positive_scalar(max_lin_acc, "max_lin_acc")
+    max_rot_vel = _validate_positive_scalar(max_rot_vel, "max_rot_vel")
+
     p0 = np.asarray(p0, dtype=np.float64).reshape(3)
     p1 = np.asarray(p1, dtype=np.float64).reshape(3)
-    quat0 = np.asarray(quat0, dtype=np.float64).reshape(4)
-    quat0 /= np.linalg.norm(quat0)
+    if not (np.all(np.isfinite(p0)) and np.all(np.isfinite(p1))):
+        raise ValueError("p0 and p1 must contain finite values")
+    quat0_n = _normalize_quat_copy(quat0, "quat0")
 
     lin_dist = float(np.linalg.norm(p1 - p0))
 
-    # Rotation distance
+    # Rotation distance in the body/local frame matching mju_quatIntegrate right-multiplication
     rot_dist = 0.0
-    vel_full = np.zeros(3)
+    vel_local = np.zeros(3, dtype=np.float64)
     if quat1 is not None:
-        quat1 = np.asarray(quat1, dtype=np.float64).reshape(4)
-        quat1 /= np.linalg.norm(quat1)
-        q0_conj = np.array([quat0[0], -quat0[1], -quat0[2], -quat0[3]])
-        q_err = np.empty(4)
-        mujoco.mju_mulQuat(q_err, quat1, q0_conj)
-        mujoco.mju_quat2Vel(vel_full, q_err, 1.0)
-        rot_dist = float(np.linalg.norm(vel_full))
+        quat1_n = _normalize_quat_copy(quat1, "quat1")
+        q0_conj = np.array([quat0_n[0], -quat0_n[1], -quat0_n[2], -quat0_n[3]], dtype=np.float64)
+        q_delta_local = np.empty(4, dtype=np.float64)
+        mujoco.mju_mulQuat(q_delta_local, q0_conj, quat1_n)  # conj(quat0) * quat1
+        mujoco.mju_quat2Vel(vel_local, q_delta_local, 1.0)
+        rot_dist = float(np.linalg.norm(vel_local))
 
     # Time parameterization for Cartesian motion
-    t_lin_v = 1.875 * lin_dist / max(max_lin_vel, _EPS)
-    t_lin_a = math.sqrt(5.7735 * lin_dist / max(max_lin_acc, _EPS))
-    t_rot = 1.875 * rot_dist / max(max_rot_vel, _EPS)
+    t_lin_v = 1.875 * lin_dist / max_lin_vel
+    t_lin_a = math.sqrt(5.7735 * lin_dist / max_lin_acc)
+    t_rot = 1.875 * rot_dist / max_rot_vel
     dur = max(t_lin_v, t_lin_a, t_rot, dt)
 
     n_steps = max(1, int(math.ceil(dur / dt)))
@@ -403,15 +470,29 @@ def plan_cartesian_line(
     if quat1 is not None:
         waypoints_quat = np.empty((n_steps + 1, 4), dtype=np.float64)
         for i in range(n_steps + 1):
-            waypoints_quat[i] = quat0.copy()
-            mujoco.mju_quatIntegrate(waypoints_quat[i], vel_full, float(s[i]))
+            waypoints_quat[i] = quat0_n.copy()
+            mujoco.mju_quatIntegrate(waypoints_quat[i], vel_local, float(s[i]))
 
     data = eval_data if eval_data is not None else mujoco.MjData(model)
-    q_start = data.qpos.copy() if q_init is None else np.asarray(q_init, dtype=np.float64).copy()
+    if q_init is None:
+        q_start = data.qpos.copy()
+    else:
+        q_start = np.asarray(q_init, dtype=np.float64).copy()
+        if q_start.shape != (model.nq,) or not np.all(np.isfinite(q_start)):
+            raise ValueError(f"q_init must be a finite array of shape ({model.nq},), got {q_start.shape}")
 
     q_traj, ok = solve_ik_trajectory(
         model, data, site_name, waypoints_pos, waypoints_quat, q_start
     )
+
+    if ok and len(q_traj) > 1:
+        jnt_types = model.jnt_type
+        hinge_slide = (jnt_types == int(mujoco.mjtJoint.mjJNT_HINGE)) | (
+            jnt_types == int(mujoco.mjtJoint.mjJNT_SLIDE)
+        )
+        adrs = model.jnt_qposadr[hinge_slide]
+        if adrs.size > 0 and float(np.max(np.abs(np.diff(q_traj[:, adrs], axis=0)))) > 0.5:
+            ok = False
 
     # Differentiate joint path to compute qd and qdd
     qd = np.gradient(q_traj, dt, axis=0)

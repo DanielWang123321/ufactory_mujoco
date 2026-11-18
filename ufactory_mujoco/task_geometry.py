@@ -35,7 +35,7 @@ def _close_until_contact(robot, object_body: str, gap_m: float) -> float:
 
 def _flange_tcp_offset(robot: SimRobot, x: float, y: float, lift_z: float) -> tuple[float, np.ndarray]:
     """Solve a grip-down pose above ``(x, y)`` and return the TCP-minus-flange z offset and its joints."""
-    q_seed, ok = robot.solve_tcp([x, y, lift_z + 0.15], GRIP_DOWN_QUAT)
+    q_seed, ok = robot.solve_tcp([x, y, lift_z + 0.15], GRIP_DOWN_QUAT, q_init=robot.model.qpos0.copy())
     if not ok:
         raise RuntimeError("IK failed while reaching the seed pose")
     q, ok = robot.solve_tcp([x, y, lift_z], GRIP_DOWN_QUAT, q_init=q_seed)

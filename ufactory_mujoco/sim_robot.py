@@ -39,10 +39,10 @@ from .grippers import (
     require_bilateral_contact,
 )
 from .ik import solve_ik, solve_ik_trajectory
-from .kinematics import manipulability, solve_joint_velocity
+from .kinematics import fk_pose, manipulability, solve_joint_velocity
 from .model_paths import MODELS_ROOT
 from .robot_interface import RobotInterface
-from .trajectory import JointTrajectory, plan_cartesian_line, plan_ptp_quintic
+from .trajectory import DEFAULT_MAX_ROT_VEL, JointTrajectory, plan_cartesian_line, plan_ptp_quintic
 from .viewer import PassiveViewer, configure_low_power_rendering
 
 _MODEL_PATH = MODELS_ROOT / "xarm6" / "scene.xml"
@@ -407,16 +407,47 @@ class SimRobot(RobotInterface):
         return plan_ptp_quintic(q0, q_goal, max_vel=max_vel, max_acc=max_acc,
                                 duration=duration, dt=self.model.opt.timestep)
 
+    def _eval_qpos(self, q: np.ndarray | None, name: str = "q") -> np.ndarray:
+        """Resolve ``q`` (``None``, arm-only ``(n_arm,)``, or full ``(nq,)``) against current ``data.qpos``."""
+        if q is None:
+            return self.data.qpos.copy()
+        arr = np.asarray(q, dtype=np.float64)
+        if arr.ndim != 1 or not np.all(np.isfinite(arr)):
+            raise ValueError(f"{name} must be a finite 1-D array, got shape {arr.shape}")
+        if len(arr) == self.model.nq:
+            return arr.copy()
+        if len(arr) == self.n_arm:
+            full = self.data.qpos.copy()
+            full[: self.n_arm] = arr
+            return full
+        raise ValueError(
+            f"{name} must have length {self.n_arm} (n_arm) or {self.model.nq} (nq), got {len(arr)}"
+        )
+
     def plan_cartesian_trajectory(self, pos: np.ndarray, quat: np.ndarray | None = None,
                                   max_lin_vel: float = 0.20, max_lin_acc: float = 1.0,
-                                  site_name: str | None = None) -> tuple[JointTrajectory, bool]:
-        """Plan a Cartesian straight-line trajectory from current TCP pose to (pos, quat)."""
-        site = site_name if site_name is not None else self.model.site(self._site).name
-        p0, quat0 = self.get_tcp_pose()
-        return plan_cartesian_line(p0, quat0, pos, quat, self.model, site_name=site,
-                                   max_lin_vel=max_lin_vel, max_lin_acc=max_lin_acc,
-                                   q_init=self.data.qpos.copy(), dt=self.model.opt.timestep,
-                                   eval_data=self.eval_data)
+                                  site_name: str | None = None, *,
+                                  max_rot_vel: float = DEFAULT_MAX_ROT_VEL) -> tuple[JointTrajectory, bool]:
+        """Plan an arm-joint Cartesian straight-line trajectory from current site pose to (pos, quat)."""
+        site = site_name if site_name is not None else self._tcp_site_name()
+        if site_name is None:
+            p0, quat0 = self.get_tcp_pose()
+        else:
+            p0, quat0 = fk_pose(self.model, self.eval_data, site, self.data.qpos.copy())
+        traj_full, ok = plan_cartesian_line(
+            p0, quat0, pos, quat, self.model, site_name=site,
+            max_lin_vel=max_lin_vel, max_lin_acc=max_lin_acc, max_rot_vel=max_rot_vel,
+            q_init=self.data.qpos.copy(), dt=self.model.opt.timestep,
+            eval_data=self.eval_data,
+        )
+        n = self.n_arm
+        arm_traj = JointTrajectory(
+            times=traj_full.times,
+            q=traj_full.q[:, :n],
+            qd=traj_full.qd[:, :n],
+            qdd=traj_full.qdd[:, :n],
+        )
+        return arm_traj, ok
 
     def ik_trajectory(self, waypoints_pos: np.ndarray, quat: np.ndarray | None,
                       pos_tol: float = 5e-5) -> tuple[np.ndarray, bool]:
@@ -446,16 +477,19 @@ class SimRobot(RobotInterface):
 
     def solve_tcp_velocity(self, twist: np.ndarray, q: np.ndarray | None = None, *,
                            damping: float = 1e-3) -> np.ndarray:
-        """Velocity-level IK: joint velocity for desired TCP twist [v; omega] (world)."""
-        return solve_joint_velocity(self.model, self.eval_data,
-                                    self.model.site(self._site).name, twist, q,
-                                    damping=damping)
+        """Velocity-level IK: arm joint velocity ``(n_arm,)`` for desired TCP twist [v; omega] (world)."""
+        q_full = self._eval_qpos(q, "q")
+        qd_full = solve_joint_velocity(self.model, self.eval_data,
+                                       self.model.site(self._site).name, twist, q_full,
+                                       damping=damping)
+        return qd_full[:self._n_arm_dof]
 
     def tcp_manipulability(self, q: np.ndarray | None = None, *,
                            include_rotation: bool = True) -> float:
         """Yoshikawa manipulability of the TCP; near 0 at singularities."""
+        q_full = self._eval_qpos(q, "q")
         return manipulability(self.model, self.eval_data,
-                              self.model.site(self._site).name, q,
+                              self.model.site(self._site).name, q_full,
                               include_rotation=include_rotation)
 
     # -- gripper control ---------------------------------------------------
@@ -691,11 +725,12 @@ class SimRobot(RobotInterface):
 
     # -- misc --------------------------------------------------------------
     def solve_tcp(self, pos, quat=None, q_init=None):
-        """One-shot IK helper: q reaching (pos, quat) from current state."""
+        """One-shot IK helper: q reaching (pos, quat) seeded from current state (or ``q_init``)."""
+        seed = self._eval_qpos(q_init, "q_init")
         return solve_ik(self.model, self.eval_data, self._tcp_site_name(),
                         np.asarray(pos, dtype=float),
                         None if quat is None else np.asarray(quat, dtype=float),
-                        q_init=q_init)
+                        q_init=seed)
 
     def close(self) -> None:
         """Close the viewer if one is open."""
