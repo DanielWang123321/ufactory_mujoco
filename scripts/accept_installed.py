@@ -210,9 +210,25 @@ def accept(args, summary):
     summary["accessories_0_1_7"] = "pass"
     # Exercise commands with a read-only installation. JSON belongs in the
     # working directory, and Python can import without writing bytecode here.
-    for path in package.parent.rglob("*"):
+    saved_modes = [(package.parent, package.parent.stat().st_mode & 0o777)] + [
+        (p, p.stat().st_mode & 0o777) for p in package.parent.rglob("*")
+    ]
+    for path, _mode in saved_modes[1:]:
         path.chmod(0o555 if path.is_dir() else 0o444)
     package.parent.chmod(0o555)
+
+    try:
+        _run_installed_command_checks(args, summary, CONFIGS_ROOT)
+    finally:
+        for path, mode in saved_modes:
+            if path.is_dir():
+                path.chmod(mode)
+        for path, mode in saved_modes:
+            if not path.is_dir() and path.exists():
+                path.chmod(mode)
+
+
+def _run_installed_command_checks(args, summary, CONFIGS_ROOT):
 
     out = args.out_dir.resolve()
     env = dict(os.environ)

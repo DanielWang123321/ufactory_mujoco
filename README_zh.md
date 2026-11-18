@@ -1,6 +1,6 @@
 # ufactory_mujoco
 
-![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue) ![MuJoCo](https://img.shields.io/badge/mujoco-4.x-lightgrey) ![License](https://img.shields.io/badge/license-MIT-green) [![CI](https://github.com/DanielWang123321/ufactory_mujoco/actions/workflows/ci.yml/badge.svg)](https://github.com/DanielWang123321/ufactory_mujoco/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue) ![MuJoCo](https://img.shields.io/badge/mujoco-4.x-lightgrey) ![License](https://img.shields.io/badge/license-MIT%20%2F%20BSD--3--Clause%20%2F%20Apache--2.0-green) [![CI](https://github.com/DanielWang123321/ufactory_mujoco/actions/workflows/ci.yml/badge.svg)](https://github.com/DanielWang123321/ufactory_mujoco/actions/workflows/ci.yml)
 
 [English](README.md) | [中文](README_zh.md) · [更新记录](CHANGELOG.md)
 
@@ -74,7 +74,7 @@ pip uninstall -y mujoco && pip install "mujoco>=4,<5"
 
 环境已经损坏时，用 `pip install --force-reinstall --no-deps mujoco mujoco-core mujoco-studio` 修复。新建的环境不受影响。
 
-**wheel**：自 v0.1.0 起，[GitHub Release](https://github.com/DanielWang123321/ufactory_mujoco/releases) 附带自包含 wheel，内含全部模型、场景、任务配置和许可证。用 `pip install ufactory_mujoco-0.1.7-py3-none-any.whl` 安装后，`ufactory-mujoco` 与 `dynamics-*` 命令可在任意目录运行。也可用 `python -m build` 自行构建。
+**wheel**：自 v0.1.0 起，[GitHub Release](https://github.com/DanielWang123321/ufactory_mujoco/releases) 附带自包含 wheel，内含全部模型、场景、任务配置和许可证。用 `pip install ufactory_mujoco-<version>-py3-none-any.whl` 安装后，`ufactory-mujoco` 与 `dynamics-*` 命令可在任意目录运行。也可用 `python -m build` 自行构建。
 
 ## 命令行任务
 
@@ -119,7 +119,7 @@ python -m pytest tests
 ruff check .                      # 与 CI 相同的静态检查（pip install ruff）
 ```
 
-缺少可选包（`trimesh`）或维护者本地源快照时，相关测试自动跳过。
+缺少可选包（`trimesh`、`pinocchio`、`DracoPy`）或维护者本地源快照时，相关测试自动跳过。
 
 ## 已知限制
 
@@ -128,13 +128,13 @@ ruff check .                      # 与 CI 相同的静态检查（pip install r
 - 深度相机与 `camera_stand` 模型提供外观几何、安装面/螺钉孔 `<site>`（`group=4`）与近似碰撞体（`group=3`），`mass=0` 且不含 MuJoCo `<camera>` 光学成像传感器；动力学场景请通过 `attach_payload` 注入相机与支架负载。
 - `ft_sensor` 系列模型将 UFACTORY AI1500（`0.6 kg`、`+58.6 mm` 输出偏置、`1 ms` 步长 / `200 Hz` 确定性保持、`0.4 N` / `0.01 Nm` 量化、`±400 N / ±20 Nm` 超量程、`±600 N / ±30 Nm` 过载）作为理想刚体支反力传感器在 `ft_sensor_site` 处采样（净增量 `≈ -外加载荷`），未模拟滞后、串扰、噪声、漂移、温漂与硬件滤波；`lite6`（物理/通信不兼容）与 `bio_gripper_g2` 未构建 `ft_sensor` 组合。
 - 跨后端契约差异（`RobotInterface`）：`SimRobot.move_tcp` 执行笛卡尔直线与 SLERP 插值，而 `XArmRobot.move_tcp` 求解目标位姿 IK 后走关节空间运动（`XArmRobot.move_joints` 受 `max_joint_speed_rad_s` 限速约束，`SimRobot` 中 `wait=False` 仅跳过末尾 `settle`）；需跨仿真与真机严格走同一空间直线时请统一调用 `plan_cartesian_trajectory` + `execute_trajectory`。Gripper G2 / Bio Gripper G2 传入 `speed_percent=0` 会暂停夹爪运动并维持接触预紧，后续省略 `speed_percent` 的指令会自动恢复上一次正速度。
-- 安装底板（`*_base_plate`）碰撞网格（`group=3`）采用填孔凸棱柱以便在默认步长下稳定接触；视觉网格（`group=2`）保留完整通孔与安装槽，因此碰撞检测不适用于模拟螺栓穿孔。
+- 安装底板（`*_base_plate`）碰撞网格（`group=3`）采用填孔凸棱柱以便在默认步长下稳定接触；视觉网格（`group=2`）保留完整通孔与安装槽，因此碰撞检测不适用于模拟螺栓穿孔。`<机械臂>_with_base_plate` 中的 `link_base` 采用安装孔/底面最小二乘拟合位姿，因此法兰/TCP 相对裸臂原点存在毫米级几何拟合偏移（如 `xarm6` `Δy ≈ -1.47 mm`；`lite6` `Δx ≈ +2.99 mm, Δz ≈ +1.72 mm`）。
 - 任务报告在 MuJoCo 4.0.0 与 4.0.1 下逐字节一致；其他 MuJoCo 版本可能使结果在数值上不同。
 
 ## 项目结构
 
 ```text
-calibrations/              单机运动学标定 YAML（SHA-256 校验）
+calibrations/              单机运动学标定 YAML（绑定序列号并记录 SHA-256 指纹）
 configs/                   任务与验证配置：default.yaml、dynamics_validation_pose.yaml、
                            pick_place/<机械臂>.yaml、box_pack/<机械臂>.yaml
 models/                    MJCF 模型与网格：机械臂、夹爪、相机、支架、力矩传感器、安装底板及组合；

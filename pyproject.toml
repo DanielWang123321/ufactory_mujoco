@@ -50,6 +50,9 @@ namespaces = false
 [tool.setuptools.package-data]
 ufactory_mujoco = ["data/**/*"]
 
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
 [tool.ruff]
 line-length = 120
 

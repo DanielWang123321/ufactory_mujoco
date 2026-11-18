@@ -1,6 +1,6 @@
 # ufactory_mujoco
 
-![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue) ![MuJoCo](https://img.shields.io/badge/mujoco-4.x-lightgrey) ![License](https://img.shields.io/badge/license-MIT-green) [![CI](https://github.com/DanielWang123321/ufactory_mujoco/actions/workflows/ci.yml/badge.svg)](https://github.com/DanielWang123321/ufactory_mujoco/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue) ![MuJoCo](https://img.shields.io/badge/mujoco-4.x-lightgrey) ![License](https://img.shields.io/badge/license-MIT%20%2F%20BSD--3--Clause%20%2F%20Apache--2.0-green) [![CI](https://github.com/DanielWang123321/ufactory_mujoco/actions/workflows/ci.yml/badge.svg)](https://github.com/DanielWang123321/ufactory_mujoco/actions/workflows/ci.yml)
 
 [English](README.md) | [中文](README_zh.md) · [Changelog](CHANGELOG.md)
 
@@ -74,7 +74,7 @@ pip uninstall -y mujoco && pip install "mujoco>=4,<5"
 
 If the environment is already broken, repair it with `pip install --force-reinstall --no-deps mujoco mujoco-core mujoco-studio`. New environments are not affected.
 
-**Wheel**: [GitHub Releases](https://github.com/DanielWang123321/ufactory_mujoco/releases) from v0.1.0 on include a self-contained wheel with all models, scenes, task configs and licenses bundled. Install it with `pip install ufactory_mujoco-0.1.7-py3-none-any.whl`; the `ufactory-mujoco` and `dynamics-*` commands then run from any directory. Build one yourself with `python -m build`.
+**Wheel**: [GitHub Releases](https://github.com/DanielWang123321/ufactory_mujoco/releases) from v0.1.0 on include a self-contained wheel with all models, scenes, task configs and licenses bundled. Install it with `pip install ufactory_mujoco-<version>-py3-none-any.whl`; the `ufactory-mujoco` and `dynamics-*` commands then run from any directory. Build one yourself with `python -m build`.
 
 ## Command-Line Tasks
 
@@ -119,7 +119,7 @@ python -m pytest tests
 ruff check .                      # lint as in CI (pip install ruff)
 ```
 
-Tests that need optional packages (`trimesh`) or maintainer-only source snapshots are skipped automatically when absent.
+Tests that need optional packages (`trimesh`, `pinocchio`, `DracoPy`) or maintainer-only source snapshots are skipped automatically when absent.
 
 ## Known Limitations
 
@@ -128,13 +128,13 @@ Tests that need optional packages (`trimesh`) or maintainer-only source snapshot
 - Depth camera and `camera_stand` models provide visual geometry, mounting/screw-hole `<site>`s (`group=4`), and approximate collision geometry (`group=3`) with `mass=0` and no MuJoCo `<camera>` optical sensor; inject camera/bracket inertia via `attach_payload` for dynamics tasks.
 - The `ft_sensor` models represent the UFACTORY AI1500 (`0.6 kg`, `+58.6 mm` output offset, `1 ms` step / `200 Hz` deterministic hold quantized at `0.4 N` / `0.01 Nm`, `±400 N / ±20 Nm` overrange, `±600 N / ±30 Nm` overload) as an idealized rigid-body reaction-wrench sensor at `ft_sensor_site` (`net_delta ~= -applied_wrench`); hysteresis, crosstalk, sensor noise, drift, thermal effects, and hardware filtering are not modeled. Lite 6 (`lite6`) and Bio Gripper G2 (`bio_gripper_g2`) do not have built `ft_sensor` combinations.
 - Backend semantics (`RobotInterface`): `SimRobot.move_tcp` interpolates a straight Cartesian line with SLERP, whereas `XArmRobot.move_tcp` solves endpoint IK and moves in joint space (`XArmRobot.move_joints` is capped by `max_joint_speed_rad_s`, and `SimRobot(..., wait=False)` skips only the trailing `settle`); use `plan_cartesian_trajectory` + `execute_trajectory` when identical straight-line Cartesian paths are required across simulation and hardware. For Gripper G2 / Bio Gripper G2, `speed_percent=0` pauses jaw motion while holding contact preload, and subsequent calls omitting `speed_percent` automatically resume at the last positive speed.
-- Mounting base plates (`*_base_plate`) use hole-filled convex collision prisms (`group=3`) for solid mounting-clearance simulation; visual meshes (`group=2`) retain all through-holes and slots, so collision probes are not suitable for simulating bolts passing through plate holes.
+- Mounting base plates (`*_base_plate`) use hole-filled convex collision prisms (`group=3`) for solid mounting-clearance simulation; visual meshes (`group=2`) retain all through-holes and slots, so collision probes are not suitable for simulating bolts passing through plate holes. In `<arm>_with_base_plate`, `link_base` is aligned to the plate's mounting holes/surface via least-squares fitting, introducing millimeter-scale flange/TCP offsets relative to bare-arm origin (`xarm6`: `Δy ≈ -1.47 mm`; `lite6`: `Δx ≈ +2.99 mm`, `Δz ≈ +1.72 mm`).
 - Task reports are byte-identical on MuJoCo 4.0.0 and 4.0.1; other MuJoCo versions can change results numerically.
 
 ## Project Structure
 
 ```text
-calibrations/              Per-unit kinematic calibration YAML (SHA-256 checked)
+calibrations/              Per-unit kinematic calibration YAML (serial-bound, SHA-256 fingerprinted)
 configs/                   Task and validation configs: default.yaml, dynamics_validation_pose.yaml,
                            pick_place/<arm>.yaml, box_pack/<arm>.yaml
 models/                    MJCF models and meshes: arms, grippers, cameras, brackets, F/T sensor, base plates and combos;

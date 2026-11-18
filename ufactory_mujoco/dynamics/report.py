@@ -732,10 +732,16 @@ def compare_report_records(
 ) -> list[dict[str, float]]:
     """Compare per-joint signed residual distributions between two reports."""
     out: list[dict[str, float]] = []
-    dof = 0
-    for record in (*old_records, *new_records):
-        signed = record.get("signed_err") or []
-        dof = max(dof, len(signed))
+    dofs = {
+        len(record["signed_err"])
+        for record in (*old_records, *new_records)
+        if record.get("signed_err")
+    }
+    if len(dofs) > 1:
+        raise ValueError(
+            f"cannot compare reports with mismatched joint counts: {sorted(dofs)}"
+        )
+    dof = next(iter(dofs), 0)
     for j in range(dof):
         old_vals = [
             float(r["signed_err"][j]) for r in old_records if r.get("signed_err") and r["signed_err"][j] is not None

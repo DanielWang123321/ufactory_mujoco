@@ -1023,3 +1023,20 @@ def test_sim_collision_check_requires_confirm_real_and_catches_faulted_runtime_e
     )
     assert [r.passed for r in results] == [True, False, False]
     assert results[2].error_code == 22
+
+
+def test_compare_report_records_rejects_mismatched_joint_counts(tmp_path: Path):
+    from ufactory_mujoco.dynamics.report import compare_report_records
+
+    rec6 = [{"signed_err": [0.1] * 6}]
+    rec7 = [{"signed_err": [0.1] * 7}]
+    with pytest.raises(ValueError, match="mismatched joint counts"):
+        compare_report_records(rec6, rec7)
+
+    import json
+
+    f6 = tmp_path / "r6.jsonl"
+    f7 = tmp_path / "r7.jsonl"
+    f6.write_text(json.dumps({"type": "sample", "data": {"signed_err": [0.1] * 6}}) + "\n", encoding="utf-8")
+    f7.write_text(json.dumps({"type": "sample", "data": {"signed_err": [0.1] * 7}}) + "\n", encoding="utf-8")
+    assert dyn_cli.cli_report_compare([str(f6), str(f7)]) == 2

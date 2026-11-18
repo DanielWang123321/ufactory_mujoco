@@ -183,10 +183,15 @@ class TaskPackagingTests(unittest.TestCase):
 
     def test_dependencies_are_declared_only_in_pyproject(self):
         """pyproject.toml is the single dependency declaration; only the CI lock file remains."""
+        import ufactory_mujoco
+
         self.assertEqual(sorted(p.name for p in ROOT.glob("requirements*.txt")),
                          ["requirements-lock.txt"])
-        project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
+        parsed = tomllib.loads((ROOT / "pyproject.toml").read_text())
+        project = parsed["project"]
         self.assertEqual(set(project["optional-dependencies"]), {"test"})
+        self.assertEqual(ufactory_mujoco.__version__, project["version"])
+        self.assertEqual(parsed["tool"]["pytest"]["ini_options"]["pythonpath"], ["."])
 
     def test_examples_avoid_private_robot_attributes_and_run_outside_repo_cwd(self):
         for path in sorted((ROOT / "examples" / "simulation").glob("*.py")):

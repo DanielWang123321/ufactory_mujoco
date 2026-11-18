@@ -47,7 +47,10 @@ from .trajectory import (
 )
 from .xarm_robot import XArmRobot
 
+__version__ = "0.1.7"
+
 __all__ = [
+    "__version__",
     # robots and models
     "SimRobot",
     "XArmRobot",

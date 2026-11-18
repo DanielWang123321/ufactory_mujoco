@@ -474,7 +474,7 @@ def _add_shared_model_args(parser: argparse.ArgumentParser) -> None:
         "--reference-backend",
         choices=("auto", "mujoco-rnea", "pinocchio", "none"),
         default="auto",
-        help="Independent analytical reference backend (default: auto -> mujoco-rnea)",
+        help="Analytical reference backend (default: auto -> mujoco-rnea; optional pinocchio)",
     )
     parser.add_argument("--urdf-path", type=str, default=None, help="Optional URDF path for Pinocchio backend")
     parser.add_argument("--require-reference", action="store_true", help="Fail if reference backend is unavailable")
@@ -489,14 +489,283 @@ def _add_shared_model_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--jsonl-report", type=str, default=None, help="JSONL report output path")
 
 
-def cli_hardware_check(argv: Sequence[str] | None = None) -> int:
-    from .session import (
-        MOVE_STRATEGIES,
-        MOVE_STRATEGY_DIRECT,
-        RealRobotSession,
-        RobotMotionError,
+def _skipped_dynamics_sample(
+    pose: Any,
+    sim_sample: Any,
+    *,
+    status: ValidationStatus,
+    settled: bool = False,
+    skip_reason: str = "",
+    notes: list[str] | None = None,
+) -> DynamicsSample:
+    return DynamicsSample(
+        pose=pose.name,
+        q=pose.q,
+        ee_z_mm=pose.ee_z_mm,
+        status=status,
+        settled=settled,
+        saturated=sim_sample.saturated,
+        q_actual=sim_sample.q_actual,
+        qvel=sim_sample.qvel,
+        pd_hold_tau=sim_sample.pd_hold_tau,
+        actual_dof_force=sim_sample.actual_dof_force,
+        mass_matrix=sim_sample.mass_matrix,
+        skip_reason=skip_reason,
+        notes=list(notes) if notes is not None else [],
     )
 
+
+def _run_hold_current_only(session: Any, reference: Any) -> int:
+    session.print_config()
+    raw_load = getattr(session.arm, "tcp_load", None)
+    if isinstance(raw_load, (list, tuple)) and len(raw_load) >= 1:
+        try:
+            if abs(float(raw_load[0])) > 0.05:
+                print(
+                    f"[NOTE] Controller reports non-zero tcp_load={raw_load}; "
+                    "bare-arm ref_G reflects flange-only model without end-effector mass."
+                )
+        except (TypeError, ValueError):
+            pass
+    q, qvel, tau = session.get_joint_states()
+    tau_direct = session.get_joints_torque()
+    print(f"\nCurrent q          : {format_torque_row(q)}")
+    print(f"Current dq         : {format_torque_row(qvel)}")
+    print(f"joint_states effort: {format_torque_row(tau)}")
+    if tau_direct is not None:
+        print(f"get_joints_torque  : {format_torque_row(tau_direct)}")
+    if reference is not None:
+        g_cur = reference.gravity(q)
+        print(f"ref_G(current q)   : {format_torque_row(g_cur)}")
+        print(f"L2(ref_G - tau)    : {float(np.linalg.norm(g_cur - tau)):.4f} Nm")
+    return 0
+
+
+def _validate_hardware_preconditions(
+    session: Any,
+    args: argparse.Namespace,
+    safe_poses: Sequence[Any],
+    home_qpos: np.ndarray,
+) -> bool:
+    raw_load = getattr(session.arm, "tcp_load", None)
+    load_kg = 0.0
+    if isinstance(raw_load, (list, tuple)) and len(raw_load) >= 1:
+        try:
+            load_kg = float(raw_load[0])
+        except (TypeError, ValueError):
+            load_kg = 0.0
+    if load_kg > 0.05 and not args.clear_tcp_load:
+        session.print_config()
+        print(
+            f"\n[FAIL] Controller reports non-zero tcp_load ({load_kg:.3f} kg > 0.050 kg); "
+            "bare-arm hardware check refuses to move or zero payload with an attached end effector."
+        )
+        print(
+            "[HINT] Detach the end effector and set tcp_load=0, or pass --clear-tcp-load "
+            "if bare flange is verified."
+        )
+        return False
+    if not args.clear_tcp_offset:
+        offset_z_issues = _check_controller_tcp_offset_z(session, safe_poses, home_qpos)
+        if offset_z_issues:
+            session.print_config()
+            print(
+                "\n[FAIL] Controller has non-zero tcp_offset and failed EE z > 0 precheck; "
+                "real robot will not move:"
+            )
+            for issue in offset_z_issues[:5]:
+                print(f"  - {issue}")
+            print("[HINT] Clear controller tcp_offset or pass --clear-tcp-offset if bare flange is verified.")
+            return False
+    return True
+
+
+def _sample_hardware_poses(
+    *,
+    session: Any,
+    ctx: Any,
+    safe_poses: Sequence[Any],
+    sim_data: dict[str, Any],
+    runtime: Any,
+    reference: Any,
+    args: argparse.Namespace,
+    joint_lower: np.ndarray,
+    joint_upper: np.ndarray,
+    motion_error_cls: type[BaseException],
+    results: list[DynamicsSample],
+) -> tuple[bool, bool]:
+    motion_started = False
+    hardware_abort = False
+    for pose in safe_poses:
+        if hardware_abort:
+            break
+        sim_sample = sim_data[pose.name]
+        for repeat_i in range(args.repeats):
+            try:
+                q_now, _, _ = session.get_joint_states()
+            except RuntimeError as exc:
+                print(f"  [{pose.name}] repeat {repeat_i + 1}: UNSAFE; telemetry failed: {exc}")
+                results.append(
+                    _skipped_dynamics_sample(
+                        pose,
+                        sim_sample,
+                        status=ValidationStatus.UNSAFE,
+                        skip_reason="telemetry_error",
+                        notes=[str(exc)],
+                    )
+                )
+                hardware_abort = True
+                break
+
+            unsafe = _hardware_path_reasons_by_waypoint(
+                session=session,
+                ctx=ctx,
+                start_q=q_now,
+                target_q=pose.q,
+                joint_lower=joint_lower,
+                joint_upper=joint_upper,
+                z_min_mm=args.z_min_mm,
+                move_strategy=args.move_strategy,
+            )
+            if unsafe:
+                print(f"  [{pose.name}] repeat {repeat_i + 1}: UNSAFE; " + "; ".join(unsafe[:2]))
+                results.append(
+                    _skipped_dynamics_sample(
+                        pose, sim_sample, status=ValidationStatus.UNSAFE, skip_reason="unsafe", notes=unsafe
+                    )
+                )
+                continue
+
+            gate = evaluate_pd_hold_gate(sim_sample, pose.q, runtime_profile=runtime, reference=reference)
+            if gate.block_hardware:
+                status = ValidationStatus.NOT_SETTLED if not sim_sample.settled else ValidationStatus.SATURATED
+                print(
+                    f"  [{pose.name}] repeat {repeat_i + 1}: {status.value}; "
+                    "MuJoCo PD hold check failed; not moving hardware"
+                )
+                results.append(
+                    _skipped_dynamics_sample(
+                        pose,
+                        sim_sample,
+                        status=status,
+                        settled=sim_sample.settled,
+                        skip_reason=status.value.lower(),
+                    )
+                )
+                continue
+
+            sim_for_compare = sim_sample_for_torque_compare(sim_sample, gate)
+            if gate.reason == "pd_tracking_saturation":
+                print(
+                    f"  [{pose.name}] MuJoCo PD tracking saturation at joints "
+                    f"{list(gate.tracking_limited_joints)}; ref_G(target) used for theory torque"
+                )
+
+            print(f"  Moving to [{pose.name}] repeat {repeat_i + 1}/{args.repeats} ...")
+            try:
+                motion_started = True
+                real = session.sample_at_hold(
+                    pose.q,
+                    speed_rad_s=args.speed,
+                    move_strategy=args.move_strategy,
+                    sample_duration_s=args.sample_duration,
+                    sample_poll_s=args.sample_poll,
+                )
+            except (motion_error_cls, RuntimeError) as exc:
+                print(f"  [{pose.name}] repeat {repeat_i + 1}: UNSAFE; motion failed: {exc}")
+                results.append(
+                    _skipped_dynamics_sample(
+                        pose,
+                        sim_sample,
+                        status=ValidationStatus.UNSAFE,
+                        skip_reason="motion_error",
+                        notes=[str(exc)],
+                    )
+                )
+                hardware_abort = True
+                break
+
+            ref_g = reference.gravity(real.q) if reference is not None else None
+            sample = build_dynamics_sample(
+                pose,
+                sim_for_compare,
+                runtime_profile=runtime,
+                tau_real=real.tau,
+                tau_real_median=real.tau_median,
+                tau_real_std=real.tau_std,
+                tau_real_min=real.tau_min,
+                tau_real_max=real.tau_max,
+                tau_direct=real.tau_direct,
+                n_real_samples=real.n_samples,
+                reference_gravity_tau=ref_g,
+                reference=reference,
+                skip_reason="" if real.settled else "not settled",
+            )
+            if not real.settled and sample.status == ValidationStatus.INSUFFICIENT_DATA:
+                sample.status = ValidationStatus.NOT_SETTLED
+            print(f"  [{pose.name}] tau_real_mean={format_torque_row(real.tau)}  [{sample.status.value}]")
+            results.append(sample)
+    return motion_started, hardware_abort
+
+
+def _finalize_hardware_session(
+    *,
+    session: Any,
+    args: argparse.Namespace,
+    ctx: Any,
+    runtime: Any,
+    motion_started: bool,
+    completed_without_interrupt: bool,
+    hardware_abort: bool,
+    joint_lower: np.ndarray | None,
+    joint_upper: np.ndarray | None,
+) -> None:
+    if session is None:
+        return
+    if (
+        not args.hold_current_only
+        and motion_started
+        and completed_without_interrupt
+        and not hardware_abort
+        and not args.no_return_home
+    ):
+        try:
+            q_end_now, _, _ = session.get_joint_states()
+            home_reasons = (
+                _hardware_path_reasons_by_waypoint(
+                    session=session,
+                    ctx=ctx,
+                    start_q=q_end_now,
+                    target_q=runtime.arm.home_qpos,
+                    joint_lower=joint_lower,
+                    joint_upper=joint_upper,
+                    z_min_mm=args.z_min_mm,
+                    move_strategy=args.move_strategy,
+                )
+                if joint_lower is not None and joint_upper is not None
+                else []
+            )
+            if home_reasons:
+                print("\n[WARN] Skipping return_home due to unsafe path: " + "; ".join(home_reasons[:2]))
+            else:
+                print("\n--- Returning to home ---")
+                session.return_home(speed_rad_s=args.speed, move_strategy=args.move_strategy)
+        except Exception as exc:
+            print(f"[WARN] return_home failed: {exc}")
+    elif motion_started and not completed_without_interrupt:
+        session.stop()
+    restore_fn = getattr(session, "restore_controller_config", None)
+    if callable(restore_fn):
+        for err in restore_fn():
+            print(f"[WARN] {err}")
+    session.disconnect()
+
+
+def _parse_hardware_check_args(
+    argv: Sequence[str] | None,
+    move_strategies: Sequence[str],
+    move_strategy_direct: str,
+) -> tuple[argparse.Namespace, Any, frozenset[str]]:
     parser = argparse.ArgumentParser(
         description=f"UFACTORY MuJoCo vs real static torque validation. {_PD_HOLD_TORQUE_DEF}"
     )
@@ -529,7 +798,7 @@ def cli_hardware_check(argv: Sequence[str] | None = None) -> int:
         default=None,
         help="Joint speed in rad/s (default & max: 40 deg/s = 0.6981 rad/s)",
     )
-    parser.add_argument("--move-strategy", choices=MOVE_STRATEGIES, default=MOVE_STRATEGY_DIRECT)
+    parser.add_argument("--move-strategy", choices=move_strategies, default=move_strategy_direct)
     parser.add_argument("--sample-duration", type=float, default=3.0, help="Seconds of hold samples per pose")
     parser.add_argument("--sample-poll", type=float, default=0.1, help="Seconds between hold samples")
     parser.add_argument("--repeats", type=int, default=1, help="Hardware repeats per pose")
@@ -571,387 +840,20 @@ def cli_hardware_check(argv: Sequence[str] | None = None) -> int:
 
     if args.z_min_mm < 50.0:
         print(f"[WARN] z_min={args.z_min_mm:.1f} mm is a low-margin hardware mode")
+    return args, runtime, strict_layers
 
-    calibration, kinematics_yaml_path, resolved_sn = _resolve_calibration(
-        runtime=runtime,
-        ip=args.ip,
-        kinematics_yaml=args.kinematics_yaml,
-        kinematics_suffix=args.kinematics_suffix,
-        kinematics_yaml_dir=args.kinematics_yaml_dir,
-        nominal_model=args.nominal_model,
-        force_kinematics=args.force_kinematics,
-    )
 
-    print("=" * 78)
-    print(f"{runtime.model.key} Static Dynamics Validation: MuJoCo PD hold vs Real Robot")
-    print("=" * 78)
-    print(f"Scene: {runtime.model.scene_path}")
-    if kinematics_yaml_path:
-        print(f"Calib: {kinematics_yaml_path}")
-    print(
-        f"z_min: {args.z_min_mm:.1f} mm  speed: {args.speed:.4f} rad/s  move_strategy: {args.move_strategy}  "
-        f"zero_joint_frictionloss: {args.zero_joint_frictionloss}"
-    )
-
-    ctx = build_mujoco_scene(
-        runtime.model.robot_name,
-        runtime_profile=runtime,
-        calibration=calibration,
-        zero_joint_frictionloss=args.zero_joint_frictionloss,
-    )
-    model_issues = validate_mjcf_dynamics(ctx.model, dof=runtime.model.dof)
-    errors = [i for i in model_issues if i.severity == "ERROR"]
-    if model_issues:
-        print("\n--- MJCF dynamics static checks ---")
-        for issue in model_issues:
-            print(f"  [{issue.severity}] {issue.item}: {issue.message}")
-    if errors:
-        print("[FAIL] MJCF dynamics static checks contain errors")
-        return 1
-
-    configs = dynamics_default_configs(runtime.model.robot_name, include_stress=args.include_stress)
-    configs, missing = _select_poses(configs, args.poses)
-    if missing:
-        print(f"[WARN] Requested poses not found: {sorted(missing)}")
-    if not configs:
-        print("[FAIL] No poses selected")
-        return 1
-
-    ee_z_table = compute_ee_z_table_from_sim(ctx, configs)
-    colliding = find_colliding_configs(ctx, configs)
-    safe_poses, rejected = filter_safe_configs(configs, ee_z_table, args.z_min_mm, colliding_names=colliding)
-
-    print("\n--- Safe pose filter (MuJoCo attachment_site z + collision) ---")
-    print_safe_pose_table(safe_poses, rejected)
-    if not safe_poses:
-        print("[FAIL] No safe poses after z/collision filter")
-        return 1
-
-    reference = load_reference_backend(
-        runtime.model.robot_name,
-        backend=args.reference_backend,
-        model_path=runtime.model.model_path,
-        urdf_path=args.urdf_path,
-        calibration=calibration,
-        required=args.require_reference,
-    )
-    if reference is None:
-        print("[WARN] Reference backend disabled/unavailable; continuing without L2b/L3a/L3b")
-
-    print("\n--- MuJoCo PD hold torques ---")
-    sim_data = _run_sim_samples(ctx, safe_poses, reference, runtime)
-
-    session: RealRobotSession | None = None
-    motion_started = False
-    hardware_abort = False
-    completed_without_interrupt = False
-    interrupted = False
-    joint_lower: np.ndarray | None = None
-    joint_upper: np.ndarray | None = None
-    results: list[DynamicsSample] = []
-    settle_steps = max(1, int(round(5.0 / float(ctx.model.opt.timestep))))
-    run_config = make_run_config(
-        robot_key=runtime.model.key,
-        model_path=str(runtime.model.model_path),
-        kinematics_yaml_path=kinematics_yaml_path,
-        sim_dt=float(ctx.model.opt.timestep),
-        settle_steps=settle_steps,
-        reference_backend=getattr(reference, "backend_name", None),
-        mode="dry-run" if args.dry_run else ("hold-current-only" if args.hold_current_only else "hardware"),
-    )
-    run_config.robot_sn = resolved_sn or run_config.robot_sn
-
-    try:
-        if args.hold_current_only:
-            session = RealRobotSession(args.ip, dof=runtime.model.dof, home_qpos=runtime.arm.home_qpos)
-            session.print_config()
-            raw_load = getattr(session.arm, "tcp_load", None)
-            if isinstance(raw_load, (list, tuple)) and len(raw_load) >= 1:
-                try:
-                    if abs(float(raw_load[0])) > 0.05:
-                        print(
-                            f"[NOTE] Controller reports non-zero tcp_load={raw_load}; "
-                            "bare-arm ref_G reflects flange-only model without end-effector mass."
-                        )
-                except (TypeError, ValueError):
-                    pass
-            q, qvel, tau = session.get_joint_states()
-            tau_direct = session.get_joints_torque()
-            print(f"\nCurrent q          : {format_torque_row(q)}")
-            print(f"Current dq         : {format_torque_row(qvel)}")
-            print(f"joint_states effort: {format_torque_row(tau)}")
-            if tau_direct is not None:
-                print(f"get_joints_torque  : {format_torque_row(tau_direct)}")
-            if reference is not None:
-                g_cur = reference.gravity(q)
-                print(f"ref_G(current q)   : {format_torque_row(g_cur)}")
-                print(f"L2(ref_G - tau)    : {float(np.linalg.norm(g_cur - tau)):.4f} Nm")
-            return 0
-
-        if args.dry_run:
-            for pose in safe_poses:
-                ref_g = reference.gravity(sim_data[pose.name].q_actual) if reference is not None else None
-                results.append(
-                    build_dynamics_sample(
-                        pose,
-                        sim_data[pose.name],
-                        runtime_profile=runtime,
-                        reference_gravity_tau=ref_g,
-                        reference=reference,
-                        skip_reason="dry-run",
-                    )
-                )
-            completed_without_interrupt = True
-        else:
-            session = RealRobotSession(args.ip, dof=runtime.model.dof, home_qpos=runtime.arm.home_qpos)
-            raw_load = getattr(session.arm, "tcp_load", None)
-            load_kg = 0.0
-            if isinstance(raw_load, (list, tuple)) and len(raw_load) >= 1:
-                try:
-                    load_kg = float(raw_load[0])
-                except (TypeError, ValueError):
-                    load_kg = 0.0
-            if load_kg > 0.05 and not args.clear_tcp_load:
-                session.print_config()
-                print(
-                    f"\n[FAIL] Controller reports non-zero tcp_load ({load_kg:.3f} kg > 0.050 kg); "
-                    "bare-arm hardware check refuses to move or zero payload with an attached end effector."
-                )
-                print(
-                    "[HINT] Detach the end effector and set tcp_load=0, or pass --clear-tcp-load "
-                    "if bare flange is verified."
-                )
-                return 1
-            if not args.clear_tcp_offset:
-                offset_z_issues = _check_controller_tcp_offset_z(session, safe_poses, runtime.arm.home_qpos)
-                if offset_z_issues:
-                    session.print_config()
-                    print(
-                        "\n[FAIL] Controller has non-zero tcp_offset and failed EE z > 0 precheck; "
-                        "real robot will not move:"
-                    )
-                    for issue in offset_z_issues[:5]:
-                        print(f"  - {issue}")
-                    print("[HINT] Clear controller tcp_offset or pass --clear-tcp-offset if bare flange is verified.")
-                    return 1
-            session.configure_for_dynamics(clear_tcp_offset=args.clear_tcp_offset)
-            session.print_config()
-            run_config = make_run_config(
-                robot_key=runtime.model.key,
-                model_path=str(runtime.model.model_path),
-                kinematics_yaml_path=kinematics_yaml_path,
-                sim_dt=float(ctx.model.opt.timestep),
-                settle_steps=settle_steps,
-                reference_backend=getattr(reference, "backend_name", None),
-                mode="hardware",
-                session=session,
-            )
-
-            sn = get_robot_sn(session.arm)
-            run_config.robot_sn = sn or run_config.robot_sn
-            if calibration is not None and sn != calibration.serial_number:
-                raise RuntimeError(f"Connected SN {sn!r} != calibration SN {calibration.serial_number!r}")
-
-            joint_lower, joint_upper = parse_joint_limits(ctx.model, runtime.arm.joint_names)
-            print("\n--- Hardware sampling ---")
-            for pose in safe_poses:
-                if hardware_abort:
-                    break
-                for repeat_i in range(args.repeats):
-                    try:
-                        q_now, _, _ = session.get_joint_states()
-                    except RuntimeError as exc:
-                        print(f"  [{pose.name}] repeat {repeat_i + 1}: UNSAFE; telemetry failed: {exc}")
-                        sim_sample = sim_data[pose.name]
-                        results.append(
-                            DynamicsSample(
-                                pose=pose.name,
-                                q=pose.q,
-                                ee_z_mm=pose.ee_z_mm,
-                                status=ValidationStatus.UNSAFE,
-                                settled=False,
-                                saturated=sim_sample.saturated,
-                                q_actual=sim_sample.q_actual,
-                                qvel=sim_sample.qvel,
-                                pd_hold_tau=sim_sample.pd_hold_tau,
-                                actual_dof_force=sim_sample.actual_dof_force,
-                                mass_matrix=sim_sample.mass_matrix,
-                                skip_reason="telemetry_error",
-                                notes=[str(exc)],
-                            )
-                        )
-                        hardware_abort = True
-                        break
-                    unsafe = _hardware_path_reasons_by_waypoint(
-                        session=session,
-                        ctx=ctx,
-                        start_q=q_now,
-                        target_q=pose.q,
-                        joint_lower=joint_lower,
-                        joint_upper=joint_upper,
-                        z_min_mm=args.z_min_mm,
-                        move_strategy=args.move_strategy,
-                    )
-                    sim_sample = sim_data[pose.name]
-                    if unsafe:
-                        print(f"  [{pose.name}] repeat {repeat_i + 1}: UNSAFE; " + "; ".join(unsafe[:2]))
-                        results.append(
-                            DynamicsSample(
-                                pose=pose.name,
-                                q=pose.q,
-                                ee_z_mm=pose.ee_z_mm,
-                                status=ValidationStatus.UNSAFE,
-                                settled=False,
-                                saturated=sim_sample.saturated,
-                                q_actual=sim_sample.q_actual,
-                                qvel=sim_sample.qvel,
-                                pd_hold_tau=sim_sample.pd_hold_tau,
-                                actual_dof_force=sim_sample.actual_dof_force,
-                                mass_matrix=sim_sample.mass_matrix,
-                                skip_reason="unsafe",
-                                notes=unsafe,
-                            )
-                        )
-                        continue
-
-                    gate = evaluate_pd_hold_gate(
-                        sim_sample,
-                        pose.q,
-                        runtime_profile=runtime,
-                        reference=reference,
-                    )
-                    if gate.block_hardware:
-                        status = (
-                            ValidationStatus.NOT_SETTLED if not sim_sample.settled else ValidationStatus.SATURATED
-                        )
-                        print(
-                            f"  [{pose.name}] repeat {repeat_i + 1}: {status.value}; "
-                            "MuJoCo PD hold check failed; not moving hardware"
-                        )
-                        results.append(
-                            DynamicsSample(
-                                pose=pose.name,
-                                q=pose.q,
-                                ee_z_mm=pose.ee_z_mm,
-                                status=status,
-                                settled=sim_sample.settled,
-                                saturated=sim_sample.saturated,
-                                q_actual=sim_sample.q_actual,
-                                qvel=sim_sample.qvel,
-                                pd_hold_tau=sim_sample.pd_hold_tau,
-                                actual_dof_force=sim_sample.actual_dof_force,
-                                mass_matrix=sim_sample.mass_matrix,
-                                skip_reason=status.value.lower(),
-                            )
-                        )
-                        continue
-
-                    sim_for_compare = sim_sample_for_torque_compare(sim_sample, gate)
-                    if gate.reason == "pd_tracking_saturation":
-                        print(
-                            f"  [{pose.name}] MuJoCo PD tracking saturation at joints "
-                            f"{list(gate.tracking_limited_joints)}; ref_G(target) used for theory torque"
-                        )
-
-                    print(f"  Moving to [{pose.name}] repeat {repeat_i + 1}/{args.repeats} ...")
-                    try:
-                        motion_started = True
-                        real = session.sample_at_hold(
-                            pose.q,
-                            speed_rad_s=args.speed,
-                            move_strategy=args.move_strategy,
-                            sample_duration_s=args.sample_duration,
-                            sample_poll_s=args.sample_poll,
-                        )
-                    except (RobotMotionError, RuntimeError) as exc:
-                        print(f"  [{pose.name}] repeat {repeat_i + 1}: UNSAFE; motion failed: {exc}")
-                        results.append(
-                            DynamicsSample(
-                                pose=pose.name,
-                                q=pose.q,
-                                ee_z_mm=pose.ee_z_mm,
-                                status=ValidationStatus.UNSAFE,
-                                settled=False,
-                                saturated=sim_sample.saturated,
-                                q_actual=sim_sample.q_actual,
-                                qvel=sim_sample.qvel,
-                                pd_hold_tau=sim_sample.pd_hold_tau,
-                                actual_dof_force=sim_sample.actual_dof_force,
-                                mass_matrix=sim_sample.mass_matrix,
-                                skip_reason="motion_error",
-                                notes=[str(exc)],
-                            )
-                        )
-                        hardware_abort = True
-                        break
-
-                    ref_g = reference.gravity(real.q) if reference is not None else None
-                    sample = build_dynamics_sample(
-                        pose,
-                        sim_for_compare,
-                        runtime_profile=runtime,
-                        tau_real=real.tau,
-                        tau_real_median=real.tau_median,
-                        tau_real_std=real.tau_std,
-                        tau_real_min=real.tau_min,
-                        tau_real_max=real.tau_max,
-                        tau_direct=real.tau_direct,
-                        n_real_samples=real.n_samples,
-                        reference_gravity_tau=ref_g,
-                        reference=reference,
-                        skip_reason="" if real.settled else "not settled",
-                    )
-                    if not real.settled and sample.status == ValidationStatus.INSUFFICIENT_DATA:
-                        sample.status = ValidationStatus.NOT_SETTLED
-                    print(f"  [{pose.name}] tau_real_mean={format_torque_row(real.tau)}  [{sample.status.value}]")
-                    results.append(sample)
-            completed_without_interrupt = True
-    except KeyboardInterrupt:
-        interrupted = True
-        print("\n[ABORT] Interrupted by user (Ctrl-C); stopping controller immediately without return_home")
-        if session is not None:
-            session.stop()
-    finally:
-        if (
-            session is not None
-            and not args.hold_current_only
-            and motion_started
-            and completed_without_interrupt
-            and not hardware_abort
-            and not args.no_return_home
-        ):
-            try:
-                q_end_now, _, _ = session.get_joint_states()
-                home_reasons = (
-                    _hardware_path_reasons_by_waypoint(
-                        session=session,
-                        ctx=ctx,
-                        start_q=q_end_now,
-                        target_q=runtime.arm.home_qpos,
-                        joint_lower=joint_lower,
-                        joint_upper=joint_upper,
-                        z_min_mm=args.z_min_mm,
-                        move_strategy=args.move_strategy,
-                    )
-                    if joint_lower is not None and joint_upper is not None
-                    else []
-                )
-                if home_reasons:
-                    print("\n[WARN] Skipping return_home due to unsafe path: " + "; ".join(home_reasons[:2]))
-                else:
-                    print("\n--- Returning to home ---")
-                    session.return_home(speed_rad_s=args.speed, move_strategy=args.move_strategy)
-            except Exception as exc:
-                print(f"[WARN] return_home failed: {exc}")
-        elif session is not None and motion_started and not completed_without_interrupt:
-            session.stop()
-        if session is not None:
-            restore_fn = getattr(session, "restore_controller_config", None)
-            if callable(restore_fn):
-                for err in restore_fn():
-                    print(f"[WARN] {err}")
-            session.disconnect()
-
+def _emit_hardware_check_reports(
+    *,
+    results: list[DynamicsSample],
+    args: argparse.Namespace,
+    ctx: Any,
+    runtime: Any,
+    run_config: Any,
+    model_issues: list[Any],
+    strict_layers: frozenset[str],
+    interrupted: bool,
+) -> int:
     if interrupted:
         if results:
             stamp = now_stamp()
@@ -1018,6 +920,207 @@ def cli_hardware_check(argv: Sequence[str] | None = None) -> int:
         print("STATIC: FAIL (--strict-static L2/L3 thresholds exceeded)")
     print("=" * 78)
     return 0 if all_passed and not strict_static_fail else 1
+
+
+def _prepare_hardware_check_scene(
+    args: argparse.Namespace,
+    runtime: Any,
+    calibration: Any,
+    kinematics_yaml_path: Any,
+) -> tuple[Any, list[Any], list[Any], Any, dict[str, Any]] | None:
+    print("=" * 78)
+    print(f"{runtime.model.key} Static Dynamics Validation: MuJoCo PD hold vs Real Robot")
+    print("=" * 78)
+    print(f"Scene: {runtime.model.scene_path}")
+    if kinematics_yaml_path:
+        print(f"Calib: {kinematics_yaml_path}")
+    print(
+        f"z_min: {args.z_min_mm:.1f} mm  speed: {args.speed:.4f} rad/s  move_strategy: {args.move_strategy}  "
+        f"zero_joint_frictionloss: {args.zero_joint_frictionloss}"
+    )
+
+    ctx = build_mujoco_scene(
+        runtime.model.robot_name,
+        runtime_profile=runtime,
+        calibration=calibration,
+        zero_joint_frictionloss=args.zero_joint_frictionloss,
+    )
+    model_issues = validate_mjcf_dynamics(ctx.model, dof=runtime.model.dof)
+    errors = [i for i in model_issues if i.severity == "ERROR"]
+    if model_issues:
+        print("\n--- MJCF dynamics static checks ---")
+        for issue in model_issues:
+            print(f"  [{issue.severity}] {issue.item}: {issue.message}")
+    if errors:
+        print("[FAIL] MJCF dynamics static checks contain errors")
+        return None
+
+    configs = dynamics_default_configs(runtime.model.robot_name, include_stress=args.include_stress)
+    configs, missing = _select_poses(configs, args.poses)
+    if missing:
+        print(f"[WARN] Requested poses not found: {sorted(missing)}")
+    if not configs:
+        print("[FAIL] No poses selected")
+        return None
+
+    ee_z_table = compute_ee_z_table_from_sim(ctx, configs)
+    colliding = find_colliding_configs(ctx, configs)
+    safe_poses, rejected = filter_safe_configs(configs, ee_z_table, args.z_min_mm, colliding_names=colliding)
+
+    print("\n--- Safe pose filter (MuJoCo attachment_site z + collision) ---")
+    print_safe_pose_table(safe_poses, rejected)
+    if not safe_poses:
+        print("[FAIL] No safe poses after z/collision filter")
+        return None
+
+    reference = load_reference_backend(
+        runtime.model.robot_name,
+        backend=args.reference_backend,
+        model_path=runtime.model.model_path,
+        urdf_path=args.urdf_path,
+        calibration=calibration,
+        required=args.require_reference,
+    )
+    if reference is None:
+        print("[WARN] Reference backend disabled/unavailable; continuing without L2b/L3a/L3b")
+
+    print("\n--- MuJoCo PD hold torques ---")
+    sim_data = _run_sim_samples(ctx, safe_poses, reference, runtime)
+    return ctx, model_issues, safe_poses, reference, sim_data
+
+
+def cli_hardware_check(argv: Sequence[str] | None = None) -> int:
+    from .session import (
+        MOVE_STRATEGIES,
+        MOVE_STRATEGY_DIRECT,
+        RealRobotSession,
+        RobotMotionError,
+    )
+
+    args, runtime, strict_layers = _parse_hardware_check_args(
+        argv, MOVE_STRATEGIES, MOVE_STRATEGY_DIRECT
+    )
+
+    calibration, kinematics_yaml_path, resolved_sn = _resolve_calibration(
+        runtime=runtime,
+        ip=args.ip,
+        kinematics_yaml=args.kinematics_yaml,
+        kinematics_suffix=args.kinematics_suffix,
+        kinematics_yaml_dir=args.kinematics_yaml_dir,
+        nominal_model=args.nominal_model,
+        force_kinematics=args.force_kinematics,
+    )
+
+    prepared = _prepare_hardware_check_scene(args, runtime, calibration, kinematics_yaml_path)
+    if prepared is None:
+        return 1
+    ctx, model_issues, safe_poses, reference, sim_data = prepared
+
+    session: RealRobotSession | None = None
+    motion_started = False
+    hardware_abort = False
+    completed_without_interrupt = False
+    interrupted = False
+    joint_lower: np.ndarray | None = None
+    joint_upper: np.ndarray | None = None
+    results: list[DynamicsSample] = []
+    settle_steps = max(1, int(round(5.0 / float(ctx.model.opt.timestep))))
+    run_config = make_run_config(
+        robot_key=runtime.model.key,
+        model_path=str(runtime.model.model_path),
+        kinematics_yaml_path=kinematics_yaml_path,
+        sim_dt=float(ctx.model.opt.timestep),
+        settle_steps=settle_steps,
+        reference_backend=getattr(reference, "backend_name", None),
+        mode="dry-run" if args.dry_run else ("hold-current-only" if args.hold_current_only else "hardware"),
+    )
+    run_config.robot_sn = resolved_sn or run_config.robot_sn
+
+    try:
+        if args.hold_current_only:
+            session = RealRobotSession(args.ip, dof=runtime.model.dof, home_qpos=runtime.arm.home_qpos)
+            return _run_hold_current_only(session, reference)
+
+        if args.dry_run:
+            for pose in safe_poses:
+                ref_g = reference.gravity(sim_data[pose.name].q_actual) if reference is not None else None
+                results.append(
+                    build_dynamics_sample(
+                        pose,
+                        sim_data[pose.name],
+                        runtime_profile=runtime,
+                        reference_gravity_tau=ref_g,
+                        reference=reference,
+                        skip_reason="dry-run",
+                    )
+                )
+            completed_without_interrupt = True
+        else:
+            session = RealRobotSession(args.ip, dof=runtime.model.dof, home_qpos=runtime.arm.home_qpos)
+            if not _validate_hardware_preconditions(session, args, safe_poses, runtime.arm.home_qpos):
+                return 1
+            session.configure_for_dynamics(clear_tcp_offset=args.clear_tcp_offset)
+            session.print_config()
+            run_config = make_run_config(
+                robot_key=runtime.model.key,
+                model_path=str(runtime.model.model_path),
+                kinematics_yaml_path=kinematics_yaml_path,
+                sim_dt=float(ctx.model.opt.timestep),
+                settle_steps=settle_steps,
+                reference_backend=getattr(reference, "backend_name", None),
+                mode="hardware",
+                session=session,
+            )
+
+            sn = get_robot_sn(session.arm)
+            run_config.robot_sn = sn or run_config.robot_sn
+            if calibration is not None and sn != calibration.serial_number:
+                raise RuntimeError(f"Connected SN {sn!r} != calibration SN {calibration.serial_number!r}")
+
+            joint_lower, joint_upper = parse_joint_limits(ctx.model, runtime.arm.joint_names)
+            print("\n--- Hardware sampling ---")
+            motion_started, hardware_abort = _sample_hardware_poses(
+                session=session,
+                ctx=ctx,
+                safe_poses=safe_poses,
+                sim_data=sim_data,
+                runtime=runtime,
+                reference=reference,
+                args=args,
+                joint_lower=joint_lower,
+                joint_upper=joint_upper,
+                motion_error_cls=RobotMotionError,
+                results=results,
+            )
+            completed_without_interrupt = True
+    except KeyboardInterrupt:
+        interrupted = True
+        print("\n[ABORT] Interrupted by user (Ctrl-C); stopping controller immediately without return_home")
+        if session is not None:
+            session.stop()
+    finally:
+        _finalize_hardware_session(
+            session=session,
+            args=args,
+            ctx=ctx,
+            runtime=runtime,
+            motion_started=motion_started,
+            completed_without_interrupt=completed_without_interrupt,
+            hardware_abort=hardware_abort,
+            joint_lower=joint_lower,
+            joint_upper=joint_upper,
+        )
+
+    return _emit_hardware_check_reports(
+        results=results,
+        args=args,
+        ctx=ctx,
+        runtime=runtime,
+        run_config=run_config,
+        model_issues=model_issues,
+        strict_layers=strict_layers,
+        interrupted=interrupted,
+    )
 
 
 def cli_sim_check(argv: Sequence[str] | None = None) -> int:
@@ -1377,7 +1480,11 @@ def cli_report_compare(argv: Sequence[str] | None = None) -> int:
 
     old_records = read_report_records(args.old_report)
     new_records = read_report_records(args.new_report)
-    stats = compare_report_records(old_records, new_records)
+    try:
+        stats = compare_report_records(old_records, new_records)
+    except ValueError as exc:
+        print(f"Report compare error: {exc}", file=sys.stderr)
+        return 2
     print(
         f"{'Joint':>5} {'old_bias':>10} {'new_bias':>10} {'d_bias':>10} "
         f"{'old_rmse':>10} {'new_rmse':>10} {'d_rmse':>10}"
