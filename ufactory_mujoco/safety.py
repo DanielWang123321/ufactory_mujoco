@@ -327,6 +327,7 @@ def run_sdk_simulation(
             raise SafetyGateError(f"sdk-sim {label} failed with SDK code {code}")
 
     simulation_enabled = bool(getattr(arm, "is_simulation_robot", False))
+    completed_normally = False
     firmware_rows: list[np.ndarray] = []
     try:
         if not simulation_enabled:
@@ -380,12 +381,14 @@ def run_sdk_simulation(
             if step_dt_s > 0.0:
                 time.sleep(step_dt_s)
             firmware_rows.append(read_arm_joint_positions(arm, dof))
+        completed_normally = True
     finally:
         if simulation_enabled:
             cleanup_errors: list[str] = []
-            pause_code = int(arm.set_state(REPORT_STATE_PAUSED))
-            if pause_code != 0:
-                cleanup_errors.append(f"set_state(3) returned {pause_code}")
+            # Flush any queued virtual motion commands before leaving simulation mode.
+            stop_code = int(arm.set_state(REPORT_STATE_STOPPING))
+            if stop_code != 0:
+                cleanup_errors.append(f"set_state(4) returned {stop_code}")
             disable_code = int(arm.set_simulation_robot(False))
             if disable_code != 0:
                 cleanup_errors.append(f"set_simulation_robot(False) returned {disable_code}")
@@ -394,8 +397,10 @@ def run_sdk_simulation(
                 time.sleep(0.05)
             if bool(getattr(arm, "is_simulation_robot", False)):
                 cleanup_errors.append("controller still reports is_simulation_robot=True")
-            arm.set_mode(0)
-            arm.set_state(0)
+            if completed_normally and not cleanup_errors:
+                arm.motion_enable(enable=True)
+                arm.set_mode(0)
+                arm.set_state(0)
             if cleanup_errors:
                 raise SafetyGateError("sdk-sim cleanup failed: " + "; ".join(cleanup_errors))
 

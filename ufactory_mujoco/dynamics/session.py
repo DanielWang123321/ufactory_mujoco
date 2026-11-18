@@ -163,6 +163,71 @@ def build_motion_waypoints(
     raise ValueError(f"Unknown move strategy: {strategy}")
 
 
+@dataclass(frozen=True)
+class ControllerConfigSnapshot:
+    """Original controller settings captured before dynamics/sim configuration."""
+
+    tcp_load: tuple[float, list[float]] | None = None
+    tcp_offset: list[float] | None = None
+    gravity_direction: list[float] | None = None
+    report_tau_or_i: int | None = None
+    self_collision_detection: bool | None = None
+
+
+def _capture_controller_snapshot(arm: Any) -> ControllerConfigSnapshot:
+    tcp_load: tuple[float, list[float]] | None = None
+    raw_load = getattr(arm, "tcp_load", None)
+    if (
+        isinstance(raw_load, (list, tuple))
+        and len(raw_load) >= 2
+        and isinstance(raw_load[1], (list, tuple))
+        and len(raw_load[1]) >= 3
+    ):
+        try:
+            tcp_load = (float(raw_load[0]), [float(x) for x in raw_load[1][:3]])
+        except (TypeError, ValueError):
+            tcp_load = None
+
+    tcp_offset: list[float] | None = None
+    raw_offset = getattr(arm, "tcp_offset", None)
+    if isinstance(raw_offset, (list, tuple)) and len(raw_offset) >= 6:
+        try:
+            tcp_offset = [float(x) for x in raw_offset[:6]]
+        except (TypeError, ValueError):
+            tcp_offset = None
+
+    gravity_direction: list[float] | None = None
+    raw_grav = getattr(arm, "gravity_direction", None)
+    if isinstance(raw_grav, (list, tuple)) and len(raw_grav) >= 3:
+        try:
+            gravity_direction = [float(x) for x in raw_grav[:3]]
+        except (TypeError, ValueError):
+            gravity_direction = None
+
+    report_tau_or_i: int | None = None
+    tau_getter = getattr(arm, "get_report_tau_or_i", None)
+    if callable(tau_getter):
+        try:
+            res = tau_getter()
+            if isinstance(res, tuple) and len(res) == 2 and int(res[0]) == 0:
+                report_tau_or_i = int(res[1])
+        except Exception:
+            report_tau_or_i = None
+
+    self_collision: bool | None = None
+    raw_sc = getattr(arm, "self_collision_params", None)
+    if isinstance(raw_sc, (list, tuple)) and len(raw_sc) >= 1:
+        self_collision = bool(raw_sc[0])
+
+    return ControllerConfigSnapshot(
+        tcp_load=tcp_load,
+        tcp_offset=tcp_offset,
+        gravity_direction=gravity_direction,
+        report_tau_or_i=report_tau_or_i,
+        self_collision_detection=self_collision,
+    )
+
+
 class RealRobotSession:
     """Controlled xArm SDK session for slow position holds and torque sampling."""
 
@@ -175,7 +240,10 @@ class RealRobotSession:
         is_radian: bool = True,
         motion_mode: int = MODE_POSITION,
     ) -> None:
-        from xarm.wrapper import XArmAPI
+        try:
+            from xarm.wrapper import XArmAPI
+        except ImportError as exc:
+            raise RuntimeError("xarm-python-sdk ('xarm') is required to connect to an xArm controller") from exc
 
         self.ip = ip
         self.dof = int(dof)
@@ -184,9 +252,17 @@ class RealRobotSession:
             dtype=np.float64,
         )
         self._motion_mode = motion_mode
+        self._config_snapshot: ControllerConfigSnapshot | None = None
+        self._modified_dynamics = False
+        self._modified_tcp_offset = False
+        self._modified_self_collision = False
         self.arm = XArmAPI(ip, is_radian=is_radian)
         time.sleep(0.5)
         if not self.arm.connected:
+            try:
+                self.arm.disconnect()
+            except Exception:
+                pass
             raise ConnectionError(f"Failed to connect to xArm at {ip}")
 
     def ensure_ready(self, mode: int | None = None) -> None:
@@ -212,11 +288,14 @@ class RealRobotSession:
 
     def configure_for_dynamics(self, *, clear_tcp_offset: bool = False) -> None:
         """Position mode, bare flange (tcp_load=0), and torque reporting in Nm."""
+        if getattr(self, "_config_snapshot", None) is None:
+            self._config_snapshot = _capture_controller_snapshot(self.arm)
         self._motion_mode = MODE_POSITION
         self.ensure_ready(MODE_POSITION)
         arm = self.arm
         if clear_tcp_offset:
             _check_config_code("set_tcp_offset(0)", arm.set_tcp_offset([0, 0, 0, 0, 0, 0]))
+            self._modified_tcp_offset = True
             self.ensure_ready(MODE_POSITION)
         _check_config_code("set_gravity_direction", arm.set_gravity_direction(DEFAULT_GRAVITY_DIRECTION))
         # Controller leaves ready state after gravity-direction / load updates on xArm firmware.
@@ -224,6 +303,7 @@ class RealRobotSession:
         _check_config_code("set_tcp_load(0)", arm.set_tcp_load(0, [0, 0, 0]))
         self.ensure_ready(MODE_POSITION)
         _check_config_code("set_report_tau_or_i(0)", arm.set_report_tau_or_i(0))
+        self._modified_dynamics = True
 
     def configure_for_simulation_collision_check(
         self,
@@ -237,22 +317,89 @@ class RealRobotSession:
         _check_config_code("set_simulation_robot(True)", arm.set_simulation_robot(on_off=True))
         self.wait_for_simulation_robot(True, timeout_s=simulation_timeout_s)
         _check_config_code("set_self_collision_detection(True)", arm.set_self_collision_detection(True))
+        self._modified_self_collision = True
         self.ensure_ready(MODE_POSITION)
+
+    def restore_controller_config(self) -> list[str]:
+        """Restore controller load/offset/gravity/collision settings captured before configuration."""
+        snap: ControllerConfigSnapshot | None = getattr(self, "_config_snapshot", None)
+        if snap is None:
+            return []
+        mod_dyn = bool(getattr(self, "_modified_dynamics", False))
+        mod_off = bool(getattr(self, "_modified_tcp_offset", False))
+        mod_sc = bool(getattr(self, "_modified_self_collision", False))
+        if not (mod_dyn or mod_off or mod_sc):
+            return []
+        errors: list[str] = []
+        arm = self.arm
+        err_code, warn_code, state = _read_err_warn_and_state(arm)
+        if err_code != 0 or warn_code != 0 or state == REPORT_STATE_STOPPING:
+            errors.append(
+                f"skipped controller config restore because controller is not ready ({format_arm_status(arm)})"
+            )
+            return errors
+
+        def _try_restore(label: str, fn) -> None:
+            try:
+                code = fn()
+                if code is not None and int(code) != 0:
+                    errors.append(f"{label} returned {code}")
+            except Exception as exc:
+                errors.append(f"{label} raised {exc}")
+
+        if mod_sc and snap.self_collision_detection is not None:
+            _try_restore(
+                f"set_self_collision_detection({snap.self_collision_detection})",
+                lambda: arm.set_self_collision_detection(snap.self_collision_detection),
+            )
+        if mod_off and snap.tcp_offset is not None:
+            _try_restore("restore set_tcp_offset", lambda: arm.set_tcp_offset(list(snap.tcp_offset)))
+            try:
+                self.ensure_ready(MODE_POSITION)
+            except Exception as exc:
+                errors.append(f"ensure_ready after set_tcp_offset failed: {exc}")
+        if mod_dyn:
+            if snap.gravity_direction is not None:
+                _try_restore(
+                    "restore set_gravity_direction",
+                    lambda: arm.set_gravity_direction(list(snap.gravity_direction)),
+                )
+                try:
+                    self.ensure_ready(MODE_POSITION)
+                except Exception as exc:
+                    errors.append(f"ensure_ready after set_gravity_direction failed: {exc}")
+            if snap.tcp_load is not None:
+                weight, com = snap.tcp_load
+                _try_restore("restore set_tcp_load", lambda: arm.set_tcp_load(weight, list(com)))
+                try:
+                    self.ensure_ready(MODE_POSITION)
+                except Exception as exc:
+                    errors.append(f"ensure_ready after set_tcp_load failed: {exc}")
+            if snap.report_tau_or_i is not None:
+                _try_restore(
+                    f"restore set_report_tau_or_i({snap.report_tau_or_i})",
+                    lambda: arm.set_report_tau_or_i(snap.report_tau_or_i),
+                )
+        self._modified_dynamics = False
+        self._modified_tcp_offset = False
+        self._modified_self_collision = False
+        return errors
 
     def disable_simulation_robot(
         self,
         *,
         simulation_timeout_s: float = SIMULATION_SWITCH_TIMEOUT_S,
+        restore_ready: bool = True,
     ) -> list[str]:
-        """Leave controller simulation mode safely and wait for report stream refresh."""
+        """Flush queued virtual motion, leave simulation mode, and optionally restore ready state."""
         errors: list[str] = []
         arm = self.arm
         try:
-            pause_code = int(arm.set_state(REPORT_STATE_PAUSED))
-            if pause_code != 0:
-                errors.append(f"set_state(3) returned {pause_code}")
+            stop_code = int(arm.set_state(REPORT_STATE_STOPPING))
+            if stop_code != 0:
+                errors.append(f"set_state(4) returned {stop_code}")
         except Exception as exc:
-            errors.append(f"set_state(3) raised {exc}")
+            errors.append(f"set_state(4) raised {exc}")
         try:
             disable_code = int(arm.set_simulation_robot(on_off=False))
             if disable_code != 0:
@@ -260,6 +407,13 @@ class RealRobotSession:
             self.wait_for_simulation_robot(False, timeout_s=simulation_timeout_s)
         except Exception as exc:
             errors.append(str(exc))
+        if restore_ready and not errors:
+            try:
+                arm.motion_enable(enable=True)
+                arm.set_mode(MODE_POSITION)
+                arm.set_state(0)
+            except Exception as exc:
+                errors.append(f"post-sim ready restore failed: {exc}")
         time.sleep(0.2)
         return errors
 
@@ -457,6 +611,13 @@ class RealRobotSession:
         stats = self.collect_hold_samples(duration_s=sample_duration_s, poll_s=sample_poll_s)
         stats.settled = bool(settled_sample.settled and stats.settled)
         return stats
+
+    def stop(self) -> None:
+        """Send software STOP (state=4) to immediately halt motion and flush queued commands."""
+        try:
+            self.arm.set_state(REPORT_STATE_STOPPING)
+        except Exception:
+            pass
 
     def return_home(
         self,

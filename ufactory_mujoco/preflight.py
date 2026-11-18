@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from .calibration import apply_calibration_to_model
 from .collision import CollisionChecker
 from .path_planning import PlanningError, plan_collision_free
 from .task_geometry import tcp_task_heights, box_task_heights
@@ -18,8 +19,9 @@ from .task_geometry import tcp_task_heights, box_task_heights
 # Phase names are report data keys (approach, close/grasp, lift, transport, place/release,
 # return); they stay unchanged so existing reports and tooling keep matching.
 PHASES = ("接近", "闭合", "抬起", "运送", "放置", "回位")
-_IGNORED_BODIES = ("world", "cube", "pick_stand", "place_stand")
+_IGNORED_BODIES = ("cube", "pick_stand", "place_stand")
 _BOX_PACK_PREFIXES = ("cube", "feed_stand", "pick_stand", "place_stand")
+_BASE_BODIES = ("link_base", "xarm_base_plate", "uf850_base_plate", "lite6_base_plate")
 _FINGER_PAIR = ("uflite_finger1", "uflite_finger2")
 _CHECK_RES = 0.08
 
@@ -104,25 +106,31 @@ def _finger_pairs(names: set[str]) -> list[tuple[str, str]]:
     return []
 
 
+def _base_world_pairs(names: set[str]) -> list[tuple[str, str]]:
+    # Only the mounting base may touch the floor; arm links and grippers must not penetrate z=0.
+    return [(base_name, "world") for base_name in _BASE_BODIES if base_name in names]
+
+
 def make_checker(scene) -> CollisionChecker:
-    """Penetration-only checker that ignores the table, cube, and finger pair."""
+    """Penetration-only checker that checks floor contacts while ignoring base-floor, cube, and finger pair."""
     probe = CollisionChecker(scene, safety_margin=0.0, query_margin=0.01)
     names = {probe.model.body(i).name for i in range(probe.model.nbody)}
     return CollisionChecker(
         scene, safety_margin=0.0, query_margin=0.01,
-        ignore_pairs=_finger_pairs(names), ignore_bodies=_IGNORED_BODIES,
+        ignore_pairs=[*_finger_pairs(names), *_base_world_pairs(names)],
+        ignore_bodies=_IGNORED_BODIES,
     )
 
 
 def make_box_pack_checker(scene) -> CollisionChecker:
-    """Penetration-only checker: feed props ignored, the pack box is not."""
+    """Penetration-only checker: feed props and base-floor ignored, floor and pack box are checked."""
     probe = CollisionChecker(scene, safety_margin=0.0, query_margin=0.01)
     names = {probe.model.body(i).name for i in range(probe.model.nbody)}
-    ignored = ["world"]
-    ignored.extend(n for n in names if n.startswith(_BOX_PACK_PREFIXES))
+    ignored = [n for n in names if n.startswith(_BOX_PACK_PREFIXES)]
     return CollisionChecker(
         scene, safety_margin=0.0, query_margin=0.01,
-        ignore_pairs=_finger_pairs(names), ignore_bodies=tuple(ignored),
+        ignore_pairs=[*_finger_pairs(names), *_base_world_pairs(names)],
+        ignore_bodies=tuple(ignored),
     )
 
 
@@ -158,6 +166,9 @@ def preflight_pick_place(robot, config) -> PreflightReport:
     """Plan one pick-and-place cycle and check it without stepping physics."""
     task = config.pick_place
     checker = make_checker(config.scene_path)
+    calib = getattr(robot, "calibration", None)
+    if calib is not None:
+        apply_calibration_to_model(checker.model, calib, checker.data)
     heights, q_home_full = tcp_task_heights(robot, task)
     q_home = np.asarray(q_home_full[:robot.n_arm], dtype=float)
     q_now = np.asarray(robot.get_joint_positions(), dtype=float)
@@ -244,6 +255,9 @@ def preflight_box_pack(robot, config, cycles: int = 1) -> PreflightReport:
     if not 1 <= cycles <= n_blocks:
         raise ValueError(f"cycles must be within 1..{n_blocks}, got {cycles}")
     checker = make_box_pack_checker(config.scene_path)
+    calib = getattr(robot, "calibration", None)
+    if calib is not None:
+        apply_calibration_to_model(checker.model, calib, checker.data)
     # An unreachable probe point fails every phase instead of raising.
     try:
         heights, q_home_full = box_task_heights(robot, task)

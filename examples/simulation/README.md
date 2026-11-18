@@ -137,10 +137,10 @@ tau_ff = dyn.feedforward_traj(q_traj, dt)  # feedforward torques along a traject
 
 ### 2.4 Real Robot & Controller Simulation (`xarm-python-sdk`)
 
-Hardware modes require `xarm-python-sdk` (`pip install xarm-python-sdk`), which is not needed for simulation. Replace the IP address with your controller's (or set `XARM_IP`). Every hardware mode rejects a calibration YAML whose serial number or SHA-256 does not match the connected controller.
+Hardware modes require `xarm-python-sdk` (`pip install xarm-python-sdk`), which is not needed for simulation. Replace the IP address with your controller's (or set `XARM_IP`). Every hardware mode verifies the connected controller's serial number and model against the calibration YAML and records the calibration SHA-256 in reports and `MotionApproval` tokens.
 
-- **Zero physical motion checks**: `kinematics_validation`, `08 --mode real-read-only`, and `--mode sdk-sim` (`05`, `08`, `10`) do not move the physical joints (`sdk-sim` replays trajectories inside the controller's built-in simulator and restores non-simulation mode on exit).
-- **Physical motion gate**: `--mode real` (`05`, `08`, `10`) requires healthy controller telemetry, passing preflight, and `--confirm-real`, and enforces `cycles == 1`. In non-`sim` modes, `08_dynamics.py` requires a single arm key (not `--robot all`). All hardware dynamics validation commands (`dynamics-hardware-check`, `dynamics-sim-collision-check`, `08 --mode sdk-sim`/`real`) enforce a hard joint speed ceiling of `<= 40 °/s` (`0.6981 rad/s`).
+- **Zero physical motion checks**: `kinematics_validation`, `08 --mode real-read-only`, `dynamics-hardware-check --hold-current-only` (strictly read-only, never alters controller load/offset or enables motors), and `--mode sdk-sim` (`05`, `08`, `10`) do not move the physical joints (`sdk-sim` replays trajectories inside the controller's built-in simulator, flushes the command queue before leaving simulation mode, and restores original settings on normal exit). `dynamics-sim-collision-check` requires `--confirm-real` because it enables controller simulation mode, and automatically restores original controller load/offset/collision settings on exit.
+- **Physical motion gate**: `--mode real` (`05`, `08`, `10`) requires healthy controller telemetry, passing preflight from the measured current joint pose, and `--confirm-real`, and enforces `cycles == 1`. On `05`/`10`, `--mode real` actuates the jaw gripper and records `gripper_actuated`, `measured_grasp_gap_m`, and `object_grasped_inferred` in the JSON report (compatible with both empty-grasp verification and 30 mm cube grasping). In non-`sim` modes, `08_dynamics.py` requires a single arm key (not `--robot all`) and accepts `--gripper <name>` when an end effector is mounted. All hardware dynamics validation commands (`dynamics-hardware-check`, `dynamics-sim-collision-check`, `08 --mode sdk-sim`/`real`) enforce a hard joint speed ceiling of `<= 40 °/s` (`0.6981 rad/s`).
 
 ```bash
 # 1. Extract the per-unit calibration YAML (calibrations/<arm>_kinematics_<SN>.yaml)
@@ -149,12 +149,12 @@ python -m ufactory_mujoco.dynamics export-calibration 192.168.1.60 --output-dir 
 # 2. Read-only FK/IK comparison and zero-motion static dynamics checks
 python -m ufactory_mujoco.kinematics_validation --robot xarm6 --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
 python examples/simulation/08_dynamics.py --robot xarm6 --mode real-read-only --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
-dynamics-hardware-check --robot lite6 --ip 192.168.1.60 --confirm-real --hold-current-only --require-reference
+dynamics-hardware-check --robot lite6 --ip 192.168.1.60 --hold-current-only --require-reference
 
 # 3. Controller built-in simulator replay (no physical joint motion)
 python examples/simulation/05_pick_place.py --robot xarm6 --mode sdk-sim --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
 python examples/simulation/10_box_pack.py --robot xarm6 --mode sdk-sim --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
-dynamics-sim-collision-check --robot lite6 --ip 192.168.1.60
+dynamics-sim-collision-check --robot lite6 --ip 192.168.1.60 --confirm-real
 
 # 4. Physical motion (requires --confirm-real; ensure clear workspace & E-stop)
 #    Units whose port-502 export is skipped (older SNs or xArm 5 parallel-axis kinematics) pass --nominal-model
@@ -171,7 +171,7 @@ dynamics-report-compare reports/dyn_ver_<SN>/<old>.jsonl reports/dyn_ver_<SN>/<n
 | Option | Scripts | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `--robot <arm>` | `05`, `08`, `10` | `xarm6` | Arm key (`lite6`, `xarm5`, `xarm6`, `xarm7`, `uf850`); `08` (`--mode sim`) also accepts `all` |
-| `--gripper <name>` | `05`, `10` | `None` (from YAML) | Override the mounted gripper in task config |
+| `--gripper <name>` | `05`, `08`, `10` | `None` (`05`/`10`: from YAML) | Override task gripper (`05`/`10`) or specify mounted end effector for `08` hardware collision preflight |
 | `--executor <mode>` | `05`, `10` | `servo_cartesian` | Trajectory executor: `servo_cartesian` or `servo_j` |
 | `--config <path>` | `05`, `10` | `configs/<task>/<robot>.yaml` | Custom task overlay YAML path |
 | `--mode <mode>` | `05`, `08`, `10` | `sim` | Execution mode: `sim`, `dry-run` (`05`/`10`), `real-read-only` (`08`), `sdk-sim`, or `real` |

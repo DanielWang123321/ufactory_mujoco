@@ -168,13 +168,10 @@ def validate_fk_ik_with_controller(
         ik_rpy_err_deg = float(
             max(angle_diff_deg(a, b) for a, b in zip(ik_sdk_tcp[3:6], sdk_tcp[3:6]))
         )
-        # Also query controller IK if available
-        sdk_ik_code = None
-        ik_getter = getattr(arm, "get_inverse_kinematics", None)
-        if callable(ik_getter):
-            res_ik = ik_getter(sdk_tcp.tolist(), input_is_radian=True, return_is_radian=True)
-            if isinstance(res_ik, tuple) and len(res_ik) == 2:
-                sdk_ik_code = int(res_ik[0])
+        # Note: controller get_inverse_kinematics() is intentionally NOT called here because
+        # xArm firmware latches warn_code=14 on singular poses (e.g. home J5=0), mutating
+        # controller state during a read-only check. Controller get_forward_kinematics(q_ik)
+        # verifies the IK solution against firmware POE/DH without side effects.
 
         ik_ok = bool(
             mj_ik_pos_err_mm < pos_tol_mm
@@ -192,7 +189,6 @@ def validate_fk_ik_with_controller(
             "q_target_rad": q.tolist(),
             "q_solved_rad": q_ik.tolist(),
             "converged": bool(ik_converged),
-            "sdk_ik_code": sdk_ik_code,
             "mujoco_reproj_tcp_mm_rad": ik_mj_tcp.tolist(),
             "controller_reproj_tcp_mm_rad": ik_sdk_tcp.tolist(),
             "pos_error_mm": ik_pos_err_mm,

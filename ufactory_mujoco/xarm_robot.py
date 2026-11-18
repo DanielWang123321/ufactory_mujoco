@@ -30,6 +30,7 @@ from .calibration import (
     get_robot_sn,
     read_tcp_offset,
 )
+from .collision import arm_joint_limits
 from .g2_model import checked, sdk_position_counts, sdk_speed_rpm, speed_mm_s
 from .grippers import (
     GRIPPER_ACTUATOR_NAMES,
@@ -43,6 +44,8 @@ from .robot_interface import RobotInterface
 from .robots import ARMS, resolve_arm_scene
 from .safety import (
     MotionApproval,
+    REPORT_STATE_IN_MOTION,
+    REPORT_STATE_PAUSED,
     REPORT_STATE_STOPPING,
     SafetyGateError,
     assert_controller_healthy,
@@ -140,6 +143,9 @@ class XArmRobot(RobotInterface):
             self._site = site_id
 
             self._n_arm_qpos = ARMS[self.robot_key].dof
+            _, q_lo, q_hi = arm_joint_limits(self.model)
+            self._q_lo = q_lo[: self._n_arm_qpos].copy()
+            self._q_hi = q_hi[: self._n_arm_qpos].copy()
             self._gripper_actuator_id: int | None = None
             for i in range(self.model.nu):
                 if self.model.actuator(i).name in GRIPPER_ACTUATOR_NAMES:
@@ -220,7 +226,18 @@ class XArmRobot(RobotInterface):
 
     def _prepare_mode(self, mode: int) -> None:
         self._require_motion_unlocked(f"set_mode({mode})")
-        if self._motion_prepared_mode == mode:
+        actual_mode = getattr(self._arm, "mode", None)
+        actual_state = int(getattr(self._arm, "state", 0) or 0)
+        state_getter = getattr(self._arm, "get_state", None)
+        if callable(state_getter):
+            res = state_getter()
+            if isinstance(res, tuple) and len(res) == 2 and int(res[0]) == 0:
+                actual_state = int(res[1])
+        if (
+            self._motion_prepared_mode == mode
+            and (actual_mode is None or int(actual_mode) == mode)
+            and actual_state not in (REPORT_STATE_PAUSED, REPORT_STATE_STOPPING)
+        ):
             return
         for label, fn in (
             ("motion_enable", lambda: self._arm.motion_enable(enable=True)),
@@ -237,6 +254,14 @@ class XArmRobot(RobotInterface):
         arr = np.asarray(q, dtype=np.float64)
         if arr.shape != (self.n_arm,) or not np.all(np.isfinite(arr)):
             raise ValueError(f"{name} must be a finite array of shape ({self.n_arm},), got {arr.shape}")
+        return arr
+
+    def _check_joint_limits(self, q: np.ndarray, name: str) -> np.ndarray:
+        arr = self._require_arm_q(q, name)
+        if np.any(arr < self._q_lo - 1e-6) or np.any(arr > self._q_hi + 1e-6):
+            raise ValueError(
+                f"{name} exceeds arm joint limits [{self._q_lo.tolist()}, {self._q_hi.tolist()}], got {arr.tolist()}"
+            )
         return arr
 
     def _tcp_site_name(self) -> str:
@@ -309,7 +334,15 @@ class XArmRobot(RobotInterface):
     # -- motion commands (gated) --------------------------------------------
     def set_joint_positions(self, q: np.ndarray) -> None:
         self._require_motion_unlocked("set_joint_positions")
-        q_target = self._require_arm_q(q, "q")
+        q_target = self._check_joint_limits(q, "q")
+        q_now = self.get_joint_positions()
+        max_step = min(0.1, max(0.02, self._max_joint_speed_rad_s * 0.1))
+        step_delta = float(np.max(np.abs(q_target - q_now)))
+        if step_delta > max_step:
+            raise SafetyGateError(
+                f"set_joint_positions step delta {step_delta:.4f} rad exceeds servo step cap "
+                f"{max_step:.4f} rad; use move_joints for point-to-point motion"
+            )
         self._prepare_mode(1)
         code = int(
             self._arm.set_servo_angle_j(
@@ -330,7 +363,7 @@ class XArmRobot(RobotInterface):
         self._require_motion_unlocked("move_joints")
         if not np.isfinite(duration) or duration <= 0:
             raise ValueError("duration must be finite and positive")
-        q_target = self._require_arm_q(q_goal, "q_goal")
+        q_target = self._check_joint_limits(q_goal, "q_goal")
         q_now = self.get_joint_positions()
         disp = float(np.max(np.abs(q_target - q_now)))
         cap = min(1.0, self._max_joint_speed_rad_s)
@@ -371,26 +404,52 @@ class XArmRobot(RobotInterface):
             raise ValueError(f"trajectory n_joints must be {self.n_arm}, got {traj.n_joints}")
         if traj.n_steps == 0:
             return
+        if not np.all(np.isfinite(traj.times)) or not np.all(np.isfinite(traj.q)):
+            raise ValueError("trajectory times and joint positions must be finite")
+        if traj.n_steps > 1:
+            dts = np.diff(traj.times)
+            if np.any(dts <= 0.0):
+                raise ValueError("trajectory times must be strictly increasing")
+            step_speeds = np.abs(np.diff(traj.q, axis=0)) / dts[:, None]
+            peak_speed = float(np.max(step_speeds))
+            if peak_speed > self._max_joint_speed_rad_s * 1.05:
+                raise SafetyGateError(
+                    f"trajectory peak joint speed {peak_speed:.4f} rad/s exceeds "
+                    f"max_joint_speed_rad_s {self._max_joint_speed_rad_s:.4f} rad/s"
+                )
+        if np.any(traj.q < self._q_lo[None, :] - 1e-6) or np.any(traj.q > self._q_hi[None, :] + 1e-6):
+            raise ValueError("trajectory contains joint positions outside arm joint limits")
+        q_now = self.get_joint_positions()
+        start_err = float(np.max(np.abs(traj.q[0] - q_now)))
+        if start_err > 0.05:
+            raise SafetyGateError(
+                f"trajectory start error {start_err:.4f} rad from current joints exceeds "
+                "0.0500 rad; move_joints to the start pose first"
+            )
         self._prepare_mode(1)
         dt = max(traj.dt, 0.004)
         t_end = float(traj.times[-1])
         cur_t = float(traj.times[0])
-        while cur_t <= t_end + 0.5 * dt:
-            q_cmd, _, _ = traj.sample(cur_t)
-            code = int(
-                self._arm.set_servo_angle_j(
-                    angles=q_cmd.tolist(),
-                    speed=0,
-                    mvacc=0,
-                    mvtime=0,
-                    is_radian=True,
+        try:
+            while cur_t <= t_end + 0.5 * dt:
+                q_cmd, _, _ = traj.sample(cur_t)
+                code = int(
+                    self._arm.set_servo_angle_j(
+                        angles=q_cmd.tolist(),
+                        speed=0,
+                        mvacc=0,
+                        mvtime=0,
+                        is_radian=True,
+                    )
                 )
-            )
-            if code != 0:
-                self._arm.set_state(REPORT_STATE_STOPPING)
-                raise SafetyGateError(f"set_servo_angle_j failed with SDK code {code}")
-            time.sleep(dt)
-            cur_t += dt
+                if code != 0:
+                    self.stop()
+                    raise SafetyGateError(f"set_servo_angle_j failed with SDK code {code}")
+                time.sleep(dt)
+                cur_t += dt
+        except BaseException:
+            self.stop()
+            raise
         if wait:
             self.settle(0.2)
         self.get_joint_positions()
@@ -483,7 +542,13 @@ class XArmRobot(RobotInterface):
             return self._commanded_gripper_pos
         getter = getattr(self._arm, "get_gripper_position", None)
         if callable(getter):
-            code, pos = getter()
+            if self.read_only:
+                try:
+                    code, pos = getter(check_baud=False)
+                except TypeError:
+                    code, pos = getter()
+            else:
+                code, pos = getter()
             if int(code) == 0 and pos is not None:
                 # xArm Gripper G2 SDK scale: 850 (open) .. 0 (closed)
                 return float(np.clip(1.0 - float(pos) / 850.0, 0.0, 1.0))
@@ -499,6 +564,8 @@ class XArmRobot(RobotInterface):
         self._require_motion_unlocked("set_gripper")
         if not self.has_gripper:
             raise NotImplementedError("This robot has no gripper")
+        if not np.isfinite(float(pos)):
+            raise ValueError(f"gripper position must be finite, got {pos!r}")
         pos_clamped = float(np.clip(pos, 0.0, 1.0))
 
         if self._gripper_spec is not None and self._gripper_spec.name == "bio_gripper_g2":
@@ -643,8 +710,33 @@ class XArmRobot(RobotInterface):
         if self.motion_unlocked and duration > 0:
             time.sleep(min(float(duration), 0.5))
 
+    def stop(self) -> None:
+        """Send software STOP (state=4) to halt motion and flush queued commands."""
+        self._motion_prepared_mode = None
+        if self._arm is not None and bool(getattr(self._arm, "connected", False)):
+            try:
+                self._arm.set_state(REPORT_STATE_STOPPING)
+            except Exception:
+                pass
+
     def close(self) -> None:
-        """Disconnect the SDK session if this object opened it."""
+        """Stop active motion if unlocked, and disconnect the SDK session if owned."""
+        if (
+            self.motion_unlocked
+            and self._arm is not None
+            and bool(getattr(self._arm, "connected", False))
+        ):
+            state_val = int(getattr(self._arm, "state", 0) or 0)
+            state_getter = getattr(self._arm, "get_state", None)
+            if callable(state_getter):
+                try:
+                    res = state_getter()
+                    if isinstance(res, tuple) and len(res) == 2 and int(res[0]) == 0:
+                        state_val = int(res[1])
+                except Exception:
+                    pass
+            if state_val == REPORT_STATE_IN_MOTION:
+                self.stop()
         if self._owns_connection and self._arm is not None:
             try:
                 self._arm.disconnect()
@@ -655,5 +747,7 @@ class XArmRobot(RobotInterface):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
+        if exc_type is not None and self.motion_unlocked:
+            self.stop()
         self.close()
 

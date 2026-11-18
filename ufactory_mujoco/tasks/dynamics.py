@@ -559,6 +559,7 @@ def run_hardware_dynamics_validation(
     ip: str | None = None,
     calibration: str | Path | None = None,
     confirm_real: bool = False,
+    gripper: str | None = None,
 ) -> dict:
     """Validate dynamics on a real xArm controller with fail-closed confirmation gates."""
     resolved_ip = ip or os.environ.get("XARM_IP")
@@ -567,6 +568,7 @@ def run_hardware_dynamics_validation(
         "validation_version": VALIDATION_VERSION,
         "mode": mode,
         "robot": robot,
+        "gripper": gripper,
         "success": False,
         "completed": False,
         "failures": [],
@@ -579,11 +581,12 @@ def run_hardware_dynamics_validation(
         if not calibration:
             raise SafetyGateError(f"dynamics mode={mode!r} requires --calibration YAML")
 
-        scene_path = resolve_arm_scene(robot, None, "scene")
+        scene_path = resolve_arm_scene(robot, gripper, "scene")
         model_path = MODELS_ROOT / robot / f"{robot}.xml"
         with XArmRobot(
             resolved_ip,
             robot=robot,
+            gripper=gripper,
             scene="scene",
             model_path=scene_path,
             calibration=calibration,
@@ -597,8 +600,21 @@ def run_hardware_dynamics_validation(
             mass_kg = float(load_raw[0]) if isinstance(load_raw, (list, tuple)) and len(load_raw) >= 2 else 0.0
             com_mm = load_raw[1] if isinstance(load_raw, (list, tuple)) and len(load_raw) >= 2 else [0.0, 0.0, 0.0]
             com_m = (np.asarray(com_mm, dtype=float) / 1000.0).tolist()
+            offset_xyz_norm_mm = float(np.linalg.norm(np.asarray(state["tcp_offset"][:3], dtype=float)))
 
-            dyn = ArmDynamics(model_path, payload=(mass_kg, com_m))
+            if mode in ("sdk-sim", "real") and gripper is None and (mass_kg > 0.05 or offset_xyz_norm_mm > 1.0):
+                raise SafetyGateError(
+                    f"controller reports attached tool (tcp_load={mass_kg:.3f} kg, "
+                    f"|tcp_offset_xyz|={offset_xyz_norm_mm:.1f} mm) while --gripper is omitted; "
+                    "pass --gripper (e.g. --gripper gripper_g2) so collision preflight includes the end effector"
+                )
+
+            if mass_kg > 1e-6:
+                dyn = ArmDynamics(model_path, payload=(mass_kg, com_m))
+            elif gripper is not None:
+                dyn = ArmDynamics(scene_path)
+            else:
+                dyn = ArmDynamics(model_path, payload=(mass_kg, com_m))
             apply_calibration_to_model(dyn.model, calib, dyn.data)
             tau_gravity = dyn.gravity(q_now)
             delta_nm = tau_real - tau_gravity
@@ -607,8 +623,8 @@ def run_hardware_dynamics_validation(
             apply_calibration_to_model(checker.model, calib, checker.data)
             ready, target = (np.asarray(p, dtype=float) for p in PRESETS[robot])
             segments = motion_segments(ready, target)
-            home = np.zeros(ARMS[robot].dof, dtype=float)
-            preflight = preflight_motion(checker, home, segments)
+            start_q = np.asarray(q_now, dtype=float).copy()
+            preflight = preflight_motion(checker, start_q, segments)
 
             report.update(
                 serial_number=hw_robot.serial_number,
@@ -622,6 +638,7 @@ def run_hardware_dynamics_validation(
                     "max_abs_delta_nm": float(np.max(np.abs(delta_nm))),
                 },
                 preflight={
+                    "start_q_rad": start_q.tolist(),
                     "success": preflight["success"],
                     "samples_checked": preflight["samples_checked"],
                     "max_penetration_m": preflight["max_penetration_m"],
@@ -638,14 +655,16 @@ def run_hardware_dynamics_validation(
                 report["success"] = not report["failures"]
                 return report
 
-            # Build velocity-bounded shadow stream for sdk-sim / real
+            # Build velocity- and acceleration-bounded shadow stream starting from measured q_now
             def _seg(a: np.ndarray, b: np.ndarray) -> np.ndarray:
                 disp = float(np.max(np.abs(b - a)))
-                dur = max(0.6, disp * 1.875 / MAX_DYNAMICS_MOVE_SPEED_RAD_S)
+                t_v = disp * 1.875 / MAX_DYNAMICS_MOVE_SPEED_RAD_S
+                t_a = float(np.sqrt(5.7735 * disp / 4.0))
+                dur = max(0.6, t_v, t_a)
                 return plan_ptp_quintic(a, b, duration=dur, dt=0.02).q
 
             shadow_chunks = [
-                _seg(home, ready),
+                _seg(start_q, ready),
                 _seg(ready, target)[1:],
                 _seg(target, ready)[1:],
             ]
@@ -672,6 +691,13 @@ def run_hardware_dynamics_validation(
                 return report
 
             # mode == "real"
+            q_live = hw_robot.get_joint_positions()
+            live_drift = float(np.max(np.abs(q_live - start_q)))
+            if live_drift > 0.02:
+                raise SafetyGateError(
+                    f"joint positions drifted by {live_drift:.4f} rad since preflight (> 0.0200 rad); "
+                    "refusing real motion"
+                )
             approval = authorize_real_motion(
                 hw_robot._arm,
                 robot=robot,
@@ -706,6 +732,7 @@ def main(argv=None) -> None:
     """``ufactory-mujoco dynamics`` command line entry point."""
     parser = argparse.ArgumentParser(prog="ufactory-mujoco dynamics", description=__doc__)
     parser.add_argument("--robot", choices=(*ARMS, "all"), default="xarm6")
+    parser.add_argument("--gripper", default=None, help="mounted end effector for hardware collision preflight")
     parser.add_argument("--headless", action="store_true", help="validate without a viewer")
     parser.add_argument("--samples", type=lambda s: integer_argument(s, positive=True), default=32)
     parser.add_argument("--seed", type=integer_argument, default=0)
@@ -717,6 +744,8 @@ def main(argv=None) -> None:
     parser.add_argument("--confirm-real", action="store_true",
                         help="explicitly authorize single-cycle real robot motion")
     args = parser.parse_args(argv)
+    if args.mode == "sim" and args.gripper is not None:
+        parser.error("--gripper is only supported in hardware modes (--mode real-read-only, sdk-sim, real)")
     if args.mode != "sim":
         report = run_hardware_dynamics_validation(
             args.robot,
@@ -724,6 +753,7 @@ def main(argv=None) -> None:
             ip=args.ip,
             calibration=args.calibration,
             confirm_real=args.confirm_real,
+            gripper=args.gripper,
         )
         print(f"dynamics ({args.mode} {args.robot}): {'PASS' if report['success'] else 'FAIL'}")
         for reason in report["failures"]:

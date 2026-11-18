@@ -178,8 +178,8 @@ class FakeXArmAPI:
             self.physical_q[: len(q)] = q
         return 0
 
-    def get_gripper_position(self):
-        self.calls.append(("get_gripper_position", ()))
+    def get_gripper_position(self, **kwargs):
+        self.calls.append(("get_gripper_position", tuple(sorted(kwargs.items()))))
         return 0, self.gripper_pos
 
     def set_gripper_enable(self, enable: bool):
@@ -425,6 +425,78 @@ class KinematicsAndSdkSimValidationTests(unittest.TestCase):
                 step_dt_s=0.0,
             )
         self.assertFalse(fake.is_simulation_robot)
+        self.assertEqual(fake.state, 4)
+
+    def test_servo_step_trajectory_guards_and_exception_stop(self):
+        fake = FakeXArmAPI()
+        approval = authorize_real_motion(
+            fake, robot="xarm6", calibration=CALIB_PATH, preflight_ok=True, confirm_real=True, cycles=1
+        )
+        with XArmRobot(
+            robot="xarm6",
+            gripper="gripper_g2",
+            calibration=CALIB_PATH,
+            read_only=True,
+            arm_api=fake,
+        ) as ro_robot:
+            _ = ro_robot.get_gripper_position()
+            self.assertIn(("get_gripper_position", (("check_baud", False),)), fake.calls)
+
+        with XArmRobot(
+            robot="xarm6",
+            gripper="gripper_g2",
+            calibration=CALIB_PATH,
+            read_only=False,
+            approval=approval,
+            arm_api=fake,
+            max_joint_speed_rad_s=1.0,
+        ) as robot:
+            q_now = robot.get_joint_positions()
+            # Large servo jump rejected
+            with self.assertRaisesRegex(SafetyGateError, "step delta"):
+                robot.set_joint_positions(q_now + np.array([0.5, 0.0, 0.0, 0.0, 0.0, 0.0]))
+            # Out-of-range joint rejected
+            with self.assertRaisesRegex(ValueError, "joint limits"):
+                robot.move_joints(np.full(6, 9.0), duration=1.0)
+            # Small servo step allowed
+            robot.set_joint_positions(q_now + np.array([0.02, 0.0, 0.0, 0.0, 0.0, 0.0]))
+
+            q_cur = robot.get_joint_positions()
+            # Trajectory starting far from q_cur rejected
+            far_traj = JointTrajectory(
+                np.array([0.0, 0.1]),
+                np.vstack([q_cur + 0.3, q_cur + 0.32]),
+                np.zeros((2, 6)),
+                np.zeros((2, 6)),
+            )
+            with self.assertRaisesRegex(SafetyGateError, "start error"):
+                robot.execute_trajectory(far_traj)
+
+            # Discontinuous / overspeed trajectory rejected before servo_j
+            jump_traj = JointTrajectory(
+                np.array([0.0, 0.002]),
+                np.vstack([q_cur, q_cur + np.array([0.5, 0.0, 0.0, 0.0, 0.0, 0.0])]),
+                np.zeros((2, 6)),
+                np.zeros((2, 6)),
+            )
+            with self.assertRaisesRegex(SafetyGateError, "peak joint speed"):
+                robot.execute_trajectory(jump_traj)
+
+        # Unhandled exception inside context manager sends STOP (state=4) before disconnect
+        fake2 = FakeXArmAPI()
+        approval2 = authorize_real_motion(
+            fake2, robot="xarm6", calibration=CALIB_PATH, preflight_ok=True, confirm_real=True, cycles=1
+        )
+        with self.assertRaisesRegex(RuntimeError, "boom"):
+            with XArmRobot(
+                robot="xarm6",
+                calibration=CALIB_PATH,
+                read_only=False,
+                approval=approval2,
+                arm_api=fake2,
+            ):
+                raise RuntimeError("boom")
+        self.assertIn(("set_state", (4,)), fake2.calls)
 
 
 class CliAndDynamicsGateTests(unittest.TestCase):
@@ -465,6 +537,84 @@ class CliAndDynamicsGateTests(unittest.TestCase):
                 1,
             )
             self.assertEqual(fake.motion_calls, [])
+
+    def test_real_pick_place_actuates_gripper_and_records_grasp_telemetry(self):
+        import json
+        fake = FakeXArmAPI()
+
+        def connect_fake(_ip: str):
+            fake.connected = True
+            return fake
+
+        with (
+            patch("ufactory_mujoco.xarm_robot._connect_xarm_sdk", side_effect=connect_fake),
+            tempfile.TemporaryDirectory(dir=ROOT) as tmp,
+        ):
+            report_path = Path(tmp) / "real_pp.json"
+            rc = self._run_cli([
+                "pick-place", "--robot", "xarm6", "--mode", "real", "--confirm-real",
+                "--ip", "192.168.1.60", "--calibration", str(CALIB_PATH),
+                "--report", str(report_path),
+            ])
+            self.assertEqual(rc, 0)
+            payload = json.loads(report_path.read_text(encoding="utf-8"))
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["gripper_actuated"])
+            self.assertAlmostEqual(payload["commanded_grasp_gap_m"], 0.022, places=4)
+            self.assertAlmostEqual(payload["measured_grasp_gap_m"], 0.022, places=3)
+            self.assertFalse(payload["object_grasped_inferred"])
+            gripper_calls = [c for c in fake.calls if c[0] == "set_gripper_position"]
+            # Open (850) -> Close (~222.6) -> Open (850)
+            self.assertGreaterEqual(len(gripper_calls), 3)
+            self.assertAlmostEqual(gripper_calls[0][1][0], 850.0, places=1)
+            self.assertLess(gripper_calls[1][1][0], 300.0)
+            self.assertAlmostEqual(gripper_calls[-1][1][0], 850.0, places=1)
+
+    def test_hardware_dynamics_validation_checks_measured_q_now_and_gripper_guard(self):
+        from ufactory_mujoco.tasks.dynamics import run_hardware_dynamics_validation
+
+        fake = FakeXArmAPI()
+
+        def connect_fake(_ip: str):
+            fake.connected = True
+            fake.state = 5
+            return fake
+
+        with patch("ufactory_mujoco.xarm_robot._connect_xarm_sdk", side_effect=connect_fake):
+            # Attached tool (tcp_load=0.82 kg) without --gripper is blocked in real mode
+            rep_no_grip = run_hardware_dynamics_validation(
+                "xarm6", mode="real", ip="192.168.1.60", calibration=CALIB_PATH, confirm_real=True
+            )
+            self.assertFalse(rep_no_grip["success"])
+            self.assertTrue(any("--gripper" in f for f in rep_no_grip["failures"]))
+            self.assertEqual(fake.motion_calls, [])
+
+            # At q=zeros with Gripper G2 mounted, preflight catches floor collision (-61.5 mm)
+            fake.physical_q[:] = 0.0
+            rep_zero = run_hardware_dynamics_validation(
+                "xarm6",
+                mode="real",
+                ip="192.168.1.60",
+                calibration=CALIB_PATH,
+                confirm_real=True,
+                gripper="gripper_g2",
+            )
+            self.assertFalse(rep_zero["success"])
+            self.assertFalse(rep_zero["preflight"]["success"])
+            self.assertEqual(fake.motion_calls, [])
+
+            # At a safe elevated pose with --gripper gripper_g2, real mode succeeds without visiting zeros
+            fake.physical_q[:] = [0.0, -0.5, -0.4, 0.0, 0.9, 0.0, 0.0]
+            rep_ok = run_hardware_dynamics_validation(
+                "xarm6",
+                mode="real",
+                ip="192.168.1.60",
+                calibration=CALIB_PATH,
+                confirm_real=True,
+                gripper="gripper_g2",
+            )
+            self.assertTrue(rep_ok["success"], rep_ok["failures"])
+            self.assertEqual(rep_ok["preflight"]["start_q_rad"], [0.0, -0.5, -0.4, 0.0, 0.9, 0.0])
 
 
 if __name__ == "__main__":

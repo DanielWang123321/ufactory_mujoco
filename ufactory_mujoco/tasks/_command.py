@@ -54,10 +54,11 @@ def _build_shadow_stream(
     n_arm: int,
     *,
     max_vel_rad_s: float = 0.8,
+    max_acc_rad_s2: float = 4.0,
     min_seg_duration: float = 0.4,
     dt: float = 0.02,
 ) -> np.ndarray:
-    """Build a velocity-bounded joint trajectory array ``(N, n_arm)`` from preflight segments."""
+    """Build a velocity- and acceleration-bounded joint trajectory array ``(N, n_arm)`` from preflight segments."""
     chunks: list[np.ndarray] = []
     for seg in report.segments.values():
         w = np.asarray(seg.waypoints, dtype=np.float64)
@@ -65,7 +66,9 @@ def _build_shadow_stream(
             q0 = w[i, :n_arm]
             q1 = w[i + 1, :n_arm]
             disp = float(np.max(np.abs(q1 - q0)))
-            duration = max(min_seg_duration, disp * 1.875 / max_vel_rad_s)
+            t_v = disp * 1.875 / max_vel_rad_s
+            t_a = math.sqrt(5.7735 * disp / max_acc_rad_s2)
+            duration = max(min_seg_duration, t_v, t_a)
             traj = plan_ptp_quintic(q0, q1, duration=duration, dt=dt)
             chunks.append(traj.q if not chunks else traj.q[1:])
     if not chunks:
@@ -95,9 +98,11 @@ def _run_hardware_manipulation(command: str, args, config) -> tuple[int, dict]:
         if command == "pick-place":
             report = preflight_pick_place(robot, config)
             checker = make_checker(config.scene_path)
+            task_cfg = config.pick_place
         else:
             report = preflight_box_pack(robot, config, cycles=1)
             checker = make_box_pack_checker(config.scene_path)
+            task_cfg = config.box_pack
 
         shadow_q = _build_shadow_stream(report, robot.n_arm)
         prog_hash = stream_sha256(shadow_q)
@@ -135,6 +140,13 @@ def _run_hardware_manipulation(command: str, args, config) -> tuple[int, dict]:
             return (0 if ok else 1), payload
 
         # mode == "real": require explicit --confirm-real and issue MotionApproval
+        q_live = robot.get_joint_positions()
+        live_drift = float(np.max(np.abs(q_live - shadow_q[0])))
+        if live_drift > 0.02:
+            raise SafetyGateError(
+                f"joint positions drifted by {live_drift:.4f} rad since preflight (> 0.0200 rad); "
+                "refusing real motion"
+            )
         approval = authorize_real_motion(
             robot._arm,
             robot=config.robot,
@@ -146,13 +158,33 @@ def _run_hardware_manipulation(command: str, args, config) -> tuple[int, dict]:
             program_sha256=prog_hash,
         )
         robot.unlock_motion(approval)
-        for seg in report.segments.values():
+        grasp_gap_m = float(task_cfg.grasp_gap_m)
+        gripper_actuated = False
+        measured_grasp_gap_m: float | None = None
+        if robot.gripper_kind == "jaw":
+            robot.open_gripper(wait=True)
+            robot.settle(0.3)
+            gripper_actuated = True
+        for seg_name, seg in report.segments.items():
             w = np.asarray(seg.waypoints, dtype=np.float64)
             for i in range(1, len(w)):
                 robot.move_joints(w[i, : robot.n_arm], duration=1.5, wait=True)
+            if robot.gripper_kind == "jaw":
+                if seg_name == "approach_grasp" or seg_name.startswith("approach_grasp#"):
+                    robot.set_gripper_gap(grasp_gap_m)
+                    robot.settle(0.5)
+                    measured_grasp_gap_m = float(robot.get_gripper_gap(measured=True))
+                elif seg_name == "放置" or seg_name.startswith("释放#"):
+                    robot.open_gripper(wait=True)
+                    robot.settle(0.5)
         q_end = robot.get_joint_positions()
         home_err_rad = float(np.max(np.abs(q_end - shadow_q[-1])))
         ok = bool(report.ok and home_err_rad < 0.05)
+        object_grasped_inferred = (
+            bool(measured_grasp_gap_m > grasp_gap_m + 0.002)
+            if measured_grasp_gap_m is not None
+            else False
+        )
         payload = report.as_dict("real")
         payload.update(
             robot=config.robot,
@@ -165,6 +197,10 @@ def _run_hardware_manipulation(command: str, args, config) -> tuple[int, dict]:
             preflight_ok=report.ok,
             requested_cycles=1,
             confirm_real=True,
+            gripper_actuated=gripper_actuated,
+            commanded_grasp_gap_m=grasp_gap_m if gripper_actuated else None,
+            measured_grasp_gap_m=measured_grasp_gap_m,
+            object_grasped_inferred=object_grasped_inferred,
             final_joint_error_rad=home_err_rad,
             ok=ok,
             success=ok,

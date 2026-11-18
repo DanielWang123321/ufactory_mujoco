@@ -502,9 +502,27 @@ def cli_hardware_check(argv: Sequence[str] | None = None) -> int:
     )
     _add_shared_model_args(parser)
     parser.add_argument("--dry-run", action="store_true", help="MuJoCo torques + safe poses only")
-    parser.add_argument("--confirm-real", action="store_true", help="Required before any controller access")
-    parser.add_argument("--hold-current-only", action="store_true", help="Read real torque at current pose")
+    parser.add_argument(
+        "--confirm-real",
+        action="store_true",
+        help="Required before hardware controller motion or configuration changes",
+    )
+    parser.add_argument(
+        "--hold-current-only",
+        action="store_true",
+        help="Read-only check of real torque at current pose without enabling motors or altering config",
+    )
     parser.add_argument("--clear-tcp-offset", action="store_true", help="Zero controller tcp_offset before checks")
+    parser.add_argument(
+        "--clear-tcp-load",
+        action="store_true",
+        help="Allow temporarily zeroing non-zero controller tcp_load during bare-arm check",
+    )
+    parser.add_argument(
+        "--no-return-home",
+        action="store_true",
+        help="Stay at the last evaluated pose instead of returning to home_qpos",
+    )
     parser.add_argument(
         "--speed",
         type=float,
@@ -518,6 +536,20 @@ def cli_hardware_check(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--poses", type=str, default=None, help="Comma-separated pose names to run")
     parser.add_argument("--include-stress", action="store_true", help="Include stress/saturation pose set")
     args = parser.parse_args(argv)
+
+    if args.dry_run and args.hold_current_only:
+        parser.error("--dry-run cannot be combined with --hold-current-only")
+    if args.hold_current_only and (args.clear_tcp_offset or args.clear_tcp_load):
+        parser.error(
+            "--hold-current-only is strictly read-only and cannot be combined with "
+            "--clear-tcp-offset or --clear-tcp-load"
+        )
+    if not np.isfinite(args.sample_duration) or args.sample_duration <= 0.0:
+        parser.error("--sample-duration must be finite and positive")
+    if not np.isfinite(args.sample_poll) or args.sample_poll <= 0.0:
+        parser.error("--sample-poll must be finite and positive")
+    if args.repeats < 1:
+        parser.error("--repeats must be >= 1")
 
     runtime = get_robot_runtime_profile(args.robot)
     strict_layers = parse_strict_static_layers(args.strict_static_layers) if args.strict_static else frozenset()
@@ -534,8 +566,8 @@ def cli_hardware_check(argv: Sequence[str] | None = None) -> int:
         args.ip = (os.environ.get("XARM_IP") or "").strip() or None
     if not args.dry_run and not args.ip:
         parser.error("--ip is required unless --dry-run (or set XARM_IP)")
-    if not args.dry_run and not args.confirm_real:
-        parser.error("--confirm-real is required before hardware controller access")
+    if not args.dry_run and not args.hold_current_only and not args.confirm_real:
+        parser.error("--confirm-real is required before hardware controller motion or configuration changes")
 
     if args.z_min_mm < 50.0:
         print(f"[WARN] z_min={args.z_min_mm:.1f} mm is a low-margin hardware mode")
@@ -611,6 +643,11 @@ def cli_hardware_check(argv: Sequence[str] | None = None) -> int:
 
     session: RealRobotSession | None = None
     motion_started = False
+    hardware_abort = False
+    completed_without_interrupt = False
+    interrupted = False
+    joint_lower: np.ndarray | None = None
+    joint_upper: np.ndarray | None = None
     results: list[DynamicsSample] = []
     settle_steps = max(1, int(round(5.0 / float(ctx.model.opt.timestep))))
     run_config = make_run_config(
@@ -620,15 +657,24 @@ def cli_hardware_check(argv: Sequence[str] | None = None) -> int:
         sim_dt=float(ctx.model.opt.timestep),
         settle_steps=settle_steps,
         reference_backend=getattr(reference, "backend_name", None),
-        mode="dry-run" if args.dry_run else "hardware",
+        mode="dry-run" if args.dry_run else ("hold-current-only" if args.hold_current_only else "hardware"),
     )
     run_config.robot_sn = resolved_sn or run_config.robot_sn
 
     try:
         if args.hold_current_only:
             session = RealRobotSession(args.ip, dof=runtime.model.dof, home_qpos=runtime.arm.home_qpos)
-            session.configure_for_dynamics(clear_tcp_offset=args.clear_tcp_offset)
             session.print_config()
+            raw_load = getattr(session.arm, "tcp_load", None)
+            if isinstance(raw_load, (list, tuple)) and len(raw_load) >= 1:
+                try:
+                    if abs(float(raw_load[0])) > 0.05:
+                        print(
+                            f"[NOTE] Controller reports non-zero tcp_load={raw_load}; "
+                            "bare-arm ref_G reflects flange-only model without end-effector mass."
+                        )
+                except (TypeError, ValueError):
+                    pass
             q, qvel, tau = session.get_joint_states()
             tau_direct = session.get_joints_torque()
             print(f"\nCurrent q          : {format_torque_row(q)}")
@@ -655,8 +701,27 @@ def cli_hardware_check(argv: Sequence[str] | None = None) -> int:
                         skip_reason="dry-run",
                     )
                 )
+            completed_without_interrupt = True
         else:
             session = RealRobotSession(args.ip, dof=runtime.model.dof, home_qpos=runtime.arm.home_qpos)
+            raw_load = getattr(session.arm, "tcp_load", None)
+            load_kg = 0.0
+            if isinstance(raw_load, (list, tuple)) and len(raw_load) >= 1:
+                try:
+                    load_kg = float(raw_load[0])
+                except (TypeError, ValueError):
+                    load_kg = 0.0
+            if load_kg > 0.05 and not args.clear_tcp_load:
+                session.print_config()
+                print(
+                    f"\n[FAIL] Controller reports non-zero tcp_load ({load_kg:.3f} kg > 0.050 kg); "
+                    "bare-arm hardware check refuses to move or zero payload with an attached end effector."
+                )
+                print(
+                    "[HINT] Detach the end effector and set tcp_load=0, or pass --clear-tcp-load "
+                    "if bare flange is verified."
+                )
+                return 1
             if not args.clear_tcp_offset:
                 offset_z_issues = _check_controller_tcp_offset_z(session, safe_poses, runtime.arm.home_qpos)
                 if offset_z_issues:
@@ -689,12 +754,34 @@ def cli_hardware_check(argv: Sequence[str] | None = None) -> int:
 
             joint_lower, joint_upper = parse_joint_limits(ctx.model, runtime.arm.joint_names)
             print("\n--- Hardware sampling ---")
-            hardware_abort = False
             for pose in safe_poses:
                 if hardware_abort:
                     break
                 for repeat_i in range(args.repeats):
-                    q_now, _, _ = session.get_joint_states()
+                    try:
+                        q_now, _, _ = session.get_joint_states()
+                    except RuntimeError as exc:
+                        print(f"  [{pose.name}] repeat {repeat_i + 1}: UNSAFE; telemetry failed: {exc}")
+                        sim_sample = sim_data[pose.name]
+                        results.append(
+                            DynamicsSample(
+                                pose=pose.name,
+                                q=pose.q,
+                                ee_z_mm=pose.ee_z_mm,
+                                status=ValidationStatus.UNSAFE,
+                                settled=False,
+                                saturated=sim_sample.saturated,
+                                q_actual=sim_sample.q_actual,
+                                qvel=sim_sample.qvel,
+                                pd_hold_tau=sim_sample.pd_hold_tau,
+                                actual_dof_force=sim_sample.actual_dof_force,
+                                mass_matrix=sim_sample.mass_matrix,
+                                skip_reason="telemetry_error",
+                                notes=[str(exc)],
+                            )
+                        )
+                        hardware_abort = True
+                        break
                     unsafe = _hardware_path_reasons_by_waypoint(
                         session=session,
                         ctx=ctx,
@@ -776,7 +863,7 @@ def cli_hardware_check(argv: Sequence[str] | None = None) -> int:
                             sample_duration_s=args.sample_duration,
                             sample_poll_s=args.sample_poll,
                         )
-                    except RobotMotionError as exc:
+                    except (RobotMotionError, RuntimeError) as exc:
                         print(f"  [{pose.name}] repeat {repeat_i + 1}: UNSAFE; motion failed: {exc}")
                         results.append(
                             DynamicsSample(
@@ -818,15 +905,71 @@ def cli_hardware_check(argv: Sequence[str] | None = None) -> int:
                         sample.status = ValidationStatus.NOT_SETTLED
                     print(f"  [{pose.name}] tau_real_mean={format_torque_row(real.tau)}  [{sample.status.value}]")
                     results.append(sample)
+            completed_without_interrupt = True
+    except KeyboardInterrupt:
+        interrupted = True
+        print("\n[ABORT] Interrupted by user (Ctrl-C); stopping controller immediately without return_home")
+        if session is not None:
+            session.stop()
     finally:
-        if session is not None and not args.hold_current_only and motion_started:
+        if (
+            session is not None
+            and not args.hold_current_only
+            and motion_started
+            and completed_without_interrupt
+            and not hardware_abort
+            and not args.no_return_home
+        ):
             try:
-                print("\n--- Returning to home ---")
-                session.return_home(speed_rad_s=args.speed, move_strategy=args.move_strategy)
+                q_end_now, _, _ = session.get_joint_states()
+                home_reasons = (
+                    _hardware_path_reasons_by_waypoint(
+                        session=session,
+                        ctx=ctx,
+                        start_q=q_end_now,
+                        target_q=runtime.arm.home_qpos,
+                        joint_lower=joint_lower,
+                        joint_upper=joint_upper,
+                        z_min_mm=args.z_min_mm,
+                        move_strategy=args.move_strategy,
+                    )
+                    if joint_lower is not None and joint_upper is not None
+                    else []
+                )
+                if home_reasons:
+                    print("\n[WARN] Skipping return_home due to unsafe path: " + "; ".join(home_reasons[:2]))
+                else:
+                    print("\n--- Returning to home ---")
+                    session.return_home(speed_rad_s=args.speed, move_strategy=args.move_strategy)
             except Exception as exc:
                 print(f"[WARN] return_home failed: {exc}")
+        elif session is not None and motion_started and not completed_without_interrupt:
+            session.stop()
         if session is not None:
+            restore_fn = getattr(session, "restore_controller_config", None)
+            if callable(restore_fn):
+                for err in restore_fn():
+                    print(f"[WARN] {err}")
             session.disconnect()
+
+    if interrupted:
+        if results:
+            stamp = now_stamp()
+            csv_path, jsonl_path, _ = dynamics_report_paths(
+                identity=run_config.robot_sn or runtime.model.key,
+                report=args.report,
+                jsonl_report=args.jsonl_report,
+                report_root=DEFAULT_REPORT_ROOT,
+                stamp=stamp,
+            )
+            run_config.joint_frictionloss = read_joint_frictionloss(ctx).tolist()
+            write_csv_report(results, csv_path, runtime_profile=runtime)
+            write_jsonl_report(
+                results, jsonl_path, run_config=run_config, model_issues=model_issues, runtime_profile=runtime
+            )
+            print(f"Partial CSV report  : {csv_path}")
+            print(f"Partial JSONL report: {jsonl_path}")
+        return 130
 
     print_compare_table(results, runtime_profile=runtime)
     _, strict_static_fail = print_static_layer_summary(results, strict_layers=strict_layers)
@@ -1050,6 +1193,17 @@ def run_sim_collision_chain(
                 )
             )
             print(f"  FAIL: {exc}")
+        except RuntimeError as exc:
+            raw_err = int(getattr(session.arm, "error_code", 0) or 0)
+            results.append(
+                SimCollisionResult(
+                    pose_name=name,
+                    passed=False,
+                    error_code=raw_err if raw_err != 0 else None,
+                    message=str(exc),
+                )
+            )
+            print(f"  FAIL: {exc}")
     return results
 
 
@@ -1070,6 +1224,15 @@ def write_sim_collision_report(results: Sequence[SimCollisionResult], path: Path
             )
 
 
+_SN_PREFIX_TO_ROBOT = {
+    "XF": "xarm5",
+    "XI": "xarm6",
+    "XS": "xarm7",
+    "LI": "lite6",
+    "FX": "uf850",
+}
+
+
 def cli_sim_collision_check(argv: Sequence[str] | None = None) -> int:
     from .session import MOVE_STRATEGIES, MOVE_STRATEGY_DIRECT, RealRobotSession
 
@@ -1078,6 +1241,11 @@ def cli_sim_collision_check(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--ip", type=str, default=None, help="xArm IP (or XARM_IP)")
     parser.add_argument("--robot", default="xarm6", choices=robot_runtime_cli_choices())
+    parser.add_argument(
+        "--confirm-real",
+        action="store_true",
+        help="Required before enabling motors and configuring controller simulation mode",
+    )
     parser.add_argument("--clear-tcp-offset", action="store_true", help="Zero controller tcp_offset before checks")
     parser.add_argument("--poses", type=str, default=None, help="Comma-separated pose names to run")
     parser.add_argument(
@@ -1101,6 +1269,8 @@ def cli_sim_collision_check(argv: Sequence[str] | None = None) -> int:
         args.speed = validate_dynamics_move_speed(args.speed)
     except ValueError as exc:
         parser.error(str(exc))
+    if not args.confirm_real:
+        parser.error("--confirm-real is required before controller simulation configuration")
 
     configs = dynamics_default_configs(runtime.model.robot_name)
     configs, missing = _select_poses(configs, args.poses)
@@ -1123,8 +1293,24 @@ def cli_sim_collision_check(argv: Sequence[str] | None = None) -> int:
     results: list[SimCollisionResult] = []
     physical_drift = float("nan")
     sim_entered = False
+    sim_completed = False
     q_physical_before: np.ndarray | None = None
     try:
+        axis = int(getattr(session.arm, "axis", runtime.model.dof) or runtime.model.dof)
+        if axis != runtime.model.dof:
+            print(f"[FAIL] Connected controller DOF ({axis}) does not match {runtime.model.key} ({runtime.model.dof})")
+            return 1
+        try:
+            sn = get_robot_sn(session.arm)
+            expected_robot = _SN_PREFIX_TO_ROBOT.get(sn[:2].upper())
+            if expected_robot is not None and expected_robot != runtime.model.robot_name:
+                print(
+                    f"[FAIL] Connected SN {sn!r} ({expected_robot}) does not match "
+                    f"--robot {runtime.model.robot_name!r}"
+                )
+                return 1
+        except Exception:
+            pass
         q_physical_before, _, _ = session.get_joint_states()
         sim_entered = True
         session.configure_for_simulation_collision_check(clear_tcp_offset=args.clear_tcp_offset)
@@ -1142,15 +1328,20 @@ def cli_sim_collision_check(argv: Sequence[str] | None = None) -> int:
             speed_rad_s=args.speed,
             move_strategy=args.move_strategy,
         )
+        sim_completed = True
     finally:
         if sim_entered:
-            cleanup_errors = session.disable_simulation_robot()
+            cleanup_errors = session.disable_simulation_robot(restore_ready=sim_completed)
             if q_physical_before is not None:
                 try:
                     q_physical_after, _, _ = session.get_joint_states()
                     physical_drift = float(np.max(np.abs(q_physical_after - q_physical_before)))
                 except Exception as exc:
                     cleanup_errors.append(f"failed to verify post-sim physical joints: {exc}")
+        restore_fn = getattr(session, "restore_controller_config", None)
+        if callable(restore_fn):
+            for err in restore_fn():
+                cleanup_errors.append(f"restore_controller_config: {err}")
         session.disconnect()
 
     n_pass = sum(1 for r in results if r.passed)

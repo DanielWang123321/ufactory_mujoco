@@ -860,3 +860,166 @@ def test_port502_calibration_decode_and_xarm5_degeneracy_skip(tmp_path: Path, mo
     assert "[Skipped]" in captured.err
     assert "--nominal-model" in captured.err
     assert not out_dir.exists() or list(out_dir.iterdir()) == []
+
+
+def test_hold_current_only_is_strictly_read_only_and_rejects_conflicting_flags(monkeypatch):
+    with pytest.raises(SystemExit) as exc_dry:
+        dyn_cli.cli_hardware_check(["--robot", "xarm6", "--dry-run", "--hold-current-only"])
+    assert exc_dry.value.code == 2
+
+    with pytest.raises(SystemExit) as exc_clear:
+        dyn_cli.cli_hardware_check(
+            ["--robot", "xarm6", "--ip", "192.0.2.1", "--hold-current-only", "--clear-tcp-offset"]
+        )
+    assert exc_clear.value.code == 2
+
+    monkeypatch.setattr(dyn_cli, "_fetch_robot_sn_from_ip", lambda ip: "XI130505L56A01")
+    fake_session = MagicMock()
+    fake_session.arm.tcp_load = [0.82, [0.0, 0.0, 48.0]]
+    fake_session.get_joint_states.return_value = (np.zeros(6), np.zeros(6), np.zeros(6))
+    fake_session.get_joints_torque.return_value = np.zeros(6)
+    monkeypatch.setattr("ufactory_mujoco.dynamics.session.RealRobotSession", lambda *args, **kwargs: fake_session)
+
+    rc = dyn_cli.cli_hardware_check(
+        ["--robot", "xarm6", "--ip", "192.0.2.1", "--hold-current-only", "--nominal-model", "--poses", "0"]
+    )
+    assert rc == 0
+    fake_session.configure_for_dynamics.assert_not_called()
+    fake_session.disconnect.assert_called_once()
+
+
+def test_cli_hardware_check_blocks_nonzero_tcp_load_and_session_restores_config(monkeypatch, tmp_path):
+    monkeypatch.setattr(dyn_cli, "_fetch_robot_sn_from_ip", lambda ip: "XI130505L56A01")
+    fake_session = MagicMock()
+    fake_session.arm.tcp_load = [0.82, [0.0, 0.0, 48.0]]
+    monkeypatch.setattr("ufactory_mujoco.dynamics.session.RealRobotSession", lambda *args, **kwargs: fake_session)
+
+    rc = dyn_cli.cli_hardware_check(
+        [
+            "--robot", "xarm6", "--ip", "192.0.2.1", "--confirm-real",
+            "--nominal-model", "--poses", "0", "--report", str(tmp_path / "load_block.csv"),
+        ]
+    )
+    assert rc == 1
+    fake_session.configure_for_dynamics.assert_not_called()
+    fake_session.sample_at_hold.assert_not_called()
+
+    # Verify RealRobotSession.restore_controller_config restores captured load/offset/collision
+    arm = MagicMock()
+    arm.error_code = 0
+    arm.warn_code = 0
+    arm.state = 2
+    arm.tcp_load = [0.82, [0.0, 0.0, 48.0]]
+    arm.tcp_offset = [0.0, 0.0, 172.0, 0.0, 0.0, 0.0]
+    arm.gravity_direction = [0.0, 0.0, -1.0]
+    arm.self_collision_params = [False, 0, [0] * 6]
+    arm.get_report_tau_or_i.return_value = (0, 1)
+    arm.get_err_warn_code.return_value = (0, [0, 0])
+    arm.get_state.return_value = (0, 2)
+    arm.motion_enable.return_value = 0
+    arm.set_mode.return_value = 0
+    arm.set_state.return_value = 0
+    arm.set_tcp_offset.return_value = 0
+    arm.set_gravity_direction.return_value = 0
+    arm.set_tcp_load.return_value = 0
+    arm.set_report_tau_or_i.return_value = 0
+    arm.set_simulation_robot.return_value = 0
+    arm.is_simulation_robot = True
+    arm.set_self_collision_detection.return_value = 0
+
+    session = object.__new__(RealRobotSession)
+    session.arm = arm
+    session.dof = 6
+    session.home_qpos = np.zeros(6)
+    session._motion_mode = 0
+    session._config_snapshot = None
+    session._modified_dynamics = False
+    session._modified_tcp_offset = False
+    session._modified_self_collision = False
+
+    session.configure_for_simulation_collision_check(clear_tcp_offset=True)
+    arm.set_tcp_load.reset_mock()
+    arm.set_tcp_offset.reset_mock()
+    arm.set_self_collision_detection.reset_mock()
+    arm.set_report_tau_or_i.reset_mock()
+
+    errors = session.restore_controller_config()
+    assert errors == []
+    arm.set_tcp_load.assert_called_once_with(0.82, [0.0, 0.0, 48.0])
+    arm.set_tcp_offset.assert_called_once_with([0.0, 0.0, 172.0, 0.0, 0.0, 0.0])
+    arm.set_self_collision_detection.assert_called_once_with(False)
+    arm.set_report_tau_or_i.assert_called_once_with(1)
+
+
+def test_cli_hardware_check_ctrl_c_stops_without_return_home_and_writes_partial(monkeypatch, tmp_path):
+    from ufactory_mujoco.dynamics.session import RealRobotSample
+
+    monkeypatch.setattr(dyn_cli, "_fetch_robot_sn_from_ip", lambda ip: "XI130505L56A01")
+    fake_session = MagicMock()
+    fake_session.arm.tcp_load = [0.0, [0.0, 0.0, 0.0]]
+    fake_session.arm.tcp_offset = [0.0] * 6
+    fake_session.arm.get_robot_sn.return_value = (0, "XI130505L56A01")
+    fake_session.arm.get_forward_kinematics.return_value = (0, [300.0, 0.0, 300.0, 3.14, 0.0, 0.0])
+    fake_session.get_joint_states.return_value = (np.zeros(6), np.zeros(6), np.zeros(6))
+    fake_session.restore_controller_config.return_value = []
+
+    calls = {"n": 0}
+
+    def sample_at_hold(*args, **kwargs):
+        del args, kwargs
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise KeyboardInterrupt
+        return RealRobotSample(q=np.zeros(6), qvel=np.zeros(6), tau=np.zeros(6), settled=True, n_samples=5)
+
+    fake_session.sample_at_hold.side_effect = sample_at_hold
+    monkeypatch.setattr("ufactory_mujoco.dynamics.session.RealRobotSession", lambda *args, **kwargs: fake_session)
+
+    csv_path = tmp_path / "partial.csv"
+    jsonl_path = tmp_path / "partial.jsonl"
+    rc = dyn_cli.cli_hardware_check(
+        [
+            "--robot", "xarm6", "--ip", "192.0.2.1", "--confirm-real", "--nominal-model",
+            "--poses", "0,1", "--report", str(csv_path), "--jsonl-report", str(jsonl_path),
+        ]
+    )
+    assert rc == 130
+    fake_session.stop.assert_called()
+    fake_session.return_home.assert_not_called()
+    assert csv_path.is_file() and jsonl_path.is_file()
+
+
+def test_sim_collision_check_requires_confirm_real_and_catches_faulted_runtime_error():
+    with pytest.raises(SystemExit) as exc_gate:
+        dyn_cli.cli_sim_collision_check(["--robot", "xarm6", "--ip", "192.0.2.1"])
+    assert exc_gate.value.code == 2
+
+    arm = MagicMock()
+    arm.error_code = 0
+    session = object.__new__(RealRobotSession)
+    session.arm = arm
+    session.dof = 6
+
+    def move_to(q, *, speed_rad_s, wait, move_strategy):
+        del speed_rad_s, wait, move_strategy
+        val = float(np.asarray(q)[0])
+        if val == 0.2:
+            arm.error_code = 22
+            raise RobotMotionError(
+                "collision", code=22, waypoint_index=1, waypoint_count=1, target_q=q, waypoint_q=q
+            )
+        if arm.error_code != 0:
+            raise RuntimeError("controller is not healthy (error_code=22)")
+        return 0
+
+    session.move_to = move_to
+    poses = [
+        ("0", np.zeros(6)),
+        ("bad", np.array([0.2, 0.0, 0.0, 0.0, 0.0, 0.0])),
+        ("after_fault", np.array([0.3, 0.0, 0.0, 0.0, 0.0, 0.0])),
+    ]
+    results = dyn_cli.run_sim_collision_chain(
+        session, poses, speed_rad_s=DEFAULT_DYNAMICS_MOVE_SPEED_RAD_S, move_strategy="direct"
+    )
+    assert [r.passed for r in results] == [True, False, False]
+    assert results[2].error_code == 22

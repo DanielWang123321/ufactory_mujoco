@@ -137,10 +137,10 @@ tau_ff = dyn.feedforward_traj(q_traj, dt)  # 沿关节轨迹的前馈力矩序�
 
 ### 2.4 真机与控制器仿真 (`xarm-python-sdk`)
 
-真机及内部仿真模式需要安装 `xarm-python-sdk`（`pip install xarm-python-sdk`），纯仿真无需安装。请将命令中的 IP 替换为自己的控制器地址（或设置环境变量 `XARM_IP`）。所有真机相关模式都会拒绝序列号或 SHA-256 与当前机械臂不符的标定文件。
+真机及内部仿真模式需要安装 `xarm-python-sdk`（`pip install xarm-python-sdk`），纯仿真无需安装。请将命令中的 IP 替换为自己的控制器地址（或设置环境变量 `XARM_IP`）。所有真机相关模式都会核验标定文件的序列号与机型是否匹配当前控制器，并在报告及 `MotionApproval` 令牌中绑定标定文件 SHA-256。
 
-- **零物理运动核验**：`kinematics_validation`、`08 --mode real-read-only` 以及 `05`/`08`/`10` 的 `--mode sdk-sim` 不会让物理机械臂运动（`sdk-sim` 在控制器内置仿真中重放轨迹，并在退出时恢复非仿真模式）。
-- **真机运动门禁**：`--mode real`（`05`、`08`、`10`）要求控制器状态正常、轨迹预检通过且显式传入 `--confirm-real`，并强制限制单周期运行（`cycles == 1`）。`08_dynamics.py` 在非 `sim` 模式下必须指定单台机型（不支持 `--robot all`）。所有动力学验证真机命令（`dynamics-hardware-check`、`dynamics-sim-collision-check`、`08 --mode sdk-sim`/`real`）对关节速度强制实施 `<= 40 °/s`（`0.6981 rad/s`）安全上限。
+- **零物理运动核验**：`kinematics_validation`、`08 --mode real-read-only`、`dynamics-hardware-check --hold-current-only`（纯只读，绝不改动控制器负载/偏移或使能电机）以及 `05`/`08`/`10` 的 `--mode sdk-sim` 不会让物理机械臂运动（`sdk-sim` 在控制器内置仿真中重放轨迹，退出仿真前清空指令队列并在正常结束时恢复待机模式）。`dynamics-sim-collision-check` 因需使能控制器仿真模式而要求传入 `--confirm-real`，并在退出时自动恢复原负载/偏移/自碰撞配置。
+- **真机运动门禁**：`--mode real`（`05`、`08`、`10`）要求控制器状态正常、从实测当前关节角出发的轨迹预检通过且显式传入 `--confirm-real`，并强制限制单周期运行（`cycles == 1`）。`05`/`10` 在 `--mode real` 下会同步驱动夹爪开合，并在 JSON 报告中记录 `gripper_actuated`、`measured_grasp_gap_m` 与 `object_grasped_inferred`（同时兼容真机空夹取核验与 30 mm 方块夹取）。`08_dynamics.py` 在非 `sim` 模式下必须指定单台机型（不支持 `--robot all`），且在装有末端执行器时支持传 `--gripper <name>` 做组合碰撞预检。所有动力学验证真机命令（`dynamics-hardware-check`、`dynamics-sim-collision-check`、`08 --mode sdk-sim`/`real`）对关节速度强制实施 `<= 40 °/s`（`0.6981 rad/s`）安全上限。
 
 ```bash
 # 1. 提取单机运动学标定 YAML（输出至 calibrations/<arm>_kinematics_<SN>.yaml）
@@ -149,12 +149,12 @@ python -m ufactory_mujoco.dynamics export-calibration 192.168.1.60 --output-dir 
 # 2. 只读 FK/IK 对照与零物理运动静态动力学检查
 python -m ufactory_mujoco.kinematics_validation --robot xarm6 --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
 python examples/simulation/08_dynamics.py --robot xarm6 --mode real-read-only --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
-dynamics-hardware-check --robot lite6 --ip 192.168.1.60 --confirm-real --hold-current-only --require-reference
+dynamics-hardware-check --robot lite6 --ip 192.168.1.60 --hold-current-only --require-reference
 
 # 3. 控制器内置仿真重放（不驱动物理关节）
 python examples/simulation/05_pick_place.py --robot xarm6 --mode sdk-sim --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
 python examples/simulation/10_box_pack.py --robot xarm6 --mode sdk-sim --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
-dynamics-sim-collision-check --robot lite6 --ip 192.168.1.60
+dynamics-sim-collision-check --robot lite6 --ip 192.168.1.60 --confirm-real
 
 # 4. 真机物理运动（必须加 --confirm-real；请确保工作区安全且急停可用）
 #    老序列号或 xArm 5 平行轴等端口 502 导出跳过的机型，验证静态力矩请传 --nominal-model
@@ -171,7 +171,7 @@ dynamics-report-compare reports/dyn_ver_<SN>/<old>.jsonl reports/dyn_ver_<SN>/<n
 | 参数 | 适用脚本 | 默认值 | 说明 |
 | :--- | :--- | :--- | :--- |
 | `--robot <arm>` | `05`, `08`, `10` | `xarm6` | 机械臂键名（`lite6`、`xarm5`、`xarm6`、`xarm7`、`uf850`）；`08`（`--mode sim`）另支持 `all` |
-| `--gripper <name>` | `05`, `10` | `None`（取自 YAML） | 覆盖任务配置中的夹爪型号 |
+| `--gripper <name>` | `05`, `08`, `10` | `None`（`05`/`10` 取自 YAML） | 覆盖任务夹爪（`05`/`10`）或指定 `08` 硬件碰撞预检挂载的末端执行器 |
 | `--executor <mode>` | `05`, `10` | `servo_cartesian` | 轨迹执行器模式：`servo_cartesian` 或 `servo_j` |
 | `--config <path>` | `05`, `10` | `configs/<task>/<robot>.yaml` | 自定义任务 overlay YAML 路径 |
 | `--mode <mode>` | `05`, `08`, `10` | `sim` | 运行模式：`sim`、`dry-run`（`05`/`10`）、`real-read-only`（`08`）、`sdk-sim` 或 `real` |
