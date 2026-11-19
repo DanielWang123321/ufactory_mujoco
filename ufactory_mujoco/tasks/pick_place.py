@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Cube pick-and-place for five arm and gripper pairs.
 
-Geometry, speed and grasp gap come from configs/pick_place/<robot>.yaml.
+Geometry, speed and grasp gap come from the pick_place presets in configs/default.yaml.
 servo_cartesian tracks TCP waypoints. servo_j converts each waypoint with IK
 and then moves the joints. The arm lifts only after both finger pads touch
 the cube.

@@ -21,8 +21,9 @@ from pathlib import Path
 
 import mujoco
 import numpy as np
+from ufactory_mujoco import MODELS_ROOT
 
-MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
+MODELS_DIR = MODELS_ROOT
 
 # Full-precision visual OBJs total about 592 MiB (0.1.5); the decimated 0.1.3 set was about 95 MiB.
 VISUAL_OBJ_MIN_MIB = 450

@@ -1,7 +1,6 @@
 """Unit tests verifying Gripper G2 and Bio Gripper G2 control on SimRobot."""
 
 import importlib
-from pathlib import Path
 import unittest
 from unittest.mock import patch
 import numpy as np
@@ -9,8 +8,8 @@ import numpy as np
 from ufactory_mujoco.sim_robot import SimRobot
 
 from ufactory_mujoco import resolve_model_path
+from ufactory_mujoco import MODELS_ROOT
 
-MODELS_ROOT = Path(__file__).resolve().parent.parent / "models"
 gripper_demo = importlib.import_module("examples.simulation.04_gripper_control")
 
 

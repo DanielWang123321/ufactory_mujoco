@@ -17,9 +17,10 @@ from ufactory_mujoco import (
 )
 from ufactory_mujoco.kinematics import quat_error
 from ufactory_mujoco import resolve_model_path
+from ufactory_mujoco import MODELS_ROOT
 
 ROOT = Path(__file__).resolve().parent.parent
-XARM6_XML = ROOT / "models" / "xarm6" / "xarm6.xml"
+XARM6_XML = MODELS_ROOT / "xarm6" / "xarm6.xml"
 XARM6_GRIPPER_SCENE = "xarm6_with_gripper"
 XARM6_FT_GRIPPER_SCENE = resolve_model_path("xarm6_with_ft_sensor_and_gripper")
 READY = np.array([0.0, -0.8, -1.2, 1.0, 0.3, 0.0])

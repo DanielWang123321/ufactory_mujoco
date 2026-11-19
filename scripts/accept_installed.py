@@ -15,7 +15,6 @@ import importlib.util
 import json
 import os
 from pathlib import Path
-import re
 import stat
 import subprocess
 import sys
@@ -27,12 +26,22 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def resource_reference():
+def source_licenses():
+    """License files of the source checkout; installs carry them in .dist-info/licenses."""
+    import ufactory_mujoco
+
+    root = Path(ufactory_mujoco.__file__).resolve().parents[1]
+    files = {p.name: digest(p) for p in sorted((root / "licenses").iterdir()) if p.is_file()}
+    files.update({name: digest(root / name) for name in ("LICENSE", "NOTICE")})
+    return files
+
+
+def resource_reference(*, licenses=False):
     import mujoco
     import numpy as np
     from ufactory_mujoco.compose import COMPOSED_MODELS, compose_model
     from ufactory_mujoco.config import list_task_presets, load_task_config
-    from ufactory_mujoco.robots import CONFIGS_ROOT, MODELS_ROOT, RESOURCE_ROOT
+    from ufactory_mujoco.robots import CONFIGS_ROOT, MODELS_ROOT
 
     result = {
         "models": {},
@@ -48,11 +57,8 @@ def resource_reference():
         mujoco.mj_forward(model, data)
         mass = np.empty((model.nv, model.nv))
         mujoco.mj_fullM(model, data, mass)
-        # meshdir is the only authored XML attribute that the build changes.
-        xml = re.sub(r'\smeshdir\s*=\s*"[^"]*"', "", path.read_text(encoding="utf-8"))
         result["models"][path.relative_to(MODELS_ROOT).as_posix()] = {
-            "nq": model.nq, "nv": model.nv, "nu": model.nu,
-            "sha256_without_meshdir": hashlib.sha256(xml.encode()).hexdigest(),
+            "nq": model.nq, "nv": model.nv, "nu": model.nu, "sha256": digest(path),
             "mass_matrix": mass.tolist(),
         }
     for name in COMPOSED_MODELS:
@@ -65,19 +71,8 @@ def resource_reference():
             "nq": model.nq, "nv": model.nv, "nu": model.nu,
             "mass_matrix": mass.tolist(),
         }
-    mesh_root = RESOURCE_ROOT / "meshes"
-    if mesh_root.is_dir():
-        result["meshes"] = {p.relative_to(mesh_root).as_posix(): digest(p)
-                            for p in sorted(mesh_root.rglob("*")) if p.is_file()}
-    else:
-        for asset in sorted(MODELS_ROOT.glob("*/assets/*")):
-            if asset.is_symlink():
-                continue
-            for path in sorted(asset.rglob("*")):
-                if path.is_file():
-                    key = (Path(asset.name) / path.relative_to(asset)).as_posix()
-                    assert key not in result["meshes"], f"Duplicate canonical mesh: {key}"
-                    result["meshes"][key] = digest(path)
+    result["meshes"] = {p.relative_to(MODELS_ROOT).as_posix(): digest(p)
+                        for p in sorted(MODELS_ROOT.glob("*/assets/**/*")) if p.is_file()}
     for path in sorted(CONFIGS_ROOT.rglob("*.yaml")):
         key = path.relative_to(CONFIGS_ROOT).as_posix()
         result["configs"][key] = digest(path)
@@ -85,16 +80,11 @@ def resource_reference():
     for task, arms in sorted(list_task_presets().items()):
         for arm in arms:
             result["config_hashes"][f"{task}/{arm}"] = load_task_config(preset=(task, arm)).sha256
-    licenses = RESOURCE_ROOT / "licenses"
-    for path in sorted(licenses.iterdir()):
-        if path.is_file():
-            result["licenses"][path.name] = digest(path)
-    for name in ("LICENSE", "NOTICE"):
-        path = RESOURCE_ROOT / name
-        if path.is_file():
-            result["licenses"][name] = digest(path)
     assert len(result["models"]) >= 39 and len(result["composed_models"]) >= 46 and len(result["meshes"]) >= 482
-    assert len(result["configs"]) == 2 and len(result["config_hashes"]) == 11 and len(result["licenses"]) == 7
+    assert len(result["configs"]) == 2 and len(result["config_hashes"]) == 11
+    if licenses:
+        result["licenses"] = source_licenses()
+        assert len(result["licenses"]) == 7
     return result
 
 
@@ -115,27 +105,27 @@ def check_archive(path, reference):
             b"dynamics-report-compare",
         ):
             assert script_name in entry_points, f"Missing console entry point: {script_name.decode()}"
-        for name in reference["licenses"]:
-            assert any(".dist-info/licenses/" in n and n.endswith("/" + name) for n in files), name
+        license_files = {n.rsplit("/", 1)[1]: b for n, b in files.items() if ".dist-info/licenses/" in n}
     else:
         with tarfile.open(path, "r:gz") as archive:
             entries = archive.getmembers()
             assert all(e.isfile() or e.isdir() for e in entries), "sdist contains links or special files"
             files = {e.name.split("/", 1)[1]: archive.extractfile(e).read() for e in entries if e.isfile()}
-        assert "setup.py" in files, "Missing sdist build hooks"
-    data = {n.removeprefix("ufactory_mujoco/data/"): b for n, b in files.items()
-            if n.startswith("ufactory_mujoco/data/")}
-    expected = {f"{group}/{name}" for group in ("models", "meshes", "configs", "licenses")
-                for name in reference[group]}
+        assert "pyproject.toml" in files, "Missing pyproject.toml in sdist"
+        license_files = {n.rsplit("/", 1)[-1]: b for n, b in files.items()
+                         if n in ("LICENSE", "NOTICE") or n.startswith("licenses/")}
+    for name, sha in reference["licenses"].items():
+        assert name in license_files and hashlib.sha256(license_files[name]).hexdigest() == sha, f"License {name}"
+    data = {n.removeprefix("ufactory_mujoco/"): b for n, b in files.items()
+            if n.startswith(("ufactory_mujoco/models/", "ufactory_mujoco/configs/"))}
+    expected = {f"models/{name}" for group in ("models", "meshes") for name in reference[group]}
+    expected |= {f"configs/{name}" for name in reference["configs"]}
     assert data.keys() == expected, f"Inventory mismatch: {set(data) ^ expected}"
-    for group in ("meshes", "configs", "licenses"):
+    for group, prefix in (("meshes", "models"), ("configs", "configs")):
         for name, sha in reference[group].items():
-            assert hashlib.sha256(data[f"{group}/{name}"]).hexdigest() == sha, f"Changed {group}/{name}"
+            assert hashlib.sha256(data[f"{prefix}/{name}"]).hexdigest() == sha, f"Changed {prefix}/{name}"
     for name, baseline in reference["models"].items():
-        xml = data[f"models/{name}"].decode()
-        assert 'meshdir="assets"' not in xml, f"Unstaged XML: {name}"
-        xml = re.sub(r'\smeshdir\s*=\s*"[^"]*"', "", xml)
-        assert hashlib.sha256(xml.encode()).hexdigest() == baseline["sha256_without_meshdir"], name
+        assert hashlib.sha256(data[f"models/{name}"]).hexdigest() == baseline["sha256"], name
     for name in files:
         parts = Path(name).parts
         assert not ({"dev", "build", "__pycache__", "logs", "weights"} & set(parts)), name
@@ -171,12 +161,12 @@ def check_distributions(dist_dir, reference_path, report_path):
 def compare_resources(expected, actual):
     import numpy as np
 
-    for key in ("meshes", "configs", "config_hashes", "licenses"):
+    for key in ("meshes", "configs", "config_hashes"):
         assert actual[key] == expected[key], f"Resource mismatch: {key}"
     assert actual["models"].keys() == expected["models"].keys()
     for name, baseline in expected["models"].items():
         model = actual["models"][name]
-        for key in ("nq", "nv", "nu", "sha256_without_meshdir"):
+        for key in ("nq", "nv", "nu", "sha256"):
             assert model[key] == baseline[key], f"{name}: {key} changed"
         np.testing.assert_allclose(model["mass_matrix"], baseline["mass_matrix"], atol=1e-12, rtol=1e-12,
                                    err_msg=f"{name}: mass matrix changed")
@@ -198,19 +188,17 @@ def strict_json(path):
 def accept(args, summary):
     import numpy as np
     import ufactory_mujoco
-    from ufactory_mujoco.robots import RESOURCE_ROOT
-
-    from ufactory_mujoco import resolve_arm_scene, resolve_model_path
+    from ufactory_mujoco import MODELS_ROOT, resolve_arm_scene, resolve_model_path
 
     package = Path(ufactory_mujoco.__file__).resolve()
     assert package.is_relative_to(Path(sys.prefix).resolve()), f"Imported outside install: {package}"
-    assert RESOURCE_ROOT == package.parent / "data", "Wheel must use bundled resources"
-    assert not any(p.is_symlink() for p in RESOURCE_ROOT.rglob("*")), "Symlink in installed resources"
+    assert MODELS_ROOT == package.parent / "models", "Wheel must use bundled models"
+    assert not any(p.is_symlink() for p in package.parent.rglob("*")), "Symlink in installed package"
     assert not os.environ.get("PYTHONPATH"), "Acceptance requires an unset PYTHONPATH"
     assert "UFACTORY_MUJOCO_MODELS" not in os.environ, "Acceptance must use bundled models"
     optional = ("trimesh", "coacd", "xarm")
     assert all(importlib.util.find_spec(name) is None for name in optional), "Optional dependency in core env"
-    summary.update(python=sys.version, package=str(package), resource_root=str(RESOURCE_ROOT))
+    summary.update(python=sys.version, package=str(package), models_root=str(MODELS_ROOT))
     compare_resources(strict_json(args.reference), resource_reference())
     summary["resources"] = "pass"
     from ufactory_mujoco import SimRobot
@@ -364,7 +352,8 @@ def main():
     args = parser.parse_args()
     if args.record_reference:
         args.record_reference.parent.mkdir(parents=True, exist_ok=True)
-        args.record_reference.write_text(json.dumps(resource_reference(), allow_nan=False, indent=2) + "\n")
+        args.record_reference.write_text(json.dumps(resource_reference(licenses=True), allow_nan=False, indent=2)
+                                         + "\n")
         print(f"Source reference: {args.record_reference}")
         return
     if args.check_dist:

@@ -455,7 +455,7 @@ def test_example_11_headless_and_non_sensor_rejection():
 def test_clear_ft_sensor_wrench_zeros_applied_load():
     from ufactory_mujoco import apply_ft_sensor_wrench, clear_ft_sensor_wrench
 
-    with SimRobot(REPO_ROOT / "models" / "ft_sensor" / "scene.xml", viewer=False) as robot:
+    with SimRobot(MODELS_ROOT / "ft_sensor" / "scene.xml", viewer=False) as robot:
         base = robot.get_ft_sensor_reading().raw.copy()
         apply_ft_sensor_wrench(robot.model, robot.data, [2.0, -3.0, -5.0], [0.1, -0.1, 0.05])
         loaded = robot.get_ft_sensor_reading().raw.copy()

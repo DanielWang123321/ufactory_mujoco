@@ -3,13 +3,12 @@
 import importlib
 import sys
 import unittest
-from pathlib import Path
 from unittest.mock import patch
 
 import mujoco
 import numpy as np
 
-from ufactory_mujoco import SimRobot
+from ufactory_mujoco import MODELS_ROOT, SimRobot
 from ufactory_mujoco.config import arm_scene_spec
 from ufactory_mujoco.kinematics import solve_ik
 from ufactory_mujoco.kinematics import (
@@ -161,9 +160,8 @@ class KinematicsTests(unittest.TestCase):
         self.assertLess(np.max(np.abs(q_ik - q_live)), 0.15)
 
     def test_xarm5_with_gripper_manipulability_excludes_finger_dofs(self):
-        root = Path(__file__).resolve().parent.parent
         q5 = np.array([0.2, -0.7, -1.0, 0.8, -0.2])
-        with SimRobot(root / "models" / "xarm5" / "scene.xml", viewer=False) as bare:
+        with SimRobot(MODELS_ROOT / "xarm5" / "scene.xml", viewer=False) as bare:
             w_bare = bare.tcp_manipulability(q5)
         with SimRobot("xarm5_with_gripper", viewer=False) as grip:
             self.assertEqual(grip.n_arm, 5)

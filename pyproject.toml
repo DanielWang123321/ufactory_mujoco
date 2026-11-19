@@ -48,7 +48,7 @@ include = ["ufactory_mujoco*"]
 namespaces = false
 
 [tool.setuptools.package-data]
-ufactory_mujoco = ["data/**/*"]
+ufactory_mujoco = ["models/**/*", "configs/*.yaml"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

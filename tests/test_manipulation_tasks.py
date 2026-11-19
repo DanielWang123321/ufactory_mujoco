@@ -19,6 +19,7 @@ from ufactory_mujoco.preflight import (
 )
 from ufactory_mujoco.sim_robot import SimRobot
 from ufactory_mujoco.preflight import box_task_heights
+from ufactory_mujoco import MODELS_ROOT
 
 # ==========================================================================
 # From test_pick_place.py
@@ -28,7 +29,7 @@ pick_place = importlib.import_module("ufactory_mujoco.tasks.pick_place")
 
 ROOT = Path(__file__).resolve().parent.parent
 
-MODELS_ROOT = ROOT / "models"
+MODELS_ROOT = MODELS_ROOT
 
 SCENE = resolve_arm_scene("xarm6", "gripper_g2", "pick_place")
 
@@ -179,7 +180,7 @@ box_pack = importlib.import_module("ufactory_mujoco.tasks.box_pack")
 
 ROOT = Path(__file__).resolve().parent.parent
 
-MODELS_ROOT = ROOT / "models"
+MODELS_ROOT = MODELS_ROOT
 
 ARMS = ("xarm5", "xarm6", "xarm7", "uf850", "lite6")
 
@@ -406,7 +407,7 @@ class BoxPackSimTest(unittest.TestCase):
 
 ROOT = Path(__file__).resolve().parent.parent
 
-OBSTACLES = ROOT / "models" / "xarm6" / "scene_obstacles.xml"
+OBSTACLES = MODELS_ROOT / "xarm6" / "scene_obstacles.xml"
 
 def _key(model, name):
     key_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_KEY, name)

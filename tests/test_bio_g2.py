@@ -7,7 +7,7 @@ import unittest
 import xml.etree.ElementTree as ET
 import mujoco
 import numpy as np
-from ufactory_mujoco import resolve_model_path
+from ufactory_mujoco import MODELS_ROOT, resolve_model_path
 import copy
 from ufactory_mujoco.bio_g2 import (
     BioGripperG2Controller,
@@ -139,7 +139,7 @@ class BioModelTest(unittest.TestCase):
     def test_standalone_gripper_closes_and_opens(self):
         for filename in ("bio_gripper_g2.xml", "scene.xml"):
             with self.subTest(file=filename):
-                path = ROOT / "models/bio_gripper_g2" / filename
+                path = MODELS_ROOT / "bio_gripper_g2" / filename
                 model = mujoco.MjModel.from_xml_path(str(path))
                 data = mujoco.MjData(model)
                 for target in (0.0395, 0.0, 0.01975, 0.0395, 0.0):
@@ -157,7 +157,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 URDF_FIXTURE = ROOT / "tests/fixtures/bio_gripper_g2_movable_visual.urdf"
 
-ASSETS_DIR = ROOT / "models/bio_gripper_g2/assets/bio_gripper_g2"
+ASSETS_DIR = MODELS_ROOT / "bio_gripper_g2/assets/bio_gripper_g2"
 
 class FakeAdapter:
     def __init__(self):
@@ -336,7 +336,7 @@ class BioG2ControllerTest(unittest.TestCase):
 
     def test_mujoco_closed_loop_contact_force_and_speed_calibration(self):
         """Closed-loop MuJoCo grasping of an 85 mm rigid plate tracks 4..20 N force and rate limits."""
-        spec_xml = mujoco.MjSpec.from_file(str(ROOT / "models/bio_gripper_g2/bio_gripper_g2.xml"))
+        spec_xml = mujoco.MjSpec.from_file(str(MODELS_ROOT / "bio_gripper_g2/bio_gripper_g2.xml"))
         plate = spec_xml.worldbody.add_body(name="test_plate", pos=[0.128, 0.0, 0.050])
         plate.add_geom(
             type=mujoco.mjtGeom.mjGEOM_BOX,

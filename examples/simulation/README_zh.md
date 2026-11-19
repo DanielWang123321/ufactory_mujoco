@@ -4,13 +4,13 @@
 
 基于 MuJoCo 的机器人运动控制与仿真示例集（`01`–`11`），涵盖模型交互预览、关节/笛卡尔控制、夹爪伺服、方块抓放、时间参数化轨迹规划、RRT-Connect 避障规划、装箱展示、运动学/刚体动力学工具链、AI1500 六维力矩传感以及真机安全门控流程。
 
-需要 Python **3.12–3.14** 与核心安装（详见[安装说明](../../README_zh.md#安装)）。示例 `05`、`08`、`10` 直接调用已安装命令 `ufactory-mujoco pick-place`、`dynamics` 与 `box-pack`，通过 wheel 安装后也可脱离源码目录运行。参数汇总见[第 3 节](#3-命令行参数汇总)，全部 65 套模型名与启动命令见[第 4 节](#4-按机型的命令)，视窗快捷键见[第 5 节](#5-视窗操作)。
+需要 Python **3.12–3.14** 与核心安装（详见[安装说明](../../README_zh.md#安装)）。示例 `05`、`08`、`10` 直接调用已安装命令 `ufactory-mujoco pick-place`、`dynamics` 与 `box-pack`，通过 wheel 安装后也可脱离源码目录运行。参数汇总见[第 3 节](#3-命令行参数汇总)，各模型的启动命令见[第 4 节](#4-按机型的命令)，视窗快捷键见[第 5 节](#5-视窗操作)。
 
 ## 1. 示例概览
 
 | 脚本 | 核心模块 | 支持模型 | 功能说明 |
 | :--- | :--- | :--- | :--- |
-| `01_load_and_view.py` | `ufactory_mujoco.viewer`, `ufactory_mujoco.robots`, `ufactory_mujoco.compose` | 全部 65 套模型（24 静态 + 41 动态组合：机械臂、夹爪、相机、支架、力矩传感器、安装底板及组合） | 载入 MJCF 场景（支持 `home` / `ready` 关键帧）并启动交互视窗 |
+| `01_load_and_view.py` | `ufactory_mujoco.viewer`, `ufactory_mujoco.compose` | 全部模型（机械臂、夹爪、相机、支架、力矩传感器、安装底板及组合） | 载入 MJCF 场景（支持 `home` / `ready` 关键帧）并启动交互视窗 |
 | `02_joint_control.py` | `ufactory_mujoco.sim_robot` | 全部 47 套含机械臂及组合模型 | 基于速度的五次多项式关节插值控制（裸臂 `xarm6` 默认运行 20 姿态动力学轨迹） |
 | `03_cartesian_ik.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.kinematics` | `xarm6` | 基于阻尼最小二乘法（DLS）IK 的笛卡尔直线往返与 X-Z 平面圆弧轨迹跟踪 |
 | `04_gripper_control.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.g2`, `ufactory_mujoco.bio_g2` | 23 套可动夹爪模型（独立夹爪及组合） | 执行 `闭合 (1.0) -> 全开 (0.0) -> 半开 (0.5) -> 全开 (0.0)` 循环；G2 与 Bio G2 支持 `--speed-percent` 与 `--force-percent` |
@@ -29,7 +29,7 @@
 ### 2.1 模型预览与基础运动控制 (`01`–`04`, `11`)
 
 ```bash
-# 01: 交互式查看器（全部 65 套模型）
+# 01: 交互式查看器（全部模型）
 python examples/simulation/01_load_and_view.py
 python examples/simulation/01_load_and_view.py --model lite6 --pose ready
 python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose ready
@@ -232,9 +232,9 @@ dynamics-report-compare reports/dyn_ver_<SN>/<old>.jsonl reports/dyn_ver_<SN>/<n
 
 `<机械臂>_with_gripper` 安装的是 Gripper G2（Lite 6 为 Lite 6 夹爪）。`<相机>` 为 `d405`、`d435`、`gemini_305` 或 `zed_x_nano`。
 
-各脚本的模型适用范围（共 `65` 套命名模型：`models/` 下 `24` 套静态目录 + `41` 套运行时 `MjSpec` 动态装配模型；可通过 `ufactory-mujoco export-model --list` 查看清单，或用 `ufactory-mujoco export-model <模型名> --out-dir <目录>` 导出独立 MJCF 供 MuJoCo `simulate` 加载）：
+各脚本的模型适用范围（`ufactory-mujoco export-model --list` 列出全部模型名；`ufactory-mujoco export-model <模型名> --out-dir <目录>` 导出独立 MJCF 供 MuJoCo `simulate` 加载）：
 
-- `01_load_and_view.py`：支持全部 `65` 套模型（裸臂、组合、独立末端/相机/支架/力矩传感器/安装底板）。
+- `01_load_and_view.py`：支持全部模型（裸臂、组合、独立末端/相机/支架/力矩传感器/安装底板）。
 - `02_joint_control.py`：支持全部 `47` 套含机械臂的模型（`5` 款裸臂 + `42` 套机械臂组合）。
 - `04_gripper_control.py`：支持全部 `23` 套带可动夹爪执行器的模型（`3` 款独立夹爪 + `20` 套带夹爪的机械臂/配件组合）。
 - `11_force_torque_sensor.py`：支持全部 `13` 套含 AI1500 力矩传感器的模型（`1` 套独立 `ft_sensor` + `12` 套 xArm/UF850 组合）。

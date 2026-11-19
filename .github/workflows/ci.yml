@@ -54,7 +54,7 @@ jobs:
           import mujoco
           from ufactory_mujoco.compose import COMPOSED_MODELS, compose_model
 
-          xmls = sorted(Path("models").glob("*/*.xml"))
+          xmls = sorted(Path("ufactory_mujoco/models").glob("*/*.xml"))
           assert len(xmls) >= 39, f"expected >= 39 static XML files, got {len(xmls)}"
           assert len(COMPOSED_MODELS) >= 46, f"expected >= 46 composed models, got {len(COMPOSED_MODELS)}"
           bad = []

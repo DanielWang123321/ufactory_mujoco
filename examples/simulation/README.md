@@ -4,13 +4,13 @@
 
 MuJoCo simulation examples (`01`–`11`) covering interactive model inspection, joint and Cartesian control, gripper servoing, cube pick-and-place, time-parameterized trajectory planning, RRT-Connect obstacle avoidance, box-packing showcase, kinematics/dynamics toolkits, AI1500 6-axis force/torque sensing, and gated real-robot workflows.
 
-Requires Python **3.12–3.14** and the core install (see the [installation guide](../../README.md#installation)). Examples `05`, `08` and `10` invoke the packaged CLI tasks `ufactory-mujoco pick-place`, `dynamics` and `box-pack`, which also work from an installed wheel outside the repository checkout. See [Section 3](#3-cli-options-summary) for flags, [Section 4](#4-commands-by-model) for all 65 models, and [Section 5](#5-viewer-controls) for viewer shortcuts.
+Requires Python **3.12–3.14** and the core install (see the [installation guide](../../README.md#installation)). Examples `05`, `08` and `10` invoke the packaged CLI tasks `ufactory-mujoco pick-place`, `dynamics` and `box-pack`, which also work from an installed wheel outside the repository checkout. See [Section 3](#3-cli-options-summary) for flags, [Section 4](#4-commands-by-model) for commands per model, and [Section 5](#5-viewer-controls) for viewer shortcuts.
 
 ## 1. Examples Overview
 
 | Script | Core Module(s) | Supported Models | Description |
 | :--- | :--- | :--- | :--- |
-| `01_load_and_view.py` | `ufactory_mujoco.viewer`, `ufactory_mujoco.robots`, `ufactory_mujoco.compose` | All 65 models (24 static + 41 composed: arms, grippers, cameras, brackets, F/T sensor, base plates & combos) | Load MJCF scene at `home` or `ready` keyframe in the interactive viewer |
+| `01_load_and_view.py` | `ufactory_mujoco.viewer`, `ufactory_mujoco.compose` | All models (arms, grippers, cameras, brackets, F/T sensor, base plates & combos) | Load MJCF scene at `home` or `ready` keyframe in the interactive viewer |
 | `02_joint_control.py` | `ufactory_mujoco.sim_robot` | All 47 arm & combination models | Speed-based quintic joint interpolation (`xarm6` runs 20 dynamics poses by default) |
 | `03_cartesian_ik.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.kinematics` | `xarm6` | Cartesian straight-line (`move_tcp`) and X-Z circle tracking via DLS IK |
 | `04_gripper_control.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.g2`, `ufactory_mujoco.bio_g2` | 23 jaw-gripper models (standalone & combos) | Cycle `close (1.0) -> open (0.0) -> half (0.5) -> open (0.0)`; G2 and Bio G2 support `--speed-percent` & `--force-percent` |
@@ -29,7 +29,7 @@ All scripts need only the core install. `--headless` runs `02`–`11` without a 
 ### 2.1 Model Viewing & Basic Control (`01`–`04`, `11`)
 
 ```bash
-# 01: Interactive viewer (all 65 models)
+# 01: Interactive viewer (all models)
 python examples/simulation/01_load_and_view.py
 python examples/simulation/01_load_and_view.py --model lite6 --pose ready
 python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose ready
@@ -232,9 +232,9 @@ Examples `03` and `07` accept only `--headless`.
 
 `<arm>_with_gripper` mounts Gripper G2 (the Lite 6 gripper on Lite 6). `<camera>` is `d405`, `d435`, `gemini_305` or `zed_x_nano`.
 
-Model applicability across scripts (`65` named models in total: `24` static directories under `models/` + `41` runtime `MjSpec`-composed assemblies; run `ufactory-mujoco export-model --list` or `ufactory-mujoco export-model <name> --out-dir <dir>` to export standalone MJCF files for MuJoCo `simulate`):
+Model applicability across scripts (`ufactory-mujoco export-model --list` prints every model name; `ufactory-mujoco export-model <name> --out-dir <dir>` exports standalone MJCF files for MuJoCo `simulate`):
 
-- `01_load_and_view.py`: all `65` models (bare arms, combinations, standalone tools/cameras/brackets/F/T sensor/base plates).
+- `01_load_and_view.py`: all models (bare arms, combinations, standalone tools/cameras/brackets/F/T sensor/base plates).
 - `02_joint_control.py`: all `47` models with an arm (`5` bare arms + `42` arm combinations).
 - `04_gripper_control.py`: all `23` models with a jaw actuator (`3` standalone grippers + `20` arm/accessory combinations with a jaw gripper).
 - `11_force_torque_sensor.py`: all `13` models with an AI1500 sensor (`1` standalone `ft_sensor` + `12` xArm/UF850 combinations).

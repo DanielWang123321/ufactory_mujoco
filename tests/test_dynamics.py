@@ -9,9 +9,10 @@ import mujoco
 import numpy as np
 
 from ufactory_mujoco.dynamics import ArmDynamics, attach_payload
+from ufactory_mujoco import MODELS_ROOT
 
 ROOT = Path(__file__).resolve().parent.parent
-XARM6 = ROOT / "models" / "xarm6" / "xarm6.xml"
+XARM6 = MODELS_ROOT / "xarm6" / "xarm6.xml"
 READY = np.array([0, -0.8, -1.2, 1.0, 0.3, 0])
 PAYLOAD = (3.0, [0.0, 0.0, 0.021])
 

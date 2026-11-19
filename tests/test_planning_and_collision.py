@@ -15,6 +15,7 @@ import importlib
 import sys
 from unittest.mock import patch
 from ufactory_mujoco.sim_robot import SimRobot
+from ufactory_mujoco import MODELS_ROOT
 
 # ==========================================================================
 # From test_collision.py
@@ -72,7 +73,7 @@ class ArmJointLimitsTests(unittest.TestCase):
 
     def test_xarm6_limits(self):
         n, lo, hi = arm_joint_limits(
-            mujoco.MjModel.from_xml_path(str(ROOT / "models" / "xarm6" / "xarm6.xml")))
+            mujoco.MjModel.from_xml_path(str(MODELS_ROOT / "xarm6" / "xarm6.xml")))
         self.assertEqual(n, 6)
         np.testing.assert_allclose(lo[1], -2.059)   # joint2 range from the MJCF
         np.testing.assert_allclose(hi[1], 2.0944)
@@ -114,7 +115,7 @@ class CollisionCheckerTests(unittest.TestCase):
                          self.checker.in_collision(COLLIDING))
 
     def test_checker_does_not_touch_simulation_model(self):
-        scene = ROOT / "models" / "xarm6" / "scene.xml"
+        scene = MODELS_ROOT / "xarm6" / "scene.xml"
         robot_model = mujoco.MjModel.from_xml_path(str(scene))
         robot_data = mujoco.MjData(robot_model)
         mujoco.mj_forward(robot_model, robot_data)
@@ -128,7 +129,7 @@ class CollisionCheckerTests(unittest.TestCase):
         self.assertEqual(robot_data.ncon, ncon_before)
 
     def test_xarm6_ready_pose_is_free(self):
-        checker = CollisionChecker(ROOT / "models" / "xarm6" / "scene.xml")
+        checker = CollisionChecker(MODELS_ROOT / "xarm6" / "scene.xml")
         self.assertFalse(checker.in_collision(np.zeros(6)))
 
     def test_input_validation(self):
@@ -272,7 +273,7 @@ avoidance = importlib.import_module("examples.simulation.09_obstacle_avoidance")
 
 ROOT = Path(__file__).resolve().parent.parent
 
-SCENE = ROOT / "models" / "xarm6" / "scene_obstacles.xml"
+SCENE = MODELS_ROOT / "xarm6" / "scene_obstacles.xml"
 
 class ObstacleSceneTests(unittest.TestCase):
     def setUp(self):

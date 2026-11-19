@@ -20,7 +20,7 @@ python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose
 
 ## 功能
 
-- **模型**：全部 5 款机械臂、5 款末端工具、4 款深度相机、相机支架、AI1500 六维力矩传感器（`ft_sensor`，附确定性 `200 Hz` `AI1500Reader`）、安装底板（`*_base_plate`），共计 65 套可用模型 —— `models/` 静态保存 24 套核心目录（19 套原子组件 + 5 套 `*_with_gripper` 任务主组合），其余 41 套长尾组合由 `compose.py` 基于 MuJoCo 4.x `MjSpec` 在运行时按需动态装配（同时支持自定义多配件叠加与 `ufactory-mujoco export-model` 静态导出）。视觉网格与多凸包碰撞体分离；Gripper G2 与 Bio Gripper G2 采用标定动力学与限速位置/力伺服（`g2.py`、`bio_g2.py`）。
+- **模型**：全部 5 款机械臂、5 款末端工具、4 款深度相机、相机支架、AI1500 六维力矩传感器（`ft_sensor`，附确定性 `200 Hz` `AI1500Reader`）与安装底板（`*_base_plate`）。仓库只保存原子部件的 MJCF（`ufactory_mujoco/models/`）；所有机械臂+配件组合与任务场景都在运行时由 MuJoCo 原生 `MjSpec.attach` 装配（`compose.py`），也支持自定义多配件叠加，并可用 `ufactory-mujoco export-model` 导出静态 MJCF。视觉网格与多凸包碰撞体分离；Gripper G2 与 Bio Gripper G2 采用标定动力学与限速位置/力伺服（`g2.py`、`bio_g2.py`）。
 - **运动学与规划**：正运动学、雅可比、阻尼最小二乘逆解、五次/LSPB/样条轨迹、笛卡尔直线、碰撞检测与 RRT-Connect（`kinematics.py`、`trajectory.py`、`planning.py`）。
 - **动力学**：质量矩阵、重力/科氏力、正逆动力学、负载、五臂运动验收命令（`tasks/dynamics.py`），以及对齐 `ufactory_genesis` 的 Schema v4 真机静态力矩验证工具链（`dynamics/`，提供 `dynamics-sim-check`、`dynamics-sim-collision-check`、`dynamics-hardware-check`、`dynamics-report-compare`）。
 - **脚本化任务**：5 组机械臂/夹爪的方块抓放与装箱，含预检（关节限位、穿透、RRT-Connect 绕行）和 JSON 报告（`tasks/`、`preflight.py`）。
@@ -36,7 +36,7 @@ python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose
 | `xarm7` | `gripper_g2`、`bio_gripper_g2`、`vacuum_gripper`、`ft_sensor`、`ft_sensor_and_gripper`、`ft_sensor_and_vacuum_gripper` | 配 `gripper_g2` | 支持 |
 | `uf850` | `gripper_g2`、`bio_gripper_g2`、`vacuum_gripper`、`ft_sensor`、`ft_sensor_and_gripper`、`ft_sensor_and_vacuum_gripper` | 配 `gripper_g2` | 支持 |
 
-本套件共提供 **65 套命名模型**，覆盖 5 款裸臂、5 款末端工具、4 款深度相机（`d405`、`d435`、`gemini_305`、`zed_x_nano`）、相机支架、AI1500 六维力矩传感器、安装底板（`{xarm,uf850,lite6}_base_plate`）及各类机械臂+配件组合：其中 `models/` 静态内置 **24 套模型目录**（19 套原子组件 + 5 套 `*_with_gripper` 任务主组合），其余 **41 套长尾组合** 由 `ufactory_mujoco.compose`（基于 MuJoCo `MjSpec`）在运行时按需动态装配，零重复 XML 与符号链接。所有模型均可直接通过 `01_load_and_view.py --model <名称>` 加载，也可通过 `ufactory-mujoco export-model <名称> --out-dir <目录>` 导出独立静态 MJCF；完整模型名与启动命令见 [examples/simulation/README_zh.md](examples/simulation/README_zh.md#4-按机型的命令)。
+命名模型覆盖 5 款裸臂、5 款末端工具、4 款深度相机（`d405`、`d435`、`gemini_305`、`zed_x_nano`）、相机支架、AI1500 六维力矩传感器、安装底板（`{xarm,uf850,lite6}_base_plate`）及各类机械臂+配件组合。`ufactory-mujoco export-model --list` 列出全部名称；用 `01_load_and_view.py --model <名称>` 加载，或用 `ufactory-mujoco export-model <名称> --out-dir <目录>` 导出独立 MJCF；各模型的命令见 [examples/simulation/README_zh.md](examples/simulation/README_zh.md#4-按机型的命令)。
 
 ## 安装
 
@@ -138,15 +138,14 @@ ruff check .                      # 与 CI 相同的静态检查（pip install r
 
 ```text
 calibrations/              单机运动学标定 YAML（绑定序列号并记录 SHA-256 指纹）
-configs/                   任务与验证配置：default.yaml（含各任务/机型预设）、dynamics_validation_pose.yaml
-models/                    24 套静态 MJCF 模型目录（19 套原子组件 + 5 套任务主组合 *_with_gripper）
-                           与 482 份规范网格；其余 41 套长尾组合由 compose.py 运行时动态装配
 ufactory_mujoco/
+  models/                  原子部件 MJCF 及其网格，以及 xarm6 避障场景
+  configs/                 任务与验证配置：default.yaml（含各任务/机型预设）、dynamics_validation_pose.yaml
   sim_robot.py             SimRobot：物理步进、关节/TCP/夹爪/力矩传感器控制、查看器
   xarm_robot.py            XArmRobot：xArm 真机，未获运动授权时只读
   robot_interface.py       SimRobot 与 XArmRobot 的共同接口
-  robots.py                资源根目录、模型路径解析、5 款机械臂注册表与兼容夹爪
-  compose.py               运行时 MjSpec 模型装配器、缓存解析与静态 XML 导出
+  robots.py                模型注册数据：机械臂、组合配方、挂载数据
+  compose.py               MjSpec.attach 装配、任务场景、模型加载与导出
   config.py                严格 YAML 任务配置、预设加载与内容哈希
   calibration.py           单机标定、模型修补、TCP/法兰变换
   safety.py                真机安全门与 sdk-sim 重放

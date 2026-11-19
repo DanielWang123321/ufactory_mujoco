@@ -51,7 +51,7 @@ except ImportError as exc:
 
 ROOT = Path(__file__).resolve().parents[1]
 
-G2 = ROOT / "models/gripper_g2"
+G2 = MODELS_ROOT / "gripper_g2"
 
 ASSETS = G2 / "assets/gripper_g2"
 

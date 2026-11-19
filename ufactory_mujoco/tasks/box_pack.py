@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Box-packing showcase for five arm and gripper pairs.
 
-Geometry, speed and grasp gap come from configs/box_pack/<robot>.yaml.
+Geometry, speed and grasp gap come from the box_pack presets in configs/default.yaml.
 Each cycle picks one feed cube, transports it above the box, and releases it
 release_above_rim_m above the rim; the cube free-falls and may rebound.
 speed_scale shortens commanded durations; free-fall physics is not scaled.

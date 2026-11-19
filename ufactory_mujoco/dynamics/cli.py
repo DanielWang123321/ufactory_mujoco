@@ -75,9 +75,10 @@ from ..calibration import (
     validate_ipv4_address,
 )
 from ..ft_sensor import is_hardware_ft_sensor_enabled, read_hardware_ft_sensor
-from ..robots import RESOURCE_ROOT
 
 DEFAULT_CALIBRATIONS_DIR = Path("calibrations")
+# Per-unit calibrations committed at the repository root (source checkouts only).
+REPO_CALIBRATIONS_DIR = Path(__file__).resolve().parents[2] / "calibrations"
 DEFAULT_KINEMATICS_SUFFIX_ENV = "XARM_KINEMATICS_SUFFIX"
 _PD_HOLD_TORQUE_DEF = "In MuJoCo simulation, joint torques computed by the PD actuator to hold target joint angles."
 
@@ -234,7 +235,7 @@ def _find_kinematics_yaml(
     candidates: list[Path] = []
     if kinematics_yaml_dir:
         candidates.append(Path(kinematics_yaml_dir).expanduser())
-    candidates.extend([DEFAULT_CALIBRATIONS_DIR, RESOURCE_ROOT / "calibrations"])
+    candidates.extend([DEFAULT_CALIBRATIONS_DIR, REPO_CALIBRATIONS_DIR])
     filename = f"{robot_name}_kinematics_{suffix}.yaml"
     seen: set[Path] = set()
     for root in candidates:
