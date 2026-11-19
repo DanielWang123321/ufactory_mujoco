@@ -16,11 +16,11 @@ from ufactory_mujoco import (
     plan_ptp_quintic,
 )
 from ufactory_mujoco.kinematics import quat_error
-from ufactory_mujoco.robots import resolve_model_path
+from ufactory_mujoco import resolve_model_path
 
 ROOT = Path(__file__).resolve().parent.parent
 XARM6_XML = ROOT / "models" / "xarm6" / "xarm6.xml"
-XARM6_GRIPPER_SCENE = ROOT / "models" / "xarm6_with_gripper" / "scene.xml"
+XARM6_GRIPPER_SCENE = "xarm6_with_gripper"
 XARM6_FT_GRIPPER_SCENE = resolve_model_path("xarm6_with_ft_sensor_and_gripper")
 READY = np.array([0.0, -0.8, -1.2, 1.0, 0.3, 0.0])
 TARGET = np.array([0.3, -1.2, -1.0, 0.6, 0.6, 0.5])

@@ -23,7 +23,8 @@ from ufactory_mujoco.calibration import apply_calibration_to_model
 from ufactory_mujoco.dynamics import ArmDynamics, MAX_DYNAMICS_MOVE_SPEED_RAD_S
 from ufactory_mujoco.ft_sensor import has_ft_sensor, is_hardware_ft_sensor_enabled
 from ufactory_mujoco.planning import CollisionChecker
-from ufactory_mujoco.robots import ARMS, MODELS_ROOT, resolve_arm_scene
+from ufactory_mujoco.config import arm_scene_spec, resolve_arm_scene
+from ufactory_mujoco.robots import ARMS, MODELS_ROOT
 from ufactory_mujoco.safety import (
     SafetyGateError,
     authorize_real_motion,
@@ -580,14 +581,16 @@ def run_hardware_dynamics_validation(
         if not calibration:
             raise SafetyGateError(f"dynamics mode={mode!r} requires --calibration YAML")
 
-        scene_path = resolve_arm_scene(robot, gripper, "scene")
+        def scene_spec():
+            return arm_scene_spec(robot, gripper, "scene")
+
         model_path = MODELS_ROOT / robot / f"{robot}.xml"
         with XArmRobot(
             resolved_ip,
             robot=robot,
             gripper=gripper,
             scene="scene",
-            model_path=scene_path,
+            model_path=scene_spec(),
             calibration=calibration,
             read_only=True,
             max_joint_speed_rad_s=MAX_DYNAMICS_MOVE_SPEED_RAD_S,
@@ -619,19 +622,19 @@ def run_hardware_dynamics_validation(
 
             tcp_load_info: dict[str, object] = {"mass_kg": mass_kg, "com_m": com_m}
             if model_has_ft and mass_kg <= 0.05:
-                dyn = ArmDynamics(scene_path)
+                dyn = ArmDynamics(scene_spec())
                 tcp_load_info["controller_tcp_load_unconfigured_for_sensor"] = True
             elif mass_kg > 1e-6:
                 dyn = ArmDynamics(model_path, payload=(mass_kg, com_m))
             elif gripper is not None:
-                dyn = ArmDynamics(scene_path)
+                dyn = ArmDynamics(scene_spec())
             else:
                 dyn = ArmDynamics(model_path, payload=(mass_kg, com_m))
             apply_calibration_to_model(dyn.model, calib, dyn.data)
             tau_gravity = dyn.gravity(q_now)
             delta_nm = tau_real - tau_gravity
 
-            checker = make_checker(scene_path)
+            checker = make_checker(scene_spec())
             apply_calibration_to_model(checker.model, calib, checker.data)
             ready, target = (np.asarray(p, dtype=float) for p in PRESETS[robot])
             segments = motion_segments(ready, target)

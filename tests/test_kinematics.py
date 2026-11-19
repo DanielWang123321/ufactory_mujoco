@@ -10,6 +10,7 @@ import mujoco
 import numpy as np
 
 from ufactory_mujoco import SimRobot
+from ufactory_mujoco.config import arm_scene_spec
 from ufactory_mujoco.kinematics import solve_ik
 from ufactory_mujoco.kinematics import (
     fk_pose,
@@ -164,7 +165,7 @@ class KinematicsTests(unittest.TestCase):
         q5 = np.array([0.2, -0.7, -1.0, 0.8, -0.2])
         with SimRobot(root / "models" / "xarm5" / "scene.xml", viewer=False) as bare:
             w_bare = bare.tcp_manipulability(q5)
-        with SimRobot(root / "models" / "xarm5_with_gripper" / "scene.xml", viewer=False) as grip:
+        with SimRobot("xarm5_with_gripper", viewer=False) as grip:
             self.assertEqual(grip.n_arm, 5)
             self.assertGreater(grip.model.nv, 5)
             w_grip = grip.tcp_manipulability(q5)
@@ -178,9 +179,7 @@ class FreeJointModelTests(unittest.TestCase):
     """nq != nv (free-joint scene): full-q FK/Jacobian must still work."""
 
     def setUp(self):
-        scene = (Path(__file__).resolve().parent.parent / "models"
-                 / "xarm6_with_gripper" / "scene_pick_place.xml")
-        self.model = mujoco.MjModel.from_xml_path(str(scene))
+        self.model = arm_scene_spec("xarm6", "gripper_g2", "pick_place").compile()
         self.data = mujoco.MjData(self.model)
 
     def test_fk_and_jacobian_with_full_qpos(self):
@@ -195,13 +194,7 @@ class FreeJointModelTests(unittest.TestCase):
             fk_pose(self.model, self.data, "attachment_site", q[:-1])
 
     def test_manipulability_and_arm_q_on_free_joint_scene(self):
-        scene = (
-            Path(__file__).resolve().parent.parent
-            / "models"
-            / "xarm6_with_gripper"
-            / "scene_pick_place.xml"
-        )
-        with SimRobot(scene, viewer=False) as robot:
+        with SimRobot(arm_scene_spec("xarm6", "gripper_g2", "pick_place"), viewer=False) as robot:
             self.assertEqual(robot.n_arm, 6)
             self.assertGreater(robot.model.nq, 6)
             w = robot.tcp_manipulability(_Q0)

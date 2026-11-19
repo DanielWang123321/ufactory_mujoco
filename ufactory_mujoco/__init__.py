@@ -11,8 +11,16 @@ configure_backend()
 
 from .bio_g2 import BioGripperG2Controller
 from .calibration import CalibrationError, KinematicsCalibration, load_kinematics_calibration
-from .compose import COMPOSED_MODELS, compose_model, compose_spec, export_model
-from .config import ConfigError, TaskConfig, load_task_config
+from .compose import (
+    COMPOSED_MODELS,
+    available_models,
+    compose_model,
+    compose_spec,
+    export_model,
+    load_model,
+    resolve_model_path,
+)
+from .config import ConfigError, TaskConfig, load_task_config, resolve_arm_scene
 from .dynamics import ArmDynamics, attach_payload
 from .ft_sensor import (
     AI1500Reader,
@@ -37,15 +45,7 @@ from .kinematics import (
 )
 from .planning import CollisionChecker, PlanningError, plan_collision_free, shortcut_path
 from .robot_interface import RobotInterface
-from .robots import (
-    ARMS,
-    MODELS_ROOT,
-    SCENES,
-    ArmSpec,
-    available_models,
-    resolve_arm_scene,
-    resolve_model_path,
-)
+from .robots import ARMS, MODELS_ROOT, SCENES, ArmSpec
 from .safety import MotionApproval, SafetyGateError
 from .sim_robot import SimRobot
 from .trajectory import (
@@ -71,6 +71,7 @@ __all__ = [
     "resolve_arm_scene",
     "MODELS_ROOT",
     "resolve_model_path",
+    "load_model",
     "available_models",
     "COMPOSED_MODELS",
     "compose_spec",

@@ -8,7 +8,7 @@ import numpy as np
 
 from ufactory_mujoco.sim_robot import SimRobot
 
-from ufactory_mujoco.robots import resolve_model_path
+from ufactory_mujoco import resolve_model_path
 
 MODELS_ROOT = Path(__file__).resolve().parent.parent / "models"
 gripper_demo = importlib.import_module("examples.simulation.04_gripper_control")
@@ -84,7 +84,7 @@ class GripperControlTest(unittest.TestCase):
 
     def test_xarm6_with_gripper_g2_properties(self):
         """xarm6_with_gripper detects gripper, isolates arm and gripper channels."""
-        scene = MODELS_ROOT / "xarm6_with_gripper" / "scene.xml"
+        scene = "xarm6_with_gripper"
         robot = SimRobot(scene)
         self.assertTrue(robot.has_gripper)
 
@@ -98,7 +98,7 @@ class GripperControlTest(unittest.TestCase):
 
     def test_xarm6_with_gripper_g2_open_close(self):
         """Test open and close for Gripper G2."""
-        scene = MODELS_ROOT / "xarm6_with_gripper" / "scene.xml"
+        scene = "xarm6_with_gripper"
         robot = SimRobot(scene)
 
         # Close gripper
@@ -163,7 +163,7 @@ class GripperControlTest(unittest.TestCase):
 
     def test_arm_gripper_motion_isolation(self):
         """Arm motion does not alter gripper state, gripper motion does not move arm."""
-        scene = MODELS_ROOT / "xarm6_with_gripper" / "scene.xml"
+        scene = "xarm6_with_gripper"
         robot = SimRobot(scene)
 
         # Close gripper
@@ -189,7 +189,7 @@ class GripperControlTest(unittest.TestCase):
 
     def test_lite6_with_gripper(self):
         """The Lite 6 example moves to the factory pose and grips without collisions."""
-        scene = MODELS_ROOT / "lite6_with_gripper" / "scene.xml"
+        scene = "lite6_with_gripper"
         factory_q = np.deg2rad([0, 9.9, 31.8, 0, 21.9, 0])
         with SimRobot(scene) as robot:
             self.assertTrue(robot.has_gripper)
@@ -260,7 +260,7 @@ class GripperControlTest(unittest.TestCase):
 
     def test_set_gripper_rejects_nan_without_corrupting_arm_state(self):
         """A3: NaN gripper inputs raise ValueError and never reset arm ctrl/qpos to zero."""
-        with SimRobot(MODELS_ROOT / "lite6_with_gripper" / "scene.xml", viewer=False) as robot:
+        with SimRobot("lite6_with_gripper", viewer=False) as robot:
             q_safe = np.array([0.4, 0.2, 0.6, 0.0, 0.4, -0.2])
             robot.move_joints(q_safe, duration=0.8, wait=True)
             q_before = robot.get_joint_positions()

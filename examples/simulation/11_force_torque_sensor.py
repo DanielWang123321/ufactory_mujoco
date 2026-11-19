@@ -28,7 +28,7 @@ import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
 
 from ufactory_mujoco import SimRobot, XArmRobot, apply_ft_sensor_wrench, clear_ft_sensor_wrench  # noqa: E402
-from ufactory_mujoco.robots import resolve_model_path  # noqa: E402
+from ufactory_mujoco import resolve_model_path  # noqa: E402
 
 
 def _positive_float(value: str) -> float:

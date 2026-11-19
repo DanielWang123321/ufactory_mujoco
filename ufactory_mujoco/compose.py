@@ -1,720 +1,327 @@
-"""Runtime MJCF / MuJoCo 4.x ``MjSpec`` composer for long-tail robot and accessory assemblies.
+"""Assemble composite models from the atomic MJCF parts with MuJoCo's native ``MjSpec.attach``.
 
-The repository ships 19 atomic component directories (5 bare arms, 5 end effectors,
-4 depth cameras, 1 camera bracket, 1 AI1500 F/T sensor, 3 base plates) plus the
-5 primary task-scene arm+gripper assemblies statically under ``models/``. All 41
-long-tail combinations (and arbitrary custom stacks) are composed on demand from
-those atomic XMLs without duplicating combo XML directories or symlinks.
+Every arm + end effector, F/T sensor, camera stand + camera and base plate combination, and
+every pick-place / box-pack scene, is built in memory from the parts under ``models/`` and
+the data in ``robots``. Each build is serialized once with ``MjSpec.to_xml()``; in-memory
+loads, exported files and cached paths all come from that XML.
 """
 
 from __future__ import annotations
 
-import copy
+import contextlib
+import functools
 import hashlib
 import math
 import os
 from pathlib import Path
 import shutil
 import tempfile
-import xml.etree.ElementTree as ET
+from typing import Any
+import warnings
 
 import mujoco
 import numpy as np
 from scipy.spatial.transform import Rotation
 
-from .robots import MODELS_ROOT, RESOURCE_ROOT
+from . import robots
+from .robots import ARMS, MODELS_ROOT, RECIPES, TOOLS, ConfigError, ModelResourceError, Recipe
 
-_ARMS = ("lite6", "xarm5", "xarm6", "xarm7", "uf850")
-_XARM_FAMILY = ("xarm5", "xarm6", "xarm7", "uf850")
-_CAMERAS = ("d405", "d435", "gemini_305", "zed_x_nano")
-
-_FLANGE_BODY: dict[str, str] = {
-    "lite6": "link6",
-    "xarm5": "link5",
-    "xarm6": "link6",
-    "xarm7": "link7",
-    "uf850": "link6",
-}
-
-# Elevated home/ready keyframes used by mounted end-effector / sensor / camera combos
-# so downstream hardware stays clear of the floor in a tool-down orientation.
-_COMBO_KEYFRAMES: dict[str, tuple[str, str]] = {
-    "xarm5": (
-        "0 -0.533 -1 0.5 0.3",
-        "0 -0.63088336 -0.837867545 1.468750905 0",
-    ),
-    "xarm6": (
-        "0 -0.631529917 -0.833150486 0 1.464680403 0",
-        "0 -0.631529917 -0.833150486 0 1.464680403 0",
-    ),
-    "xarm7": (
-        "0 -0.8 0 0 0 0 0",
-        "0 -0.612697406 0 0.831413847 0 1.444111253 0",
-    ),
-    "uf850": (
-        "0 0 0 0 0 0",
-        "0 0.305871495 -0.534714507 0 -0.840586002 0",
-    ),
-}
-
-_BIO_GRIPPER_MOUNT: dict[str, tuple[str, str | None]] = {
-    "xarm5": ("0.026044 -0.000867 -0.000697", "0.999993824591 0 0 -0.00351436776576"),
-    "xarm6": ("0.027018 -0.000715 -0.000692", "0.999993767297 0 0 -0.00353063266485"),
-    "xarm7": ("0.026931 -0.000882 -0.00076", "0.99999230379 0 0 -0.0039233099351"),
-    "uf850": ("0.024657 0 0", None),
-}
-
-# Base plate type, thickness (mm), and least-squares mounting fit of link_base on z=0.
-_BASE_PLATE_THICKNESS_MM: dict[str, float] = {
-    "xarm": 8.0,
-    "uf850": 10.0,
-    "lite6": 5.0,
-}
-
-_BASE_PLATE_MOUNT: dict[str, tuple[str, tuple[float, float, float], float]] = {
-    "xarm5": ("xarm", (-0.00012433, -0.00038722, -0.00001016), 0.000002356),
-    "xarm6": ("xarm", (0.00007243, 0.00002863, -0.00004715), -0.00726035),
-    "xarm7": ("xarm", (-0.00057017, 0.00006319, 0.00001328), -0.00725905),
-    "uf850": ("uf850", (-0.00001021, 0.00000350, 0.00000420), 0.0),
-    "lite6": ("lite6", (0.00298920, 0.00001614, 0.00171732), 0.000000298),
-}
-
-# Camera mounting transforms in camera_stand coordinates.
-_STAND_MOUNT_TARGET = np.array([0.0675, 0.003, 0.0], dtype=float)
-_R_STANDARD = np.array([[0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]], dtype=float)
-_R_GEMINI = np.array([[0.0, 0.0, 1.0], [0.0, -1.0, 0.0], [1.0, 0.0, 0.0]], dtype=float)
-_CAMERA_MOUNT: dict[str, tuple[tuple[float, float, float], float]] = {
-    "d405": ((0.0, 0.0, -0.023), 0.0),
-    "d435": ((0.0, 0.0, -0.025), 0.000055),
-    "gemini_305": ((0.018348755, 0.023076703, -0.017177002), 0.0),
-    "zed_x_nano": ((0.0, 0.0, 0.0), 0.0),
-}
-
-_FT_TIMESTEP = "0.001"
-_FT_HEADLIGHT_SPECULAR = "0.55 0.57 0.6"
-
-_ARM_SCENE_TEMPLATE = """<mujoco model="{name} scene">
-  <include file="{xml_file}"/>
-
-  <statistic center="{center}" extent="{extent}"/>
-
-  <visual>
-    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="{specular}"/>
-    <rgba haze="0.15 0.25 0.35 1"/>
-    <global azimuth="-140" elevation="-25" offwidth="1280" offheight="720"/>
-  </visual>
-
-  <asset>
-    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072"/>
-    <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4"
-      rgb2="0.1 0.15 0.2" markrgb="0.8 0.8 0.8" width="300" height="300"/>
-    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2"/>
-  </asset>
-
-  <worldbody>
-    <light pos="0 0 3" dir="0 0 -1" directional="true"/>
-    <geom name="floor"{floor_pos} size="0 0 0.05" type="plane" material="groundplane"/>
-    <camera name="front" pos="1.2 0.8 0.9" quat="0.72 0 0.19 0.67"/>
-    <camera name="side" pos="-0.3 1.6 0.8" quat="0.66 0.24 0.24 0.67"/>
-  </worldbody>
-</mujoco>
-"""
-
-COMPOSED_MODELS: tuple[str, ...] = tuple(
-    sorted(
-        [f"camera_stand_with_{cam}" for cam in _CAMERAS]
-        + [f"{arm}_with_base_plate" for arm in _ARMS]
-        + ["lite6_with_vacuum_gripper"]
-        + [f"{arm}_with_bio_gripper" for arm in _XARM_FAMILY]
-        + [f"{arm}_with_vacuum_gripper" for arm in _XARM_FAMILY]
-        + [f"{arm}_with_d435" for arm in _XARM_FAMILY]
-        + [f"{arm}_with_gripper_and_d435" for arm in _XARM_FAMILY]
-        + [f"xarm6_with_gripper_and_{cam}" for cam in _CAMERAS if cam != "d435"]
-        + [f"{arm}_with_ft_sensor" for arm in _XARM_FAMILY]
-        + [f"{arm}_with_ft_sensor_and_gripper" for arm in _XARM_FAMILY]
-        + [f"{arm}_with_ft_sensor_and_vacuum_gripper" for arm in _XARM_FAMILY]
-    )
-)
-_COMPOSED_SET = frozenset(COMPOSED_MODELS)
+COMPOSED_MODELS: tuple[str, ...] = tuple(RECIPES)
+_EMPTY_PREFIX = "Attaching a spec with an empty prefix"
+_DEFAULT_SITE_RGBA = (0.5, 0.5, 0.5, 1.0)
+_STUB = b"<mujoco><worldbody/></mujoco>"
 
 
 def is_composed_model(name: str) -> bool:
-    """Return True if ``name`` is one of the 41 dynamically composed named assemblies."""
-    return name in _COMPOSED_SET
+    """Return True if ``name`` is a composite built at runtime."""
+    return name in RECIPES
 
 
-def _vec(values: tuple[float, ...] | list[float] | np.ndarray) -> str:
-    return " ".join(f"{float(x):.10g}" for x in values)
+def _round(values) -> list[float]:
+    """Values as 10 significant digits, the precision of the validated MJCF text."""
+    return [float(f"{float(v):.10g}") for v in values]
 
 
-def _quat_from_matrix(matrix: np.ndarray) -> str:
-    x, y, z, w = Rotation.from_matrix(matrix).as_quat()
-    return _vec((w, x, y, z))
+def _quat_from_matrix(matrix) -> list[float]:
+    x, y, z, w = Rotation.from_matrix(np.asarray(matrix, dtype=float)).as_quat()
+    return _round((w, x, y, z))
 
 
-def _resolve_mesh_file(rel_file: str, *, models_root: Path, resource_root: Path) -> Path:
-    """Resolve a canonical mesh path across editable checkouts and wheel installs."""
-    rel_path = Path(rel_file)
-    if rel_path.is_absolute():
-        return rel_path
-    staged = resource_root / "meshes" / rel_file
-    if staged.is_file():
-        return staged.resolve()
-    part = rel_file.split("/", 1)[0]
-    editable = models_root / part / "assets" / rel_file
-    if editable.is_file():
-        return editable.resolve()
-    # Allow overrides via UFACTORY_MUJOCO_MODELS pointing to a staged tree with sibling meshes/.
-    alt_staged = models_root.parent / "meshes" / rel_file
-    if alt_staged.is_file():
-        return alt_staged.resolve()
-    raise FileNotFoundError(f"Canonical mesh not found for {rel_file!r} under {models_root}")
+def _on_mujoco_warning(message: str) -> None:
+    if not message.startswith(_EMPTY_PREFIX):
+        warnings.warn(f"MuJoCo: {message}", RuntimeWarning, stacklevel=2)
 
 
-def _rewrite_mesh_paths(
-    root: ET.Element,
-    *,
-    models_root: Path,
-    resource_root: Path,
-    copy_to_assets_dir: Path | None = None,
-) -> None:
-    """Resolve every ``<mesh file=...>`` to an absolute canonical path or staged export dir."""
-    compiler = root.find("compiler")
-    if compiler is None:
-        compiler = ET.Element("compiler", angle="radian", autolimits="true")
-        root.insert(0, compiler)
-    if copy_to_assets_dir is not None:
-        compiler.set("meshdir", "assets")
-    else:
-        compiler.attrib.pop("meshdir", None)
-
-    for mesh in root.findall("./asset/mesh"):
-        raw = mesh.attrib.get("file")
-        if not raw:
-            continue
-        src = _resolve_mesh_file(raw, models_root=models_root, resource_root=resource_root)
-        if copy_to_assets_dir is not None:
-            dst = copy_to_assets_dir / raw
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            if not dst.exists():
-                shutil.copyfile(src, dst)
-            mesh.set("file", raw)
-        else:
-            mesh.set("file", src.as_posix())
+@contextlib.contextmanager
+def _attaching():
+    """Keep names unprefixed: drop only MuJoCo's empty-prefix notice (stderr and MUJOCO_LOG.TXT)."""
+    previous = mujoco.get_mju_user_warning()
+    mujoco.set_mju_user_warning(_on_mujoco_warning)
+    try:
+        yield
+    finally:
+        mujoco.set_mju_user_warning(previous)
 
 
-def _load_xml(models_root: Path, model_name: str, filename: str | None = None) -> ET.Element:
-    xml_name = filename or f"{model_name}.xml"
-    path = models_root / model_name / xml_name
+def _load(path: Path, include: dict[str, bytes] | None = None) -> mujoco.MjSpec:
+    """Load an MJCF file with mesh paths made absolute, so attached parts keep their assets."""
     if not path.is_file():
-        raise FileNotFoundError(f"Atomic MJCF not found: {path}")
-    return ET.parse(path).getroot()
+        raise FileNotFoundError(f"MJCF not found: {path}")
+    spec = mujoco.MjSpec.from_file(str(path), include=include)
+    meshdir = Path(spec.modelfiledir) / spec.meshdir
+    for mesh in spec.meshes:
+        if mesh.file and not os.path.isabs(mesh.file):
+            mesh.file = str((meshdir / mesh.file).resolve())
+    spec.meshdir = ""
+    return spec
 
 
-def _merge_sections(dst: ET.Element, src: ET.Element) -> None:
-    """Merge assets, defaults, contacts, equalities, actuators, and sensors from ``src`` into ``dst``."""
-    dst_asset = dst.find("asset")
-    src_asset = src.find("asset")
-    if src_asset is not None:
-        if dst_asset is None:
-            dst_asset = ET.SubElement(dst, "asset")
-        existing_mat = {el.attrib.get("name") for el in dst_asset.findall("material")}
-        existing_mesh = {el.attrib.get("name") for el in dst_asset.findall("mesh")}
-        existing_tex = {el.attrib.get("name") for el in dst_asset.findall("texture")}
-        for child in src_asset:
-            name = child.attrib.get("name")
-            if child.tag == "material" and name in existing_mat:
-                continue
-            if child.tag == "mesh" and name in existing_mesh:
-                continue
-            if child.tag == "texture" and name in existing_tex:
-                continue
-            dst_asset.append(copy.deepcopy(child))
-            if child.tag == "material":
-                existing_mat.add(name)
-            elif child.tag == "mesh":
-                existing_mesh.add(name)
-            elif child.tag == "texture":
-                existing_tex.add(name)
-
-    src_default = src.find("default")
-    if src_default is not None:
-        dst_default = dst.find("default")
-        if dst_default is None:
-            dst_default = ET.SubElement(dst, "default")
-        existing_cls = {el.attrib.get("class") for el in dst_default.findall(".//default") if "class" in el.attrib}
-        for child in src_default:
-            cls = child.attrib.get("class")
-            if cls is not None and cls in existing_cls:
-                continue
-            dst_default.append(copy.deepcopy(child))
-            if cls is not None:
-                existing_cls.add(cls)
-
-    src_contact = src.find("contact")
-    if src_contact is not None:
-        dst_contact = dst.find("contact")
-        if dst_contact is None:
-            dst_contact = ET.SubElement(dst, "contact")
-        existing_pairs = {
-            (e.attrib.get("body1"), e.attrib.get("body2"))
-            for e in dst_contact.findall("exclude")
-        }
-        for child in src_contact:
-            if child.tag == "exclude":
-                pair = (child.attrib.get("body1"), child.attrib.get("body2"))
-                if pair in existing_pairs:
-                    continue
-                existing_pairs.add(pair)
-            dst_contact.append(copy.deepcopy(child))
-
-    for tag in ("equality", "actuator", "sensor"):
-        src_sec = src.find(tag)
-        if src_sec is not None:
-            dst_sec = dst.find(tag)
-            if dst_sec is None:
-                dst_sec = ET.SubElement(dst, tag)
-            for child in src_sec:
-                dst_sec.append(copy.deepcopy(child))
+def _part(name: str, root: Path) -> mujoco.MjSpec:
+    return _load(root / name / f"{name}.xml")
 
 
-def _add_exclude(root: ET.Element, body1: str, body2: str) -> None:
-    contact = root.find("contact")
-    if contact is None:
-        contact = ET.SubElement(root, "contact")
-    for ex in contact.findall("exclude"):
-        if ex.attrib.get("body1") == body1 and ex.attrib.get("body2") == body2:
-            return
-    ET.SubElement(contact, "exclude", body1=body1, body2=body2)
+def _env(name: str, root: Path) -> mujoco.MjSpec:
+    """The part's ``scene.xml`` without the part: visual, statistic, lights, floor, cameras."""
+    return _load(root / name / "scene.xml", include={f"{name}.xml": _STUB})
 
 
-def _set_keyframes(root: ET.Element, home_qpos: str, ready_qpos: str, home_ctrl: str, ready_ctrl: str) -> None:
-    old = root.find("keyframe")
-    if old is not None:
-        root.remove(old)
-    kf = ET.SubElement(root, "keyframe")
-    ET.SubElement(kf, "key", name="home", qpos=home_qpos, ctrl=home_ctrl)
-    ET.SubElement(kf, "key", name="ready", qpos=ready_qpos, ctrl=ready_ctrl)
+def _attach(parent: mujoco.MjSpec, child: mujoco.MjSpec, *, site_rgba=None, **where) -> None:
+    """Attach ``child`` without its keyframes; same-named materials resolve to the parent's.
 
-
-def _attach_camera_to_stand(
-    root: ET.Element,
-    stand_body: ET.Element,
-    cam_key: str,
-    *,
-    models_root: Path,
-) -> None:
-    cam_root = _load_xml(models_root, cam_key)
-    _merge_sections(root, cam_root)
-    cam_body = cam_root.find(f"./worldbody/body[@name='{cam_key}_body']")
-    if cam_body is None:
-        raise ValueError(f"Missing {cam_key}_body in {cam_key}.xml")
-    cam_copy = copy.deepcopy(cam_body)
-    mount, clearance = _CAMERA_MOUNT[cam_key]
-    rot = _R_GEMINI if cam_key == "gemini_305" else _R_STANDARD
-    cam_pos = _STAND_MOUNT_TARGET + np.array([0.0, clearance, 0.0]) - rot @ np.array(mount)
-    cam_copy.set("pos", _vec(cam_pos))
-    cam_copy.set("quat", _quat_from_matrix(rot))
-    stand_body.append(cam_copy)
-
-
-def _attach_stand_and_camera_to_flange(
-    root: ET.Element,
-    flange: ET.Element,
-    cam_key: str,
-    *,
-    models_root: Path,
-) -> None:
-    stand_root = _load_xml(models_root, "camera_stand")
-    _merge_sections(root, stand_root)
-    stand_body = stand_root.find("./worldbody/body[@name='camera_stand']")
-    if stand_body is None:
-        raise ValueError("Missing camera_stand body in camera_stand.xml")
-    stand_copy = copy.deepcopy(stand_body)
-    stand_copy.set("quat", _vec((0.707106781, 0.707106781, 0.0, 0.0)))
-    _attach_camera_to_stand(root, stand_copy, cam_key, models_root=models_root)
-    flange.append(stand_copy)
-
-
-def _attach_bio_gripper(root: ET.Element, arm: str, *, models_root: Path) -> None:
-    flange_name = _FLANGE_BODY[arm]
-    flange = root.find(f".//worldbody//body[@name='{flange_name}']")
-    if flange is None:
-        raise ValueError(f"Missing flange body {flange_name!r} in {arm}.xml")
-    att = flange.find("site[@name='attachment_site']")
-    if att is not None:
-        flange.remove(att)
-
-    bio_root = _load_xml(models_root, "bio_gripper_g2")
-    _merge_sections(root, bio_root)
-    bio_body = bio_root.find("./worldbody/body[@name='bio_gripper_g2_base_link']")
-    if bio_body is None:
-        raise ValueError("Missing bio_gripper_g2_base_link in bio_gripper_g2.xml")
-    bio_copy = copy.deepcopy(bio_body)
-    pos, quat = _BIO_GRIPPER_MOUNT[arm]
-    bio_copy.set("pos", pos)
-    if quat is not None:
-        bio_copy.set("quat", quat)
-    tcp = bio_copy.find("site[@name='link_tcp']")
-    if tcp is not None:
-        tcp.set("name", "attachment_site")
-        tcp.set("size", "0.001")
-        tcp.set("rgba", "1 0 0 1")
-        tcp.set("group", "4")
-    flange.append(bio_copy)
-    _add_exclude(root, flange_name, "bio_gripper_g2_base_link")
-
-    home_q, ready_q = _COMBO_KEYFRAMES[arm]
-    _set_keyframes(
-        root,
-        f"{home_q} -0.0395 0.0395",
-        f"{ready_q} -0.0395 0.0395",
-        f"{home_q} 0.0395",
-        f"{ready_q} 0.0395",
-    )
-
-
-def _attach_vacuum_gripper(root: ET.Element, arm: str, *, models_root: Path) -> None:
-    flange_name = _FLANGE_BODY[arm]
-    flange = root.find(f".//worldbody//body[@name='{flange_name}']")
-    if flange is None:
-        raise ValueError(f"Missing flange body {flange_name!r} in {arm}.xml")
-    att = flange.find("site[@name='attachment_site']")
-    if att is not None:
-        flange.remove(att)
-
-    is_lite = arm == "lite6"
-    vg_name = "lite6_vacuum_gripper" if is_lite else "vacuum_gripper"
-    vg_body_name = "uflite_vacuum_gripper_link" if is_lite else "xarm_vacuum_gripper_link"
-    att_z = "0.061" if is_lite else "0.126"
-
-    vg_root = _load_xml(models_root, vg_name)
-    _merge_sections(root, vg_root)
-    vg_body = vg_root.find(f"./worldbody/body[@name='{vg_body_name}']")
-    if vg_body is None:
-        raise ValueError(f"Missing {vg_body_name!r} in {vg_name}.xml")
-    vg_copy = copy.deepcopy(vg_body)
-    ET.SubElement(vg_copy, "site", name="attachment_site", pos=f"0 0 {att_z}", size="0.001", rgba="1 0 0 1", group="4")
-    flange.append(vg_copy)
-
-    prev_link = f"link{int(flange_name.removeprefix('link')) - 1}"
-    _add_exclude(root, flange_name, vg_body_name)
-    _add_exclude(root, prev_link, vg_body_name)
-    if is_lite:
-        _add_exclude(root, "link4", "link6")
-        _add_exclude(root, "link4", vg_body_name)
-    else:
-        home_q, ready_q = _COMBO_KEYFRAMES[arm]
-        _set_keyframes(root, home_q, ready_q, home_q, ready_q)
-
-
-def _attach_ft_sensor(root: ET.Element, arm: str, tool: str | None, *, models_root: Path) -> None:
-    option = root.find("option")
-    if option is None:
-        option = ET.Element("option", integrator="implicitfast")
-        root.insert(1, option)
-    option.set("timestep", _FT_TIMESTEP)
-
-    flange_name = _FLANGE_BODY[arm]
-    flange = root.find(f".//worldbody//body[@name='{flange_name}']")
-    if flange is None:
-        raise ValueError(f"Missing flange body {flange_name!r} in {arm}.xml")
-
-    ft_root = _load_xml(models_root, "ft_sensor")
-    _merge_sections(root, ft_root)
-    ft_base = ft_root.find("./worldbody/body[@name='ft_sensor_base']")
-    if ft_base is None:
-        raise ValueError("Missing ft_sensor_base in ft_sensor.xml")
-    ft_copy = copy.deepcopy(ft_base)
-    ft_copy.attrib.pop("pos", None)
-    ft_output = ft_copy.find("./body[@name='ft_sensor_output']")
-    if ft_output is None:
-        raise ValueError("Missing ft_sensor_output in ft_sensor.xml")
-
-    if tool is None:
-        flange_att = flange.find("site[@name='attachment_site']")
-        if flange_att is not None:
-            flange.remove(flange_att)
-        flange.append(ft_copy)
-        home_q, ready_q = _COMBO_KEYFRAMES[arm]
-        _set_keyframes(root, home_q, ready_q, home_q, ready_q)
-    else:
-        tool_body_name = "xarm_gripper_base_link" if tool == "gripper_g2" else "xarm_vacuum_gripper_link"
-        tool_body = flange.find(f"body[@name='{tool_body_name}']")
-        if tool_body is None:
-            raise ValueError(f"Missing tool body {tool_body_name!r} on {flange_name!r}")
-        flange.remove(tool_body)
-        out_att = ft_output.find("site[@name='attachment_site']")
-        if out_att is not None:
-            ft_output.remove(out_att)
-        ft_output.append(tool_body)
-        flange.append(ft_copy)
-        _add_exclude(root, "ft_sensor_base", tool_body_name)
-
-
-def _attach_base_plate(root: ET.Element, scene_root: ET.Element, arm: str, *, models_root: Path) -> None:
-    plate, pos, yaw = _BASE_PLATE_MOUNT[arm]
-    plate_model = f"{plate}_base_plate"
-    floor_z = f"{-_BASE_PLATE_THICKNESS_MM[plate] / 1000.0:.6g}"
-
-    world = root.find("worldbody")
-    if world is None:
-        raise ValueError(f"Missing worldbody in {arm}.xml")
-    link_base = world.find("body[@name='link_base']")
-    if link_base is None:
-        raise ValueError(f"Missing link_base in {arm}.xml")
-    link_base.set("pos", _vec(pos))
-    if yaw != 0.0:
-        link_base.set("quat", _vec((math.cos(yaw / 2.0), 0.0, 0.0, math.sin(yaw / 2.0))))
-    else:
-        link_base.attrib.pop("quat", None)
-
-    plate_root = _load_xml(models_root, plate_model)
-    _merge_sections(root, plate_root)
-    plate_body = plate_root.find("./worldbody/body[@name='base_plate']")
-    if plate_body is None:
-        raise ValueError(f"Missing base_plate in {plate_model}.xml")
-    world.insert(0, copy.deepcopy(plate_body))
-
-    floor = scene_root.find(".//geom[@name='floor']")
-    if floor is not None:
-        floor.set("pos", f"0 0 {floor_z}")
-
-
-def _recipe(
-    *,
-    arm: str | None = None,
-    base_plate: bool = False,
-    ft_sensor: bool = False,
-    gripper: str | None = None,
-    camera: str | None = None,
-    camera_stand: bool = False,
-) -> dict:
-    return {
-        "arm": arm,
-        "base_plate": base_plate,
-        "ft_sensor": ft_sensor,
-        "gripper": gripper,
-        "camera": camera,
-        "camera_stand": camera_stand,
-    }
-
-
-def parse_model_recipe(name: str) -> dict | None:
-    """Parse any of the 41 named long-tail combinations into structured composition options."""
-    if name not in _COMPOSED_SET:
-        return None
-    if name.startswith("camera_stand_with_"):
-        return _recipe(camera=name.removeprefix("camera_stand_with_"), camera_stand=True)
-    arm, rest = name.split("_with_", 1)
-    if rest == "base_plate":
-        return _recipe(arm=arm, base_plate=True)
-    if rest == "bio_gripper":
-        return _recipe(arm=arm, gripper="bio_gripper_g2")
-    if rest == "vacuum_gripper":
-        gripper = "lite6_vacuum_gripper" if arm == "lite6" else "vacuum_gripper"
-        return _recipe(arm=arm, gripper=gripper)
-    if rest in _CAMERAS:
-        return _recipe(arm=arm, camera=rest, camera_stand=True)
-    if rest.startswith("gripper_and_"):
-        return _recipe(arm=arm, gripper="gripper_g2", camera=rest.removeprefix("gripper_and_"), camera_stand=True)
-    if rest == "ft_sensor":
-        return _recipe(arm=arm, ft_sensor=True)
-    if rest == "ft_sensor_and_gripper":
-        return _recipe(arm=arm, ft_sensor=True, gripper="gripper_g2")
-    if rest == "ft_sensor_and_vacuum_gripper":
-        return _recipe(arm=arm, ft_sensor=True, gripper="vacuum_gripper")
-    return None
-
-
-def _indent_xml(root: ET.Element) -> str:
-    ET.indent(root, space="  ")
-    return ET.tostring(root, encoding="unicode") + "\n"
-
-
-def compose_xml(
-    name: str | None = None,
-    *,
-    arm: str | None = None,
-    base_plate: bool = False,
-    ft_sensor: bool = False,
-    gripper: str | None = None,
-    camera: str | None = None,
-    camera_stand: bool = False,
-    models_root: Path | None = None,
-    resource_root: Path | None = None,
-    copy_to_assets_dir: Path | None = None,
-) -> tuple[str, str]:
-    """Compose ``(model_xml, scene_xml)`` strings from atomic MJCF assets.
-
-    Pass either a known model ``name`` (any of the 41 composed names or 24 static names)
-    or explicit component arguments (``arm``, ``base_plate``, ``ft_sensor``, ``gripper``,
-    ``camera``).
+    ``site_rgba`` recolors the child's sites that use MuJoCo's default color, as parts placed
+    on an arm take the arm's site style.
     """
-    mroot = Path(models_root) if models_root is not None else MODELS_ROOT
-    rroot = Path(resource_root) if resource_root is not None else RESOURCE_ROOT
+    for key in list(child.keys):
+        child.delete(key)
+    if site_rgba is not None:
+        for child_site in child.sites:
+            if tuple(child_site.rgba) == _DEFAULT_SITE_RGBA:
+                child_site.rgba = list(site_rgba)
+    taken = {material.name for material in parent.materials}
+    for material in list(child.materials):
+        if material.name in taken:  # the parent's material of the same name wins
+            child.delete(material)
+    if child.option.timestep < parent.option.timestep:
+        parent.option.timestep = child.option.timestep
+    with _attaching():
+        parent.attach(child, prefix="", **where)
 
-    if name is not None:
-        recipe = parse_model_recipe(name)
-        if recipe is None:
-            static_dir = mroot / name
-            if (static_dir / f"{name}.xml").is_file() and (static_dir / "scene.xml").is_file():
-                root = _load_xml(mroot, name)
-                scene_root = _load_xml(mroot, name, "scene.xml")
-                _rewrite_mesh_paths(root, models_root=mroot, resource_root=rroot, copy_to_assets_dir=copy_to_assets_dir)
-                return _indent_xml(root), _indent_xml(scene_root)
-            raise ValueError(f"Unknown model or recipe: {name!r}")
-        arm = recipe["arm"]
-        base_plate = recipe["base_plate"]
-        ft_sensor = recipe["ft_sensor"]
-        gripper = recipe["gripper"]
-        camera = recipe["camera"]
-        camera_stand = recipe["camera_stand"]
-        model_name = name
+
+def _mount(parent: mujoco.MjSpec, child: mujoco.MjSpec, root: str, *, site: str = "attachment_site",
+           pos=(0, 0, 0), quat=None, site_rgba=None) -> None:
+    """Attach ``child`` with body ``root`` placed at ``site``, which is then removed."""
+    body = child.body(root)
+    body.pos = list(pos)
+    if quat is not None:
+        body.quat = list(quat)
+    anchor = parent.site(site)
+    anchor.name = "_mount"
+    _attach(parent, child, site=anchor, site_rgba=site_rgba)
+    parent.delete(parent.site("_mount"))
+
+
+def _open_key(part: mujoco.MjSpec) -> tuple[list[float], list[float]]:
+    key = next((k for k in part.keys if k.name == "open"), None)
+    return (list(key.qpos), list(key.ctrl)) if key is not None else ([], [])
+
+
+def _mount_tool(spec: mujoco.MjSpec, tool_key: str, root: Path, *, site: str, flange: str, prev: str,
+                site_style, pos=(0, 0, 0), quat=None) -> tuple[list[float], list[float]]:
+    tool = TOOLS[tool_key]
+    part = _part(tool_key, root)
+    tail = _open_key(part)
+    if tool.mesh_prefix:
+        renamed = {mesh.name: tool.mesh_prefix + mesh.name for mesh in part.meshes}
+        for mesh in part.meshes:
+            mesh.name = renamed[mesh.name]
+        for geom in part.geoms:
+            if geom.meshname in renamed:
+                geom.meshname = renamed[geom.meshname]
+    if tool.actuator:
+        part.actuators[0].name = tool.actuator
+    if tool.drop_root_excludes:
+        for exclude in list(part.excludes):
+            if tool.root in (exclude.bodyname1, exclude.bodyname2):
+                part.delete(exclude)
+    _mount(spec, part, tool.root, site=site, pos=pos, quat=quat, site_rgba=site_style[1])
+    if tool.tcp:
+        tcp = spec.site(tool.tcp)
+        tcp.name = "attachment_site"
     else:
-        parts = []
-        if arm:
-            parts.append(arm)
-        elif camera_stand:
-            parts.append("camera_stand")
-        if base_plate:
-            parts.append("base_plate")
-        if ft_sensor:
-            parts.append("ft_sensor")
-        if gripper:
-            parts.append(gripper)
-        if camera:
-            parts.append(camera)
-        if not parts:
-            raise ValueError("Specify either a model name or at least one component")
-        model_name = "_with_".join([parts[0], "_and_".join(parts[1:])]) if len(parts) > 1 else parts[0]
+        tcp = spec.body(tool.root).add_site(name="attachment_site", pos=list(spec.site("suction_site").pos))
+    tcp.size, tcp.rgba, tcp.group = site_style
+    names = {"{flange}": flange, "{prev}": prev, "{root}": tool.root}
+    for body1, body2 in tool.excludes:
+        spec.add_exclude(bodyname1=names.get(body1, body1), bodyname2=names.get(body2, body2))
+    return tail
 
-    # Case 1: camera_stand + camera (no arm)
-    if arm is None:
-        if not (camera_stand and camera in _CAMERAS):
-            raise ValueError(f"Unsupported non-arm composition: camera_stand={camera_stand}, camera={camera}")
-        root = _load_xml(mroot, "camera_stand")
-        root.set("model", model_name)
-        stand_body = root.find("./worldbody/body[@name='camera_stand']")
-        assert stand_body is not None
-        _attach_camera_to_stand(root, stand_body, camera, models_root=mroot)
-        scene_root = _load_xml(mroot, "camera_stand", "scene.xml")
-        scene_root.set("model", f"{model_name} scene")
-        inc = scene_root.find("include")
-        assert inc is not None
-        inc.set("file", f"{model_name}.xml")
-        _rewrite_mesh_paths(root, models_root=mroot, resource_root=rroot, copy_to_assets_dir=copy_to_assets_dir)
-        return _indent_xml(root), _indent_xml(scene_root)
 
-    if arm not in _ARMS:
-        raise ValueError(f"Unknown arm {arm!r}; expected one of {_ARMS}")
+def _mount_camera(stand: mujoco.MjSpec, camera: str, root: Path) -> None:
+    offset, clearance, rotation = robots.CAMERA_MOUNT[camera]
+    part = _part(camera, root)
+    target = np.array(robots.STAND_MOUNT_TARGET) + np.array([0.0, clearance, 0.0])
+    body = part.body(f"{camera}_body")
+    body.pos = _round(target - np.asarray(rotation, dtype=float) @ np.asarray(offset))
+    body.quat = _quat_from_matrix(rotation)
+    _attach(stand, part, frame=stand.body("camera_stand").add_frame())
 
-    # Choose base XML: reuse static <arm>_with_gripper when Gripper G2 is included.
-    if gripper in ("gripper_g2", "lite6_gripper"):
-        base_name = f"{arm}_with_gripper"
-        root = _load_xml(mroot, base_name)
-        scene_root = _load_xml(mroot, base_name, "scene.xml")
+
+def _build_robot(recipe: Recipe, name: str, root: Path) -> tuple[mujoco.MjSpec, dict[str, Any]]:
+    """Model spec of ``recipe`` and the scene adjustments it needs."""
+    scene: dict[str, Any] = {"env": recipe.arm or "camera_stand"}
+    if recipe.arm is None:
+        spec = _part("camera_stand", root)
+        _mount_camera(spec, recipe.camera, root)
+        spec.modelname = name
+        return spec, scene
+
+    arm = recipe.arm
+    if recipe.base_plate:
+        plate, pos, yaw = robots.BASE_PLATE_MOUNT[arm]
+        spec = _part(plate, root)
+        arm_part = _part(arm, root)
+        link_base = arm_part.body("link_base")
+        link_base.pos = _round(pos)
+        if yaw:
+            link_base.quat = _round((math.cos(yaw / 2.0), 0.0, 0.0, math.sin(yaw / 2.0)))
+        keys = [(k.name, list(k.qpos), list(k.ctrl)) for k in arm_part.keys]
+        _attach(spec, arm_part, frame=spec.worldbody.add_frame())
+        for key_name, qpos, ctrl in keys:
+            spec.add_key(name=key_name, qpos=qpos, ctrl=ctrl)
+        scene["floor_z"] = _env(plate, root).geom("floor").pos[2]
     else:
-        root = _load_xml(mroot, arm)
-        scene_root = _load_xml(mroot, arm, "scene.xml")
-        if gripper == "bio_gripper_g2":
-            _attach_bio_gripper(root, arm, models_root=mroot)
-            scene_root = ET.fromstring(
-                _ARM_SCENE_TEMPLATE.format(
-                    name=model_name, xml_file=f"{model_name}.xml",
-                    center="0.3 0 0.3", extent="0.9", specular="0 0 0", floor_pos="",
-                )
-            )
-        elif gripper in ("vacuum_gripper", "lite6_vacuum_gripper"):
-            _attach_vacuum_gripper(root, arm, models_root=mroot)
-            if arm == "lite6":
-                center, extent = "0.25 0 0.25", "0.7"
-            else:
-                center, extent = "0.3 0 0.3", "0.9"
-            scene_root = ET.fromstring(
-                _ARM_SCENE_TEMPLATE.format(
-                    name=model_name, xml_file=f"{model_name}.xml",
-                    center=center, extent=extent, specular="0 0 0", floor_pos="",
-                )
-            )
-        elif gripper is not None:
-            raise ValueError(f"Unsupported gripper for composition: {gripper!r}")
+        spec = _part(arm, root)
+    spec.modelname = name
+    arm_keys = [(k.name, list(k.qpos), list(k.ctrl)) for k in spec.keys]
 
-    root.set("model", model_name)
-
-    if camera is not None:
-        if camera not in _CAMERAS:
-            raise ValueError(f"Unknown camera {camera!r}; expected one of {_CAMERAS}")
-        flange_name = _FLANGE_BODY[arm]
-        flange = root.find(f".//worldbody//body[@name='{flange_name}']")
-        assert flange is not None
-        if gripper == "gripper_g2":
-            g2_base = flange.find("./body[@name='xarm_gripper_base_link']")
-            if g2_base is None:
-                raise ValueError(f"Missing xarm_gripper_base_link on {flange_name}")
-            g2_base.set("pos", "0 0 0.003")
-        else:
-            att = flange.find("./site[@name='attachment_site']")
-            if att is not None:
-                att.set("pos", "0 0 0.003")
-            home_q, ready_q = _COMBO_KEYFRAMES[arm]
-            _set_keyframes(root, home_q, ready_q, home_q, ready_q)
-        _attach_stand_and_camera_to_flange(root, flange, camera, models_root=mroot)
-        scene_root = ET.fromstring(
-            _ARM_SCENE_TEMPLATE.format(
-                name=model_name, xml_file=f"{model_name}.xml",
-                center="0.3 0 0.3", extent="0.9", specular="0 0 0", floor_pos="",
-            )
-        )
-
-    if ft_sensor:
-        if arm not in _XARM_FAMILY:
+    anchor = spec.site("attachment_site")
+    flange = anchor.parent.name
+    prev = spec.body(flange).parent.name
+    site_style = (list(anchor.size), list(anchor.rgba), anchor.group)
+    tails: list[tuple[list[float], list[float]]] = []
+    tool_site = "attachment_site"
+    if recipe.ft_sensor:
+        if arm not in robots.COMBO_KEYFRAMES:
             raise ValueError(f"ft_sensor is not supported on {arm!r}")
-        if gripper not in (None, "gripper_g2", "vacuum_gripper"):
-            raise ValueError(f"ft_sensor composition does not support gripper {gripper!r}")
-        _attach_ft_sensor(root, arm, gripper, models_root=mroot)
-        hl = scene_root.find("./visual/headlight")
-        if hl is not None:
-            hl.set("specular", _FT_HEADLIGHT_SPECULAR)
+        _mount(spec, _part("ft_sensor", root), "ft_sensor_base", site_rgba=site_style[1])
+        scene["headlight_specular"] = list(_env("ft_sensor", root).visual.headlight.specular)
+    if recipe.tool is not None:
+        pos, quat = (0, 0, 0), None
+        if recipe.tool == "bio_gripper_g2":
+            pos, quat = robots.BIO_GRIPPER_MOUNT[arm]
+        elif recipe.camera is not None:
+            pos = (0, 0, robots.STAND_FLANGE_LIFT)
+        tails.append(_mount_tool(spec, recipe.tool, root, site=tool_site, flange=flange, prev=prev,
+                                 site_style=site_style, pos=pos, quat=quat))
+        if recipe.ft_sensor:
+            spec.add_exclude(bodyname1="ft_sensor_base", bodyname2=TOOLS[recipe.tool].root)
+    if recipe.camera is not None:
+        if recipe.tool is None:
+            spec.site("attachment_site").pos = [0, 0, robots.STAND_FLANGE_LIFT]
+        stand = _part("camera_stand", root)
+        stand.body("camera_stand").quat = list(robots.STAND_FLANGE_QUAT)
+        _mount_camera(stand, recipe.camera, root)
+        _attach(spec, stand, frame=spec.body(flange).add_frame(), site_rgba=site_style[1])
+    if recipe.tool is not None or recipe.camera is not None:
+        scene["statistic"] = robots.COMBO_STATISTIC[arm]
 
-    if base_plate:
-        _attach_base_plate(root, scene_root, arm, models_root=mroot)
+    mounted = recipe.tool is not None or recipe.camera is not None or recipe.ft_sensor
+    if mounted and arm in robots.COMBO_KEYFRAMES:
+        home, ready = robots.COMBO_KEYFRAMES[arm]
+        arm_keys = [("home", list(home), list(home)), ("ready", list(ready), list(ready))]
+    if mounted:
+        for key in list(spec.keys):
+            spec.delete(key)
+        qtail = [v for qpos, _ in tails for v in qpos]
+        ctail = [v for _, ctrl in tails for v in ctrl]
+        for key_name, qpos, ctrl in arm_keys:
+            spec.add_key(name=key_name, qpos=qpos + qtail, ctrl=ctrl + ctail)
+    return spec, scene
 
-    scene_root.set("model", f"{model_name} scene")
-    inc = scene_root.find("include")
-    if inc is not None:
-        inc.set("file", f"{model_name}.xml")
 
-    _rewrite_mesh_paths(root, models_root=mroot, resource_root=rroot, copy_to_assets_dir=copy_to_assets_dir)
-    return _indent_xml(root), _indent_xml(scene_root)
+def _add_env(spec: mujoco.MjSpec, env: mujoco.MjSpec) -> None:
+    """Attach ``env``'s world (lights, floor, cameras, props) and adopt its visual and statistic."""
+    for group in ("global_", "quality", "headlight", "map", "scale", "rgba"):
+        source, target = getattr(env.visual, group), getattr(spec.visual, group)
+        for attr in dir(source):
+            if not attr.startswith("_") and not callable(getattr(source, attr)):
+                setattr(target, attr, getattr(source, attr))
+    for attr in ("center", "extent", "meaninertia", "meanmass", "meansize"):
+        setattr(spec.stat, attr, getattr(env.stat, attr))
+    _attach(spec, env, frame=spec.worldbody.add_frame())
 
 
-def _merge_scene_for_memory(model_xml: str, scene_xml: str) -> str:
-    """Inline ``scene_xml`` elements into ``model_xml`` so ``MjSpec.from_string`` needs no disk include."""
-    m_root = ET.fromstring(model_xml)
-    s_root = ET.fromstring(scene_xml)
-    m_root.set("model", s_root.attrib.get("model", m_root.attrib.get("model", "scene")))
-    for child in s_root:
-        if child.tag == "include":
-            continue
-        if child.tag in ("statistic", "visual"):
-            old = m_root.find(child.tag)
-            if old is not None:
-                m_root.remove(old)
-            m_root.append(copy.deepcopy(child))
-        elif child.tag == "asset":
-            dst = m_root.find("asset")
-            if dst is None:
-                dst = ET.SubElement(m_root, "asset")
-            for item in child:
-                dst.append(copy.deepcopy(item))
-        elif child.tag == "worldbody":
-            dst = m_root.find("worldbody")
-            if dst is None:
-                dst = ET.SubElement(m_root, "worldbody")
-            for idx, item in enumerate(child):
-                dst.insert(idx, copy.deepcopy(item))
-    return _indent_xml(m_root)
+def _scene_env(scene: dict[str, Any], root: Path) -> mujoco.MjSpec:
+    env = _env(scene["env"], root)
+    if "statistic" in scene:
+        center, extent = scene["statistic"]
+        env.stat.center, env.stat.extent = list(center), extent
+    if "headlight_specular" in scene:
+        env.visual.headlight.specular = scene["headlight_specular"]
+    if "floor_z" in scene:
+        env.geom("floor").pos = [0, 0, scene["floor_z"]]
+    return env
+
+
+def _to_xml(spec: mujoco.MjSpec) -> str:
+    # Write the authored values exactly; MuJoCo's default writes compiled values with 6 digits.
+    spec.compiler.savecompiled = False
+    spec.compiler.savecanonical = False
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message=_EMPTY_PREFIX, category=UserWarning)
+        return spec.to_xml()
+
+
+def _recipe_for(name: str | None, arm=None, base_plate=False, ft_sensor=False, gripper=None, camera=None,
+                camera_stand=False) -> tuple[str, Recipe]:
+    if name is not None:
+        recipe = RECIPES.get(name)
+        if recipe is None:
+            raise ValueError(f"Unknown model or recipe: {name!r}")
+        return name, recipe
+    if not (arm or camera_stand or base_plate or ft_sensor or gripper or camera):
+        raise ValueError("Specify either a model name or at least one component")
+    if arm is None:
+        if not (camera_stand and camera in robots.CAMERAS) or base_plate or ft_sensor or gripper:
+            raise ValueError(f"Unsupported non-arm composition: camera_stand={camera_stand}, camera={camera}")
+    elif arm not in ARMS:
+        raise ValueError(f"Unknown arm {arm!r}; expected one of {tuple(ARMS)}")
+    if camera is not None and camera not in robots.CAMERAS:
+        raise ValueError(f"Unknown camera {camera!r}; expected one of {robots.CAMERAS}")
+    if gripper is not None and gripper not in TOOLS:
+        raise ValueError(f"Unsupported gripper for composition: {gripper!r}")
+    if ft_sensor and gripper not in (None, "gripper_g2", "vacuum_gripper"):
+        raise ValueError(f"ft_sensor composition does not support gripper {gripper!r}")
+    parts = [p for p, on in (("base_plate", base_plate), ("ft_sensor", ft_sensor)) if on]
+    parts += [p for p in (gripper, camera) if p]
+    model_name = f"{arm or 'camera_stand'}_with_{'_and_'.join(parts)}" if parts else arm
+    return model_name, Recipe(arm, gripper, ft_sensor, camera, base_plate)
+
+
+@functools.lru_cache(maxsize=256)
+def _composite_xml(name: str, recipe: Recipe, scene: bool, root: Path) -> str:
+    spec, adjust = _build_robot(recipe, name, root)
+    if scene:
+        spec.modelname = f"{name} scene"
+        _add_env(spec, _scene_env(adjust, root))
+    return _to_xml(spec)
+
+
+@functools.lru_cache(maxsize=64)
+def _static_xml(name: str, scene: bool, root: Path) -> str:
+    return _to_xml(_load(root / name / ("scene.xml" if scene else f"{name}.xml")))
+
+
+def _xml(name: str | None, scene: bool, models_root: Path | None, **components) -> str:
+    root = Path(models_root) if models_root is not None else MODELS_ROOT
+    static = name if name is not None and name not in RECIPES else None
+    if static is None and name is None and components.get("arm") and not any(
+            v for k, v in components.items() if k != "arm"):
+        static = components["arm"]
+    if static is not None and (root / static / f"{static}.xml").is_file() and (root / static / "scene.xml").is_file():
+        return _static_xml(static, scene, root)
+    model_name, recipe = _recipe_for(name, **components)
+    return _composite_xml(model_name, recipe, scene, root)
 
 
 def compose_spec(
@@ -728,50 +335,101 @@ def compose_spec(
     camera_stand: bool = False,
     scene: bool = True,
     models_root: Path | None = None,
-    resource_root: Path | None = None,
 ) -> mujoco.MjSpec:
-    """Return an in-memory MuJoCo 4.x ``MjSpec`` for a composed robot/accessory model."""
-    model_xml, scene_xml = compose_xml(
-        name,
-        arm=arm,
-        base_plate=base_plate,
-        ft_sensor=ft_sensor,
-        gripper=gripper,
-        camera=camera,
-        camera_stand=camera_stand,
-        models_root=models_root,
-        resource_root=resource_root,
+    """Return an ``MjSpec`` for a named model (static or composite) or explicit components."""
+    xml = _xml(name, scene, models_root, arm=arm, base_plate=base_plate, ft_sensor=ft_sensor,
+               gripper=gripper, camera=camera, camera_stand=camera_stand)
+    return mujoco.MjSpec.from_string(xml)
+
+
+def compose_model(name: str | None = None, *, scene: bool = True, **components) -> mujoco.MjModel:
+    """Compile ``compose_spec(name, ...)`` into an ``MjModel``."""
+    return compose_spec(name, scene=scene, **components).compile()
+
+
+def task_scene_spec(robot: str, task: str, params: Any, models_root: Path | None = None) -> mujoco.MjSpec:
+    """Pick-place or box-pack scene of ``robot`` with props placed from task ``params``."""
+    root = Path(models_root) if models_root is not None else MODELS_ROOT
+    return mujoco.MjSpec.from_string(_task_xml(robot, task, params, root))
+
+
+def task_scene_path(robot: str, task: str, params: Any, models_root: Path | None = None) -> Path:
+    """Export ``task_scene_spec(...)`` to the cache and return its path."""
+    root = Path(models_root) if models_root is not None else MODELS_ROOT
+    name = robots.combo_name(robot, robots.TASK_GRIPPERS[robot])
+    return cached_xml_path(name, _task_xml(robot, task, params, root), f"scene_{task}.xml", root)
+
+
+@functools.lru_cache(maxsize=32)
+def _task_xml(robot: str, task: str, params: Any, root: Path) -> str:
+    name = robots.combo_name(robot, robots.TASK_GRIPPERS[robot])
+    spec, _ = _build_robot(RECIPES[name], name, root)
+    spec.modelname = f"{name} {task} scene"
+    env = _env(robot, root)
+    env.stat.center = list(robots.TASK_STATISTIC_CENTER[(robot, task)])
+    env.stat.extent = robots.TASK_STATISTIC_EXTENT
+    _add_task_props(env.worldbody, robots.TASK_STANDS.get(robot, {}).get(task), task, params)
+    _add_env(spec, env)
+    return _to_xml(spec)
+
+
+_CUBE_RGBA = ((0.9, 0.1, 0.1, 1), (0.1, 0.8, 0.2, 1), (0.2, 0.4, 0.9, 1))
+_PROP_FRICTION = (1, 1, 0.005)
+_GRAY = (0.4, 0.4, 0.4, 1)
+_BOX = mujoco.mjtGeom.mjGEOM_BOX
+
+
+def _add_task_props(world, stand, task: str, p: Any) -> None:
+    lift = 2 * stand[2] if stand else 0.0
+    cube_z = _round([p.cube_half_m + lift])[0]
+
+    def cube(name: str, xy, rgba) -> None:
+        body = world.add_body(name=name, pos=[*xy, cube_z])
+        body.add_freejoint(name=name)
+        body.add_geom(name=f"{name}_geom", type=_BOX, size=[p.cube_half_m] * 3, mass=p.cube_mass_kg,
+                      rgba=list(rgba), friction=list(_PROP_FRICTION))
+
+    def stand_at(name: str, xy) -> None:
+        world.add_geom(name=name, type=_BOX, size=list(stand), pos=[*xy, stand[2]], rgba=list(_GRAY))
+
+    if task == "pick_place":
+        if stand:
+            stand_at("pick_stand", p.cube_xy)
+            stand_at("place_stand", p.target_xy)
+        cube("cube", p.cube_xy, _CUBE_RGBA[0])
+        world.add_geom(name="target_marker", type=mujoco.mjtGeom.mjGEOM_SPHERE, size=[0.02, 0, 0],
+                       pos=[*p.target_xy, cube_z], rgba=[0.1, 0.9, 0.1, 1], contype=0, conaffinity=0)
+        return
+    if stand:
+        for i, xy in enumerate(p.feed_xy):
+            stand_at(f"feed_stand_{i}", xy)
+    for i, xy in enumerate(p.feed_xy):
+        cube(f"cube_{i}", xy, _CUBE_RGBA[i % len(_CUBE_RGBA)])
+    hx, hy = p.box_inner_half_xy
+    wall, floor, rim = p.box_wall_m, p.box_floor_m, p.box_rim_z_m
+    wall_hz, wall_z = (rim - floor) / 2, floor + (rim - floor) / 2
+    box = world.add_body(name="pack_box", pos=[*p.box_center_xy, 0])
+    walls = (
+        ("box_floor", (hx + wall, hy + wall, floor / 2), (0, 0, floor / 2), (0.55, 0.4, 0.25, 1)),
+        ("box_wall_px", (wall / 2, hy + wall, wall_hz), (hx + wall / 2, 0, wall_z), (0.6, 0.45, 0.3, 1)),
+        ("box_wall_nx", (wall / 2, hy + wall, wall_hz), (-(hx + wall / 2), 0, wall_z), (0.6, 0.45, 0.3, 1)),
+        ("box_wall_py", (hx, wall / 2, wall_hz), (0, hy + wall / 2, wall_z), (0.6, 0.45, 0.3, 1)),
+        ("box_wall_ny", (hx, wall / 2, wall_hz), (0, -(hy + wall / 2), wall_z), (0.6, 0.45, 0.3, 1)),
     )
-    xml_text = _merge_scene_for_memory(model_xml, scene_xml) if scene else model_xml
-    return mujoco.MjSpec.from_string(xml_text)
+    for geom_name, size, pos, rgba in walls:
+        box.add_geom(name=geom_name, type=_BOX, size=_round(size), pos=_round(pos), rgba=list(rgba),
+                     friction=list(_PROP_FRICTION))
 
 
-def compose_model(
-    name: str | None = None,
-    *,
-    arm: str | None = None,
-    base_plate: bool = False,
-    ft_sensor: bool = False,
-    gripper: str | None = None,
-    camera: str | None = None,
-    camera_stand: bool = False,
-    scene: bool = True,
-    models_root: Path | None = None,
-    resource_root: Path | None = None,
-) -> mujoco.MjModel:
-    """Compile and return a ``mujoco.MjModel`` directly in memory via ``MjSpec``."""
-    return compose_spec(
-        name,
-        arm=arm,
-        base_plate=base_plate,
-        ft_sensor=ft_sensor,
-        gripper=gripper,
-        camera=camera,
-        camera_stand=camera_stand,
-        scene=scene,
-        models_root=models_root,
-        resource_root=resource_root,
-    ).compile()
+# ----------------------------------------------------------------------------
+# Names, paths and loading
+# ----------------------------------------------------------------------------
+
+def available_models(models_root: Path | None = None) -> list[str]:
+    """Return sorted names of all static and composite models."""
+    root = Path(models_root) if models_root is not None else MODELS_ROOT
+    static = {d.name for d in root.iterdir() if d.is_dir() and (d / "scene.xml").is_file()} if root.is_dir() else set()
+    return sorted(static | set(COMPOSED_MODELS)) if static else []
 
 
 def _atomic_write(path: Path, text: str) -> None:
@@ -783,29 +441,88 @@ def _atomic_write(path: Path, text: str) -> None:
     os.replace(tmp, path)
 
 
-def _cache_root() -> Path:
+def _cache_dir(root: Path) -> Path:
     uid = os.getuid() if hasattr(os, "getuid") else 0
-    return Path(tempfile.gettempdir()) / f"ufactory_mujoco_composed_{uid}"
+    key = hashlib.sha256(str(root.resolve()).encode()).hexdigest()[:10]
+    return Path(tempfile.gettempdir()) / f"ufactory_mujoco_composed_{uid}" / key
 
 
-def resolve_composed_path(
-    name: str,
-    *,
-    scene: bool = True,
-    models_root: Path | None = None,
-    resource_root: Path | None = None,
-) -> Path:
-    """Materialize a composed model into a deterministic writable cache dir and return its XML path."""
-    mroot = Path(models_root) if models_root is not None else MODELS_ROOT
-    rroot = Path(resource_root) if resource_root is not None else RESOURCE_ROOT
-    model_xml, scene_xml = compose_xml(name, models_root=mroot, resource_root=rroot)
-    digest = hashlib.sha256((model_xml + "\0" + scene_xml).encode("utf-8")).hexdigest()[:12]
-    target_dir = _cache_root() / f"{name}_{digest}"
-    model_path = target_dir / f"{name}.xml"
-    scene_path = target_dir / "scene.xml"
-    _atomic_write(model_path, model_xml)
-    _atomic_write(scene_path, scene_xml)
-    return scene_path if scene else model_path
+def cached_xml_path(name: str, xml: str, filename: str, root: Path | None = None) -> Path:
+    """Write ``xml`` to the per-installation cache (same name overwrites) and return its path."""
+    path = _cache_dir(Path(root) if root is not None else MODELS_ROOT) / name / filename
+    _atomic_write(path, xml)
+    return path
+
+
+def resolve_model_path(model_arg: str | Path, *, scene: bool = True) -> Path:
+    """Resolve a model name or XML path to a loadable file; composites are exported to a cache."""
+    path = Path(model_arg)
+    if path.is_file():
+        return path
+    name = str(model_arg)
+    candidates = [MODELS_ROOT / name / "scene.xml", MODELS_ROOT / name / f"{name}.xml"]
+    if not scene:
+        candidates.reverse()
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    if is_composed_model(name):
+        return cached_xml_path(name, _xml(name, scene, None), "scene.xml" if scene else f"{name}.xml")
+    raise FileNotFoundError(
+        f"Model '{model_arg}' not found. Searched:\n  - {path}\n  - {candidates[0]}\n  - {candidates[1]}\n"
+        f"Available models: {available_models()}"
+    )
+
+
+def load_model(model: str | Path | mujoco.MjSpec | mujoco.MjModel, *, scene: bool = True) -> mujoco.MjModel:
+    """Compile a model given by name, MJCF path, ``MjSpec`` or ``MjModel`` (returned as is)."""
+    if isinstance(model, mujoco.MjModel):
+        return model
+    if isinstance(model, mujoco.MjSpec):
+        return model.compile()
+    if isinstance(model, str) and is_composed_model(model) and not Path(model).is_file():
+        return compose_model(model, scene=scene)
+    return mujoco.MjModel.from_xml_path(str(resolve_model_path(model, scene=scene)))
+
+
+def select_arm_scene(robot: str, gripper: str | None, scene: str) -> tuple[Path | None, str | None]:
+    """Validate a (robot, gripper, scene) selection; return the static path or composite name."""
+    if robot not in ARMS:
+        raise ConfigError(f"unknown robot {robot!r}")
+    if scene not in robots.SCENES:
+        raise ConfigError(f"unknown scene {scene!r}")
+    if gripper is not None and gripper not in ARMS[robot].grippers:
+        raise ConfigError(f"{robot} does not support gripper {gripper}")
+    if scene == "obstacles":
+        if robot != "xarm6" or gripper is not None:
+            raise ConfigError(f"scene {scene!r} is only available for the bare xarm6")
+        return _require_file(MODELS_ROOT / "xarm6" / "scene_obstacles.xml"), None
+    if scene in robots.TASK_SCENES:
+        if robots.TASK_GRIPPERS.get(robot) != gripper:
+            raise ConfigError(f"scene {scene!r} has no task scene for {robot} + {gripper}")
+        _require_parts(robot, gripper)
+        return None, robots.combo_name(robot, gripper)
+    if gripper is None:
+        return _require_file(MODELS_ROOT / robot / "scene.xml"), None
+    name = robots.combo_name(robot, gripper)
+    if name not in RECIPES:
+        raise ConfigError(f"{robot} + {gripper} MJCF is not built yet")
+    _require_parts(robot, gripper)
+    return None, name
+
+
+def _require_file(path: Path) -> Path:
+    if not path.is_file():
+        raise ModelResourceError(f"scene file does not exist: {path}")
+    return path
+
+
+def _require_parts(robot: str, gripper: str | None) -> None:
+    recipe = RECIPES[robots.combo_name(robot, gripper)] if gripper else None
+    parts = [robot] + ([p for p in (recipe.tool, "ft_sensor" if recipe.ft_sensor else None) if p] if recipe else [])
+    for part in parts:
+        _require_file(MODELS_ROOT / part / "scene.xml")
+        _require_file(MODELS_ROOT / part / f"{part}.xml")
 
 
 def export_model(
@@ -820,28 +537,30 @@ def export_model(
     camera_stand: bool = False,
     copy_meshes: bool = False,
     models_root: Path | None = None,
-    resource_root: Path | None = None,
 ) -> Path:
-    """Export a standalone loadable ``<name>.xml`` and ``scene.xml`` to ``out_dir`` for MuJoCo ``simulate``."""
+    """Write a standalone ``<name>.xml`` and ``scene.xml`` to ``out_dir``; return the scene path.
+
+    Mesh paths are absolute unless ``copy_meshes`` copies them to ``out_dir/assets``.
+    """
+    components = dict(arm=arm, base_plate=base_plate, ft_sensor=ft_sensor, gripper=gripper,
+                      camera=camera, camera_stand=camera_stand)
     out = Path(out_dir).resolve()
     out.mkdir(parents=True, exist_ok=True)
-    assets_dir = out / "assets" if copy_meshes else None
-    model_xml, scene_xml = compose_xml(
-        name,
-        arm=arm,
-        base_plate=base_plate,
-        ft_sensor=ft_sensor,
-        gripper=gripper,
-        camera=camera,
-        camera_stand=camera_stand,
-        models_root=models_root,
-        resource_root=resource_root,
-        copy_to_assets_dir=assets_dir,
-    )
-    model_root = ET.fromstring(model_xml)
-    xml_stem = model_root.attrib["model"]
-    model_path = out / f"{xml_stem}.xml"
+    root = (Path(models_root) if models_root is not None else MODELS_ROOT).resolve()
     scene_path = out / "scene.xml"
-    _atomic_write(model_path, model_xml)
-    _atomic_write(scene_path, scene_xml)
+    for scene in (False, True):
+        spec = mujoco.MjSpec.from_string(_xml(name, scene, models_root, **components))
+        if copy_meshes:
+            for mesh in spec.meshes:
+                source = Path(mesh.file)
+                # <root>/<part>/assets/<part>/<sub>/<file> -> assets/<part>/<sub>/<file>
+                relative = Path(*source.relative_to(root).parts[2:])
+                target = out / "assets" / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                if not target.exists():
+                    shutil.copyfile(source, target)
+                mesh.file = f"assets/{relative.as_posix()}"
+            spec.modelfiledir = f"{out}{os.sep}"  # to_xml compiles; resolve the copied meshes
+        stem = spec.modelname.removesuffix(" scene")
+        _atomic_write(scene_path if scene else out / f"{stem}.xml", _to_xml(spec))
     return scene_path

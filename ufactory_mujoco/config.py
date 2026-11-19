@@ -4,28 +4,24 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+import functools
 import hashlib
 import json
 import math
 from pathlib import Path
 from typing import Any, Mapping
 
+import mujoco
 import yaml
 
-from .robots import CONFIGS_ROOT, resolve_arm_scene
+from .compose import compose_spec, resolve_model_path, select_arm_scene, task_scene_path, task_scene_spec
+from .robots import CONFIGS_ROOT, TASK_SCENES, ConfigError
+from .robots import ModelResourceError as ModelResourceError
 
 DEFAULT_CONFIG_PATH = CONFIGS_ROOT / "default.yaml"
 EXECUTORS = ("servo_cartesian", "servo_j")
 _HASH_FIELDS = ("schema_version", "robot", "gripper", "scene", "executor",
                 "pick_place", "box_pack")
-
-
-class ConfigError(ValueError):
-    """A task configuration failed strict validation."""
-
-
-class ModelResourceError(ConfigError):
-    """A valid task selection refers to a missing model resource."""
 
 
 @dataclass(frozen=True)
@@ -79,9 +75,17 @@ class TaskConfig:
     executor: str
     pick_place: PickPlaceConfig
     box_pack: BoxPackConfig
-    scene_path: Path
     sha256: str
     sources: tuple[str, ...]
+
+    @functools.cached_property
+    def scene_path(self) -> Path:
+        """Loadable MJCF path of the selected scene; composite scenes are exported on first use."""
+        return resolve_arm_scene(self.robot, self.gripper, self.scene)
+
+    def scene_spec(self) -> mujoco.MjSpec:
+        """In-memory ``MjSpec`` of the selected scene."""
+        return arm_scene_spec(self.robot, self.gripper, self.scene)
 
 
 def _canonical_json_sha256(data: Any) -> str:
@@ -309,7 +313,7 @@ def load_task_config(
         raise ConfigError(f"unknown executor {executor!r}")
     pick_place = _require_pick_place(base["pick_place"])
     box_pack = _require_box_pack(base["box_pack"])
-    scene_path = resolve_arm_scene(robot, gripper, scene)
+    select_arm_scene(robot, gripper, scene)
     payload = {
         "schema_version": schema_version,
         "robot": robot,
@@ -321,5 +325,33 @@ def load_task_config(
     }
     return TaskConfig(
         schema_version, robot, gripper, scene, executor, pick_place, box_pack,
-        scene_path, config_sha256(payload), tuple(sources),
+        config_sha256(payload), tuple(sources),
     )
+
+
+@functools.lru_cache(maxsize=None)
+def _preset_task(task: str, robot: str) -> PickPlaceConfig | BoxPackConfig:
+    """Task geometry of the built-in preset; task scenes are generated from it."""
+    base, presets = _read_defaults_and_presets()
+    _merge_strict(base, presets[task][robot])
+    return _require_pick_place(base[task]) if task == "pick_place" else _require_box_pack(base[task])
+
+
+def resolve_arm_scene(robot: str, gripper: str | None, scene: str) -> Path:
+    """Return a loadable MJCF path; composite and task scenes are exported to a cache."""
+    path, name = select_arm_scene(robot, gripper, scene)
+    if path is not None:
+        return path
+    if scene in TASK_SCENES:
+        return task_scene_path(robot, scene, _preset_task(scene, robot))
+    return resolve_model_path(name, scene=True)
+
+
+def arm_scene_spec(robot: str, gripper: str | None, scene: str) -> mujoco.MjSpec:
+    """Return the selected scene as an in-memory ``MjSpec``."""
+    path, name = select_arm_scene(robot, gripper, scene)
+    if path is not None:
+        return mujoco.MjSpec.from_file(str(path))
+    if scene in TASK_SCENES:
+        return task_scene_spec(robot, scene, _preset_task(scene, robot))
+    return compose_spec(name, scene=True)

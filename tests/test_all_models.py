@@ -6,7 +6,8 @@ import numpy as np
 import mujoco
 
 from ufactory_mujoco.compose import COMPOSED_MODELS, compose_model, is_composed_model
-from ufactory_mujoco.robots import MODELS_ROOT, resolve_model_path
+from ufactory_mujoco import MODELS_ROOT, resolve_arm_scene, resolve_model_path
+from ufactory_mujoco.robots import TASK_GRIPPERS
 
 ALL_MODELS = [
     "xarm6",
@@ -79,7 +80,7 @@ ALL_MODELS = [
 
 class AllModelsLoadingTest(unittest.TestCase):
     def test_all_models_exist(self):
-        """Ensure all 24 static models and all 41 dynamically composed models resolve cleanly."""
+        """Ensure all 19 atomic models and all 46 runtime composites resolve cleanly."""
         for name in ALL_MODELS:
             if is_composed_model(name):
                 scene_xml = resolve_model_path(name, scene=True)
@@ -91,25 +92,24 @@ class AllModelsLoadingTest(unittest.TestCase):
                 primary_xml = model_dir / f"{name}.xml"
             self.assertTrue(scene_xml.is_file(), f"{name}/scene.xml not found")
             self.assertTrue(primary_xml.is_file(), f"{name}/{name}.xml not found")
-        self.assertEqual(len(COMPOSED_MODELS), 41)
+        self.assertEqual(len(COMPOSED_MODELS), 46)
         # task scenes across all 5 arm+gripper pairs (pick_place, box_pack) and xarm6 obstacles
-        for combo in ("xarm5_with_gripper", "xarm6_with_gripper", "xarm7_with_gripper",
-                      "uf850_with_gripper", "lite6_with_gripper"):
-            self.assertTrue((MODELS_ROOT / combo / "scene_pick_place.xml").is_file(),
-                            f"{combo}/scene_pick_place.xml not found")
-            self.assertTrue((MODELS_ROOT / combo / "scene_box_pack.xml").is_file(),
-                            f"{combo}/scene_box_pack.xml not found")
+        for arm, gripper in TASK_GRIPPERS.items():
+            for task in ("pick_place", "box_pack"):
+                path = resolve_arm_scene(arm, gripper, task)
+                self.assertEqual(path.name, f"scene_{task}.xml")
+                self.assertTrue(path.is_file(), f"{arm} {task} scene not found")
         self.assertTrue((MODELS_ROOT / "xarm6" / "scene_obstacles.xml").is_file())
 
     def test_all_models_load_and_step(self):
         """Load both primary XML and scene XML (static and composed) and simulate 100 steps."""
         for name in ALL_MODELS:
             xmls = [resolve_model_path(name, scene=False), resolve_model_path(name, scene=True)]
-            model_dir = MODELS_ROOT / name
-            if model_dir.is_dir():
-                for extra in ("scene_obstacles.xml", "scene_pick_place.xml", "scene_box_pack.xml"):
-                    if (model_dir / extra).is_file():
-                        xmls.append(model_dir / extra)
+            if (MODELS_ROOT / name / "scene_obstacles.xml").is_file():
+                xmls.append(MODELS_ROOT / name / "scene_obstacles.xml")
+            arm = name.removesuffix("_with_gripper")
+            if TASK_GRIPPERS.get(arm) and name == f"{arm}_with_gripper":
+                xmls += [resolve_arm_scene(arm, TASK_GRIPPERS[arm], task) for task in ("pick_place", "box_pack")]
             for xml_file in xmls:
                 with self.subTest(model=name, xml=xml_file.name):
                     m = mujoco.MjModel.from_xml_path(str(xml_file))

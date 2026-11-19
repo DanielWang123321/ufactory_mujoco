@@ -11,8 +11,8 @@ import xml.etree.ElementTree as ET
 import mujoco
 import numpy as np
 
-from ufactory_mujoco.compose import is_composed_model
-from ufactory_mujoco.robots import MODELS_ROOT, resolve_model_path
+from ufactory_mujoco.compose import compose_model, is_composed_model
+from ufactory_mujoco import MODELS_ROOT, resolve_model_path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CAMERAS = ("d405", "d435", "gemini_305", "zed_x_nano")
@@ -425,7 +425,7 @@ class CameraAndBracketModelsTest(unittest.TestCase):
 
     def test_plan_a_xarm6_g2_camera_assemblies_weld_and_motion_clearances(self) -> None:
         """Plan A Rule 2: weld-aware clearance, +3 mm TCP shift, identical mass matrix, and G2 stroke."""
-        base_m = mujoco.MjModel.from_xml_path(str(MODELS_ROOT / "xarm6_with_gripper" / "xarm6_with_gripper.xml"))
+        base_m = compose_model("xarm6_with_gripper", scene=False)
         base_d = mujoco.MjData(base_m)
         mujoco.mj_resetDataKeyframe(base_m, base_d, 0)
         mujoco.mj_forward(base_m, base_d)
@@ -440,9 +440,7 @@ class CameraAndBracketModelsTest(unittest.TestCase):
     def test_multi_arm_d435_bare_and_gripper_assemblies(self) -> None:
         """Verify weld, mass/M(q) conservation, +3 mm TCP shift, and clearances across all D435 arm combos."""
         for arm in ("xarm5", "xarm7", "uf850"):
-            base_m = mujoco.MjModel.from_xml_path(
-                str(MODELS_ROOT / f"{arm}_with_gripper" / f"{arm}_with_gripper.xml")
-            )
+            base_m = compose_model(f"{arm}_with_gripper", scene=False)
             base_d = mujoco.MjData(base_m)
             mujoco.mj_resetDataKeyframe(base_m, base_d, 0)
             mujoco.mj_forward(base_m, base_d)

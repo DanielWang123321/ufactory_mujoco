@@ -5,8 +5,7 @@ from unittest.mock import patch
 import mujoco
 from ufactory_mujoco import robots as robots_mod
 from ufactory_mujoco.config import ConfigError
-from ufactory_mujoco.robots import MODELS_ROOT
-from ufactory_mujoco.robots import ARMS, resolve_arm_scene
+from ufactory_mujoco import ARMS, resolve_arm_scene
 import tempfile
 from pathlib import Path
 from ufactory_mujoco.config import _canonical_json_sha256, load_task_config
@@ -43,10 +42,11 @@ class ArmRegistryTests(unittest.TestCase):
     def test_xarm6_gripper_scenes(self):
         scene = resolve_arm_scene("xarm6", "gripper_g2", "scene")
         pick = resolve_arm_scene("xarm6", "gripper_g2", "pick_place")
-        self.assertEqual(scene, MODELS_ROOT / "xarm6_with_gripper" / "scene.xml")
-        self.assertEqual(pick, MODELS_ROOT / "xarm6_with_gripper" / "scene_pick_place.xml")
-        self.assertTrue(scene.is_file())
-        self.assertTrue(pick.is_file())
+        self.assertEqual((scene.parent.name, scene.name), ("xarm6_with_gripper", "scene.xml"))
+        self.assertEqual((pick.parent.name, pick.name), ("xarm6_with_gripper", "scene_pick_place.xml"))
+        for path in (scene, pick):
+            model = mujoco.MjModel.from_xml_path(str(path))
+            self.assertGreaterEqual(mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, "attachment_site"), 0)
 
     def test_incompatible_gripper(self):
         with self.assertRaises(ConfigError) as caught:
@@ -56,8 +56,8 @@ class ArmRegistryTests(unittest.TestCase):
             with self.assertRaises(ConfigError) as ft_caught:
                 resolve_arm_scene("lite6", ft_combo, "scene")
             self.assertIn("does not support", str(ft_caught.exception))
-        for keys in robots_mod._PICK_PLACE_DIRS:
-            self.assertNotIn("ft_sensor", keys[1] or "")
+        for gripper in robots_mod.TASK_GRIPPERS.values():
+            self.assertNotIn("ft_sensor", gripper)
 
     def test_all_declared_combos_resolve(self):
         for arm_key, spec in ARMS.items():
@@ -70,8 +70,8 @@ class ArmRegistryTests(unittest.TestCase):
                     self.assertGreaterEqual(site, 0)
 
     def test_compatible_gripper_without_mjcf(self):
-        trimmed = {k: v for k, v in robots_mod._COMBO_DIRS.items() if k != ("xarm5", "bio_gripper_g2")}
-        with patch.object(robots_mod, "_COMBO_DIRS", trimmed):
+        with patch.dict(robots_mod.RECIPES):
+            del robots_mod.RECIPES["xarm5_with_bio_gripper"]
             with self.assertRaises(ConfigError) as caught:
                 resolve_arm_scene("xarm5", "bio_gripper_g2", "scene")
             self.assertIn("not built yet", str(caught.exception))
@@ -174,7 +174,7 @@ class ComposeAndExportTests(unittest.TestCase):
     def test_composed_registry_and_in_memory_spec(self):
         from ufactory_mujoco import COMPOSED_MODELS, available_models, compose_model, compose_spec
 
-        self.assertEqual(len(COMPOSED_MODELS), 41)
+        self.assertEqual(len(COMPOSED_MODELS), 46)
         all_names = available_models()
         self.assertEqual(len(all_names), 65)
         spec = compose_spec("xarm6_with_ft_sensor_and_gripper", scene=True)

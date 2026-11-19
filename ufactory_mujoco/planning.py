@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 
 import mujoco
 import numpy as np
 
+from .compose import load_model
 from .grippers import GRIPPER_ACTUATOR_NAMES
 
 
@@ -35,20 +37,20 @@ def arm_joint_limits(model: mujoco.MjModel) -> tuple[int, np.ndarray, np.ndarray
 class CollisionChecker:
     """Arm-joint collision queries against a private copy of a scene model."""
 
-    def __init__(self, scene: str | Path | mujoco.MjSpec, *, safety_margin: float = 0.0,
+    def __init__(self, scene: str | Path | mujoco.MjSpec | mujoco.MjModel, *, safety_margin: float = 0.0,
                  query_margin: float = 0.05, ignore_pairs=(), ignore_bodies=()):
         if not np.isfinite(safety_margin) or safety_margin < 0:
             raise ValueError("safety_margin must be finite and non-negative")
         if not np.isfinite(query_margin) or query_margin < safety_margin or query_margin <= 0:
             raise ValueError("query_margin must be finite, positive and >= safety_margin")
-        if isinstance(scene, mujoco.MjSpec):
-            self.model = scene.compile()
-        elif isinstance(scene, str) and scene.lstrip().startswith("<"):
+        if isinstance(scene, str) and scene.lstrip().startswith("<"):
             self.model = mujoco.MjModel.from_xml_string(scene)
-        elif isinstance(scene, (str, Path)):
-            self.model = mujoco.MjModel.from_xml_path(str(scene))
+        elif isinstance(scene, mujoco.MjModel):
+            self.model = copy.deepcopy(scene)
+        elif isinstance(scene, (str, Path, mujoco.MjSpec)):
+            self.model = load_model(scene)
         else:
-            raise TypeError("scene must be an MJCF path, XML text or mujoco.MjSpec")
+            raise TypeError("scene must be a model name, MJCF path or text, MjSpec or MjModel")
         self.data = mujoco.MjData(self.model)
         self.safety_margin = float(safety_margin)
         self.query_margin = float(query_margin)

@@ -27,7 +27,7 @@ from ufactory_mujoco import (
 )
 from ufactory_mujoco.compose import is_composed_model
 from ufactory_mujoco.ft_sensor import EXT_NOISE_STD, RAW_NOISE_STD
-from ufactory_mujoco.robots import MODELS_ROOT, resolve_model_path
+from ufactory_mujoco import MODELS_ROOT, resolve_model_path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEV_SOURCES = REPO_ROOT / "dev" / "asserts" / "ai1500" / "sources"

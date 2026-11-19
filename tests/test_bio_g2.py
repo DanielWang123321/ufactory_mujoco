@@ -7,7 +7,7 @@ import unittest
 import xml.etree.ElementTree as ET
 import mujoco
 import numpy as np
-from ufactory_mujoco.robots import resolve_model_path
+from ufactory_mujoco import resolve_model_path
 import copy
 from ufactory_mujoco.bio_g2 import (
     BioGripperG2Controller,
@@ -375,7 +375,7 @@ class BioG2ControllerTest(unittest.TestCase):
                 self.assertLess(controller.telemetry()["sync_error_mm"], 0.05)
 
         # Verify rate-limited speed tracking in free space (10% vs 100% speed)
-        from ufactory_mujoco.robots import resolve_model_path
+        from ufactory_mujoco import resolve_model_path
         with SimRobot(resolve_model_path("xarm6_with_bio_gripper")) as robot:
             self.assertIsNotNone(robot.bio_g2_controller)
             robot.set_gripper_gap(0.071, speed_percent=10.0, force_percent=50.0)

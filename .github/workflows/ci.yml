@@ -55,8 +55,8 @@ jobs:
           from ufactory_mujoco.compose import COMPOSED_MODELS, compose_model
 
           xmls = sorted(Path("models").glob("*/*.xml"))
-          assert len(xmls) >= 59, f"expected >= 59 static XML files, got {len(xmls)}"
-          assert len(COMPOSED_MODELS) >= 41, f"expected >= 41 composed models, got {len(COMPOSED_MODELS)}"
+          assert len(xmls) >= 39, f"expected >= 39 static XML files, got {len(xmls)}"
+          assert len(COMPOSED_MODELS) >= 46, f"expected >= 46 composed models, got {len(COMPOSED_MODELS)}"
           bad = []
           def check(label, loader):
               with warnings.catch_warnings(record=True) as caught:

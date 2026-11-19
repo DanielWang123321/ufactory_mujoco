@@ -5,7 +5,7 @@ import unittest
 import importlib
 import mujoco
 import numpy as np
-from ufactory_mujoco.config import ConfigError, load_task_config
+from ufactory_mujoco.config import ConfigError, load_task_config, resolve_arm_scene
 from ufactory_mujoco.preflight import GRIP_DOWN_QUAT, tcp_task_heights
 import tempfile
 from ufactory_mujoco.planning import CollisionChecker
@@ -30,7 +30,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 MODELS_ROOT = ROOT / "models"
 
-SCENE = MODELS_ROOT / "xarm6_with_gripper" / "scene_pick_place.xml"
+SCENE = resolve_arm_scene("xarm6", "gripper_g2", "pick_place")
 
 class PickPlaceSceneTest(unittest.TestCase):
     def test_scene_props(self):

@@ -18,8 +18,8 @@ _ALL_COMMANDS = (*_TASK_COMMANDS, "export-model")
 
 
 def _export_model_cli(argv: list[str]) -> int:
-    from .compose import COMPOSED_MODELS, export_model
-    from .robots import ARMS, available_models
+    from .compose import COMPOSED_MODELS, available_models, export_model
+    from .robots import ARMS
 
     parser = argparse.ArgumentParser(
         prog="ufactory-mujoco export-model",

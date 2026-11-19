@@ -21,7 +21,7 @@ import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
 
 from ufactory_mujoco import SimRobot  # noqa: E402
-from ufactory_mujoco.robots import resolve_model_path  # noqa: E402
+from ufactory_mujoco import resolve_model_path  # noqa: E402
 
 # Presets for joint demo movements: [ready, demo]. Every demo pose stays inside the joint limits
 # and keeps the tools of the arm's combinations above the floor when the move starts from the

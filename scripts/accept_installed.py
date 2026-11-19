@@ -93,7 +93,7 @@ def resource_reference():
         path = RESOURCE_ROOT / name
         if path.is_file():
             result["licenses"][name] = digest(path)
-    assert len(result["models"]) >= 59 and len(result["composed_models"]) >= 41 and len(result["meshes"]) >= 482
+    assert len(result["models"]) >= 39 and len(result["composed_models"]) >= 46 and len(result["meshes"]) >= 482
     assert len(result["configs"]) == 2 and len(result["config_hashes"]) == 11 and len(result["licenses"]) == 7
     return result
 
@@ -198,7 +198,9 @@ def strict_json(path):
 def accept(args, summary):
     import numpy as np
     import ufactory_mujoco
-    from ufactory_mujoco.robots import RESOURCE_ROOT, resolve_arm_scene, resolve_model_path
+    from ufactory_mujoco.robots import RESOURCE_ROOT
+
+    from ufactory_mujoco import resolve_arm_scene, resolve_model_path
 
     package = Path(ufactory_mujoco.__file__).resolve()
     assert package.is_relative_to(Path(sys.prefix).resolve()), f"Imported outside install: {package}"

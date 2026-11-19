@@ -49,7 +49,9 @@ from .grippers import (
 from .kinematics import solve_ik
 from .kinematics import fk_pose
 from .robot_interface import RobotInterface
-from .robots import ARMS, resolve_arm_scene
+from .compose import load_model
+from .config import arm_scene_spec
+from .robots import ARMS
 from .safety import (
     MotionApproval,
     REPORT_STATE_IN_MOTION,
@@ -132,12 +134,9 @@ class XArmRobot(RobotInterface):
                 except CalibrationError as exc:
                     raise SafetyGateError(str(exc)) from exc
 
-            resolved_xml = (
-                Path(model_path)
-                if model_path is not None
-                else resolve_arm_scene(self.robot_key, gripper, scene)
+            self.model = load_model(
+                model_path if model_path is not None else arm_scene_spec(self.robot_key, gripper, scene)
             )
-            self.model = mujoco.MjModel.from_xml_path(str(resolved_xml))
             self.data = mujoco.MjData(self.model)
             self.eval_data = mujoco.MjData(self.model)
             if self._calibration is not None:

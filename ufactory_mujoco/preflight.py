@@ -253,7 +253,7 @@ def _connect(phase: str, pairs: list[tuple[str, np.ndarray, np.ndarray]],
 def preflight_pick_place(robot, config) -> PreflightReport:
     """Plan one pick-and-place cycle and check it without stepping physics."""
     task = config.pick_place
-    checker = make_checker(config.scene_path)
+    checker = make_checker(config.scene_spec())
     calib = getattr(robot, "calibration", None)
     if calib is not None:
         apply_calibration_to_model(checker.model, calib, checker.data)
@@ -342,7 +342,7 @@ def preflight_box_pack(robot, config, cycles: int = 1) -> PreflightReport:
     n_blocks = len(task.feed_xy)
     if not 1 <= cycles <= n_blocks:
         raise ValueError(f"cycles must be within 1..{n_blocks}, got {cycles}")
-    checker = make_box_pack_checker(config.scene_path)
+    checker = make_box_pack_checker(config.scene_spec())
     calib = getattr(robot, "calibration", None)
     if calib is not None:
         apply_calibration_to_model(checker.model, calib, checker.data)

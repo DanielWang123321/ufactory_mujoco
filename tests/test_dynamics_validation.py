@@ -18,7 +18,7 @@ import numpy as np
 
 from ufactory_mujoco.planning import CollisionChecker
 from ufactory_mujoco.dynamics import ArmDynamics
-from ufactory_mujoco.robots import ARMS, resolve_arm_scene
+from ufactory_mujoco import ARMS, resolve_arm_scene
 from ufactory_mujoco.sim_robot import SimRobot
 
 validation = importlib.import_module("ufactory_mujoco.tasks.dynamics")

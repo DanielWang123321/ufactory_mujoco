@@ -219,17 +219,17 @@ def _run_hardware_manipulation(command: str, args, config) -> tuple[int, dict]:
         robot=config.robot,
         gripper=config.gripper,
         scene=config.scene,
-        model_path=config.scene_path,
+        model_path=config.scene_spec(),
         calibration=args.calibration,
         read_only=True,
     ) as robot:
         if command == "pick-place":
             report = preflight_pick_place(robot, config)
-            checker = make_checker(config.scene_path)
+            checker = make_checker(config.scene_spec())
             task_cfg = config.pick_place
         else:
             report = preflight_box_pack(robot, config, cycles=1)
-            checker = make_box_pack_checker(config.scene_path)
+            checker = make_box_pack_checker(config.scene_spec())
             task_cfg = config.box_pack
 
         shadow_q = _build_shadow_stream(report, robot.n_arm)
@@ -401,7 +401,7 @@ def manipulation_main(command, argv=None):
                 payload = {"error": f"{type(exc).__name__}: {exc}"}
         else:
             try:
-                with task.SimRobot(config.scene_path, viewer=not args.headless and not args.dry_run) as robot:
+                with task.SimRobot(config.scene_spec(), viewer=not args.headless and not args.dry_run) as robot:
                     run = task.run_pick_place if command == "pick-place" else task.run_box_pack
                     outcome = run(robot, config, cycles=args.cycles,
                                   dry_run=args.dry_run, report_path=args.report)

@@ -34,12 +34,13 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
+from ..compose import compose_spec, load_model
 from ..grippers import GRIPPER_ACTUATOR_NAMES
 
 
-def attach_payload(model_path: str | Path, mass: float, com,
+def attach_payload(model_path: str | Path | mujoco.MjSpec, mass: float, com,
                    site: str = "attachment_site") -> mujoco.MjModel:
-    """Load an MJCF arm model with a point-mass payload at the named site.
+    """Load an arm model (MJCF path, model name or ``MjSpec``) with a point-mass payload at a site.
 
     mass is finite and nonnegative (kg); com contains three finite coordinates
     in meters relative to the specified site's origin and axes. Convert xArm
@@ -53,7 +54,12 @@ def attach_payload(model_path: str | Path, mass: float, com,
     if com.shape != (3,) or not np.all(np.isfinite(com)):
         raise ValueError("payload COM must contain three finite coordinates (m)")
 
-    spec = mujoco.MjSpec.from_file(str(Path(model_path).resolve()))
+    if isinstance(model_path, mujoco.MjSpec):
+        spec = model_path.copy()
+    elif Path(model_path).is_file():
+        spec = mujoco.MjSpec.from_file(str(Path(model_path).resolve()))
+    else:
+        spec = compose_spec(str(model_path))
     site_spec = spec.site(site)
     if site_spec is None:
         raise ValueError(f'site "{site}" not found in {model_path}')
@@ -90,18 +96,18 @@ def _detect_arm_nv(model: mujoco.MjModel) -> int:
 class ArmDynamics:
     """Rigid-body dynamics for arms, optionally with a fixed-opening gripper."""
 
-    def __init__(self, model: str | Path | mujoco.MjModel,
+    def __init__(self, model: str | Path | mujoco.MjSpec | mujoco.MjModel,
                  payload: tuple[float, list] | None = None,
                  site: str = "attachment_site"):
         if isinstance(model, mujoco.MjModel):
             if payload is not None:
-                raise ValueError("payload injection requires an MJCF path, not an MjModel")
+                raise ValueError("payload injection requires an MJCF path, model name or MjSpec, not an MjModel")
             self.model = model
         elif payload is not None:
             mass, com = payload
             self.model = attach_payload(model, mass, com, site=site)
         else:
-            self.model = mujoco.MjModel.from_xml_path(str(model))
+            self.model = load_model(model)
         self.data = mujoco.MjData(self.model)
         self.nv = self.model.nv
         self.n_arm = _detect_arm_nv(self.model)

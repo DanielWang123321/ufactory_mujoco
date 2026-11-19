@@ -7,7 +7,7 @@ import numpy as np
 from ufactory_mujoco import SimRobot
 import importlib
 from types import SimpleNamespace
-from ufactory_mujoco.robots import resolve_model_path
+from ufactory_mujoco import resolve_model_path
 from ufactory_mujoco.robots import ARMS
 from ufactory_mujoco.viewer import configure_low_power_rendering
 
@@ -148,7 +148,7 @@ class JointControlTests(unittest.TestCase):
 
     def test_demo_presets_keep_every_arm_and_combination_above_the_floor(self):
         """ready -> demo of example 02 must not push a link or a mounted tool into the floor."""
-        from ufactory_mujoco.robots import available_models
+        from ufactory_mujoco import available_models
         names = sorted(n for n in available_models() if n.split("_with_")[0] in ARMS)
         self.assertGreaterEqual(len(names), 23)
         for name in names:

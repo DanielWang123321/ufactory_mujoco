@@ -16,7 +16,7 @@ import pytest
 from scipy.optimize import least_squares
 
 from ufactory_mujoco.compose import is_composed_model
-from ufactory_mujoco.robots import MODELS_ROOT, resolve_model_path
+from ufactory_mujoco import MODELS_ROOT, resolve_model_path
 
 STL_TRIANGLE = np.dtype([("normal", "<f4", (3,)), ("points", "<f4", (3, 3)), ("attribute", "<u2")])
 

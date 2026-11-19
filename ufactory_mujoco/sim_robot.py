@@ -43,6 +43,7 @@ from .grippers import (
 )
 from .kinematics import solve_ik, solve_ik_trajectory
 from .kinematics import fk_pose, manipulability, solve_joint_velocity
+from .compose import load_model
 from .robots import MODELS_ROOT
 from .robot_interface import RobotInterface
 from .trajectory import DEFAULT_MAX_ROT_VEL, JointTrajectory, plan_cartesian_line, plan_ptp_quintic
@@ -63,14 +64,16 @@ class SimRobot(RobotInterface):
     """MuJoCo implementation of ``RobotInterface``.
 
     Arm position servos, an optional gripper (calibrated G2 servo when present), IK helpers
-    and an optional passive viewer. ``model_path`` defaults to the bundled xArm6 scene.
+    and an optional passive viewer. ``model_path`` is a model name, MJCF path, ``MjSpec`` or
+    ``MjModel`` (used as is) and defaults to the bundled xArm6 scene.
     """
-    def __init__(self, model_path: str | Path = _MODEL_PATH, timestep: float | None = None,
+    def __init__(self, model_path: str | Path | mujoco.MjSpec | mujoco.MjModel = _MODEL_PATH,
+                 timestep: float | None = None,
                  viewer: bool = False, *, viewer_hz: float = 30.0,
                  low_power_rendering: bool = False):
         if not np.isfinite(viewer_hz) or viewer_hz <= 0:
             raise ValueError("viewer_hz must be finite and positive")
-        self.model = mujoco.MjModel.from_xml_path(str(model_path))
+        self.model = load_model(model_path)
         if low_power_rendering:
             configure_low_power_rendering(self.model)
         if timestep is not None:

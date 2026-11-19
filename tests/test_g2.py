@@ -6,7 +6,6 @@ import csv
 import hashlib
 import json
 from pathlib import Path
-import re
 import struct
 import unittest
 import mujoco
@@ -14,6 +13,7 @@ import numpy as np
 from ufactory_mujoco.g2 import G2_JOINT_NAMES, gripper_g2_gap_m_to_sim_drive
 from ufactory_mujoco.grippers import gripper_object_contact_forces_n, identify_gripper, measured_g2_pad_gap_mm
 from ufactory_mujoco.sim_robot import SimRobot
+from ufactory_mujoco import compose_model, compose_spec
 from dataclasses import asdict
 import math
 from ufactory_mujoco.g2 import G2Controller
@@ -150,9 +150,8 @@ def test_85_reference_openings_and_axial_lengths():
 
 @pytest.mark.parametrize("name", ["gripper_g2", "xarm5_with_gripper", "xarm6_with_gripper",
                                    "xarm7_with_gripper", "uf850_with_gripper"])
-def test_open_close_and_contact_force_on_each_model(name, tmp_path):
-    source = ROOT / "models" / name / f"{name}.xml"
-    with SimRobot(source) as robot:
+def test_open_close_and_contact_force_on_each_model(name):
+    with SimRobot(compose_spec(name, scene=False)) as robot:
         robot.set_gripper_gap(0.0, speed_percent=100, force_percent=80)
         robot.settle(1.0)
         assert robot.get_gripper_gap(measured=True) < 0.003
@@ -162,17 +161,11 @@ def test_open_close_and_contact_force_on_each_model(name, tmp_path):
 
     # A fixed load cell in the gripper's own frame isolates pinch force from
     # the arm's pose and keeps the contact test identical across all models.
-    xml = source.read_text().replace('meshdir="assets"', f'meshdir="{source.parent / "assets"}"')
-    xml, count = re.subn(
-        r'(<body name="xarm_gripper_base_link"[^>]*>)',
-        r'\1\n<body name="loadcell" pos="0 0 0.1563"><geom type="box" '
-        r'size="0.012 0.015 0.012" friction="1 1 0.005"/></body>', xml, count=1,
-    )
-    assert count == 1
-    test_scene = tmp_path / f"{name}.xml"
-    test_scene.write_text(xml)
+    spec = compose_spec(name, scene=False)
+    loadcell = spec.body("xarm_gripper_base_link").add_body(name="loadcell", pos=[0, 0, 0.1563])
+    loadcell.add_geom(type=mujoco.mjtGeom.mjGEOM_BOX, size=[0.012, 0.015, 0.012], friction=[1, 1, 0.005])
     forces, limits = [], []
-    with SimRobot(test_scene) as robot:
+    with SimRobot(spec) as robot:
         for percent in (10, 50, 100):
             robot.set_gripper_gap(0.084, speed_percent=100, force_percent=percent)
             robot.settle(1.0)
@@ -547,8 +540,7 @@ def test_invalid_command_is_atomic(model, command):
     ],
 )
 def test_mjcf_g2_models_match_calibrated_parameters(model_name):
-    xml_path = MODELS_ROOT / model_name / f"{model_name}.xml"
-    m = mujoco.MjModel.from_xml_path(str(xml_path))
+    m = compose_model(model_name, scene=False)
 
     for jnt_name in G2_JOINT_NAMES:
         jid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, jnt_name)

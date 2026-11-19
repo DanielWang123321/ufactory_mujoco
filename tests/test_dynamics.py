@@ -104,7 +104,7 @@ class AttachPayloadTest(unittest.TestCase):
                                                -2 * jacp.T @ base.opt.gravity, rtol=0, atol=1e-12)
 
     def test_payload_com_on_combined_scene_without_chdir(self):
-        from ufactory_mujoco.robots import resolve_model_path
+        from ufactory_mujoco import resolve_model_path
 
         cwd = Path.cwd()
         for name in ("xarm6_with_gripper", "xarm6_with_bio_gripper", "lite6_with_gripper"):
@@ -143,7 +143,7 @@ class AttachPayloadTest(unittest.TestCase):
                                            -mass * jacp.T @ base.opt.gravity, rtol=0, atol=1e-12)
 
     def test_zero_payload_leaves_model_and_dynamics_unchanged(self):
-        from ufactory_mujoco.robots import resolve_model_path
+        from ufactory_mujoco import resolve_model_path
 
         for name in ("xarm6", "xarm6_with_gripper", "xarm6_with_bio_gripper", "lite6_with_gripper"):
             with self.subTest(model=name):
@@ -270,7 +270,7 @@ class ArmDynamicsTest(unittest.TestCase):
 class CombinedDynamicsTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        from ufactory_mujoco.robots import resolve_model_path
+        from ufactory_mujoco import resolve_model_path
 
         names = ("xarm5", "xarm6", "xarm7", "uf850", "lite6", "xarm6_with_gripper",
                  "xarm6_with_bio_gripper", "lite6_with_gripper", "lite6_with_vacuum_gripper")
