@@ -31,10 +31,10 @@ python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose
 | 机械臂 | 已构建的夹爪模型 | `pick-place` / `box-pack` | `dynamics` |
 | :--- | :--- | :--- | :---: |
 | `lite6` | `lite6_gripper`、`lite6_vacuum_gripper` | 配 `lite6_gripper` | 支持 |
-| `xarm5` | `gripper_g2`、`bio_gripper_g2`、`vacuum_gripper` | 配 `gripper_g2` | 支持 |
-| `xarm6` | `gripper_g2`、`bio_gripper_g2`、`vacuum_gripper` | 配 `gripper_g2` | 支持 |
-| `xarm7` | `gripper_g2`、`bio_gripper_g2`、`vacuum_gripper` | 配 `gripper_g2` | 支持 |
-| `uf850` | `gripper_g2`、`bio_gripper_g2`、`vacuum_gripper` | 配 `gripper_g2` | 支持 |
+| `xarm5` | `gripper_g2`、`bio_gripper_g2`、`vacuum_gripper`、`ft_sensor`、`ft_sensor_and_gripper`、`ft_sensor_and_vacuum_gripper` | 配 `gripper_g2` | 支持 |
+| `xarm6` | `gripper_g2`、`bio_gripper_g2`、`vacuum_gripper`、`ft_sensor`、`ft_sensor_and_gripper`、`ft_sensor_and_vacuum_gripper` | 配 `gripper_g2` | 支持 |
+| `xarm7` | `gripper_g2`、`bio_gripper_g2`、`vacuum_gripper`、`ft_sensor`、`ft_sensor_and_gripper`、`ft_sensor_and_vacuum_gripper` | 配 `gripper_g2` | 支持 |
+| `uf850` | `gripper_g2`、`bio_gripper_g2`、`vacuum_gripper`、`ft_sensor`、`ft_sensor_and_gripper`、`ft_sensor_and_vacuum_gripper` | 配 `gripper_g2` | 支持 |
 
 仓库在 `models/` 下共内置 **65 套模型目录**：5 款裸臂、5 款独立末端工具、4 款深度相机（`d405`、`d435`、`gemini_305`、`zed_x_nano`）、5 套 `camera_stand*` 支架模型、13 套 `ft_sensor` 力矩传感器模型（独立 `ft_sensor` 与 `xarm5/6/7`、`uf850` 各自搭配裸传感器、Gripper G2 和吸盘的 12 套组合）、8 套安装底板模型（`{xarm,uf850,lite6}_base_plate` 与 5 套 `<机械臂>_with_base_plate`）、14 套机械臂 + 末端组合，以及 11 套机械臂 + 相机组合（`xarm6_with_gripper_and_<相机>` 以及 `xarm5/6/7`、`uf850` 的 `<机械臂>_with_d435` 与 `<机械臂>_with_gripper_and_d435`）。均可通过 `01_load_and_view.py --model <名称>` 加载，完整模型名与启动命令见 [examples/simulation/README_zh.md](examples/simulation/README_zh.md#4-按机型的命令)。
 

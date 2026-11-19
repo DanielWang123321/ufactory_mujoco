@@ -203,6 +203,9 @@ dynamics-report-compare reports/dyn_ver_<SN>/<old>.jsonl reports/dyn_ver_<SN>/<n
 | `--force <FX FY FZ>` | `11` | `0 0 -10` | 施加于传感器局部坐标系的力（N，正极性） |
 | `--torque <TX TY TZ>` | `11` | `0 0.2 0` | 施加于传感器局部坐标系的力矩（N·m，正极性） |
 | `--ip <addr>` | `11` | `None` | 真机只读 AI1500 力矩实时采样的控制器 IP |
+| `--robot <arm>` | `11` | `xarm6` | `--ip` 真机模式下对应的机械臂型号 |
+| `--gripper <name>` | `11` | `ft_sensor` | `--ip` 真机模式下挂载的传感器/末端组合 |
+| `--calibration <path>` | `11` | `None` | `--ip` 真机模式下可选的单机标定 YAML 路径 |
 | `--sync-hz <Hz>` | `02` | `30.0` | 查看器状态同步频率（物理步长保持 `2 ms`） |
 | `--render-quality` | `02` | `fast` | 渲染质量：`fast`（关闭阴影/反射）或 `full` |
 | `--cycles <N>` | `04` | `3` | 夹爪开闭演示循环次数 |
@@ -266,7 +269,7 @@ python examples/simulation/08_dynamics.py --robot all --headless
 | `ft_sensor` | 支持 | 拒绝（退出码 `2`） | `200 Hz` 六维力矩演示 |
 | `xarm_base_plate`、`uf850_base_plate`、`lite6_base_plate` | 支持 | 拒绝（退出码 `2`） | 拒绝（退出码 `2`） |
 
-相机与支架模型 `mass=0`，不含光学成像传感器。安装底板上表面位于 `z=0`，场景地面位于 `-thickness`（`-8 / -10 / -5 mm`），并在 Site Group `4` 暴露 `arm_mount`。在查看器右侧面板开启 Site Group `4` 可显示安装基准、`ft_sensor_site` 与螺钉孔位。
+相机与支架模型 `mass=0`，不含光学成像传感器。安装底板上表面位于 `z=0`，场景地面位于 `-thickness`（`-8 / -10 / -5 mm`），长边与基坐标 `Y` 轴平行（xArm 底板带两处削角的长边朝向基坐标 `+X`），并在 Site Group `4` 暴露 `arm_mount`。在查看器右侧面板开启 Site Group `4` 可显示安装基准、`ft_sensor_site` 与螺钉孔位。
 
 ### 4.3 关键帧
 

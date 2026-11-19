@@ -31,10 +31,10 @@ Without a display, run a task headless: `ufactory-mujoco pick-place --robot xarm
 | Arm | Built gripper models | `pick-place` / `box-pack` | `dynamics` |
 | :--- | :--- | :--- | :---: |
 | `lite6` | `lite6_gripper`, `lite6_vacuum_gripper` | with `lite6_gripper` | yes |
-| `xarm5` | `gripper_g2`, `bio_gripper_g2`, `vacuum_gripper` | with `gripper_g2` | yes |
-| `xarm6` | `gripper_g2`, `bio_gripper_g2`, `vacuum_gripper` | with `gripper_g2` | yes |
-| `xarm7` | `gripper_g2`, `bio_gripper_g2`, `vacuum_gripper` | with `gripper_g2` | yes |
-| `uf850` | `gripper_g2`, `bio_gripper_g2`, `vacuum_gripper` | with `gripper_g2` | yes |
+| `xarm5` | `gripper_g2`, `bio_gripper_g2`, `vacuum_gripper`, `ft_sensor`, `ft_sensor_and_gripper`, `ft_sensor_and_vacuum_gripper` | with `gripper_g2` | yes |
+| `xarm6` | `gripper_g2`, `bio_gripper_g2`, `vacuum_gripper`, `ft_sensor`, `ft_sensor_and_gripper`, `ft_sensor_and_vacuum_gripper` | with `gripper_g2` | yes |
+| `xarm7` | `gripper_g2`, `bio_gripper_g2`, `vacuum_gripper`, `ft_sensor`, `ft_sensor_and_gripper`, `ft_sensor_and_vacuum_gripper` | with `gripper_g2` | yes |
+| `uf850` | `gripper_g2`, `bio_gripper_g2`, `vacuum_gripper`, `ft_sensor`, `ft_sensor_and_gripper`, `ft_sensor_and_vacuum_gripper` | with `gripper_g2` | yes |
 
 The repository ships **65 model directories** under `models/`: 5 bare arms, 5 standalone end effectors, 4 depth cameras (`d405`, `d435`, `gemini_305`, `zed_x_nano`), 5 `camera_stand*` models, 13 `ft_sensor` models (`ft_sensor` plus `xarm5/6/7` and `uf850` with `ft_sensor`, `ft_sensor_and_gripper`, and `ft_sensor_and_vacuum_gripper`), 8 mounting base plate models (`{xarm,uf850,lite6}_base_plate` and 5 `<arm>_with_base_plate` assemblies), 14 arm + end-effector combinations, and 11 arm + camera combinations (`xarm6_with_gripper_and_<camera>` plus `<arm>_with_d435` and `<arm>_with_gripper_and_d435` across `xarm5/6/7` and `uf850`). Load any of them with `01_load_and_view.py --model <name>`; model names and commands are listed in [examples/simulation/README.md](examples/simulation/README.md#4-commands-by-model).
 

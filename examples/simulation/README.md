@@ -203,6 +203,9 @@ Examples `03` and `07` accept only `--headless`.
 | `--force <FX FY FZ>` | `11` | `0 0 -10` | Local force (N) applied onto the sensor (`+applied` polarity) |
 | `--torque <TX TY TZ>` | `11` | `0 0.2 0` | Local torque (N*m) applied onto the sensor (`+applied` polarity) |
 | `--ip <addr>` | `11` | `None` | Controller IP for strictly read-only live hardware F/T sampling |
+| `--robot <arm>` | `11` | `xarm6` | Robot model when using `--ip` hardware mode |
+| `--gripper <name>` | `11` | `ft_sensor` | Attached F/T assembly when using `--ip` hardware mode |
+| `--calibration <path>` | `11` | `None` | Optional calibration YAML when using `--ip` hardware mode |
 | `--sync-hz <Hz>` | `02` | `30.0` | Viewer state-sync rate (physics timestep remains `2 ms`) |
 | `--render-quality` | `02` | `fast` | `fast` (disables shadows/reflections) or `full` |
 | `--cycles <N>` | `04` | `3` | Number of open/close demonstration cycles |
@@ -266,7 +269,7 @@ python examples/simulation/08_dynamics.py --robot all --headless
 | `ft_sensor` | yes | rejected (exit code `2`) | `200 Hz` wrench demo |
 | `xarm_base_plate`, `uf850_base_plate`, `lite6_base_plate` | yes | rejected (exit code `2`) | rejected (exit code `2`) |
 
-Camera and bracket models have `mass=0` and no optical sensor. Base plates place their top mounting plane at `z=0` with `floor` at `-thickness` (`-8 / -10 / -5 mm`) and expose `arm_mount` in Site Group `4`. Enable Site Group `4` in the viewer's right panel to show mounting faces, `ft_sensor_site`, and screw holes.
+Camera and bracket models have `mass=0` and no optical sensor. Base plates place their top mounting plane at `z=0` with `floor` at `-thickness` (`-8 / -10 / -5 mm`), align their long edge parallel to base `Y` (with the two-chamfered long side of `xarm_base_plate` facing base `+X`), and expose `arm_mount` in Site Group `4`. Enable Site Group `4` in the viewer's right panel to show mounting faces, `ft_sensor_site`, and screw holes.
 
 ### 4.3 Keyframes
 

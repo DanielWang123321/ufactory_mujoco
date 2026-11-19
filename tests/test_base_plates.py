@@ -20,9 +20,9 @@ from ufactory_mujoco.model_paths import MODELS_ROOT, resolve_model_path
 STL_TRIANGLE = np.dtype([("normal", "<f4", (3,)), ("points", "<f4", (3, 3)), ("attribute", "<u2")])
 
 PLATES: dict[str, dict] = {
-    "xarm": {"thickness_mm": 8.0, "extent_mm": (185.0, 136.0), "collision_count": 17, "solid_xy_mm": (75.0, 0.0)},
-    "uf850": {"thickness_mm": 10.0, "extent_mm": (260.0, 190.0), "collision_count": 1, "solid_xy_mm": (105.0, 0.0)},
-    "lite6": {"thickness_mm": 5.0, "extent_mm": (190.0, 130.0), "collision_count": 1, "solid_xy_mm": (70.0, 0.0)},
+    "xarm": {"thickness_mm": 8.0, "extent_mm": (136.0, 185.0), "collision_count": 17, "solid_xy_mm": (0.0, 75.0)},
+    "uf850": {"thickness_mm": 10.0, "extent_mm": (190.0, 260.0), "collision_count": 1, "solid_xy_mm": (0.0, 105.0)},
+    "lite6": {"thickness_mm": 5.0, "extent_mm": (130.0, 190.0), "collision_count": 1, "solid_xy_mm": (0.0, 70.0)},
 }
 
 ARM_ASSEMBLY: dict[str, tuple[str, tuple[float, float, float], float]] = {
@@ -46,19 +46,19 @@ def _expected_openings_xy_mm(plate: str) -> list[tuple[float, float]]:
     if plate == "xarm":
         pts = [(0.0, 0.0)]
         pts += [(55.0 * math.cos(math.radians(a)), 55.0 * math.sin(math.radians(a))) for a in range(0, 360, 30)]
-        pts += [(x, y) for x in (-83.0, 83.0) for y in (-37.5, 37.5)]
-        pts += [(-58.945, -53.601), (58.945, -53.601), (-58.863, 51.253), (58.743, 51.253)]
+        pts += [(x, y) for x in (-37.5, 37.5) for y in (-83.0, 83.0)]
+        pts += [(53.601, -58.945), (53.601, 58.945), (-51.253, -58.863), (-51.253, 58.743)]
         return pts
     if plate == "uf850":
         pts = [(0.0, 0.0)]
         pts += [(x, y) for x in (-60.104076, 60.104076) for y in (-60.104076, 60.104076)]
-        pts += [(x, y) for x in (-115.0, 115.0) for y in (-70.0, 70.0)]
-        pts += [(x, y) for x in (-85.0, 85.0) for y in (-80.0, 80.0)]
+        pts += [(x, y) for x in (-70.0, 70.0) for y in (-115.0, 115.0)]
+        pts += [(x, y) for x in (-80.0, 80.0) for y in (-85.0, 85.0)]
         return pts
     return (
         [(0.0, 0.0)]
         + [(x, y) for x in (-57.0, 57.0) for y in (-57.0, 57.0)]
-        + [(x, y) for x in (-80.0, 80.0) for y in (-50.0, 50.0)]
+        + [(x, y) for x in (-50.0, 50.0) for y in (-80.0, 80.0)]
     )
 
 
@@ -89,8 +89,15 @@ def test_stl_dimensions_surfaces_and_openings(plate):
     extents_mm = np.ptp(vis_triangles_mm.reshape(-1, 3), axis=0)
     expected_extents = (*cfg["extent_mm"], cfg["thickness_mm"])
     np.testing.assert_allclose(extents_mm, expected_extents, atol=0.02, rtol=0)
+    assert extents_mm[1] > extents_mm[0]
     assert float(vis_triangles_mm[:, :, 2].max()) == pytest.approx(0.0, abs=1e-5)
     assert float(vis_triangles_mm[:, :, 2].min()) == pytest.approx(-cfg["thickness_mm"], abs=1e-5)
+    if plate == "xarm":
+        assert float(vis_triangles_mm[:, :, 0].min()) == pytest.approx(-63.0, abs=0.05)
+        assert float(vis_triangles_mm[:, :, 0].max()) == pytest.approx(73.0, abs=0.05)
+        assert _point_on_top_surface(vis_triangles_mm, (68.0, 0.0))
+        assert not _point_on_top_surface(vis_triangles_mm, (68.0, 80.0))
+        assert not _point_on_top_surface(vis_triangles_mm, (68.0, -80.0))
 
     for xy in _expected_openings_xy_mm(plate):
         assert not _point_on_top_surface(vis_triangles_mm, xy), (plate, xy)
@@ -165,13 +172,14 @@ def test_standalone_plate_relocatable_across_cwd(plate):
 def test_sphere_lands_on_solid_and_filled_holes(plate, where):
     """Drop-sphere collision probes verify solid surface, filled holes, and xArm tongue/seam."""
     mount = {"xarm": (0.055, 0.0), "uf850": (0.060104076, 0.060104076), "lite6": (0.057, 0.057)}[plate]
+    sx, sy = PLATES[plate]["solid_xy_mm"]
     locations = {
-        "solid": (PLATES[plate]["solid_xy_mm"][0] / 1000.0, 0.0),
+        "solid": (sx / 1000.0, sy / 1000.0),
         "central_hole": (0.0, 0.0),
         "mounting_hole": mount,
-        "tongue_center": (0.0, -0.067),
-        "tongue_edge": (0.060, -0.070),
-        "tongue_seam": (0.0, -0.063),
+        "tongue_center": (0.067, 0.0),
+        "tongue_edge": (0.070, 0.060),
+        "tongue_seam": (0.063, 0.0),
     }
     x, y = locations[where]
     radius = 0.004 if where in ("solid", "central_hole") else 0.001
@@ -282,6 +290,9 @@ def test_arm_on_base_plate_preserves_robot_and_steps_stably(arm):
     data = mujoco.MjData(model)
     mujoco.mj_forward(model, data)
     assert data.ncon == 0
+    link_base_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "link_base")
+    assert link_base_id >= 0
+    assert float(data.xmat[link_base_id].reshape(3, 3)[:, 0][0]) > 0.999
 
     plate_geoms = [
         i
