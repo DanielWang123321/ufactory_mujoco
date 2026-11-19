@@ -24,11 +24,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-import mujoco  # noqa: E402
-import numpy as np  # noqa: E402
+import mujoco
+import numpy as np
 
-from ufactory_mujoco import SimRobot, XArmRobot, apply_ft_sensor_wrench, clear_ft_sensor_wrench  # noqa: E402
-from ufactory_mujoco import resolve_model_path  # noqa: E402
+from ufactory_mujoco import SimRobot, XArmRobot, apply_ft_sensor_wrench, clear_ft_sensor_wrench
+from ufactory_mujoco import resolve_model_path
 
 
 def _positive_float(value: str) -> float:

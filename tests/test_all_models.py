@@ -1,12 +1,14 @@
 """Unit tests verifying all generated MJCF models can load, step, and parse in MuJoCo."""
 
 import unittest
+import warnings
+
 import numpy as np
 
 import mujoco
 
 from ufactory_mujoco.compose import COMPOSED_MODELS, compose_model, is_composed_model
-from ufactory_mujoco import MODELS_ROOT, resolve_arm_scene, resolve_model_path
+from ufactory_mujoco import MODELS_ROOT, available_models, resolve_arm_scene, resolve_model_path
 from ufactory_mujoco.robots import TASK_GRIPPERS
 
 ALL_MODELS = [
@@ -80,7 +82,9 @@ ALL_MODELS = [
 
 class AllModelsLoadingTest(unittest.TestCase):
     def test_all_models_exist(self):
-        """Ensure all 19 atomic models and all 46 runtime composites resolve cleanly."""
+        """The model list is the single snapshot of available models; every name resolves."""
+        self.assertEqual(sorted(available_models()), sorted(ALL_MODELS))
+        self.assertEqual(set(COMPOSED_MODELS), {n for n in ALL_MODELS if not (MODELS_ROOT / n).is_dir()})
         for name in ALL_MODELS:
             if is_composed_model(name):
                 scene_xml = resolve_model_path(name, scene=True)
@@ -92,7 +96,6 @@ class AllModelsLoadingTest(unittest.TestCase):
                 primary_xml = model_dir / f"{name}.xml"
             self.assertTrue(scene_xml.is_file(), f"{name}/scene.xml not found")
             self.assertTrue(primary_xml.is_file(), f"{name}/{name}.xml not found")
-        self.assertEqual(len(COMPOSED_MODELS), 46)
         # task scenes across all 5 arm+gripper pairs (pick_place, box_pack) and xarm6 obstacles
         for arm, gripper in TASK_GRIPPERS.items():
             for task in ("pick_place", "box_pack"):
@@ -102,7 +105,7 @@ class AllModelsLoadingTest(unittest.TestCase):
         self.assertTrue((MODELS_ROOT / "xarm6" / "scene_obstacles.xml").is_file())
 
     def test_all_models_load_and_step(self):
-        """Load both primary XML and scene XML (static and composed) and simulate 100 steps."""
+        """Every model, scene and task scene compiles and runs forward without warnings, then steps 100 times."""
         for name in ALL_MODELS:
             xmls = [resolve_model_path(name, scene=False), resolve_model_path(name, scene=True)]
             if (MODELS_ROOT / name / "scene_obstacles.xml").is_file():
@@ -112,8 +115,19 @@ class AllModelsLoadingTest(unittest.TestCase):
                 xmls += [resolve_arm_scene(arm, TASK_GRIPPERS[arm], task) for task in ("pick_place", "box_pack")]
             for xml_file in xmls:
                 with self.subTest(model=name, xml=xml_file.name):
-                    m = mujoco.MjModel.from_xml_path(str(xml_file))
+                    with warnings.catch_warnings(record=True) as caught:
+                        warnings.simplefilter("always")
+                        m = mujoco.MjModel.from_xml_path(str(xml_file))
                     d = mujoco.MjData(m)
+                    if m.nkey:
+                        mujoco.mj_resetDataKeyframe(m, d, 0)
+                    mujoco.mj_forward(m, d)
+                    issues = [str(w.message) for w in caught] + [
+                        f"{mujoco.mjtWarning(i).name}x{d.warning[i].number}"
+                        for i in range(len(d.warning)) if d.warning[i].number
+                    ]
+                    self.assertEqual(issues, [], f"warnings for {xml_file}")
+                    mujoco.mj_resetData(m, d)
                     mujoco.mj_forward(m, d)
 
                     # Simulate 100 steps

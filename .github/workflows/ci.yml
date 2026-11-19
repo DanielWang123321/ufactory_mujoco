@@ -45,67 +45,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-lock.txt -e ".[test]"
           python -c "import mujoco; print('MuJoCo', mujoco.__version__); assert mujoco.__version__.startswith('4.')"
-      - name: Compile all static and composed MJCF models (zero warnings)
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import sys
-          import warnings
-          import mujoco
-          from ufactory_mujoco.compose import COMPOSED_MODELS, compose_model
-
-          xmls = sorted(Path("ufactory_mujoco/models").glob("*/*.xml"))
-          assert len(xmls) >= 39, f"expected >= 39 static XML files, got {len(xmls)}"
-          assert len(COMPOSED_MODELS) >= 46, f"expected >= 46 composed models, got {len(COMPOSED_MODELS)}"
-          bad = []
-          def check(label, loader):
-              with warnings.catch_warnings(record=True) as caught:
-                  warnings.simplefilter("always")
-                  m = loader()
-                  d = mujoco.MjData(m)
-                  if m.nkey > 0:
-                      mujoco.mj_resetDataKeyframe(m, d, 0)
-                  mujoco.mj_forward(m, d)
-                  w = [str(x.message) for x in caught] + [
-                      f"{mujoco.mjtWarning(i).name}x{d.warning[i].number}"
-                      for i in range(len(d.warning))
-                      if d.warning[i].number
-                  ]
-                  if w:
-                      bad.append(f"{label}: {w}")
-          for xml in xmls:
-              check(str(xml), lambda p=xml: mujoco.MjModel.from_xml_path(str(p)))
-          for name in COMPOSED_MODELS:
-              check(f"composed:{name}", lambda n=name: compose_model(n, scene=True))
-          if bad:
-              print("\n".join(bad), file=sys.stderr)
-              sys.exit(1)
-          print(f"Compiled {len(xmls)} static XML files + {len(COMPOSED_MODELS)} composed models with 0 warnings.")
-          PY
       - name: Unit tests (headless)
         run: |
           mkdir -p build/ci
           python -m pytest tests -v 2>&1 | tee build/ci/pytest.log
       - name: Example smoke tests (headless)
+        # pytest already runs examples 01, 04 (camera combos), 06, 07, 09, 11 and the 05/08/10 tasks;
+        # this step covers example 03 and examples 02/04 across model families.
         run: |
           set -e
           exec > >(tee build/ci/examples.log) 2>&1
-          python examples/simulation/01_load_and_view.py --headless --model xarm6_with_gripper --pose ready
-          for m in d405 d435 gemini_305 zed_x_nano camera_stand camera_stand_with_d405 xarm6_with_gripper_and_d405 \
-                   xarm5_with_d435 uf850_with_gripper_and_d435 \
-                   vacuum_gripper xarm6_with_vacuum_gripper xarm5_with_bio_gripper \
-                   ft_sensor xarm6_with_ft_sensor_and_gripper xarm6_with_ft_sensor_and_vacuum_gripper \
-                   xarm_base_plate uf850_base_plate lite6_base_plate xarm6_with_base_plate lite6_with_base_plate; do
-            python examples/simulation/01_load_and_view.py --headless --model $m
-          done
-          python examples/simulation/04_gripper_control.py --headless --model xarm6_with_gripper_and_d405 --cycles 1
-          python examples/simulation/11_force_torque_sensor.py --headless
-          python examples/simulation/11_force_torque_sensor.py --headless --model ft_sensor --force 0 0 -5
-          for s in 02_joint_control 03_cartesian_ik 05_pick_place 06_trajectory_planning 07_kinematics 08_dynamics 09_obstacle_avoidance; do
-            echo "::group::$s"; python examples/simulation/$s.py --headless; echo "::endgroup::"
-          done
-          echo "::group::10_box_pack"; python examples/simulation/10_box_pack.py --headless --cycles 1; echo "::endgroup::"
-          for m in xarm5 xarm7 uf850 lite6 xarm6_with_gripper xarm6_with_bio_gripper lite6_with_gripper \
+          python examples/simulation/03_cartesian_ik.py --headless
+          for m in xarm5 xarm6 xarm7 uf850 lite6 xarm6_with_gripper xarm6_with_bio_gripper lite6_with_gripper \
                    uf850_with_gripper xarm5_with_vacuum_gripper xarm6_with_gripper_and_d405 \
                    xarm7_with_d435 uf850_with_gripper_and_d435 \
                    xarm6_with_ft_sensor_and_gripper xarm6_with_ft_sensor_and_vacuum_gripper xarm6_with_base_plate; do
@@ -115,9 +66,10 @@ jobs:
                    xarm7_with_bio_gripper xarm6_with_ft_sensor_and_gripper; do
             python examples/simulation/04_gripper_control.py --headless --model $m
           done
-          # models without a jaw actuator must fail with a non-zero exit code
+          # models without a jaw actuator must exit with code 2
           for m in lite6_vacuum_gripper vacuum_gripper xarm6_with_d435 ft_sensor xarm6_with_ft_sensor xarm_base_plate xarm6_with_base_plate; do
-            if python examples/simulation/04_gripper_control.py --headless --model $m; then exit 1; fi
+            rc=0; python examples/simulation/04_gripper_control.py --headless --model $m || rc=$?
+            [ "$rc" -eq 2 ] || { echo "04_gripper_control --model $m: expected exit 2, got $rc"; exit 1; }
           done
       - name: Upload core logs
         if: always()

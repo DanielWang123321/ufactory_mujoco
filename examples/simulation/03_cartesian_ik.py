@@ -15,9 +15,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-import numpy as np  # noqa: E402
+import numpy as np
 
-from ufactory_mujoco import SimRobot  # noqa: E402
+from ufactory_mujoco import SimRobot
 
 READY = [0, -0.8, -1.2, 1.0, 0.3, 0]
 CIRCLE_RADIUS = 0.07

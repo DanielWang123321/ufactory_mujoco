@@ -174,9 +174,7 @@ class ComposeAndExportTests(unittest.TestCase):
     def test_composed_registry_and_in_memory_spec(self):
         from ufactory_mujoco import COMPOSED_MODELS, available_models, compose_model, compose_spec
 
-        self.assertEqual(len(COMPOSED_MODELS), 46)
-        all_names = available_models()
-        self.assertEqual(len(all_names), 65)
+        self.assertLessEqual(set(COMPOSED_MODELS), set(available_models()))
         spec = compose_spec("xarm6_with_ft_sensor_and_gripper", scene=True)
         model = spec.compile()
         self.assertEqual(model.nsensor, 2)

@@ -24,13 +24,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-import mujoco  # noqa: E402
-import numpy as np  # noqa: E402
+import mujoco
+import numpy as np
 
-from ufactory_mujoco import SimRobot, plan_joint_waypoints  # noqa: E402
-from ufactory_mujoco.planning import CollisionChecker  # noqa: E402
-from ufactory_mujoco.robots import MODELS_ROOT  # noqa: E402
-from ufactory_mujoco.planning import plan_collision_free, shortcut_path  # noqa: E402
+from ufactory_mujoco import SimRobot, plan_joint_waypoints
+from ufactory_mujoco.planning import CollisionChecker
+from ufactory_mujoco.robots import MODELS_ROOT
+from ufactory_mujoco.planning import plan_collision_free, shortcut_path
 
 SCENE = MODELS_ROOT / "xarm6" / "scene_obstacles.xml"
 START_KEY, GOAL_KEY = "start", "goal"

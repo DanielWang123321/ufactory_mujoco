@@ -62,3 +62,5 @@ select = ["E", "F", "W"]
 [tool.ruff.lint.per-file-ignores]
 # configure_backend() must run before mujoco is imported.
 "ufactory_mujoco/__init__.py" = ["E402"]
+# Examples put the source checkout on sys.path before importing the package.
+"examples/**/*.py" = ["E402"]

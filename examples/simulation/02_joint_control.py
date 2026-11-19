@@ -17,11 +17,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-import mujoco  # noqa: E402
-import numpy as np  # noqa: E402
+import mujoco
+import numpy as np
 
-from ufactory_mujoco import SimRobot  # noqa: E402
-from ufactory_mujoco import resolve_model_path  # noqa: E402
+from ufactory_mujoco import SimRobot
+from ufactory_mujoco import resolve_model_path
 
 # Presets for joint demo movements: [ready, demo]. Every demo pose stays inside the joint limits
 # and keeps the tools of the arm's combinations above the floor when the move starts from the

@@ -41,7 +41,7 @@ def resource_reference(*, licenses=False):
     import numpy as np
     from ufactory_mujoco.compose import COMPOSED_MODELS, compose_model
     from ufactory_mujoco.config import list_task_presets, load_task_config
-    from ufactory_mujoco.robots import CONFIGS_ROOT, MODELS_ROOT
+    from ufactory_mujoco.robots import ARMS, CONFIGS_ROOT, MODELS_ROOT
 
     result = {
         "models": {},
@@ -80,11 +80,14 @@ def resource_reference(*, licenses=False):
     for task, arms in sorted(list_task_presets().items()):
         for arm in arms:
             result["config_hashes"][f"{task}/{arm}"] = load_task_config(preset=(task, arm)).sha256
-    assert len(result["models"]) >= 39 and len(result["composed_models"]) >= 46 and len(result["meshes"]) >= 482
-    assert len(result["configs"]) == 2 and len(result["config_hashes"]) == 11
+    # Every mesh a model references is loaded above, so a missing file fails the compile.
+    assert all(f"{arm}/scene.xml" in result["models"] for arm in ARMS), "Missing arm models"
+    assert result["meshes"], "No meshes found"
+    assert set(result["configs"]) == {"default.yaml", "dynamics_validation_pose.yaml"}
+    assert len(result["config_hashes"]) == 1 + sum(len(arms) for arms in list_task_presets().values())
     if licenses:
         result["licenses"] = source_licenses()
-        assert len(result["licenses"]) == 7
+        assert {"LICENSE", "NOTICE"} <= set(result["licenses"])
     return result
 
 

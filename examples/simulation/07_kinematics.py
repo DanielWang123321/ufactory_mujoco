@@ -22,11 +22,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-import mujoco  # noqa: E402
-import numpy as np  # noqa: E402
+import mujoco
+import numpy as np
 
-from ufactory_mujoco import SimRobot, fk_pose, pose_jacobian, quat_error  # noqa: E402
-from ufactory_mujoco.robots import MODELS_ROOT  # noqa: E402
+from ufactory_mujoco import SimRobot, fk_pose, pose_jacobian, quat_error
+from ufactory_mujoco.robots import MODELS_ROOT
 
 SCENE = MODELS_ROOT / "xarm6" / "scene.xml"
 SITE = "attachment_site"
