@@ -9,9 +9,9 @@ from .viewer import configure_backend
 # MuJoCo imports GLFW while importing its rendering modules.
 configure_backend()
 
-from .bio_g2_controller import BioGripperG2Controller
+from .bio_g2 import BioGripperG2Controller
 from .calibration import CalibrationError, KinematicsCalibration, load_kinematics_calibration
-from .collision import CollisionChecker
+from .compose import COMPOSED_MODELS, compose_model, compose_spec, export_model
 from .config import ConfigError, TaskConfig, load_task_config
 from .dynamics import ArmDynamics, attach_payload
 from .ft_sensor import (
@@ -24,21 +24,28 @@ from .ft_sensor import (
     read_hardware_ft_sensor,
     read_hardware_ft_sensor_config,
 )
-from .g2_controller import G2Controller
+from .g2 import G2Controller
 from .grippers import GraspError, GripperSpec, identify_gripper
-from .ik import solve_ik
 from .kinematics import (
     fk_pose,
     manipulability,
     pose_jacobian,
     quat_error,
     site_jacobian,
+    solve_ik,
     solve_joint_velocity,
 )
-from .model_paths import MODELS_ROOT, resolve_model_path
-from .path_planning import PlanningError, plan_collision_free, shortcut_path
+from .planning import CollisionChecker, PlanningError, plan_collision_free, shortcut_path
 from .robot_interface import RobotInterface
-from .robots import ARMS, SCENES, ArmSpec, resolve_arm_scene
+from .robots import (
+    ARMS,
+    MODELS_ROOT,
+    SCENES,
+    ArmSpec,
+    available_models,
+    resolve_arm_scene,
+    resolve_model_path,
+)
 from .safety import MotionApproval, SafetyGateError
 from .sim_robot import SimRobot
 from .trajectory import (
@@ -50,11 +57,11 @@ from .trajectory import (
 )
 from .xarm_robot import XArmRobot
 
-__version__ = "0.1.7"
+__version__ = "0.1.8"
 
 __all__ = [
     "__version__",
-    # robots and models
+    # robots, models and runtime composition
     "SimRobot",
     "XArmRobot",
     "RobotInterface",
@@ -64,6 +71,11 @@ __all__ = [
     "resolve_arm_scene",
     "MODELS_ROOT",
     "resolve_model_path",
+    "available_models",
+    "COMPOSED_MODELS",
+    "compose_spec",
+    "compose_model",
+    "export_model",
     # kinematics
     "fk_pose",
     "solve_ik",

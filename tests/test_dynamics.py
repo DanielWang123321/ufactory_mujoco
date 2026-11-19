@@ -104,10 +104,12 @@ class AttachPayloadTest(unittest.TestCase):
                                                -2 * jacp.T @ base.opt.gravity, rtol=0, atol=1e-12)
 
     def test_payload_com_on_combined_scene_without_chdir(self):
+        from ufactory_mujoco.robots import resolve_model_path
+
         cwd = Path.cwd()
         for name in ("xarm6_with_gripper", "xarm6_with_bio_gripper", "lite6_with_gripper"):
             with self.subTest(model=name), patch("os.chdir", side_effect=AssertionError("chdir")):
-                path = ROOT / "models" / name / "scene.xml"
+                path = resolve_model_path(name)
                 loaded = attach_payload(path, *PAYLOAD)
                 data = mujoco.MjData(loaded)
                 data.qpos[:] = loaded.key("ready").qpos
@@ -141,9 +143,11 @@ class AttachPayloadTest(unittest.TestCase):
                                            -mass * jacp.T @ base.opt.gravity, rtol=0, atol=1e-12)
 
     def test_zero_payload_leaves_model_and_dynamics_unchanged(self):
+        from ufactory_mujoco.robots import resolve_model_path
+
         for name in ("xarm6", "xarm6_with_gripper", "xarm6_with_bio_gripper", "lite6_with_gripper"):
             with self.subTest(model=name):
-                path = ROOT / "models" / name / "scene.xml"
+                path = resolve_model_path(name, scene=True)
                 base = ArmDynamics(path)
                 zero = ArmDynamics(path, payload=(0, [0.03, -0.02, 0.07]))
                 self.assertEqual(base.model.nbody, zero.model.nbody)
@@ -266,9 +270,11 @@ class ArmDynamicsTest(unittest.TestCase):
 class CombinedDynamicsTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        from ufactory_mujoco.robots import resolve_model_path
+
         names = ("xarm5", "xarm6", "xarm7", "uf850", "lite6", "xarm6_with_gripper",
                  "xarm6_with_bio_gripper", "lite6_with_gripper", "lite6_with_vacuum_gripper")
-        cls.models = {name: ArmDynamics(ROOT / "models" / name / f"{name}.xml")
+        cls.models = {name: ArmDynamics(resolve_model_path(name, scene=False))
                       for name in names}
 
     @staticmethod

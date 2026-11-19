@@ -28,9 +28,9 @@ import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
 
 from ufactory_mujoco import SimRobot, plan_joint_waypoints  # noqa: E402
-from ufactory_mujoco.collision import CollisionChecker  # noqa: E402
-from ufactory_mujoco.model_paths import MODELS_ROOT  # noqa: E402
-from ufactory_mujoco.path_planning import plan_collision_free, shortcut_path  # noqa: E402
+from ufactory_mujoco.planning import CollisionChecker  # noqa: E402
+from ufactory_mujoco.robots import MODELS_ROOT  # noqa: E402
+from ufactory_mujoco.planning import plan_collision_free, shortcut_path  # noqa: E402
 
 SCENE = MODELS_ROOT / "xarm6" / "scene_obstacles.xml"
 START_KEY, GOAL_KEY = "start", "goal"

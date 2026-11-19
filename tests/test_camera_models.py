@@ -11,7 +11,8 @@ import xml.etree.ElementTree as ET
 import mujoco
 import numpy as np
 
-from ufactory_mujoco.model_paths import MODELS_ROOT
+from ufactory_mujoco.compose import is_composed_model
+from ufactory_mujoco.robots import MODELS_ROOT, resolve_model_path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CAMERAS = ("d405", "d435", "gemini_305", "zed_x_nano")
@@ -156,13 +157,14 @@ class CameraAndBracketModelsTest(unittest.TestCase):
             _read_binary_stl_vertices(col_stl, 1.0)
 
     def test_mjcf_authoring_and_scene_floor_contracts(self) -> None:
-        """Verify meshdir='assets', visual/collision/site groups, materials, and floor clearance."""
+        """Verify meshdir='assets' (static), visual/collision/site groups, materials, and floor clearance."""
         for name in ALL_NEW_MODELS:
-            xml_path = MODELS_ROOT / name / f"{name}.xml"
+            xml_path = resolve_model_path(name, scene=False)
             root = ET.parse(xml_path).getroot()
             compiler = root.find("compiler")
             self.assertIsNotNone(compiler)
-            self.assertEqual(compiler.get("meshdir"), "assets", f"{name}.xml must declare meshdir='assets'")
+            if not is_composed_model(name):
+                self.assertEqual(compiler.get("meshdir"), "assets", f"{name}.xml must declare meshdir='assets'")
 
             for mesh_el in root.findall("./asset/mesh"):
                 file_attr = mesh_el.get("file", "")
@@ -170,7 +172,7 @@ class CameraAndBracketModelsTest(unittest.TestCase):
                 if "visual_glass_" in file_attr:
                     self.assertEqual(mesh_el.get("inertia"), "shell")
 
-            model = mujoco.MjModel.from_xml_path(str(MODELS_ROOT / name / "scene.xml"))
+            model = mujoco.MjModel.from_xml_path(str(resolve_model_path(name)))
             data = mujoco.MjData(model)
             if model.nkey > 0:
                 mujoco.mj_resetDataKeyframe(model, data, 0)
@@ -217,7 +219,7 @@ class CameraAndBracketModelsTest(unittest.TestCase):
         """Verify mount site coincidence, screw-hole alignment, and visual-mesh half-space clearance."""
         for cam in CAMERAS:
             combo = f"camera_stand_with_{cam}"
-            xml_path = MODELS_ROOT / combo / f"{combo}.xml"
+            xml_path = resolve_model_path(combo, scene=False)
             m = mujoco.MjModel.from_xml_path(str(xml_path))
             d = mujoco.MjData(m)
             mujoco.mj_forward(m, d)
@@ -322,7 +324,7 @@ class CameraAndBracketModelsTest(unittest.TestCase):
         base_total_mass = float(np.sum(base_m.body_mass))
 
         combo = f"{arm}_with_gripper_and_{cam}"
-        m = mujoco.MjModel.from_xml_path(str(MODELS_ROOT / combo / "scene.xml"))
+        m = mujoco.MjModel.from_xml_path(str(resolve_model_path(combo)))
         d = mujoco.MjData(m)
         for key_name in ("home", "ready"):
             kid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_KEY, key_name)
@@ -463,7 +465,7 @@ class CameraAndBracketModelsTest(unittest.TestCase):
             )
 
             combo = f"{arm}_with_d435"
-            m = mujoco.MjModel.from_xml_path(str(MODELS_ROOT / combo / "scene.xml"))
+            m = mujoco.MjModel.from_xml_path(str(resolve_model_path(combo)))
             d = mujoco.MjData(m)
             for key_name in ("home", "ready"):
                 kid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_KEY, key_name)
@@ -536,7 +538,7 @@ class CameraAndBracketModelsTest(unittest.TestCase):
             last_link = LAST_LINKS[arm]
             dof = ARM_DOFS[arm]
             for combo in (f"{arm}_with_d435", f"{arm}_with_gripper_and_d435"):
-                m = mujoco.MjModel.from_xml_path(str(MODELS_ROOT / combo / f"{combo}.xml"))
+                m = mujoco.MjModel.from_xml_path(str(resolve_model_path(combo, scene=False)))
                 d = mujoco.MjData(m)
                 poses: list[tuple[str, int | None]] = [
                     ("zero", None),

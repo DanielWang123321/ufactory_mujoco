@@ -11,7 +11,7 @@ from dataclasses import dataclass
 import mujoco
 import numpy as np
 
-from .bio_g2_model import (
+from .bio_g2 import (
     BIO_G2_CLOSED_GAP_M,
     BIO_G2_OPEN_GAP_M,
     LEFT_JOINT as BIO_G2_LEFT_JOINT,
@@ -19,7 +19,7 @@ from .bio_g2_model import (
     STROKE_PER_FINGER_M as BIO_G2_STROKE_M,
     bio_g2_sim_drive_to_gap_m,
 )
-from .g2_model import (
+from .g2 import (
     G2_LINKAGE_GEOMETRY,
     GRIPPER_G2_SIM_CLOSE_DRIVE,
     GRIPPER_G2_SIM_OPEN_DRIVE,

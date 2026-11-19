@@ -15,7 +15,7 @@ from typing import Any
 
 import numpy as np
 
-from .runtime import DEFAULT_DYNAMICS_MOVE_SPEED_RAD_S, validate_dynamics_move_speed
+from .profiles import DEFAULT_DYNAMICS_MOVE_SPEED_RAD_S, validate_dynamics_move_speed
 
 MODE_POSITION = 0
 REPORT_STATE_PAUSED = 3
@@ -71,17 +71,6 @@ def _read_err_warn_and_state(arm: Any) -> tuple[int, int, int]:
             state = int(res[1])
     return err_code, warn_code, state
 
-
-@dataclass
-class HoldTimeSeriesSample:
-    """Single polled sample during a steady-state hold."""
-
-    t_s: float
-    q: np.ndarray
-    qvel: np.ndarray
-    tau: np.ndarray
-    current: np.ndarray
-    tau_direct: np.ndarray | None = None
 
 
 @dataclass

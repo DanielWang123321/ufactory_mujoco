@@ -17,7 +17,7 @@ from typing import Any
 import mujoco
 import numpy as np
 
-from .bio_g2_model import (
+from .bio_g2 import (
     MIN_SPEED_RPM as BIO_G2_MIN_SPEED_RPM,
     bio_g2_speed_mm_s_from_percent,
     speed_rpm_from_mm_s as bio_g2_speed_rpm_from_mm_s,
@@ -30,7 +30,7 @@ from .calibration import (
     get_robot_sn,
     read_tcp_offset,
 )
-from .collision import arm_joint_limits
+from .planning import arm_joint_limits
 from .ft_sensor import (
     SensorReading,
     has_ft_sensor as model_has_ft_sensor,
@@ -38,7 +38,7 @@ from .ft_sensor import (
     read_hardware_ft_sensor,
     read_hardware_ft_sensor_config,
 )
-from .g2_model import checked, sdk_position_counts, sdk_speed_rpm, speed_mm_s
+from .g2 import checked, sdk_position_counts, sdk_speed_rpm, speed_mm_s
 from .grippers import (
     GRIPPER_ACTUATOR_NAMES,
     GripperSpec,
@@ -46,7 +46,7 @@ from .grippers import (
     identify_gripper,
     position_to_gap,
 )
-from .ik import solve_ik
+from .kinematics import solve_ik
 from .kinematics import fk_pose
 from .robot_interface import RobotInterface
 from .robots import ARMS, resolve_arm_scene

@@ -12,7 +12,7 @@ from .report import (
     UrdfDynamicsIssue,
     ValidationStatus,
 )
-from .runtime import (
+from .profiles import (
     DEFAULT_DYNAMICS_MOVE_SPEED_RAD_S,
     MAX_DYNAMICS_MOVE_SPEED_DEG_S,
     MAX_DYNAMICS_MOVE_SPEED_RAD_S,

@@ -20,8 +20,8 @@ Without a display, run a task headless: `ufactory-mujoco pick-place --robot xarm
 
 ## Features
 
-- **Models**: all five arms, five end effectors, four depth cameras, camera bracket, AI1500 6-axis force/torque sensor (`ft_sensor` with deterministic `200 Hz` `AI1500Reader`), mounting base plates (`*_base_plate`), and combined MJCF assemblies with separate visual meshes and multi-convex collision shapes. Gripper G2 and Bio Gripper G2 use calibrated dynamics and rate-limited position/force servos (`g2_model.py`, `g2_controller.py`, `bio_g2_model.py`, `bio_g2_controller.py`).
-- **Kinematics and planning**: FK, Jacobians, damped least-squares IK, quintic/LSPB/spline trajectories, Cartesian lines, collision checking, and RRT-Connect (`kinematics.py`, `ik.py`, `trajectory.py`, `collision.py`, `path_planning.py`).
+- **Models**: all five arms, five end effectors, four depth cameras, camera bracket, AI1500 6-axis force/torque sensor (`ft_sensor` with deterministic `200 Hz` `AI1500Reader`), mounting base plates (`*_base_plate`), and 65 total robot/accessory models — 24 static MJCF directories (19 atomic components + 5 primary `*_with_gripper` task combos) plus 41 long-tail assemblies composed dynamically at runtime via MuJoCo 4.x `MjSpec` (`compose.py`, also supporting custom multi-accessory stacks and static export via `ufactory-mujoco export-model`). Visual meshes and multi-convex collision shapes stay separate; Gripper G2 and Bio Gripper G2 use calibrated dynamics and rate-limited position/force servos (`g2.py`, `bio_g2.py`).
+- **Kinematics and planning**: FK, Jacobians, damped least-squares IK, quintic/LSPB/spline trajectories, Cartesian lines, collision checking, and RRT-Connect (`kinematics.py`, `trajectory.py`, `planning.py`).
 - **Dynamics**: mass matrix, gravity/Coriolis, inverse/forward dynamics, payloads, five-arm motion validation (`tasks/dynamics.py`), and `ufactory_genesis`-aligned Schema v4 static torque validation (`dynamics-sim-check`, `dynamics-sim-collision-check`, `dynamics-hardware-check`, `dynamics-report-compare` in `dynamics/`).
 - **Scripted tasks**: cube pick-and-place and box packing for five arm/gripper pairs, with preflight (joint limits, penetration, RRT-Connect detours) and JSON reports (`tasks/`, `preflight.py`).
 - **Real robot**: `XArmRobot` is read-only by default; motion needs a per-unit calibration, controller checks, and `--confirm-real`. `sdk-sim` replays trajectories in the controller's built-in simulator (`xarm_robot.py`, `calibration.py`, `safety.py`).
@@ -36,7 +36,7 @@ Without a display, run a task headless: `ufactory-mujoco pick-place --robot xarm
 | `xarm7` | `gripper_g2`, `bio_gripper_g2`, `vacuum_gripper`, `ft_sensor`, `ft_sensor_and_gripper`, `ft_sensor_and_vacuum_gripper` | with `gripper_g2` | yes |
 | `uf850` | `gripper_g2`, `bio_gripper_g2`, `vacuum_gripper`, `ft_sensor`, `ft_sensor_and_gripper`, `ft_sensor_and_vacuum_gripper` | with `gripper_g2` | yes |
 
-The repository ships **65 model directories** under `models/`: 5 bare arms, 5 standalone end effectors, 4 depth cameras (`d405`, `d435`, `gemini_305`, `zed_x_nano`), 5 `camera_stand*` models, 13 `ft_sensor` models (`ft_sensor` plus `xarm5/6/7` and `uf850` with `ft_sensor`, `ft_sensor_and_gripper`, and `ft_sensor_and_vacuum_gripper`), 8 mounting base plate models (`{xarm,uf850,lite6}_base_plate` and 5 `<arm>_with_base_plate` assemblies), 14 arm + end-effector combinations, and 11 arm + camera combinations (`xarm6_with_gripper_and_<camera>` plus `<arm>_with_d435` and `<arm>_with_gripper_and_d435` across `xarm5/6/7` and `uf850`). Load any of them with `01_load_and_view.py --model <name>`; model names and commands are listed in [examples/simulation/README.md](examples/simulation/README.md#4-commands-by-model).
+The suite provides **65 named models** across 5 bare arms, 5 end effectors, 4 depth cameras (`d405`, `d435`, `gemini_305`, `zed_x_nano`), camera stands, AI1500 F/T sensor, mounting base plates (`{xarm,uf850,lite6}_base_plate`), and arm + accessory combinations: **24 static model directories** live under `models/` (19 atomic components + 5 primary `*_with_gripper` task combos), while the remaining **41 long-tail combinations** are composed dynamically at runtime by `ufactory_mujoco.compose` (MuJoCo `MjSpec`) with zero duplicated XML/symlinks. Load any model directly with `01_load_and_view.py --model <name>`, or export a standalone MJCF directory with `ufactory-mujoco export-model <name> --out-dir <dir>`; full model names and commands are listed in [examples/simulation/README.md](examples/simulation/README.md#4-commands-by-model).
 
 ## Installation
 
@@ -82,6 +82,9 @@ If the environment is already broken, repair it with `pip install --force-reinst
 ufactory-mujoco pick-place --robot xarm6 --headless
 ufactory-mujoco box-pack --robot lite6 --cycles 3 --headless
 ufactory-mujoco dynamics --robot all --headless --report reports/dynamics.json
+ufactory-mujoco export-model xarm6_with_ft_sensor_and_gripper --out-dir exported/xarm6_ft_g2
+ufactory-mujoco export-calibration <ROBOT_IP> --output-dir calibrations
+ufactory-mujoco kinematics-check --robot xarm6 --ip <ROBOT_IP> --calibration calibrations/xarm6_kinematics_<SN>.yaml
 ```
 
 - `python -m ufactory_mujoco <command>` is equivalent. Examples `05`, `08` and `10` run the same code.
@@ -135,38 +138,34 @@ Tests that need optional packages (`trimesh`, `pinocchio`, `DracoPy`) or maintai
 
 ```text
 calibrations/              Per-unit kinematic calibration YAML (serial-bound, SHA-256 fingerprinted)
-configs/                   Task and validation configs: default.yaml, dynamics_validation_pose.yaml,
-                           pick_place/<arm>.yaml, box_pack/<arm>.yaml
-models/                    MJCF models and meshes: arms, grippers, cameras, brackets, F/T sensor, base plates and combos;
-                           scene variants scene, scene_pick_place, scene_box_pack, scene_obstacles
+configs/                   Task and validation configs: default.yaml (with per-task/arm presets),
+                           dynamics_validation_pose.yaml
+models/                    24 static MJCF model directories (19 atomic components + 5 primary *_with_gripper
+                           task combos) and 482 canonical meshes; 41 long-tail combos composed via compose.py
 ufactory_mujoco/
   sim_robot.py             SimRobot: physics stepping, joint/TCP/gripper/FT-sensor control, viewer
   xarm_robot.py            XArmRobot: real xArm, read-only unless motion is approved
   robot_interface.py       Common interface of SimRobot and XArmRobot
-  robots.py                Registry of the five arms and compatible grippers
-  config.py                Strict YAML task configs and their content hash
+  robots.py                Resource roots, model lookup, registry of the five arms and compatible grippers
+  compose.py               Runtime MjSpec model composer, cache resolver, and static XML exporter
+  config.py                Strict YAML task configs, presets, and content hashing
   calibration.py           Per-unit calibration, model patching, TCP/flange transforms
   safety.py                Hardware safety gate and sdk-sim replay
   kinematics_validation.py Read-only FK/IK comparison with the controller
   ft_sensor.py             AI1500 6-axis F/T sensor 200 Hz reader and local wrench helper
-  g2_model.py              Gripper G2 linkage geometry, force table, SDK unit conversions
-  g2_controller.py         Gripper G2 vectorized position/force servo
-  bio_g2_model.py          Bio Gripper G2 calibrated gap, speed and force model
-  bio_g2_controller.py     Bio Gripper G2 rate-limited position/force servo
+  g2.py                    Gripper G2 linkage model, force table, and vectorized position/force servo
+  bio_g2.py                Bio Gripper G2 calibrated model and rate-limited position/force servo
   grippers.py              Gripper specs, gap mapping, finger contact checks and forces
-  preflight.py             Pick-place/box-pack preflight with RRT-Connect detours
-  task_geometry.py         Grasp heights and orientation shared by tasks and preflight
-  ik.py, kinematics.py     DLS IK; FK, Jacobians, manipulability
+  preflight.py             Grasp geometry and pick-place/box-pack preflight with RRT-Connect detours
+  kinematics.py            FK, Jacobians, manipulability, and DLS IK
   trajectory.py            JointTrajectory, quintic/LSPB, spline, Cartesian line
+  planning.py              Collision/clearance queries, RRT-Connect, and path shortcutting
   dynamics/                Mass matrix, gravity/Coriolis, inverse/forward dynamics, payload, and Schema v4 torque validation CLI (`dynamics-*`)
-  collision.py             Collision and clearance queries
-  path_planning.py         RRT-Connect and shortcutting
-  tasks/                   pick-place, box-pack and dynamics commands
+  tasks/                   pick-place, box-pack and dynamics commands (sharing _common.py)
   cli.py, __main__.py      `ufactory-mujoco` / `python -m ufactory_mujoco` entry point
   viewer.py                Passive viewer with Linux GLFW/X11 handling
-  model_paths.py           Resource roots and model name lookup
 examples/simulation/       Examples 01–11
-scripts/                   Calibration extraction, distribution and installed-wheel checks
+scripts/                   Distribution and installed-wheel verification (`accept_installed.py`)
 tests/                     Test suite (pytest)
 ```
 

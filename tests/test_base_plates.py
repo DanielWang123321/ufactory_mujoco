@@ -15,7 +15,8 @@ import numpy as np
 import pytest
 from scipy.optimize import least_squares
 
-from ufactory_mujoco.model_paths import MODELS_ROOT, resolve_model_path
+from ufactory_mujoco.compose import is_composed_model
+from ufactory_mujoco.robots import MODELS_ROOT, resolve_model_path
 
 STL_TRIANGLE = np.dtype([("normal", "<f4", (3,)), ("points", "<f4", (3, 3)), ("attribute", "<u2")])
 
@@ -114,11 +115,13 @@ def test_stl_dimensions_surfaces_and_openings(plate):
     [f"{p}_base_plate" for p in PLATES] + [f"{a}_with_base_plate" for a in ARM_ASSEMBLY],
 )
 def test_mjcf_authoring_groups_and_floor_alignment(name):
-    """Verify meshdir='assets', geom/site groups, and scene floor plane at z = -thickness."""
-    xml_path = MODELS_ROOT / name / f"{name}.xml"
+    """Verify meshdir='assets' (static), geom/site groups, and scene floor plane at z = -thickness."""
+    xml_path = resolve_model_path(name, scene=False)
     root = ET.parse(xml_path).getroot()
     compiler = root.find("compiler")
-    assert compiler is not None and compiler.get("meshdir") == "assets"
+    assert compiler is not None
+    if not is_composed_model(name):
+        assert compiler.get("meshdir") == "assets"
     for mesh_el in root.findall("./asset/mesh"):
         assert not mesh_el.get("file", "").startswith("..")
 

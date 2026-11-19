@@ -20,8 +20,8 @@ python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose
 
 ## 功能
 
-- **模型**：全部 5 款机械臂、5 款末端工具、4 款深度相机、相机支架、AI1500 六维力矩传感器（`ft_sensor`，附确定性 `200 Hz` `AI1500Reader`）、安装底板（`*_base_plate`）及组合 MJCF 模型，视觉网格与多凸包碰撞体分离。Gripper G2 与 Bio Gripper G2 采用标定动力学与限速位置/力伺服（`g2_model.py`、`g2_controller.py`、`bio_g2_model.py`、`bio_g2_controller.py`）。
-- **运动学与规划**：正运动学、雅可比、阻尼最小二乘逆解、五次/LSPB/样条轨迹、笛卡尔直线、碰撞检测与 RRT-Connect（`kinematics.py`、`ik.py`、`trajectory.py`、`collision.py`、`path_planning.py`）。
+- **模型**：全部 5 款机械臂、5 款末端工具、4 款深度相机、相机支架、AI1500 六维力矩传感器（`ft_sensor`，附确定性 `200 Hz` `AI1500Reader`）、安装底板（`*_base_plate`），共计 65 套可用模型 —— `models/` 静态保存 24 套核心目录（19 套原子组件 + 5 套 `*_with_gripper` 任务主组合），其余 41 套长尾组合由 `compose.py` 基于 MuJoCo 4.x `MjSpec` 在运行时按需动态装配（同时支持自定义多配件叠加与 `ufactory-mujoco export-model` 静态导出）。视觉网格与多凸包碰撞体分离；Gripper G2 与 Bio Gripper G2 采用标定动力学与限速位置/力伺服（`g2.py`、`bio_g2.py`）。
+- **运动学与规划**：正运动学、雅可比、阻尼最小二乘逆解、五次/LSPB/样条轨迹、笛卡尔直线、碰撞检测与 RRT-Connect（`kinematics.py`、`trajectory.py`、`planning.py`）。
 - **动力学**：质量矩阵、重力/科氏力、正逆动力学、负载、五臂运动验收命令（`tasks/dynamics.py`），以及对齐 `ufactory_genesis` 的 Schema v4 真机静态力矩验证工具链（`dynamics/`，提供 `dynamics-sim-check`、`dynamics-sim-collision-check`、`dynamics-hardware-check`、`dynamics-report-compare`）。
 - **脚本化任务**：5 组机械臂/夹爪的方块抓放与装箱，含预检（关节限位、穿透、RRT-Connect 绕行）和 JSON 报告（`tasks/`、`preflight.py`）。
 - **真机**：`XArmRobot` 默认只读；运动需单机标定、控制器状态检查和 `--confirm-real`。`sdk-sim` 在控制器内置仿真中重放轨迹（`xarm_robot.py`、`calibration.py`、`safety.py`）。
@@ -36,7 +36,7 @@ python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose
 | `xarm7` | `gripper_g2`、`bio_gripper_g2`、`vacuum_gripper`、`ft_sensor`、`ft_sensor_and_gripper`、`ft_sensor_and_vacuum_gripper` | 配 `gripper_g2` | 支持 |
 | `uf850` | `gripper_g2`、`bio_gripper_g2`、`vacuum_gripper`、`ft_sensor`、`ft_sensor_and_gripper`、`ft_sensor_and_vacuum_gripper` | 配 `gripper_g2` | 支持 |
 
-仓库在 `models/` 下共内置 **65 套模型目录**：5 款裸臂、5 款独立末端工具、4 款深度相机（`d405`、`d435`、`gemini_305`、`zed_x_nano`）、5 套 `camera_stand*` 支架模型、13 套 `ft_sensor` 力矩传感器模型（独立 `ft_sensor` 与 `xarm5/6/7`、`uf850` 各自搭配裸传感器、Gripper G2 和吸盘的 12 套组合）、8 套安装底板模型（`{xarm,uf850,lite6}_base_plate` 与 5 套 `<机械臂>_with_base_plate`）、14 套机械臂 + 末端组合，以及 11 套机械臂 + 相机组合（`xarm6_with_gripper_and_<相机>` 以及 `xarm5/6/7`、`uf850` 的 `<机械臂>_with_d435` 与 `<机械臂>_with_gripper_and_d435`）。均可通过 `01_load_and_view.py --model <名称>` 加载，完整模型名与启动命令见 [examples/simulation/README_zh.md](examples/simulation/README_zh.md#4-按机型的命令)。
+本套件共提供 **65 套命名模型**，覆盖 5 款裸臂、5 款末端工具、4 款深度相机（`d405`、`d435`、`gemini_305`、`zed_x_nano`）、相机支架、AI1500 六维力矩传感器、安装底板（`{xarm,uf850,lite6}_base_plate`）及各类机械臂+配件组合：其中 `models/` 静态内置 **24 套模型目录**（19 套原子组件 + 5 套 `*_with_gripper` 任务主组合），其余 **41 套长尾组合** 由 `ufactory_mujoco.compose`（基于 MuJoCo `MjSpec`）在运行时按需动态装配，零重复 XML 与符号链接。所有模型均可直接通过 `01_load_and_view.py --model <名称>` 加载，也可通过 `ufactory-mujoco export-model <名称> --out-dir <目录>` 导出独立静态 MJCF；完整模型名与启动命令见 [examples/simulation/README_zh.md](examples/simulation/README_zh.md#4-按机型的命令)。
 
 ## 安装
 
@@ -82,6 +82,9 @@ pip uninstall -y mujoco && pip install "mujoco>=4,<5"
 ufactory-mujoco pick-place --robot xarm6 --headless
 ufactory-mujoco box-pack --robot lite6 --cycles 3 --headless
 ufactory-mujoco dynamics --robot all --headless --report reports/dynamics.json
+ufactory-mujoco export-model xarm6_with_ft_sensor_and_gripper --out-dir exported/xarm6_ft_g2
+ufactory-mujoco export-calibration <ROBOT_IP> --output-dir calibrations
+ufactory-mujoco kinematics-check --robot xarm6 --ip <ROBOT_IP> --calibration calibrations/xarm6_kinematics_<SN>.yaml
 ```
 
 - `python -m ufactory_mujoco <命令>` 与之等价；示例 `05`、`08`、`10` 运行的是同一份代码。
@@ -135,38 +138,33 @@ ruff check .                      # 与 CI 相同的静态检查（pip install r
 
 ```text
 calibrations/              单机运动学标定 YAML（绑定序列号并记录 SHA-256 指纹）
-configs/                   任务与验证配置：default.yaml、dynamics_validation_pose.yaml、
-                           pick_place/<机械臂>.yaml、box_pack/<机械臂>.yaml
-models/                    MJCF 模型与网格：机械臂、夹爪、相机、支架、力矩传感器、安装底板及组合；
-                           场景变体 scene、scene_pick_place、scene_box_pack、scene_obstacles
+configs/                   任务与验证配置：default.yaml（含各任务/机型预设）、dynamics_validation_pose.yaml
+models/                    24 套静态 MJCF 模型目录（19 套原子组件 + 5 套任务主组合 *_with_gripper）
+                           与 482 份规范网格；其余 41 套长尾组合由 compose.py 运行时动态装配
 ufactory_mujoco/
   sim_robot.py             SimRobot：物理步进、关节/TCP/夹爪/力矩传感器控制、查看器
   xarm_robot.py            XArmRobot：xArm 真机，未获运动授权时只读
   robot_interface.py       SimRobot 与 XArmRobot 的共同接口
-  robots.py                5 款机械臂注册表与兼容夹爪
-  config.py                严格 YAML 任务配置及其内容哈希
+  robots.py                资源根目录、模型路径解析、5 款机械臂注册表与兼容夹爪
+  compose.py               运行时 MjSpec 模型装配器、缓存解析与静态 XML 导出
+  config.py                严格 YAML 任务配置、预设加载与内容哈希
   calibration.py           单机标定、模型修补、TCP/法兰变换
   safety.py                真机安全门与 sdk-sim 重放
   kinematics_validation.py 与控制器的只读 FK/IK 比对
   ft_sensor.py             AI1500 六维力矩传感器 200 Hz 读取器与局部力矩加载辅助
-  g2_model.py              Gripper G2 连杆几何、夹持力表、SDK 单位换算
-  g2_controller.py         Gripper G2 向量化位置/力伺服
-  bio_g2_model.py          Bio Gripper G2 标定的开口、速度与夹持力模型
-  bio_g2_controller.py     Bio Gripper G2 限速位置/力伺服
+  g2.py                    Gripper G2 连杆模型、夹持力表与向量化位置/力伺服
+  bio_g2.py                Bio Gripper G2 标定模型与限速位置/力伺服
   grippers.py              夹爪规格、开口映射、指垫接触检测与接触力
-  preflight.py             抓放/装箱预检，含 RRT-Connect 绕行
-  task_geometry.py         任务与预检共用的抓取高度和姿态
-  ik.py, kinematics.py     DLS 逆解；正运动学、雅可比、可操作度
+  preflight.py             抓取几何与抓放/装箱预检，含 RRT-Connect 绕行
+  kinematics.py            正运动学、雅可比、可操作度与 DLS 逆解
   trajectory.py            JointTrajectory、五次/LSPB、样条、笛卡尔直线
+  planning.py              碰撞与间隙查询、RRT-Connect 与路径剪枝
   dynamics/                质量矩阵、重力/科氏力、正逆动力学、负载与 Schema v4 真机力矩验证工具链（`dynamics-*`）
-  collision.py             碰撞与间隙查询
-  path_planning.py         RRT-Connect 与路径剪枝
-  tasks/                   pick-place、box-pack、dynamics 命令
+  tasks/                   pick-place、box-pack、dynamics 命令（共用 _common.py）
   cli.py, __main__.py      `ufactory-mujoco` / `python -m ufactory_mujoco` 入口
   viewer.py                被动查看器，处理 Linux GLFW/X11
-  model_paths.py           资源根目录与模型名解析
 examples/simulation/       示例 01–11
-scripts/                   标定提取、发布包与安装检查
+scripts/                   发布包与隔离安装验收（`accept_installed.py`）
 tests/                     测试套件（pytest）
 ```
 

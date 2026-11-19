@@ -30,7 +30,7 @@ licenses/ (and in ufactory_mujoco/data/licenses/ in installed distributions).
    ufactory_lite6 / ufactory_xarm7 models are BSD-3-Clause (Copyright (c) 2018,
    UFACTORY Inc.).
 
-4. Depth Camera and Camera Bracket Models (models/{d405,d435,gemini_305,zed_x_nano,camera_stand}*)
+4. Depth Camera and Camera Bracket Models (models/{d405,d435,gemini_305,zed_x_nano,camera_stand} and composed assemblies)
    - RealSense D405 and D435 visual meshes are derived (split into housing and
      front optical-window STL parts) from realsense2_description in
      realsenseai/realsense-ros (https://github.com/realsenseai/realsense-ros),
@@ -42,14 +42,14 @@ licenses/ (and in ufactory_mujoco/data/licenses/ in installed distributions).
      decomposition) and mass="0" MJCF definitions are authored in this project
      for visual and mounting-clearance simulation only.
 
-5. 6-Axis Force/Torque Sensor Models (models/ft_sensor, models/*_with_ft_sensor*)
+5. 6-Axis Force/Torque Sensor Models (models/ft_sensor and composed *_with_ft_sensor* assemblies)
    - Derived from the published UFACTORY AI1500 3D STEP model
      (6 Axis Force Torque Sensor(AI1500)_20260413.STEP) and the derived
      visual meshes and convex collision hull from ufactory_robot_viewer,
      licensed under the BSD 3-Clause License (Copyright (c) 2026, UFACTORY
      Robot Viewer contributors; see licenses/ufactory_robot_viewer.LICENSE).
 
-6. Mounting Base Plate Models (models/*_base_plate, models/*_with_base_plate)
+6. Mounting Base Plate Models (models/*_base_plate and composed *_with_base_plate assemblies)
    - Visual STL meshes are tessellated from publicly published UFACTORY
      mechanical STEP files for the xArm series, UF850, and Lite 6 mounting
      plates; hole-filled convex collision prism STLs and static MJCF definitions

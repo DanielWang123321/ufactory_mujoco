@@ -12,16 +12,16 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
-from .bio_g2_controller import BioG2ControlOutput, BioGripperG2Controller, MuJoCoBioG2Adapter
-from .bio_g2_model import (
+from .bio_g2 import BioG2ControlOutput, BioGripperG2Controller, MuJoCoBioG2Adapter
+from .bio_g2 import (
     MAX_GAP_MM as BIO_G2_MAX_GAP_MM,
     MIN_GAP_MM as BIO_G2_MIN_GAP_MM,
     STROKE_PER_FINGER_M as BIO_G2_STROKE_M,
     q_to_gap as bio_g2_q_to_gap,
 )
 from .ft_sensor import AI1500Reader, SensorReading, has_ft_sensor
-from .g2_controller import ControlOutput, G2Controller
-from .g2_model import (
+from .g2 import ControlOutput, G2Controller
+from .g2 import (
     GRIPPER_G2_SIM_CLOSE_DRIVE,
     GRIPPER_G2_SIM_OPEN_DRIVE,
     G2Model,
@@ -41,9 +41,9 @@ from .grippers import (
     position_to_gap,
     require_bilateral_contact,
 )
-from .ik import solve_ik, solve_ik_trajectory
+from .kinematics import solve_ik, solve_ik_trajectory
 from .kinematics import fk_pose, manipulability, solve_joint_velocity
-from .model_paths import MODELS_ROOT
+from .robots import MODELS_ROOT
 from .robot_interface import RobotInterface
 from .trajectory import DEFAULT_MAX_ROT_VEL, JointTrajectory, plan_cartesian_line, plan_ptp_quintic
 from .viewer import PassiveViewer, configure_low_power_rendering

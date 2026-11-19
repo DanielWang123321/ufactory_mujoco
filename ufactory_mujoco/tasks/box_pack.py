@@ -19,15 +19,17 @@ import mujoco
 import numpy as np
 
 from ufactory_mujoco import SimRobot
-from ufactory_mujoco.model_paths import CONFIGS_ROOT
-from ufactory_mujoco.preflight import preflight_box_pack
-from ufactory_mujoco.task_geometry import (
-    GRIP_DOWN_QUAT, _close_until_contact, _cube_rest_z, box_task_heights, cube_box_margin,
+from ufactory_mujoco.preflight import (
+    GRIP_DOWN_QUAT,
+    _close_until_contact,
+    _cube_rest_z,
+    box_task_heights,
+    cube_box_margin,
+    preflight_box_pack,
 )
-from . import _motion
-from ._reporting import task_report, write_report
+from . import _common
+from ._common import manipulation_main, task_report, write_report
 
-PACK_CONFIGS = CONFIGS_ROOT / "box_pack"
 IN_BOX_TOL_M = 1e-3
 _REST_LIN_VEL = 2e-3
 _REST_ANG_VEL = 2e-2
@@ -66,7 +68,7 @@ def run_box_pack(robot: SimRobot, config, cycles: int = 1, *,
     if type(cycles) is not int or cycles <= 0:
         raise ValueError("cycles must be a positive integer")
     report = preflight_box_pack(robot, config, cycles)
-    _motion.print_phases(report)
+    _common.print_phases(report)
     if dry_run or not report.ok:
         write_report(report_path, task_report(report, config, dry_run, cycles))
         return report if dry_run else []
@@ -75,7 +77,7 @@ def run_box_pack(robot: SimRobot, config, cycles: int = 1, *,
     if robot.gripper_kind != "jaw":
         raise ValueError("Box-packing requires a jaw gripper")
     s = task.speed_scale
-    mover = _motion.Mover(robot, config.executor, task.cart_v_m_s * s, task.cart_a_m_s2 * s * s,
+    mover = _common.Mover(robot, config.executor, task.cart_v_m_s * s, task.cart_a_m_s2 * s * s,
                           np.deg2rad(90.0) * s, 3.5 * s)
     h, q_seed = box_task_heights(robot, task)
     n_arm = robot.n_arm
@@ -89,7 +91,7 @@ def run_box_pack(robot: SimRobot, config, cycles: int = 1, *,
         cube = f"cube_{i}"
         feed = np.asarray(task.feed_xy[i], dtype=float)
         drop = np.asarray(task.drop_xy[i], dtype=float)
-        _motion.set_cube(robot, cube, feed, "box-pack")
+        _common.set_cube(robot, cube, feed, "box-pack")
         cube_id = mujoco.mj_name2id(robot.model, mujoco.mjtObj.mjOBJ_BODY, cube)
         cube_z0 = _cube_rest_z(robot, cube)
         if viewer_closed():
@@ -193,12 +195,11 @@ def run_box_pack(robot: SimRobot, config, cycles: int = 1, *,
 def _load(robot: str | None, gripper: str | None, executor: str | None, config: str | None,
           speed: float | None):
     extra = {"box_pack": {"speed_scale": speed}} if speed is not None else None
-    return _motion.load_overlay(PACK_CONFIGS, robot, gripper, executor, config, extra)
+    return _common.load_overlay("box_pack", robot, gripper, executor, config, extra)
 
 
 def main(argv=None) -> None:
     """``ufactory-mujoco box-pack`` command line entry point."""
-    from ._command import manipulation_main
     raise SystemExit(manipulation_main("box-pack", argv))
 
 

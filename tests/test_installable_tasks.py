@@ -19,11 +19,10 @@ import mujoco
 
 from ufactory_mujoco import SimRobot
 from ufactory_mujoco.cli import main
-from ufactory_mujoco.config import load_task_config
-from ufactory_mujoco.model_paths import CONFIGS_ROOT
+from ufactory_mujoco.config import get_task_preset, load_task_config
 from ufactory_mujoco.preflight import PreflightReport
 from ufactory_mujoco.tasks import pick_place, box_pack
-from ufactory_mujoco.tasks._reporting import task_report
+from ufactory_mujoco.tasks._common import task_report
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -40,7 +39,8 @@ def exit_code(args):
 class CommandTests(unittest.TestCase):
     def test_help_and_unknown_commands(self):
         for args in (["--help"], ["pick-place", "--help"], ["box-pack", "--help"],
-                     ["dynamics", "--help"]):
+                     ["dynamics", "--help"], ["export-model", "--help"],
+                     ["export-calibration", "--help"], ["kinematics-check", "--help"]):
             with self.subTest(args=args):
                 self.assertEqual(exit_code(args), 0)
         for args in ([], ["unknown"], ["pick-place", "--bogus"]):
@@ -64,21 +64,27 @@ class CommandTests(unittest.TestCase):
             self.assertEqual(exit_code(["dynamics", "--robot", "all", "--mode", hw_mode]), 2)
 
     def test_config_and_robot_interaction_and_scene_mismatch_exit_code_2(self):
+        import yaml
+
         with tempfile.TemporaryDirectory(dir=ROOT) as tmp:
             minimal = Path(tmp) / "minimal.yaml"
             minimal.write_text("schema_version: 1\n", encoding="utf-8")
+            bp_xarm6 = Path(tmp) / "bp_xarm6.yaml"
+            bp_xarm6.write_text(yaml.safe_dump(get_task_preset("box_pack", "xarm6")), encoding="utf-8")
+            pp_xarm6 = Path(tmp) / "pp_xarm6.yaml"
+            pp_xarm6.write_text(yaml.safe_dump(get_task_preset("pick_place", "xarm6")), encoding="utf-8")
             # Without --robot, minimal overlay leaves scene='scene' -> ConfigError exit code 2
             self.assertEqual(exit_code(["pick-place", "--config", str(minimal), "--dry-run"]), 2)
             # Passing box_pack config to pick-place -> scene mismatch exit code 2
             self.assertEqual(
-                exit_code(["pick-place", "--config", str(CONFIGS_ROOT / "box_pack/xarm6.yaml"), "--dry-run"]),
+                exit_code(["pick-place", "--config", str(bp_xarm6), "--dry-run"]),
                 2,
             )
             # Conflicting --robot vs YAML robot -> ConfigError exit code 2
             self.assertEqual(
                 exit_code([
                     "pick-place", "--robot", "lite6",
-                    "--config", str(CONFIGS_ROOT / "pick_place/xarm6.yaml"), "--dry-run",
+                    "--config", str(pp_xarm6), "--dry-run",
                 ]),
                 2,
             )
@@ -130,7 +136,7 @@ class CommandTests(unittest.TestCase):
                 os.chdir(old_cwd)
 
     def test_preflight_failure_report_matches_exit(self):
-        config = load_task_config(CONFIGS_ROOT / "pick_place/xarm6.yaml")
+        config = load_task_config(preset=("pick_place", "xarm6"))
         config = replace(config, pick_place=replace(config.pick_place, target_xy=(9.0, 9.0)))
         with tempfile.TemporaryDirectory(dir=ROOT) as tmp:
             report = Path(tmp) / "failed.json"
@@ -150,7 +156,7 @@ class TaskPackagingTests(unittest.TestCase):
             for section, module in (("pick_place", pick_place), ("box_pack", box_pack)):
                 for arm in ("lite6", "xarm5", "xarm6", "xarm7", "uf850"):
                     with self.subTest(task=section, arm=arm):
-                        config = load_task_config(CONFIGS_ROOT / section / f"{arm}.yaml")
+                        config = load_task_config(preset=(section, arm))
                         with SimRobot(config.scene_path) as robot:
                             outcome = getattr(module, "run_" + section)(robot, config, dry_run=True)
                             self.assertEqual(robot.data.time, 0)

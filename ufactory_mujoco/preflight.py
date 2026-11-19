@@ -1,20 +1,24 @@
-"""Pick-and-place and box-packing preflight: joint limits, penetration checks, and detours.
+"""Pick-and-place and box-packing task geometry, preflight checks, and detours.
 
-Waypoint IK uses the robot's evaluation data and does not step physics.
-Expected table, cube, stand, and Lite6 finger-finger contacts are ignored.
-A straight arm segment that still hits another body is replaced by RRT-Connect.
+Waypoint IK and height probes use ``robot.eval_data`` and never step physics;
+``_close_until_contact`` steps the simulation while closing the gripper.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
+import mujoco
 import numpy as np
 
 from .calibration import apply_calibration_to_model
-from .collision import CollisionChecker
-from .path_planning import PlanningError, plan_collision_free
-from .task_geometry import tcp_task_heights, box_task_heights
+from .planning import CollisionChecker, PlanningError, plan_collision_free
+
+if TYPE_CHECKING:
+    from .sim_robot import SimRobot
+
+GRIP_DOWN_QUAT = np.array([0.0, 1.0, 0.0, 0.0])
 
 # Phase names are report data keys (approach, close/grasp, lift, transport, place/release,
 # return); they stay unchanged so existing reports and tooling keep matching.
@@ -24,6 +28,100 @@ _BOX_PACK_PREFIXES = ("cube", "feed_stand", "pick_stand", "place_stand")
 _BASE_BODIES = ("link_base", "xarm_base_plate", "uf850_base_plate", "lite6_base_plate")
 _FINGER_PAIR = ("uflite_finger1", "uflite_finger2")
 _CHECK_RES = 0.02
+
+
+def _close_until_contact(robot, object_body: str, gap_m: float) -> float:
+    """Command ``gap_m``, then shrink it until both pads touch. Do not lift otherwise."""
+    spec = getattr(robot, "_gripper_spec", None)
+    min_gap = float(spec.closed_gap_m) if spec is not None else 0.0
+    gap = gap_m
+    robot.set_gripper_gap(gap)
+    robot.settle(2.0)
+    robot.settle(0.5)
+    while not robot.bilateral_finger_contact(object_body) and gap > min_gap:
+        gap = max(min_gap, gap - 0.002)
+        robot.set_gripper_gap(gap)
+        robot.settle(0.3)
+    robot.require_bilateral_contact(object_body)
+    return gap
+
+
+def _flange_tcp_offset(robot: SimRobot, x: float, y: float, lift_z: float) -> tuple[float, np.ndarray]:
+    """Solve a grip-down pose above ``(x, y)`` and return the TCP-minus-flange z offset and its joints."""
+    q_seed, ok = robot.solve_tcp([x, y, lift_z + 0.15], GRIP_DOWN_QUAT, q_init=robot.model.qpos0.copy())
+    if not ok:
+        raise RuntimeError("IK failed while reaching the seed pose")
+    q, ok = robot.solve_tcp([x, y, lift_z], GRIP_DOWN_QUAT, q_init=q_seed)
+    if not ok:
+        raise RuntimeError("IK failed while measuring the flange->TCP offset")
+    robot.eval_data.qpos[:] = q
+    mujoco.mj_forward(robot.model, robot.eval_data)
+    site_id = robot._site
+    z_axis = robot.eval_data.site_xmat[site_id].reshape(3, 3)[:, 2]
+    if float(z_axis @ np.array([0.0, 0.0, -1.0])) < 0.999:
+        raise RuntimeError(f"TCP is not gripper-down (site z-axis {z_axis})")
+    tcp_z = float(robot.eval_data.site_xpos[site_id][2])
+    link_name = f"link{robot.n_arm}"
+    link_id = mujoco.mj_name2id(robot.model, mujoco.mjtObj.mjOBJ_BODY, link_name)
+    flange_z = float(robot.eval_data.body(link_id).xpos[2])
+    return tcp_z - flange_z, q
+
+
+def _deploy_pose(robot: SimRobot, x: float, y: float, lift_z: float, q: np.ndarray) -> np.ndarray:
+    """Joint pose with the TCP at ``(x, y, lift_z)``, seeded from ``q``."""
+    q_home, ok = robot.solve_tcp([x, y, lift_z], GRIP_DOWN_QUAT, q_init=q)
+    if not ok:
+        raise RuntimeError("IK failed while solving the deployment pose")
+    return q_home
+
+
+def tcp_task_heights(robot: SimRobot, task) -> tuple[dict[str, float], np.ndarray]:
+    """Flange-frame task heights shifted by the measured flange-to-TCP offset."""
+    cube_x, cube_y = task.cube_xy
+    off, q = _flange_tcp_offset(robot, cube_x, cube_y, task.lift_z_m)
+    heights = {
+        "grasp_z": task.flange_grasp_z_m + off,
+        "pre_grasp_z": task.flange_grasp_z_m + task.approach_m + off,
+        "lift_z": task.lift_z_m + off,
+    }
+    return heights, _deploy_pose(robot, cube_x, cube_y, heights["lift_z"], q)
+
+
+def _cube_rest_z(robot: SimRobot, cube_name: str = "cube_0") -> float:
+    joint_id = mujoco.mj_name2id(robot.model, mujoco.mjtObj.mjOBJ_JOINT, cube_name)
+    if joint_id < 0:
+        raise ValueError(f"Scene has no {cube_name!r} joint; load a box-pack scene")
+    return float(robot.model.qpos0[int(robot.model.jnt_qposadr[joint_id]) + 2])
+
+
+def box_task_heights(robot: SimRobot, task) -> tuple[dict[str, float], np.ndarray]:
+    """Flange-frame task heights shifted by the measured flange-to-TCP offset."""
+    cx, cy = task.box_center_xy
+    off, q = _flange_tcp_offset(robot, cx, cy, task.lift_z_m)
+    grasp_z = task.flange_grasp_z_m + off
+    heights = {
+        "grasp_z": grasp_z,
+        "pre_grasp_z": grasp_z + task.approach_m,
+        "lift_z": task.lift_z_m + off,
+        "release_z": (task.box_rim_z_m + task.release_above_rim_m + task.cube_half_m
+                      + (grasp_z - _cube_rest_z(robot))),
+    }
+    return heights, _deploy_pose(robot, cx, cy, heights["lift_z"], q)
+
+
+def cube_box_margin(task, pos: np.ndarray, quat: np.ndarray) -> float:
+    """Signed clearance (m) of the cube's collision bounds inside the box."""
+    rot = np.empty(9)
+    mujoco.mju_quat2Mat(rot, np.asarray(quat, dtype=float))
+    ext = np.abs(rot.reshape(3, 3)) @ np.full(3, task.cube_half_m)
+    cx, cy = task.box_center_xy
+    hx, hy = task.box_inner_half_xy
+    return min(
+        hx - (abs(pos[0] - cx) + ext[0]),
+        hy - (abs(pos[1] - cy) + ext[1]),
+        (pos[2] - ext[2]) - task.box_floor_m,
+        task.box_rim_z_m - (pos[2] + ext[2]),
+    )
 
 
 @dataclass
@@ -78,11 +176,7 @@ def _segment_blocked(checker: CollisionChecker, q0: np.ndarray, q1: np.ndarray) 
 
 def plan_segment(q0: np.ndarray, q1: np.ndarray, checker: CollisionChecker, *,
                  seed: int = 0) -> tuple[np.ndarray, str | None]:
-    """Return arm waypoints and a failure reason.
-
-    A free straight line is the two endpoints. A blocked segment is replaced
-    by RRT-Connect. Limit violations and a penetrating endpoint fail closed.
-    """
+    """Return arm waypoints and a failure reason."""
     q0 = np.asarray(q0, dtype=float).reshape(-1)
     q1 = np.asarray(q1, dtype=float).reshape(-1)
     ends = np.vstack((q0, q1))
@@ -100,14 +194,12 @@ def plan_segment(q0: np.ndarray, q1: np.ndarray, checker: CollisionChecker, *,
 
 
 def _finger_pairs(names: set[str]) -> list[tuple[str, str]]:
-    # Finger-finger is a pair, not a body to drop entirely.
     if all(name in names for name in _FINGER_PAIR):
         return [_FINGER_PAIR]
     return []
 
 
 def _base_world_pairs(names: set[str]) -> list[tuple[str, str]]:
-    # Only the mounting base may touch the floor; arm links and grippers must not penetrate z=0.
     return [(base_name, "world") for base_name in _BASE_BODIES if base_name in names]
 
 
@@ -134,12 +226,8 @@ def make_box_pack_checker(scene) -> CollisionChecker:
     )
 
 
-def _grip_down() -> np.ndarray:
-    return np.array([0.0, 1.0, 0.0, 0.0])
-
-
 def _ik_full(robot, pos: np.ndarray, q_init: np.ndarray) -> np.ndarray | None:
-    q, ok = robot.solve_tcp(pos, _grip_down(), q_init=q_init)
+    q, ok = robot.solve_tcp(pos, GRIP_DOWN_QUAT, q_init=q_init)
     if not ok:
         return None
     return np.asarray(q, dtype=float)
@@ -258,7 +346,6 @@ def preflight_box_pack(robot, config, cycles: int = 1) -> PreflightReport:
     calib = getattr(robot, "calibration", None)
     if calib is not None:
         apply_calibration_to_model(checker.model, calib, checker.data)
-    # An unreachable probe point fails every phase instead of raising.
     try:
         heights, q_home_full = box_task_heights(robot, task)
     except RuntimeError:

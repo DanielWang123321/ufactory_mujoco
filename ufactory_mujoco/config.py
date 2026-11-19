@@ -1,4 +1,4 @@
-"""Strict task configuration: defaults, overlay, and a stable content hash."""
+"""Strict task configuration: defaults, built-in presets, overlay, and a stable content hash."""
 
 from __future__ import annotations
 
@@ -12,8 +12,7 @@ from typing import Any, Mapping
 
 import yaml
 
-from .model_paths import CONFIGS_ROOT
-from .robots import resolve_arm_scene
+from .robots import CONFIGS_ROOT, resolve_arm_scene
 
 DEFAULT_CONFIG_PATH = CONFIGS_ROOT / "default.yaml"
 EXECUTORS = ("servo_cartesian", "servo_j")
@@ -104,6 +103,36 @@ def _read_yaml(path: Path) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raise ConfigError(f"config root must be a mapping: {path}")
     return raw
+
+
+def _read_defaults_and_presets() -> tuple[dict[str, Any], dict[str, dict[str, dict[str, Any]]]]:
+    raw = _read_yaml(DEFAULT_CONFIG_PATH)
+    presets = raw.pop("presets", {})
+    if not isinstance(presets, dict):
+        raise ConfigError(f"presets in {DEFAULT_CONFIG_PATH} must be a mapping")
+    return raw, presets
+
+
+def get_task_preset(task: str, robot: str) -> dict[str, Any]:
+    """Return a copy of the built-in preset overlay for ``(task, robot)``."""
+    _, presets = _read_defaults_and_presets()
+    task_map = presets.get(task)
+    if not isinstance(task_map, dict) or robot not in task_map:
+        raise ConfigError(f"unknown task preset: {task}/{robot}")
+    entry = task_map[robot]
+    if not isinstance(entry, dict):
+        raise ConfigError(f"preset {task}/{robot} must be a mapping")
+    return dict(entry)
+
+
+def list_task_presets() -> dict[str, tuple[str, ...]]:
+    """Return ``{task: (robot, ...)}`` for all built-in presets in ``configs/default.yaml``."""
+    _, presets = _read_defaults_and_presets()
+    return {
+        str(task): tuple(sorted(robots.keys()))
+        for task, robots in presets.items()
+        if isinstance(robots, dict)
+    }
 
 
 def _merge_strict(base: dict[str, Any], overlay: Mapping[str, Any], *, path: str = "") -> None:
@@ -238,10 +267,24 @@ def _box_pack_payload(task: BoxPackConfig) -> dict[str, Any]:
 def load_task_config(
     overlay: str | Path | Sequence[str | Path] | None = None,
     overrides: Mapping[str, Any] | None = None,
+    *,
+    preset: tuple[str, str] | str | None = None,
 ) -> TaskConfig:
-    """Load configs/default.yaml and apply one or more strict partial overlays."""
-    base = _read_yaml(DEFAULT_CONFIG_PATH)
+    """Load ``configs/default.yaml`` and apply an optional built-in preset and strict overlays."""
+    base, presets = _read_defaults_and_presets()
     sources = [str(DEFAULT_CONFIG_PATH)]
+    if preset is not None:
+        if isinstance(preset, str):
+            task, sep, robot = preset.partition("/")
+            if not sep:
+                raise ConfigError(f"invalid preset {preset!r}; expected 'task/robot'")
+        else:
+            task, robot = preset
+        task_map = presets.get(task)
+        if not isinstance(task_map, dict) or robot not in task_map:
+            raise ConfigError(f"unknown task preset: {task}/{robot}")
+        _merge_strict(base, task_map[robot])
+        sources.append(f"preset:{task}/{robot}")
     if overlay is not None:
         overlay_paths = [Path(overlay)] if isinstance(overlay, str | Path) else [Path(p) for p in overlay]
         for overlay_path in overlay_paths:

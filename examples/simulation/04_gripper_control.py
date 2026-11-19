@@ -32,7 +32,7 @@ import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
 
 from ufactory_mujoco import SimRobot  # noqa: E402
-from ufactory_mujoco.model_paths import resolve_model_path  # noqa: E402
+from ufactory_mujoco.robots import resolve_model_path  # noqa: E402
 
 
 def _positive_int(value: str) -> int:

@@ -25,15 +25,15 @@ from .analysis import (
     summarize_static_layers,
     validate_mjcf_dynamics,
 )
-from .plot import write_torque_plot
-from .poses import (
+from .report import write_torque_plot
+from .profiles import (
     check_joint_limit_path,
     dynamics_default_configs,
     filter_safe_configs,
     merge_test_configs,
     parse_joint_limits,
 )
-from .probe import (
+from .backends import (
     build_mujoco_scene,
     check_mujoco_path_safety,
     compute_ee_z_table_from_sim,
@@ -41,7 +41,7 @@ from .probe import (
     mujoco_pd_hold_torque_at_q,
     read_joint_frictionloss,
 )
-from .reference import load_reference_backend
+from .backends import load_reference_backend
 from .report import (
     DEFAULT_REPORT_ROOT,
     DynamicsSample,
@@ -57,7 +57,7 @@ from .report import (
     write_csv_report,
     write_jsonl_report,
 )
-from .runtime import (
+from .profiles import (
     RobotRuntimeProfile,
     get_robot_runtime_profile,
     robot_runtime_cli_choices,
@@ -75,7 +75,7 @@ from ..calibration import (
     validate_ipv4_address,
 )
 from ..ft_sensor import is_hardware_ft_sensor_enabled, read_hardware_ft_sensor
-from ..model_paths import RESOURCE_ROOT
+from ..robots import RESOURCE_ROOT
 
 DEFAULT_CALIBRATIONS_DIR = Path("calibrations")
 DEFAULT_KINEMATICS_SUFFIX_ENV = "XARM_KINEMATICS_SUFFIX"

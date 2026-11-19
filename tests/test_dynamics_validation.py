@@ -16,7 +16,7 @@ from unittest.mock import Mock, patch
 import mujoco
 import numpy as np
 
-from ufactory_mujoco.collision import CollisionChecker
+from ufactory_mujoco.planning import CollisionChecker
 from ufactory_mujoco.dynamics import ArmDynamics
 from ufactory_mujoco.robots import ARMS, resolve_arm_scene
 from ufactory_mujoco.sim_robot import SimRobot

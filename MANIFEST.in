@@ -1,4 +1,3 @@
-include _build_support.py
 include NOTICE
 recursive-include licenses *
 recursive-include ufactory_mujoco/data *

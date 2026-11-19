@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 import mujoco
 import numpy as np
 
-from .reference import armature_aligned_mass
+from .backends import armature_aligned_mass
 from .report import (
     L2_ERR_LIMIT,
     POS_ERR_TOL,
@@ -24,10 +24,10 @@ from .report import (
     _abs_err_limits,
     _effort_limits,
 )
-from .runtime import get_robot_runtime_profile
+from .profiles import get_robot_runtime_profile
 
 if TYPE_CHECKING:
-    from .runtime import RobotRuntimeProfile
+    from .profiles import RobotRuntimeProfile
 
 LAYER_L2A = "L2a"
 LAYER_L2B = "L2b"

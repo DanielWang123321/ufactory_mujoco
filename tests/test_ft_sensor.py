@@ -25,8 +25,9 @@ from ufactory_mujoco import (
     read_hardware_ft_sensor,
     read_hardware_ft_sensor_config,
 )
+from ufactory_mujoco.compose import is_composed_model
 from ufactory_mujoco.ft_sensor import EXT_NOISE_STD, RAW_NOISE_STD
-from ufactory_mujoco.model_paths import MODELS_ROOT, resolve_model_path
+from ufactory_mujoco.robots import MODELS_ROOT, resolve_model_path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEV_SOURCES = REPO_ROOT / "dev" / "asserts" / "ai1500" / "sources"
@@ -125,14 +126,16 @@ def test_source_hashes_and_visual_objs_when_dev_present():
 @pytest.mark.parametrize("name", ALL_FT_MODELS)
 def test_mjcf_authoring_and_scene_step_contracts(name):
     """Verify XML conventions, 1 ms timestep, zero warnings, and clean simulation."""
-    xml_path = MODELS_ROOT / name / f"{name}.xml"
+    xml_path = resolve_model_path(name, scene=False)
     root = ET.parse(xml_path).getroot()
     compiler = root.find("compiler")
-    assert compiler is not None and compiler.get("meshdir") == "assets"
+    assert compiler is not None
+    if not is_composed_model(name):
+        assert compiler.get("meshdir") == "assets"
     for mesh_el in root.findall("./asset/mesh"):
         file_attr = mesh_el.get("file", "")
         assert not file_attr.startswith("..")
-        if file_attr.endswith(".obj") and file_attr.startswith("ft_sensor/visual/"):
+        if file_attr.endswith(".obj") and "ft_sensor/visual/" in file_attr:
             assert mesh_el.get("inertia") == "shell"
 
     model = mujoco.MjModel.from_xml_path(str(resolve_model_path(name)))
@@ -170,8 +173,8 @@ def test_assembly_preserves_arm_tool_and_offsets_tcp(robot, tool):
     """Mounted sensor preserves upstream kinematics/actuators and shifts TCP +58.6 mm along flange +Z."""
     base_name = robot + BASE_SUFFIX[tool]
     combo_name = robot + COMBO_SUFFIX[tool]
-    source = mujoco.MjModel.from_xml_path(str(MODELS_ROOT / base_name / f"{base_name}.xml"))
-    target = mujoco.MjModel.from_xml_path(str(MODELS_ROOT / combo_name / f"{combo_name}.xml"))
+    source = mujoco.MjModel.from_xml_path(str(resolve_model_path(base_name, scene=False)))
+    target = mujoco.MjModel.from_xml_path(str(resolve_model_path(combo_name, scene=False)))
 
     assert (target.nq, target.nv, target.nu, target.njnt, target.neq) == (
         source.nq,
@@ -201,7 +204,7 @@ def test_assembly_preserves_arm_tool_and_offsets_tcp(robot, tool):
     if tool == "none":
         # Bare arm+sensor assemblies use the vacuum-gripper elevated ready/home keyframes.
         vg_name = f"{robot}_with_vacuum_gripper"
-        pose_ref = mujoco.MjModel.from_xml_path(str(MODELS_ROOT / vg_name / f"{vg_name}.xml"))
+        pose_ref = mujoco.MjModel.from_xml_path(str(resolve_model_path(vg_name, scene=False)))
     else:
         pose_ref = source
 
@@ -463,7 +466,7 @@ def test_clear_ft_sensor_wrench_zeros_applied_load():
 
 
 def test_two_body_split_preserves_mass_matrix_and_gravity_bias():
-    xml_path = MODELS_ROOT / "xarm6_with_ft_sensor" / "xarm6_with_ft_sensor.xml"
+    xml_path = resolve_model_path("xarm6_with_ft_sensor", scene=False)
     m_split = mujoco.MjModel.from_xml_path(str(xml_path))
     d_split = mujoco.MjData(m_split)
 

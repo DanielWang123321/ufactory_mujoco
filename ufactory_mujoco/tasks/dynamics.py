@@ -20,12 +20,10 @@ import mujoco
 import numpy as np
 
 from ufactory_mujoco.calibration import apply_calibration_to_model
-from ufactory_mujoco.collision import CollisionChecker
-from ufactory_mujoco.dynamics import ArmDynamics
-from ufactory_mujoco.dynamics.runtime import MAX_DYNAMICS_MOVE_SPEED_RAD_S
+from ufactory_mujoco.dynamics import ArmDynamics, MAX_DYNAMICS_MOVE_SPEED_RAD_S
 from ufactory_mujoco.ft_sensor import has_ft_sensor, is_hardware_ft_sensor_enabled
-from ufactory_mujoco.model_paths import MODELS_ROOT
-from ufactory_mujoco.robots import ARMS, resolve_arm_scene
+from ufactory_mujoco.planning import CollisionChecker
+from ufactory_mujoco.robots import ARMS, MODELS_ROOT, resolve_arm_scene
 from ufactory_mujoco.safety import (
     SafetyGateError,
     authorize_real_motion,
@@ -35,7 +33,7 @@ from ufactory_mujoco.safety import (
 from ufactory_mujoco.sim_robot import SimRobot, _quintic
 from ufactory_mujoco.trajectory import plan_ptp_quintic
 from ufactory_mujoco.xarm_robot import XArmRobot
-from ._reporting import write_report
+from ._common import write_report
 
 # Report format identifier written to every JSON report; kept stable for report consumers.
 VALIDATION_VERSION = "batch6-v1"

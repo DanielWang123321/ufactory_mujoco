@@ -21,7 +21,7 @@ from .calibration import (
     load_kinematics_calibration,
     read_tcp_offset,
 )
-from .collision import CollisionChecker
+from .planning import CollisionChecker
 from .kinematics import fk_pose
 from .robots import ARMS
 

@@ -10,15 +10,15 @@ Requires Python **3.12–3.14** and the core install (see the [installation guid
 
 | Script | Core Module(s) | Supported Models | Description |
 | :--- | :--- | :--- | :--- |
-| `01_load_and_view.py` | `ufactory_mujoco.viewer`, `ufactory_mujoco.model_paths` | All 65 models (arms, grippers, cameras, brackets, F/T sensor, base plates & combos) | Load MJCF scene at `home` or `ready` keyframe in the interactive viewer |
+| `01_load_and_view.py` | `ufactory_mujoco.viewer`, `ufactory_mujoco.robots`, `ufactory_mujoco.compose` | All 65 models (24 static + 41 composed: arms, grippers, cameras, brackets, F/T sensor, base plates & combos) | Load MJCF scene at `home` or `ready` keyframe in the interactive viewer |
 | `02_joint_control.py` | `ufactory_mujoco.sim_robot` | All 47 arm & combination models | Speed-based quintic joint interpolation (`xarm6` runs 20 dynamics poses by default) |
-| `03_cartesian_ik.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.ik` | `xarm6` | Cartesian straight-line (`move_tcp`) and X-Z circle tracking via DLS IK |
-| `04_gripper_control.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.g2_controller`, `ufactory_mujoco.bio_g2_controller` | 23 jaw-gripper models (standalone & combos) | Cycle `close (1.0) -> open (0.0) -> half (0.5) -> open (0.0)`; G2 and Bio G2 support `--speed-percent` & `--force-percent` |
+| `03_cartesian_ik.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.kinematics` | `xarm6` | Cartesian straight-line (`move_tcp`) and X-Z circle tracking via DLS IK |
+| `04_gripper_control.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.g2`, `ufactory_mujoco.bio_g2` | 23 jaw-gripper models (standalone & combos) | Cycle `close (1.0) -> open (0.0) -> half (0.5) -> open (0.0)`; G2 and Bio G2 support `--speed-percent` & `--force-percent` |
 | `05_pick_place.py` | `ufactory_mujoco.tasks.pick_place`, `ufactory_mujoco.sim_robot`, `ufactory_mujoco.preflight` | Five arm+gripper task combos | Cube pick-and-place with bilateral contact check & preflight (`place_error < 50 mm`, `home_drift < 10 mm`) |
 | `06_trajectory_planning.py` | `ufactory_mujoco.trajectory`, `ufactory_mujoco.dynamics` | `xarm6` | Analytical PTP quintic, C2 multi-waypoint spline, Cartesian SLERP line & feedforward torques |
 | `07_kinematics.py` | `ufactory_mujoco.kinematics` | `xarm6` | Per-site FK, analytical vs finite-difference Jacobian, velocity-level DLS IK, manipulability |
-| `08_dynamics.py` | `ufactory_mujoco.tasks.dynamics`, `ufactory_mujoco.dynamics`, `ufactory_mujoco.collision` | All five bare arms | Dynamics, fixed collision fixtures, command preflight & monitored motion; xArm6 3 kg payload regression |
-| `09_obstacle_avoidance.py` | `ufactory_mujoco.collision`, `ufactory_mujoco.path_planning` | `xarm6` (`scene_obstacles.xml`) | RRT-Connect + shortcutting + spline/quintic time parameterization around pillar & board |
+| `08_dynamics.py` | `ufactory_mujoco.tasks.dynamics`, `ufactory_mujoco.dynamics`, `ufactory_mujoco.planning` | All five bare arms | Dynamics, fixed collision fixtures, command preflight & monitored motion; xArm6 3 kg payload regression |
+| `09_obstacle_avoidance.py` | `ufactory_mujoco.planning` | `xarm6` (`scene_obstacles.xml`) | RRT-Connect + shortcutting + spline/quintic time parameterization around pillar & board |
 | `10_box_pack.py` | `ufactory_mujoco.tasks.box_pack`, `ufactory_mujoco.sim_robot`, `ufactory_mujoco.preflight` | Five arm+gripper task combos | Box-packing showcase: cubes released 50 mm above the rim free-fall into the box (1 mm tolerance); multi-cycle & speed multiplier |
 | `11_force_torque_sensor.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.xarm_robot`, `ufactory_mujoco.ft_sensor` | All 13 `ft_sensor` models (`ft_sensor` & xArm/UF850 combos) or live hardware (`--ip`) | Verify dual `raw`/`ext` `200 Hz` `fp32` channels (`+applied` polarity) in sim, or read-only sample a live AI1500 sensor |
 
@@ -146,10 +146,10 @@ Hardware modes require `xarm-python-sdk` (`pip install xarm-python-sdk`), which 
 
 ```bash
 # 1. Extract the per-unit calibration YAML (calibrations/<arm>_kinematics_<SN>.yaml)
-python -m ufactory_mujoco.dynamics export-calibration 192.168.1.60 --output-dir calibrations
+ufactory-mujoco export-calibration 192.168.1.60 --output-dir calibrations
 
 # 2. Read-only FK/IK comparison and zero-motion static dynamics checks
-python -m ufactory_mujoco.kinematics_validation --robot xarm6 --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
+ufactory-mujoco kinematics-check --robot xarm6 --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
 python examples/simulation/08_dynamics.py --robot xarm6 --mode real-read-only --ip 192.168.1.60 --calibration calibrations/xarm6_kinematics_<SN>.yaml
 dynamics-hardware-check --robot lite6 --ip 192.168.1.60 --hold-current-only --require-reference
 
@@ -175,7 +175,7 @@ dynamics-report-compare reports/dyn_ver_<SN>/<old>.jsonl reports/dyn_ver_<SN>/<n
 | `--robot <arm>` | `05`, `08`, `10` | `xarm6` | Arm key (`lite6`, `xarm5`, `xarm6`, `xarm7`, `uf850`); `08` (`--mode sim`) also accepts `all` |
 | `--gripper <name>` | `05`, `08`, `10` | `None` (`05`/`10`: from YAML) | Override task gripper (`05`/`10`) or specify mounted end effector for `08` hardware collision preflight |
 | `--executor <mode>` | `05`, `10` | `servo_cartesian` | Trajectory executor: `servo_cartesian` or `servo_j` |
-| `--config <path>` | `05`, `10` | `configs/<task>/<robot>.yaml` | Custom task overlay YAML path |
+| `--config <path>` | `05`, `10` | `configs/default.yaml` (`presets.<task>.<robot>`) | Custom task overlay YAML path |
 | `--mode <mode>` | `05`, `08`, `10` | `sim` | Execution mode: `sim`, `dry-run` (`05`/`10`), `real-read-only` (`08`), `sdk-sim`, or `real` |
 | `--dry-run` | `05`, `10` | `False` | Run joint-limit/collision preflight only without stepping physics |
 | `--cycles <N>` | `05`, `10` | `1` | Number of cycles (`10`: `1..3`; `sdk-sim`/`real` enforce `1`) |
@@ -232,7 +232,7 @@ Examples `03` and `07` accept only `--headless`.
 
 `<arm>_with_gripper` mounts Gripper G2 (the Lite 6 gripper on Lite 6). `<camera>` is `d405`, `d435`, `gemini_305` or `zed_x_nano`.
 
-Model applicability across scripts (`65` model directories in total):
+Model applicability across scripts (`65` named models in total: `24` static directories under `models/` + `41` runtime `MjSpec`-composed assemblies; run `ufactory-mujoco export-model --list` or `ufactory-mujoco export-model <name> --out-dir <dir>` to export standalone MJCF files for MuJoCo `simulate`):
 
 - `01_load_and_view.py`: all `65` models (bare arms, combinations, standalone tools/cameras/brackets/F/T sensor/base plates).
 - `02_joint_control.py`: all `47` models with an arm (`5` bare arms + `42` arm combinations).

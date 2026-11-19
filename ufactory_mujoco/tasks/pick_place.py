@@ -18,13 +18,9 @@ import mujoco
 import numpy as np
 
 from ufactory_mujoco import SimRobot
-from ufactory_mujoco.model_paths import CONFIGS_ROOT
-from ufactory_mujoco.preflight import preflight_pick_place
-from ufactory_mujoco.task_geometry import _close_until_contact, tcp_task_heights
-from . import _motion
-from ._reporting import task_report, write_report
-
-PICK_CONFIGS = CONFIGS_ROOT / "pick_place"
+from ufactory_mujoco.preflight import _close_until_contact, preflight_pick_place, tcp_task_heights
+from . import _common
+from ._common import manipulation_main, task_report, write_report
 
 
 def run_pick_place(robot: SimRobot, config, cycles: int = 1, *,
@@ -36,7 +32,7 @@ def run_pick_place(robot: SimRobot, config, cycles: int = 1, *,
     if type(cycles) is not int or cycles <= 0:
         raise ValueError("cycles must be a positive integer")
     report = preflight_pick_place(robot, config)
-    _motion.print_phases(report)
+    _common.print_phases(report)
     if dry_run or not report.ok:
         write_report(report_path, task_report(report, config, dry_run, cycles))
         return report if dry_run else []
@@ -47,10 +43,10 @@ def run_pick_place(robot: SimRobot, config, cycles: int = 1, *,
         raise ValueError("Scene has no 'cube' body; load a pick-place scene")
     if robot.gripper_kind != "jaw":
         raise ValueError("Pick-and-place requires a jaw gripper")
-    mover = _motion.Mover(robot, config.executor, task.cart_v_m_s, task.cart_a_m_s2,
+    mover = _common.Mover(robot, config.executor, task.cart_v_m_s, task.cart_a_m_s2,
                           np.deg2rad(90.0), 3.5)
 
-    _motion.set_cube(robot, "cube", task.cube_xy, "pick-place")
+    _common.set_cube(robot, "cube", task.cube_xy, "pick-place")
     h, q_seed = tcp_task_heights(robot, task)
     cube_joint = mujoco.mj_name2id(robot.model, mujoco.mjtObj.mjOBJ_JOINT, "cube")
     cube_z = float(robot.data.qpos[int(robot.model.jnt_qposadr[cube_joint]) + 2])
@@ -144,12 +140,11 @@ def run_pick_place(robot: SimRobot, config, cycles: int = 1, *,
 
 
 def _load(robot: str | None, gripper: str | None, executor: str | None, config: str | None):
-    return _motion.load_overlay(PICK_CONFIGS, robot, gripper, executor, config)
+    return _common.load_overlay("pick_place", robot, gripper, executor, config)
 
 
 def main(argv=None) -> None:
     """``ufactory-mujoco pick-place`` command line entry point."""
-    from ._command import manipulation_main
     raise SystemExit(manipulation_main("pick-place", argv))
 
 

@@ -26,7 +26,7 @@ import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
 
 from ufactory_mujoco import SimRobot, fk_pose, pose_jacobian, quat_error  # noqa: E402
-from ufactory_mujoco.model_paths import MODELS_ROOT  # noqa: E402
+from ufactory_mujoco.robots import MODELS_ROOT  # noqa: E402
 
 SCENE = MODELS_ROOT / "xarm6" / "scene.xml"
 SITE = "attachment_site"

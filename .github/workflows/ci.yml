@@ -45,22 +45,26 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-lock.txt -e ".[test]"
           python -c "import mujoco; print('MuJoCo', mujoco.__version__); assert mujoco.__version__.startswith('4.')"
-      - name: Compile all MJCF XML models (zero warnings)
+      - name: Compile all static and composed MJCF models (zero warnings)
         run: |
           python - <<'PY'
           from pathlib import Path
           import sys
           import warnings
           import mujoco
+          from ufactory_mujoco.compose import COMPOSED_MODELS, compose_model
 
           xmls = sorted(Path("models").glob("*/*.xml"))
-          assert len(xmls) >= 141, f"expected >= 141 XML files, got {len(xmls)}"
+          assert len(xmls) >= 59, f"expected >= 59 static XML files, got {len(xmls)}"
+          assert len(COMPOSED_MODELS) >= 41, f"expected >= 41 composed models, got {len(COMPOSED_MODELS)}"
           bad = []
-          for xml in xmls:
+          def check(label, loader):
               with warnings.catch_warnings(record=True) as caught:
                   warnings.simplefilter("always")
-                  m = mujoco.MjModel.from_xml_path(str(xml))
+                  m = loader()
                   d = mujoco.MjData(m)
+                  if m.nkey > 0:
+                      mujoco.mj_resetDataKeyframe(m, d, 0)
                   mujoco.mj_forward(m, d)
                   w = [str(x.message) for x in caught] + [
                       f"{mujoco.mjtWarning(i).name}x{d.warning[i].number}"
@@ -68,11 +72,15 @@ jobs:
                       if d.warning[i].number
                   ]
                   if w:
-                      bad.append(f"{xml}: {w}")
+                      bad.append(f"{label}: {w}")
+          for xml in xmls:
+              check(str(xml), lambda p=xml: mujoco.MjModel.from_xml_path(str(p)))
+          for name in COMPOSED_MODELS:
+              check(f"composed:{name}", lambda n=name: compose_model(n, scene=True))
           if bad:
               print("\n".join(bad), file=sys.stderr)
               sys.exit(1)
-          print(f"Compiled {len(xmls)} MJCF XML files with 0 warnings.")
+          print(f"Compiled {len(xmls)} static XML files + {len(COMPOSED_MODELS)} composed models with 0 warnings.")
           PY
       - name: Unit tests (headless)
         run: |

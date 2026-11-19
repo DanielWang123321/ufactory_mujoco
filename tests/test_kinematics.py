@@ -10,7 +10,7 @@ import mujoco
 import numpy as np
 
 from ufactory_mujoco import SimRobot
-from ufactory_mujoco.ik import solve_ik
+from ufactory_mujoco.kinematics import solve_ik
 from ufactory_mujoco.kinematics import (
     fk_pose,
     manipulability,

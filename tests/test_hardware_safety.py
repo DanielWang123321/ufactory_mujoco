@@ -35,7 +35,7 @@ from ufactory_mujoco.calibration import (
 )
 from ufactory_mujoco.cli import main as cli_main
 from ufactory_mujoco.kinematics_validation import validate_fk_ik_with_controller
-from ufactory_mujoco.model_paths import MODELS_ROOT
+from ufactory_mujoco.robots import MODELS_ROOT
 from ufactory_mujoco.safety import authorize_real_motion, run_sdk_simulation
 
 ROOT = Path(__file__).resolve().parent.parent

@@ -21,9 +21,9 @@ from .calibration import (
     read_tcp_offset,
     tcp_mm_rpy_to_flange_m_quat,
 )
-from .ik import solve_ik
+from .kinematics import solve_ik
 from .kinematics import fk_pose
-from .model_paths import MODELS_ROOT
+from .robots import MODELS_ROOT
 from .robots import ARMS
 from .safety import (
     SafetyGateError,

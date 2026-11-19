@@ -19,7 +19,7 @@ import mujoco
 import numpy as np
 from scipy.interpolate import CubicSpline
 
-from .ik import solve_ik_trajectory
+from .kinematics import solve_ik_trajectory
 
 _EPS = 1e-12
 

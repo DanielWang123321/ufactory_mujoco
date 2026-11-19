@@ -1,4 +1,0 @@
-robot: xarm6
-gripper: gripper_g2
-scene: pick_place
-executor: servo_cartesian

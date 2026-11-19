@@ -8,6 +8,8 @@ import numpy as np
 
 from ufactory_mujoco.sim_robot import SimRobot
 
+from ufactory_mujoco.robots import resolve_model_path
+
 MODELS_ROOT = Path(__file__).resolve().parent.parent / "models"
 gripper_demo = importlib.import_module("examples.simulation.04_gripper_control")
 
@@ -27,7 +29,7 @@ class GripperControlTest(unittest.TestCase):
         }
         for name, (closed_gap, mid_gap, open_gap) in scenes.items():
             with self.subTest(model=name):
-                robot = SimRobot(MODELS_ROOT / name / "scene.xml")
+                robot = SimRobot(resolve_model_path(name))
                 self.assertEqual(robot.gripper_kind, "jaw")
                 robot.set_gripper_gap(open_gap)
                 self.assertAlmostEqual(robot.get_gripper_gap(), open_gap, places=6)
@@ -54,7 +56,7 @@ class GripperControlTest(unittest.TestCase):
             ("uf850_with_vacuum_gripper", "link6"),
         ):
             with self.subTest(model=name):
-                robot = SimRobot(MODELS_ROOT / name / "scene.xml")
+                robot = SimRobot(resolve_model_path(name))
                 self.assertEqual(robot.gripper_kind, "vacuum")
                 self.assertFalse(robot.has_gripper)
                 with self.assertRaises(NotImplementedError):
@@ -114,7 +116,7 @@ class GripperControlTest(unittest.TestCase):
 
     def test_xarm6_with_bio_gripper_properties(self):
         """xarm6_with_bio_gripper detects gripper and isolates channels."""
-        scene = MODELS_ROOT / "xarm6_with_bio_gripper" / "scene.xml"
+        scene = resolve_model_path("xarm6_with_bio_gripper")
         robot = SimRobot(scene)
         self.assertTrue(robot.has_gripper)
 
@@ -135,7 +137,7 @@ class GripperControlTest(unittest.TestCase):
             ("uf850_with_bio_gripper", 6),
         ):
             with self.subTest(model=name):
-                scene = MODELS_ROOT / name / "scene.xml"
+                scene = resolve_model_path(name)
                 robot = SimRobot(scene)
                 self.assertEqual(len(robot.get_joint_positions()), n_arm)
                 self.assertAlmostEqual(robot.get_gripper_position(), 0.0, places=3)
@@ -237,7 +239,7 @@ class GripperControlTest(unittest.TestCase):
             ("xarm6_with_bio_gripper", 0.071, 0.150),
         ):
             with self.subTest(model=model_name):
-                with SimRobot(MODELS_ROOT / model_name / "scene.xml", viewer=False) as robot:
+                with SimRobot(resolve_model_path(model_name), viewer=False) as robot:
                     robot.open_gripper(wait=True, speed_percent=100.0)
                     gap_before = robot.get_gripper_gap(measured=True)
                     self.assertAlmostEqual(gap_before, open_gap_m, delta=0.004)

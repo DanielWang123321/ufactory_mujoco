@@ -49,8 +49,8 @@ from ufactory_mujoco.dynamics.analysis import (
     validate_mjcf_dynamics,
 )
 from ufactory_mujoco.dynamics.cli import cli_sim_check, print_compare_table
-from ufactory_mujoco.dynamics.plot import torque_plot_layout, write_torque_plot
-from ufactory_mujoco.dynamics.poses import (
+from ufactory_mujoco.dynamics.report import torque_plot_layout, write_torque_plot
+from ufactory_mujoco.dynamics.profiles import (
     DYNAMICS_VALIDATION_POSES_YAML,
     check_joint_limit_path,
     dynamics_default_configs,
@@ -59,7 +59,7 @@ from ufactory_mujoco.dynamics.poses import (
     load_dynamics_pose_lists,
     parse_joint_limits,
 )
-from ufactory_mujoco.dynamics.reference import default_urdf_for_robot, load_reference_backend
+from ufactory_mujoco.dynamics.backends import default_urdf_for_robot, load_reference_backend
 from ufactory_mujoco.dynamics.report import (
     ABS_ERR_LIMITS,
     DEFAULT_REPORT_ROOT,
@@ -72,7 +72,7 @@ from ufactory_mujoco.dynamics.report import (
     write_csv_report,
     write_jsonl_report,
 )
-from ufactory_mujoco.dynamics.runtime import get_robot_runtime_profile
+from ufactory_mujoco.dynamics.profiles import get_robot_runtime_profile
 from ufactory_mujoco.dynamics.session import RealRobotSession, RobotMotionError
 
 ROOT = Path(__file__).resolve().parent.parent

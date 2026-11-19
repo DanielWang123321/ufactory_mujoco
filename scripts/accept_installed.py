@@ -30,10 +30,18 @@ def digest(path):
 def resource_reference():
     import mujoco
     import numpy as np
-    from ufactory_mujoco.config import load_task_config
-    from ufactory_mujoco.model_paths import CONFIGS_ROOT, MODELS_ROOT, RESOURCE_ROOT
+    from ufactory_mujoco.compose import COMPOSED_MODELS, compose_model
+    from ufactory_mujoco.config import list_task_presets, load_task_config
+    from ufactory_mujoco.robots import CONFIGS_ROOT, MODELS_ROOT, RESOURCE_ROOT
 
-    result = {"models": {}, "meshes": {}, "configs": {}, "config_hashes": {}, "licenses": {}}
+    result = {
+        "models": {},
+        "composed_models": {},
+        "meshes": {},
+        "configs": {},
+        "config_hashes": {},
+        "licenses": {},
+    }
     for path in sorted(MODELS_ROOT.glob("*/*.xml")):
         model = mujoco.MjModel.from_xml_path(str(path))
         data = mujoco.MjData(model)
@@ -45,6 +53,16 @@ def resource_reference():
         result["models"][path.relative_to(MODELS_ROOT).as_posix()] = {
             "nq": model.nq, "nv": model.nv, "nu": model.nu,
             "sha256_without_meshdir": hashlib.sha256(xml.encode()).hexdigest(),
+            "mass_matrix": mass.tolist(),
+        }
+    for name in COMPOSED_MODELS:
+        model = compose_model(name, scene=True)
+        data = mujoco.MjData(model)
+        mujoco.mj_forward(model, data)
+        mass = np.empty((model.nv, model.nv))
+        mujoco.mj_fullM(model, data, mass)
+        result["composed_models"][name] = {
+            "nq": model.nq, "nv": model.nv, "nu": model.nu,
             "mass_matrix": mass.tolist(),
         }
     mesh_root = RESOURCE_ROOT / "meshes"
@@ -63,20 +81,20 @@ def resource_reference():
     for path in sorted(CONFIGS_ROOT.rglob("*.yaml")):
         key = path.relative_to(CONFIGS_ROOT).as_posix()
         result["configs"][key] = digest(path)
-        if key == "default.yaml" or key.startswith(("pick_place/", "box_pack/")):
-            result["config_hashes"][key] = load_task_config(None if key == "default.yaml" else path).sha256
+    result["config_hashes"]["default.yaml"] = load_task_config().sha256
+    for task, arms in sorted(list_task_presets().items()):
+        for arm in arms:
+            result["config_hashes"][f"{task}/{arm}"] = load_task_config(preset=(task, arm)).sha256
     licenses = RESOURCE_ROOT / "licenses"
     for path in sorted(licenses.iterdir()):
         if path.is_file():
             result["licenses"][path.name] = digest(path)
-    # The source keeps the project notices at its root; distributions also put
-    # them next to the upstream texts inside package data.
     for name in ("LICENSE", "NOTICE"):
         path = RESOURCE_ROOT / name
         if path.is_file():
             result["licenses"][name] = digest(path)
-    assert len(result["models"]) >= 141 and len(result["meshes"]) >= 482
-    assert len(result["configs"]) == 12 and len(result["config_hashes"]) == 11 and len(result["licenses"]) == 7
+    assert len(result["models"]) >= 59 and len(result["composed_models"]) >= 41 and len(result["meshes"]) >= 482
+    assert len(result["configs"]) == 2 and len(result["config_hashes"]) == 11 and len(result["licenses"]) == 7
     return result
 
 
@@ -87,7 +105,6 @@ def check_archive(path, reference):
             assert len({e.filename for e in entries}) == len(entries), "Duplicate ZIP members"
             assert not any(stat.S_ISLNK(e.external_attr >> 16) for e in entries), "Wheel contains symlink"
             files = {e.filename: archive.read(e) for e in entries if not e.is_dir()}
-        assert not any(n.endswith("_build_support.py") for n in files)
         entry_points = next((b for n, b in files.items() if n.endswith(".dist-info/entry_points.txt")), None)
         assert entry_points is not None, "Missing .dist-info/entry_points.txt"
         for script_name in (
@@ -105,7 +122,7 @@ def check_archive(path, reference):
             entries = archive.getmembers()
             assert all(e.isfile() or e.isdir() for e in entries), "sdist contains links or special files"
             files = {e.name.split("/", 1)[1]: archive.extractfile(e).read() for e in entries if e.isfile()}
-        assert "_build_support.py" in files and "setup.py" in files, "Missing sdist build hooks"
+        assert "setup.py" in files, "Missing sdist build hooks"
     data = {n.removeprefix("ufactory_mujoco/data/"): b for n, b in files.items()
             if n.startswith("ufactory_mujoco/data/")}
     expected = {f"{group}/{name}" for group in ("models", "meshes", "configs", "licenses")
@@ -128,6 +145,7 @@ def check_archive(path, reference):
         "bytes": path.stat().st_size,
         "resource_bytes": sum(map(len, data.values())),
         "models": len(reference["models"]),
+        "composed_models": len(reference["composed_models"]),
         "meshes": len(reference["meshes"]),
         "configs": len(reference["configs"]),
         "licenses": len(reference["licenses"]),
@@ -162,6 +180,13 @@ def compare_resources(expected, actual):
             assert model[key] == baseline[key], f"{name}: {key} changed"
         np.testing.assert_allclose(model["mass_matrix"], baseline["mass_matrix"], atol=1e-12, rtol=1e-12,
                                    err_msg=f"{name}: mass matrix changed")
+    assert actual["composed_models"].keys() == expected["composed_models"].keys()
+    for name, baseline in expected["composed_models"].items():
+        model = actual["composed_models"][name]
+        for key in ("nq", "nv", "nu"):
+            assert model[key] == baseline[key], f"composed:{name}: {key} changed"
+        np.testing.assert_allclose(model["mass_matrix"], baseline["mass_matrix"], atol=1e-12, rtol=1e-12,
+                                   err_msg=f"composed:{name}: mass matrix changed")
 
 
 def strict_json(path):
@@ -173,7 +198,7 @@ def strict_json(path):
 def accept(args, summary):
     import numpy as np
     import ufactory_mujoco
-    from ufactory_mujoco.model_paths import CONFIGS_ROOT, RESOURCE_ROOT
+    from ufactory_mujoco.robots import RESOURCE_ROOT, resolve_arm_scene, resolve_model_path
 
     package = Path(ufactory_mujoco.__file__).resolve()
     assert package.is_relative_to(Path(sys.prefix).resolve()), f"Imported outside install: {package}"
@@ -190,7 +215,6 @@ def accept(args, summary):
     with SimRobot() as robot:
         assert robot.n_arm == 6, "SimRobot() must default to the bundled xArm6 scene"
     summary["sim_robot_default"] = "pass"
-    from ufactory_mujoco.robots import resolve_arm_scene
     with SimRobot(resolve_arm_scene("xarm6", "bio_gripper_g2", "scene")) as robot:
         assert robot.bio_g2_controller is not None
         robot.close_gripper()
@@ -201,15 +225,13 @@ def accept(args, summary):
     with SimRobot(resolve_arm_scene("xarm6", "vacuum_gripper", "scene")) as robot:
         assert robot.gripper_kind == "vacuum" and not robot.has_gripper
     summary["end_effectors_0_1_3"] = "pass"
-    from ufactory_mujoco.model_paths import resolve_model_path
     with SimRobot(resolve_model_path("xarm6_with_ft_sensor_and_gripper")) as robot:
         assert robot.has_ft_sensor
         assert np.isfinite(robot.get_ft_sensor_reading().sampled).all()
     with SimRobot(resolve_model_path("xarm6_with_base_plate")) as robot:
         assert not robot.has_ft_sensor and robot.n_arm == 6
     summary["accessories_0_1_7"] = "pass"
-    # Exercise commands with a read-only installation. JSON belongs in the
-    # working directory, and Python can import without writing bytecode here.
+
     saved_modes = [(package.parent, package.parent.stat().st_mode & 0o777)] + [
         (p, p.stat().st_mode & 0o777) for p in package.parent.rglob("*")
     ]
@@ -218,7 +240,7 @@ def accept(args, summary):
     package.parent.chmod(0o555)
 
     try:
-        _run_installed_command_checks(args, summary, CONFIGS_ROOT)
+        _run_installed_command_checks(args, summary)
     finally:
         for path, mode in saved_modes:
             if path.is_dir():
@@ -228,7 +250,10 @@ def accept(args, summary):
                 path.chmod(mode)
 
 
-def _run_installed_command_checks(args, summary, CONFIGS_ROOT):
+def _run_installed_command_checks(args, summary):
+    import mujoco
+    import yaml
+    from ufactory_mujoco.config import get_task_preset
 
     out = args.out_dir.resolve()
     env = dict(os.environ)
@@ -258,8 +283,12 @@ def _run_installed_command_checks(args, summary, CONFIGS_ROOT):
     (out / "pip-check.log").write_text(check.stdout, encoding="utf-8")
     assert check.returncode == 0, check.stdout
     run("help", ["--help"])
-    for task in ("pick-place", "box-pack", "dynamics"):
-        run(f"{task}-help", [task, "--help"])
+    for cmd_name in ("pick-place", "box-pack", "dynamics", "export-model", "export-calibration", "kinematics-check"):
+        run(f"{cmd_name}-help", [cmd_name, "--help"])
+    run("export-model-list", ["export-model", "--list"])
+    run("export-model-ft", ["export-model", "xarm6_with_ft_sensor_and_gripper", "--out-dir", "exported-ft"])
+    exported_m = mujoco.MjModel.from_xml_path(str(out / "exported-ft" / "scene.xml"))
+    assert exported_m.nsensor == 2 and exported_m.nu == 7
     for task in ("pick-place", "box-pack"):
         for arm in ("lite6", "xarm5", "xarm6", "xarm7", "uf850"):
             for dry in (True, False):
@@ -305,18 +334,15 @@ def _run_installed_command_checks(args, summary, CONFIGS_ROOT):
         assert not failed["success"]
         run(f"{task}-empty-models", [task, "--headless"], 1,
             overrides={"UFACTORY_MUJOCO_MODELS": str(out)})
-        # Existing directory cannot be overwritten as a JSON report.
         run(f"{task}-report-error", [task, "--headless", "--report", str(out)] +
             (["--dry-run"] if task != "dynamics" else ["--robot", "xarm5", "--samples", "1"]), 1)
     for task in ("pick-place", "box-pack"):
         run(f"{task}-missing-config", [task, "--config", "missing.yaml", "--headless"], 2)
         run(f"{task}-invalid-cycles", [task, "--cycles", "0", "--headless"], 2)
     run("box-invalid-speed", ["box-pack", "--speed", "nan", "--headless"], 2)
-    # Exercise the installed preflight failure and its strict JSON report.
-    import yaml
     for task, section, field in (("pick-place", "pick_place", "target_xy"),
                                  ("box-pack", "box_pack", "drop_xy")):
-        overlay = yaml.safe_load((CONFIGS_ROOT / section / "xarm6.yaml").read_text())
+        overlay = get_task_preset(section, "xarm6")
         overlay.setdefault(section, {})[field] = [9.0, 9.0] if section == "pick_place" else [[9.0, 9.0]] * 3
         path = out / f"{task}-unreachable.yaml"
         path.write_text(yaml.safe_dump(overlay), encoding="utf-8")

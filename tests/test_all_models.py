@@ -5,7 +5,8 @@ import numpy as np
 
 import mujoco
 
-from ufactory_mujoco.model_paths import MODELS_ROOT, resolve_model_path
+from ufactory_mujoco.compose import COMPOSED_MODELS, compose_model, is_composed_model
+from ufactory_mujoco.robots import MODELS_ROOT, resolve_model_path
 
 ALL_MODELS = [
     "xarm6",
@@ -78,14 +79,19 @@ ALL_MODELS = [
 
 class AllModelsLoadingTest(unittest.TestCase):
     def test_all_models_exist(self):
-        """Ensure all model directories contain scene.xml and their primary XML."""
+        """Ensure all 24 static models and all 41 dynamically composed models resolve cleanly."""
         for name in ALL_MODELS:
-            model_dir = MODELS_ROOT / name
-            self.assertTrue(model_dir.is_dir(), f"Model directory {name} does not exist")
-            scene_xml = model_dir / "scene.xml"
-            primary_xml = model_dir / f"{name}.xml"
+            if is_composed_model(name):
+                scene_xml = resolve_model_path(name, scene=True)
+                primary_xml = resolve_model_path(name, scene=False)
+            else:
+                model_dir = MODELS_ROOT / name
+                self.assertTrue(model_dir.is_dir(), f"Model directory {name} does not exist")
+                scene_xml = model_dir / "scene.xml"
+                primary_xml = model_dir / f"{name}.xml"
             self.assertTrue(scene_xml.is_file(), f"{name}/scene.xml not found")
             self.assertTrue(primary_xml.is_file(), f"{name}/{name}.xml not found")
+        self.assertEqual(len(COMPOSED_MODELS), 41)
         # task scenes across all 5 arm+gripper pairs (pick_place, box_pack) and xarm6 obstacles
         for combo in ("xarm5_with_gripper", "xarm6_with_gripper", "xarm7_with_gripper",
                       "uf850_with_gripper", "lite6_with_gripper"):
@@ -96,13 +102,14 @@ class AllModelsLoadingTest(unittest.TestCase):
         self.assertTrue((MODELS_ROOT / "xarm6" / "scene_obstacles.xml").is_file())
 
     def test_all_models_load_and_step(self):
-        """Load both primary XML and scene XML into MuJoCo and simulate 100 physics steps."""
+        """Load both primary XML and scene XML (static and composed) and simulate 100 steps."""
         for name in ALL_MODELS:
+            xmls = [resolve_model_path(name, scene=False), resolve_model_path(name, scene=True)]
             model_dir = MODELS_ROOT / name
-            xmls = [model_dir / f"{name}.xml", model_dir / "scene.xml"]
-            for extra in ("scene_obstacles.xml", "scene_pick_place.xml", "scene_box_pack.xml"):
-                if (model_dir / extra).is_file():
-                    xmls.append(model_dir / extra)
+            if model_dir.is_dir():
+                for extra in ("scene_obstacles.xml", "scene_pick_place.xml", "scene_box_pack.xml"):
+                    if (model_dir / extra).is_file():
+                        xmls.append(model_dir / extra)
             for xml_file in xmls:
                 with self.subTest(model=name, xml=xml_file.name):
                     m = mujoco.MjModel.from_xml_path(str(xml_file))
@@ -119,11 +126,13 @@ class AllModelsLoadingTest(unittest.TestCase):
                     self.assertFalse(np.isinf(d.qvel).any(), f"Inf in qvel for {xml_file}")
 
     def test_resolve_model_path_support(self):
-        """Verify ufactory_mujoco.model_paths.resolve_model_path can resolve all model names."""
+        """Verify resolve_model_path and in-memory compose_model work across all models."""
         for name in ALL_MODELS:
             path = resolve_model_path(name)
             self.assertTrue(path.is_file(), f"Could not resolve model {name}")
             self.assertEqual(path.name, "scene.xml")
+        m_mem = compose_model("xarm6_with_ft_sensor_and_gripper", scene=True)
+        self.assertEqual(m_mem.nsensor, 2)
 
         # Nonexistent model should raise FileNotFoundError
         with self.assertRaises(FileNotFoundError):
@@ -132,7 +141,7 @@ class AllModelsLoadingTest(unittest.TestCase):
     def test_keyframes_reset_and_step(self):
         """Test keyframe initialization for models that define home or ready poses."""
         for name in ALL_MODELS:
-            scene_xml = MODELS_ROOT / name / "scene.xml"
+            scene_xml = resolve_model_path(name)
             m = mujoco.MjModel.from_xml_path(str(scene_xml))
             d = mujoco.MjData(m)
 
@@ -150,7 +159,7 @@ class AllModelsLoadingTest(unittest.TestCase):
         expected_q = np.deg2rad([0, 9.9, 31.8, 0, 21.9, 0])
         for name in ("lite6", "lite6_with_gripper", "lite6_with_vacuum_gripper"):
             with self.subTest(model=name):
-                m = mujoco.MjModel.from_xml_path(str(MODELS_ROOT / name / "scene.xml"))
+                m = mujoco.MjModel.from_xml_path(str(resolve_model_path(name)))
                 d = mujoco.MjData(m)
                 ready_id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_KEY, "ready")
                 self.assertGreaterEqual(ready_id, 0)
@@ -168,7 +177,7 @@ class AllModelsLoadingTest(unittest.TestCase):
         """xArm 5/7 and UF850 combination ready poses point downward with G2 TCP at (300, 0, 300) mm."""
         for name in ("xarm5_with_gripper", "xarm7_with_gripper", "uf850_with_gripper"):
             with self.subTest(model=name):
-                m = mujoco.MjModel.from_xml_path(str(MODELS_ROOT / name / "scene.xml"))
+                m = mujoco.MjModel.from_xml_path(str(resolve_model_path(name)))
                 d = mujoco.MjData(m)
                 ready_id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_KEY, "ready")
                 self.assertGreaterEqual(ready_id, 0)
@@ -192,7 +201,7 @@ class AllModelsLoadingTest(unittest.TestCase):
             ):
                 name = f"{arm}_with_{suffix}"
                 with self.subTest(model=name):
-                    m = mujoco.MjModel.from_xml_path(str(MODELS_ROOT / name / "scene.xml"))
+                    m = mujoco.MjModel.from_xml_path(str(resolve_model_path(name)))
                     d = mujoco.MjData(m)
                     ready_id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_KEY, "ready")
                     self.assertGreaterEqual(ready_id, 0)
