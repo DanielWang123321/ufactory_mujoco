@@ -11,7 +11,6 @@ The xArm6 additionally retains the historical 3 kg payload checks.
 
 import argparse
 from dataclasses import dataclass
-import os
 import platform
 import sys
 from pathlib import Path
@@ -28,6 +27,7 @@ from ufactory_mujoco.robots import ARMS, MODELS_ROOT
 from ufactory_mujoco.safety import (
     SafetyGateError,
     authorize_real_motion,
+    resolve_xarm_ip,
     run_sdk_simulation,
     stream_sha256,
 )
@@ -562,7 +562,7 @@ def run_hardware_dynamics_validation(
     gripper: str | None = None,
 ) -> dict:
     """Validate dynamics on a real xArm controller with fail-closed confirmation gates."""
-    resolved_ip = ip or os.environ.get("XARM_IP")
+    resolved_ip = resolve_xarm_ip(ip)
     report = {
         "schema_version": 1,
         "validation_version": VALIDATION_VERSION,

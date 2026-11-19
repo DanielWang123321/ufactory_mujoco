@@ -14,23 +14,14 @@ import numpy as np
 import yaml
 
 from .report import SafePose
-from ..robots import ARMS, CONFIGS_ROOT, MODELS_ROOT
+from ..robots import ARMS, CONFIGS_ROOT, MODELS_ROOT, ROBOT_KEY_ALIASES
 
 DYNAMICS_VALIDATION_POSES_YAML = CONFIGS_ROOT / "dynamics_validation_pose.yaml"
 SEGMENTS_PER_LEG = 5
 ANCHOR_COUNT = 5
 NamedPoseTuple = tuple[tuple[str, tuple[float, ...]], ...]
 
-_ALIAS_TO_CANONICAL = {
-    "xarm5": "xarm5",
-    "xarm5_1305": "xarm5",
-    "xarm6": "xarm6",
-    "xarm6_1305": "xarm6",
-    "xarm7": "xarm7",
-    "xarm7_1305": "xarm7",
-    "lite6": "lite6",
-    "uf850": "uf850",
-}
+_ALIAS_TO_CANONICAL = {**{arm: arm for arm in ARMS}, **ROBOT_KEY_ALIASES}
 
 
 def canonical_robot_name(robot_key: str) -> str:
@@ -96,16 +87,12 @@ def _load_yaml(path: Path | None = None) -> dict[str, Any]:
     return _load_yaml_cached(yaml_path)
 
 
-def load_dynamics_pose_lists(
-    robot_key: str,
-    *,
-    yaml_path: Path | None = None,
-) -> tuple[list[np.ndarray], list[np.ndarray]]:
-    """Return ``(default_qs, stress_qs)`` in radians for ``robot_key``."""
+def load_dynamics_poses(robot_key: str, *, yaml_path: Path | None = None) -> list[np.ndarray]:
+    """Return the validation poses in radians for ``robot_key``."""
     name = canonical_robot_name(robot_key)
     entry = _load_yaml(yaml_path).get(name)
     if entry is None:
-        return [], []
+        return []
     dof = ARMS[name].dof
     anchors = _parse_anchor_rows(entry.get("points"), robot_key=name, dof=dof)
     home_a, end_a, home_b, end_b, home_c = anchors
@@ -114,7 +101,7 @@ def load_dynamics_pose_lists(
     default: list[np.ndarray] = []
     default.extend(expand_round_trip(home_a, end_a))
     default.extend(expand_round_trip(home_a, end_b))
-    return default, []
+    return default
 
 
 def default_configs_named_tuple(
@@ -123,23 +110,10 @@ def default_configs_named_tuple(
     yaml_path: Path | None = None,
 ) -> NamedPoseTuple:
     """Return immutable ``((name, q_tuple), ...)`` default poses."""
-    default, _ = load_dynamics_pose_lists(robot_key, yaml_path=yaml_path)
+    default = load_dynamics_poses(robot_key, yaml_path=yaml_path)
     if not default:
         return ()
     return tuple((str(i), tuple(float(v) for v in q)) for i, q in enumerate(default))
-
-
-def stress_configs_for_robot(
-    robot_key: str,
-    *,
-    yaml_path: Path | None = None,
-) -> NamedPoseTuple:
-    """Return immutable stress poses if configured."""
-    default, stress = load_dynamics_pose_lists(robot_key, yaml_path=yaml_path)
-    if not stress:
-        return ()
-    base = len(default)
-    return tuple((str(base + j), tuple(float(v) for v in q)) for j, q in enumerate(stress))
 
 
 def merge_test_configs(
@@ -161,17 +135,10 @@ def merge_test_configs(
 def dynamics_default_configs(
     robot_key: str = "xarm6",
     *,
-    include_stress: bool = False,
     yaml_path: Path | None = None,
 ) -> list[tuple[str, np.ndarray]]:
     """Return named validation poses ``("0", q0) ... ("19", q19)``."""
-    default, stress = load_dynamics_pose_lists(robot_key, yaml_path=yaml_path)
-    configs = [(str(i), q) for i, q in enumerate(default)]
-    if include_stress and stress:
-        base = len(default)
-        stress_list = [(str(base + j), q) for j, q in enumerate(stress)]
-        configs = merge_test_configs(configs, stress_list)
-    return configs
+    return [(str(i), q) for i, q in enumerate(load_dynamics_poses(robot_key, yaml_path=yaml_path))]
 
 
 
@@ -305,8 +272,6 @@ class ArmControlParams:
     default_qpos: FloatTuple
     kp: FloatTuple
     kv: FloatTuple
-    force_lower: FloatTuple
-    force_upper: FloatTuple
     effort_limits: FloatTuple
 
 
@@ -315,7 +280,6 @@ class DynamicsValidationParams:
     """Per-robot L1/L2/L3 validation tolerances and safe motion defaults."""
 
     default_configs: NamedPoseTuple
-    stress_configs: NamedPoseTuple = ()
     abs_err_limits: FloatTuple = ()
     l2_err_limit: float = 5.0
     rel_err_limit: float = 0.15
@@ -379,8 +343,6 @@ def _extract_mjcf_arm_params(robot_name: str, model_path: Path, dof: int, ee_sit
         default_qpos=_default_qpos(robot_name, dof),
         kp=kp,
         kv=kv,
-        force_lower=tuple(-abs(e) for e in efforts),
-        force_upper=efforts,
         effort_limits=efforts,
     )
 
@@ -403,7 +365,6 @@ def _build_runtime_profile(robot_name: str) -> RobotRuntimeProfile:
     l2_limit = _l2_err_limit_from_abs(abs_limits)
     dyn = DynamicsValidationParams(
         default_configs=default_configs_named_tuple(robot_name),
-        stress_configs=stress_configs_for_robot(robot_name),
         abs_err_limits=abs_limits,
         l2_err_limit=l2_limit,
         rel_err_limit=0.15,

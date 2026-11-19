@@ -25,7 +25,6 @@ from .analysis import (
     summarize_static_layers,
     validate_mjcf_dynamics,
 )
-from .report import write_torque_plot
 from .profiles import (
     check_joint_limit_path,
     dynamics_default_configs,
@@ -34,6 +33,7 @@ from .profiles import (
     parse_joint_limits,
 )
 from .backends import (
+    load_reference_backend,
     build_mujoco_scene,
     check_mujoco_path_safety,
     compute_ee_z_table_from_sim,
@@ -41,8 +41,8 @@ from .backends import (
     mujoco_pd_hold_torque_at_q,
     read_joint_frictionloss,
 )
-from .backends import load_reference_backend
 from .report import (
+    write_torque_plot,
     DEFAULT_REPORT_ROOT,
     DynamicsSample,
     SafePose,
@@ -75,6 +75,8 @@ from ..calibration import (
     validate_ipv4_address,
 )
 from ..ft_sensor import is_hardware_ft_sensor_enabled, read_hardware_ft_sensor
+
+from ..safety import resolve_xarm_ip
 
 DEFAULT_CALIBRATIONS_DIR = Path("calibrations")
 # Per-unit calibrations committed at the repository root (source checkouts only).
@@ -829,7 +831,6 @@ def _parse_hardware_check_args(
     parser.add_argument("--sample-poll", type=float, default=0.1, help="Seconds between hold samples")
     parser.add_argument("--repeats", type=int, default=1, help="Hardware repeats per pose")
     parser.add_argument("--poses", type=str, default=None, help="Comma-separated pose names to run")
-    parser.add_argument("--include-stress", action="store_true", help="Include stress/saturation pose set")
     args = parser.parse_args(argv)
 
     if args.dry_run and args.hold_current_only:
@@ -857,8 +858,8 @@ def _parse_hardware_check_args(
     except ValueError as exc:
         parser.error(str(exc))
 
-    if not args.dry_run and not args.ip:
-        args.ip = (os.environ.get("XARM_IP") or "").strip() or None
+    if not args.dry_run:
+        args.ip = resolve_xarm_ip(args.ip)
     if not args.dry_run and not args.ip:
         parser.error("--ip is required unless --dry-run (or set XARM_IP)")
     if not args.dry_run and not args.hold_current_only and not args.confirm_real:
@@ -981,7 +982,7 @@ def _prepare_hardware_check_scene(
         print("[FAIL] MJCF dynamics static checks contain errors")
         return None
 
-    configs = dynamics_default_configs(runtime.model.robot_name, include_stress=args.include_stress)
+    configs = dynamics_default_configs(runtime.model.robot_name)
     configs, missing = _select_poses(configs, args.poses)
     if missing:
         print(f"[WARN] Requested poses not found: {sorted(missing)}")
@@ -1387,7 +1388,7 @@ def cli_sim_collision_check(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--report", type=str, default=None, help="CSV report output path")
     args = parser.parse_args(argv)
 
-    args.ip = (args.ip or os.environ.get("XARM_IP") or "").strip() or None
+    args.ip = resolve_xarm_ip(args.ip)
     if not args.ip:
         parser.error("--ip or XARM_IP is required")
 

@@ -7,7 +7,6 @@ from dataclasses import dataclass
 import importlib
 import json
 import math
-import os
 from pathlib import Path
 import sys
 from typing import Any
@@ -25,6 +24,7 @@ from ..preflight import (
 )
 from ..robots import ARMS, MODELS_ROOT
 from ..safety import (
+    resolve_xarm_ip,
     SafetyGateError,
     authorize_real_motion,
     enforce_single_cycle,
@@ -208,7 +208,7 @@ def _run_hardware_manipulation(command: str, args, config) -> tuple[int, dict]:
     """Execute sdk-sim or real mode with fail-closed calibration, preflight, and cycle gates."""
     mode = args.mode
     enforce_single_cycle(args.cycles, mode)
-    ip = args.ip or os.environ.get("XARM_IP")
+    ip = resolve_xarm_ip(args.ip)
     if not ip:
         raise SafetyGateError(f"mode={mode!r} requires --ip or XARM_IP")
     if not args.calibration:

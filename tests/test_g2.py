@@ -10,7 +10,7 @@ import struct
 import unittest
 import mujoco
 import numpy as np
-from ufactory_mujoco.g2 import G2_JOINT_NAMES, gripper_g2_gap_m_to_sim_drive
+from ufactory_mujoco.g2 import gripper_g2_gap_m_to_sim_drive
 from ufactory_mujoco.grippers import gripper_object_contact_forces_n, identify_gripper, measured_g2_pad_gap_mm
 from ufactory_mujoco.sim_robot import SimRobot
 from ufactory_mujoco import compose_model, compose_spec
@@ -18,14 +18,9 @@ from dataclasses import asdict
 import math
 from ufactory_mujoco.g2 import G2Controller
 from ufactory_mujoco.g2 import (
-    G2_ARMATURE,
-    G2_DAMPING,
-    G2_FRICTIONLOSS,
     G2_KP,
     G2_KV,
     G2_LINKAGE_GEOMETRY,
-    G2_MIMIC_SOLIMP,
-    G2_MIMIC_SOLREF,
     GRIPPER_G2_SIM_CLOSE_DRIVE,
     GRIPPER_G2_SIM_OPEN_DRIVE,
     REFERENCE_GAP_MM,
@@ -50,6 +45,13 @@ except ImportError as exc:
     raise unittest.SkipTest("pytest is required for test_g2_assets_v2") from exc
 
 ROOT = Path(__file__).resolve().parents[1]
+
+# Calibrated Gripper G2 joint parameters that every G2 MJCF must carry.
+G2_JOINT_NAMES = ("left_driver_joint", "left_finger_joint", "left_inner_knuckle_joint",
+                  "right_driver_joint", "right_finger_joint", "right_inner_knuckle_joint")
+G2_ARMATURE, G2_DAMPING, G2_FRICTIONLOSS = 0.01, 0.05, 0.0
+G2_MIMIC_SOLREF = (0.02, 1.0)
+G2_MIMIC_SOLIMP = (0.9, 0.95, 0.001, 0.5, 2.0)
 
 G2 = MODELS_ROOT / "gripper_g2"
 

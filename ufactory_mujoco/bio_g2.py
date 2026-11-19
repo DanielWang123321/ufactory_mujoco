@@ -1,17 +1,11 @@
 """Bio Gripper G2 SDK units, calibrated rigid-body parameters, and force/speed mappings.
 
 Pure Python/NumPy port of ``ufactory_genesis`` ``bio_g2_model`` (profile ``bio_g2_calibrated_v1``).
-Supports loading mass/inertia metadata from either the bundled MJCF ``bio_gripper_g2.xml``
-or the reference URDF fixture ``bio_gripper_g2_movable_visual.urdf``.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from functools import lru_cache
-import hashlib
-from pathlib import Path
-import xml.etree.ElementTree as ET
 
 import math
 from typing import Protocol
@@ -19,7 +13,6 @@ from typing import Protocol
 import mujoco
 
 from .g2 import checked
-from .robots import MODELS_ROOT
 
 BIO_G2_KP = 16000.0
 BIO_G2_KV = 40.0
@@ -112,55 +105,6 @@ def bio_g2_speed_percent_from_mm_s(speed_mm_s: float) -> float:
         return 0.0
     speed = checked(numeric, MIN_SPEED_MM_S, MAX_SPEED_MM_S, "speed_mm_s")
     return min(100.0, max(1.0, (speed / MAX_SPEED_MM_S) * 100.0))
-
-
-def sha256(path: str | Path) -> str:
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
-
-
-@dataclass(frozen=True)
-class BioGripperG2Model:
-    """Loaded Bio Gripper G2 metadata and calibrated physical parameters."""
-
-    model_path: Path
-    model_sha256: str
-    total_mass_kg: float
-    link_masses_kg: dict[str, float]
-    min_gap_mm: float = MIN_GAP_MM
-    max_gap_mm: float = MAX_GAP_MM
-    min_speed_mm_s: float = MIN_SPEED_MM_S
-    max_speed_mm_s: float = MAX_SPEED_MM_S
-    default_speed_mm_s: float = DEFAULT_SPEED_MM_S
-    min_force_n: float = MIN_FORCE_N
-    max_force_n: float = MAX_FORCE_N
-
-    @classmethod
-    @lru_cache(maxsize=4)
-    def load(cls, model_path: str | Path | None = None) -> BioGripperG2Model:
-        if model_path is None:
-            path = (MODELS_ROOT / "bio_gripper_g2" / "bio_gripper_g2.xml").resolve()
-        else:
-            path = Path(model_path).resolve()
-        root = ET.parse(path).getroot()
-        masses: dict[str, float] = {}
-        if root.tag == "mujoco":
-            for body in root.findall(".//body"):
-                name = body.get("name") or ""
-                inertial = body.find("inertial")
-                if name.startswith("bio_gripper_g2_") and inertial is not None and "mass" in inertial.attrib:
-                    masses[name] = float(inertial.attrib["mass"])
-        else:
-            for link in root.findall("link"):
-                name = link.get("name") or ""
-                mass_node = link.find("inertial/mass")
-                if name.startswith("bio_gripper_g2_") and mass_node is not None:
-                    masses[name] = float(mass_node.get("value", "0"))
-        return cls(
-            model_path=path,
-            model_sha256=sha256(path),
-            total_mass_kg=sum(masses.values()),
-            link_masses_kg=masses,
-        )
 
 
 # ----------------------------------------------------------------------

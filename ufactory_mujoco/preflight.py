@@ -23,9 +23,10 @@ GRIP_DOWN_QUAT = np.array([0.0, 1.0, 0.0, 0.0])
 # Phase names are report data keys (approach, close/grasp, lift, transport, place/release,
 # return); they stay unchanged so existing reports and tooling keep matching.
 PHASES = ("接近", "闭合", "抬起", "运送", "放置", "回位")
-_IGNORED_BODIES = ("cube", "pick_stand", "place_stand")
-_BOX_PACK_PREFIXES = ("cube", "feed_stand", "pick_stand", "place_stand")
-_BASE_BODIES = ("link_base", "xarm_base_plate", "uf850_base_plate", "lite6_base_plate")
+# Body names; cube stands are world geoms and stay checked.
+_IGNORED_BODIES = ("cube",)
+_BOX_PACK_PREFIXES = ("cube",)
+_BASE_BODIES = ("link_base",)
 _FINGER_PAIR = ("uflite_finger1", "uflite_finger2")
 _CHECK_RES = 0.02
 

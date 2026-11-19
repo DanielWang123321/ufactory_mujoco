@@ -117,8 +117,6 @@ def sim_sample_for_torque_compare(
     )
 
 
-genesis_sample_for_torque_compare = sim_sample_for_torque_compare
-
 
 @dataclass(frozen=True)
 class StaticLayerResult:
@@ -249,8 +247,6 @@ def analyze_sim_internal(
     )
 
 
-analyze_genesis_internal = analyze_sim_internal
-
 
 def analyze_pd_vs_reference(
     pd_hold_tau: np.ndarray,
@@ -276,8 +272,6 @@ def analyze_pd_vs_reference(
         notes="pd_hold_tau vs ref_G",
     )
 
-
-analyze_pd_vs_pinocchio = analyze_pd_vs_reference
 
 
 def analyze_mass_matrices(
@@ -350,8 +344,6 @@ def analyze_ref_vs_real(
         notes="ref_G vs tau_real",
     )
 
-
-analyze_pin_vs_real = analyze_ref_vs_real
 
 
 def reference_static_at_q(reference: Any, q: Sequence[float]) -> dict[str, Any]:
@@ -702,5 +694,3 @@ def validate_mjcf_dynamics(
 
     return issues
 
-
-validate_urdf_dynamics = validate_mjcf_dynamics

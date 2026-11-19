@@ -11,7 +11,6 @@ import mujoco
 import numpy as np
 
 TIMESTEP_S = 0.001
-SENSOR_INTERNAL_HZ = 1000
 SAMPLE_STEPS = 5
 ACCURACY_SPEC = np.array([0.4, 0.4, 0.4, 0.01, 0.01, 0.01], dtype=float)
 RESOLUTION = ACCURACY_SPEC  # backwards-compatible alias for datasheet accuracy spec

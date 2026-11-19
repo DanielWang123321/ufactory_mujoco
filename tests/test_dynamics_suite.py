@@ -56,7 +56,7 @@ from ufactory_mujoco.dynamics.profiles import (
     dynamics_default_configs,
     expand_round_trip,
     filter_safe_configs,
-    load_dynamics_pose_lists,
+    load_dynamics_poses,
     parse_joint_limits,
 )
 from ufactory_mujoco.dynamics.backends import default_urdf_for_robot, load_reference_backend
@@ -164,12 +164,6 @@ def test_all_robots_have_twenty_expanded_poses():
         assert [name for name, _ in configs] == [str(i) for i in range(20)]
 
 
-def test_xarm6_include_stress_has_no_extra_poses():
-    configs = dynamics_default_configs("xarm6", include_stress=True)
-    assert len(configs) == 20
-    assert configs[-1][0] == "19"
-
-
 def test_expand_round_trip_xarm6_first_leg():
     home = [0, 0, 0, 0, 0, 0]
     end = [90, -90, -60, 170, 160, -179]
@@ -181,7 +175,7 @@ def test_expand_round_trip_xarm6_first_leg():
 
 
 def test_xarm6_second_leg_starts_after_first():
-    default, _ = load_dynamics_pose_lists("xarm6")
+    default = load_dynamics_poses("xarm6")
     assert len(default) == 20
     np.testing.assert_allclose(default[9], np.zeros(6))
     np.testing.assert_allclose(

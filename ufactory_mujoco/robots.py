@@ -54,6 +54,9 @@ ARMS: dict[str, ArmSpec] = {
        for arm, dof in (("xarm5", 5), ("xarm6", 6), ("xarm7", 7), ("uf850", 6))},
 }
 
+# Firmware / URDF variant keys of the same arms.
+ROBOT_KEY_ALIASES = {"xarm5_1305": "xarm5", "xarm6_1305": "xarm6", "xarm7_1305": "xarm7"}
+
 # Gripper used by the pick-place and box-pack task scenes of each arm.
 TASK_GRIPPERS = {"lite6": "lite6_gripper", **{arm: "gripper_g2" for arm in _XARM_SERIES}}
 

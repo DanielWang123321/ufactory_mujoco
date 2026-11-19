@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 import math
-import os
 from pathlib import Path
 import sys
 from typing import Any
@@ -21,13 +20,12 @@ from .calibration import (
     read_tcp_offset,
     tcp_mm_rpy_to_flange_m_quat,
 )
-from .kinematics import solve_ik
-from .kinematics import fk_pose
-from .robots import MODELS_ROOT
-from .robots import ARMS
+from .kinematics import fk_pose, solve_ik
+from .robots import ARMS, MODELS_ROOT
 from .safety import (
     SafetyGateError,
     read_arm_joint_positions,
+    resolve_xarm_ip,
     verify_hardware_identity_and_calibration,
 )
 from .xarm_robot import _connect_xarm_sdk
@@ -233,10 +231,11 @@ def main(argv: list[str] | None = None) -> int:
         description=__doc__,
     )
     parser.add_argument("--robot", choices=tuple(ARMS), default="xarm6")
-    parser.add_argument("--ip", default=os.environ.get("XARM_IP"), help="controller IPv4 address")
+    parser.add_argument("--ip", default=None, help="controller IPv4 address (or XARM_IP)")
     parser.add_argument("--calibration", type=Path, help="robot-bound calibration YAML")
     parser.add_argument("--report", type=Path, help="output JSON report path")
     args = parser.parse_args(argv)
+    args.ip = resolve_xarm_ip(args.ip)
 
     if not args.ip:
         print("Error: --ip or XARM_IP is required", file=sys.stderr)

@@ -10,7 +10,6 @@ from __future__ import annotations
 import mujoco
 import numpy as np
 
-_DEFAULT_DAMPING = 1e-3
 _POS_TOL = 1e-4      # m
 _ROT_TOL = 1e-3      # rad
 _MAX_ITER = 100
@@ -73,7 +72,7 @@ def pose_jacobian(model: mujoco.MjModel, data: mujoco.MjData, site_name: str,
 
 def solve_joint_velocity(model: mujoco.MjModel, data: mujoco.MjData, site_name: str,
                          twist: np.ndarray, q: np.ndarray | None = None, *,
-                         damping: float = _DEFAULT_DAMPING) -> np.ndarray:
+                         damping: float = _DAMPING) -> np.ndarray:
     """Velocity-level IK: damped least-squares joint velocity for a site twist.
 
     twist is (6,): [linear (m/s); angular (rad/s)] in the world frame.

@@ -29,15 +29,10 @@ import numpy as np
 import yaml
 
 from .config import ConfigError
-from .robots import ARMS
+from .robots import ARMS, ROBOT_KEY_ALIASES
 
 _CALIBRATION_ROOT_KEYS = frozenset({"schema_version", "robot_key", "serial_number", "units", "joints"})
 _JOINT_AXIS_KEYS = frozenset({"x", "y", "z", "roll", "pitch", "yaw"})
-_FIRMWARE_KEY_MAP = {
-    "xarm5_1305": "xarm5",
-    "xarm6_1305": "xarm6",
-    "xarm7_1305": "xarm7",
-}
 
 # SN positions 3-6 (1-based) = four-digit model code, e.g. XI130505L56A01 -> 1305
 XARM_KINEMATICS_MIN_SN_MODEL_CODE = 1304
@@ -72,7 +67,7 @@ def canonical_robot_key(raw_key: str) -> str:
     if not isinstance(raw_key, str) or not raw_key.strip():
         raise CalibrationError("calibration robot_key must be a non-empty string")
     cleaned = raw_key.strip()
-    mapped = _FIRMWARE_KEY_MAP.get(cleaned, cleaned)
+    mapped = ROBOT_KEY_ALIASES.get(cleaned, cleaned)
     if mapped not in ARMS:
         raise CalibrationError(f"unknown calibration robot_key: {raw_key!r}")
     return mapped

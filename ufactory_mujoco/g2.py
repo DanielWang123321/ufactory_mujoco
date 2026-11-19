@@ -10,15 +10,6 @@ from typing import Any
 
 import numpy as np
 
-G2_JOINT_NAMES: tuple[str, ...] = (
-    "left_driver_joint",
-    "left_finger_joint",
-    "left_inner_knuckle_joint",
-    "right_driver_joint",
-    "right_finger_joint",
-    "right_inner_knuckle_joint",
-)
-
 GRIPPER_G2_CLOSED_GAP_MM = 0.0
 GRIPPER_G2_OPEN_GAP_MM = 84.0
 GRIPPER_G2_OPEN_GAP_M = GRIPPER_G2_OPEN_GAP_MM / 1000.0
@@ -27,11 +18,6 @@ GRIPPER_G2_SIM_OPEN_DRIVE = 0.057210812728026743
 GRIPPER_G2_SIM_CLOSE_DRIVE = 0.86509464599328212
 
 G2_KP, G2_KV, G2_KI = 40.0, 5.0, 40.0
-G2_ARMATURE = 0.01
-G2_DAMPING = 0.05
-G2_FRICTIONLOSS = 0.0
-G2_MIMIC_SOLREF: tuple[float, float] = (0.02, 1.0)
-G2_MIMIC_SOLIMP: tuple[float, float, float, float, float] = (0.9, 0.95, 0.001, 0.5, 2.0)
 
 REFERENCE_RAW_POSITION = 230
 

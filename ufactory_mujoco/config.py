@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 import functools
 import hashlib
 import json
@@ -126,7 +126,12 @@ def get_task_preset(task: str, robot: str) -> dict[str, Any]:
     entry = task_map[robot]
     if not isinstance(entry, dict):
         raise ConfigError(f"preset {task}/{robot} must be a mapping")
-    return dict(entry)
+    return _preset_overlay(task, robot, entry)
+
+
+def _preset_overlay(task: str, robot: str, entry: Mapping[str, Any]) -> dict[str, Any]:
+    """A preset selects its robot (the key) and its task scene; the YAML holds the rest."""
+    return {"robot": robot, "scene": task, **entry}
 
 
 def list_task_presets() -> dict[str, tuple[str, ...]]:
@@ -230,44 +235,6 @@ def _require_box_pack(data: Mapping[str, Any]) -> BoxPackConfig:
     )
 
 
-def _pick_payload(task: PickPlaceConfig) -> dict[str, Any]:
-    return {
-        "cube_xy": [task.cube_xy[0], task.cube_xy[1]],
-        "target_xy": [task.target_xy[0], task.target_xy[1]],
-        "cube_half_m": task.cube_half_m,
-        "cube_mass_kg": task.cube_mass_kg,
-        "grasp_gap_m": task.grasp_gap_m,
-        "approach_m": task.approach_m,
-        "lift_z_m": task.lift_z_m,
-        "flange_grasp_z_m": task.flange_grasp_z_m,
-        "cart_v_m_s": task.cart_v_m_s,
-        "cart_a_m_s2": task.cart_a_m_s2,
-    }
-
-
-def _box_pack_payload(task: BoxPackConfig) -> dict[str, Any]:
-    return {
-        "feed_xy": [[xy[0], xy[1]] for xy in task.feed_xy],
-        "drop_xy": [[xy[0], xy[1]] for xy in task.drop_xy],
-        "cube_half_m": task.cube_half_m,
-        "cube_mass_kg": task.cube_mass_kg,
-        "grasp_gap_m": task.grasp_gap_m,
-        "box_center_xy": [task.box_center_xy[0], task.box_center_xy[1]],
-        "box_inner_half_xy": [task.box_inner_half_xy[0], task.box_inner_half_xy[1]],
-        "box_floor_m": task.box_floor_m,
-        "box_wall_m": task.box_wall_m,
-        "box_rim_z_m": task.box_rim_z_m,
-        "release_above_rim_m": task.release_above_rim_m,
-        "approach_m": task.approach_m,
-        "lift_z_m": task.lift_z_m,
-        "flange_grasp_z_m": task.flange_grasp_z_m,
-        "cart_v_m_s": task.cart_v_m_s,
-        "cart_a_m_s2": task.cart_a_m_s2,
-        "speed_scale": task.speed_scale,
-        "settle_timeout_s": task.settle_timeout_s,
-    }
-
-
 def load_task_config(
     overlay: str | Path | Sequence[str | Path] | None = None,
     overrides: Mapping[str, Any] | None = None,
@@ -287,7 +254,7 @@ def load_task_config(
         task_map = presets.get(task)
         if not isinstance(task_map, dict) or robot not in task_map:
             raise ConfigError(f"unknown task preset: {task}/{robot}")
-        _merge_strict(base, task_map[robot])
+        _merge_strict(base, _preset_overlay(task, robot, task_map[robot]))
         sources.append(f"preset:{task}/{robot}")
     if overlay is not None:
         overlay_paths = [Path(overlay)] if isinstance(overlay, str | Path) else [Path(p) for p in overlay]
@@ -320,8 +287,8 @@ def load_task_config(
         "gripper": gripper,
         "scene": scene,
         "executor": executor,
-        "pick_place": _pick_payload(pick_place),
-        "box_pack": _box_pack_payload(box_pack),
+        "pick_place": asdict(pick_place),
+        "box_pack": asdict(box_pack),
     }
     return TaskConfig(
         schema_version, robot, gripper, scene, executor, pick_place, box_pack,
@@ -333,7 +300,7 @@ def load_task_config(
 def _preset_task(task: str, robot: str) -> PickPlaceConfig | BoxPackConfig:
     """Task geometry of the built-in preset; task scenes are generated from it."""
     base, presets = _read_defaults_and_presets()
-    _merge_strict(base, presets[task][robot])
+    _merge_strict(base, _preset_overlay(task, robot, presets[task][robot]))
     return _require_pick_place(base[task]) if task == "pick_place" else _require_box_pack(base[task])
 
 

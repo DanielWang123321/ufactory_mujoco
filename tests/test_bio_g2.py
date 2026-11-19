@@ -22,7 +22,6 @@ from ufactory_mujoco.bio_g2 import (
     MIN_SPEED_MM_S,
     RIGHT_JOINT as RIGHT,
     SPEEDS_MM_S,
-    BioGripperG2Model,
     bio_g2_speed_mm_s_from_percent,
     bio_g2_speed_percent_from_mm_s,
     drive_limit_n,
@@ -38,6 +37,17 @@ from ufactory_mujoco.sim_robot import SimRobot
 # ==========================================================================
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def _bio_link_masses(path: Path) -> dict[str, float]:
+    """Masses of the ``bio_gripper_g2_*`` links in an MJCF or URDF file."""
+    root = ET.parse(path).getroot()
+    if root.tag == "mujoco":
+        return {body.get("name"): float(body.find("inertial").get("mass")) for body in root.iter("body")
+                if (body.get("name") or "").startswith("bio_gripper_g2_")
+                and body.find("inertial") is not None and "mass" in body.find("inertial").attrib}
+    return {link.get("name"): float(link.find("inertial/mass").get("value", "0")) for link in root.findall("link")
+            if (link.get("name") or "").startswith("bio_gripper_g2_") and link.find("inertial/mass") is not None}
 
 REFERENCE = ROOT / "tests/fixtures/bio_gripper_g2_movable_visual.urdf"
 
@@ -205,11 +215,11 @@ class BioG2ControllerTest(unittest.TestCase):
         self.assertAlmostEqual(bio_g2_speed_percent_from_mm_s(MAX_SPEED_MM_S), 100.0, places=10)
 
     def test_mass_inertia_and_mimic_across_mjcf_and_urdf(self):
-        mjcf_model = BioGripperG2Model.load()
-        urdf_model = BioGripperG2Model.load(URDF_FIXTURE)
-        self.assertAlmostEqual(mjcf_model.total_mass_kg, 0.79, places=12)
-        self.assertAlmostEqual(urdf_model.total_mass_kg, 0.79, places=12)
-        self.assertEqual(mjcf_model.link_masses_kg, urdf_model.link_masses_kg)
+        mjcf_masses = _bio_link_masses(MODELS_ROOT / "bio_gripper_g2" / "bio_gripper_g2.xml")
+        urdf_masses = _bio_link_masses(URDF_FIXTURE)
+        self.assertAlmostEqual(sum(mjcf_masses.values()), 0.79, places=12)
+        self.assertAlmostEqual(sum(urdf_masses.values()), 0.79, places=12)
+        self.assertEqual(mjcf_masses, urdf_masses)
         self.assertAlmostEqual(BASE_INERTIA_SCALE, 1.9719005072482427, places=12)
 
         robot = ET.parse(URDF_FIXTURE).getroot()

@@ -2,27 +2,31 @@
 
 ## [0.1.8] - Unreleased
 
-Streamlined the repository architecture and asset layout without reducing supported models, test coverage, or numerical accuracy: moved 41 long-tail combinations to runtime MuJoCo 4.x `MjSpec` composition, consolidated task configs (`12 -> 2` YAMLs), unified CLI entry points, and merged tightly coupled internal modules (`45 -> 35` package `.py` files, `29 -> 20` test files, `7 -> 3` maintainer asset scripts). All 48 top-level `ufactory_mujoco` exports, 482 canonical meshes, 11 task `config_sha256` hashes, and golden task reports remain compatible.
+The package now stores only atomic MJCF parts; every arm + accessory combination and every pick-place / box-pack scene is assembled at runtime with MuJoCo's native `MjSpec.attach`. Models and configs moved inside the package and the custom build hook is gone. Supported models, test coverage and numerical results are unchanged: all 30 golden task reports and all 11 task `config_sha256` hashes are byte-identical to 0.1.7.
 
 ### Added
 
-- **Runtime `MjSpec` Model Composition (`ufactory_mujoco.compose`)**: dynamically composes the 41 long-tail combinations (and custom multi-accessory stacks such as arm + base plate + F/T sensor + gripper + D435) from the 19 atomic component models with zero warnings and `< 1e-12` dynamics equivalence; caches resolved XML pairs atomically for read-only wheel installations. Re-exported `COMPOSED_MODELS`, `available_models`, `compose_spec`, `compose_model`, and `export_model` from `ufactory_mujoco`.
-- **Unified CLI Subcommands**: added `ufactory-mujoco export-model` (with `--list`, custom composition flags, and `--copy-meshes` portable export), `ufactory-mujoco export-calibration`, and `ufactory-mujoco kinematics-check` alongside `pick-place`, `box-pack`, `dynamics`, and the four `dynamics-*` entry points.
-- **Task Config Presets**: `ufactory_mujoco.config` adds `load_task_config(..., preset=...)`, `get_task_preset()`, and `list_task_presets()` backed by `presets:` inside `configs/default.yaml`.
+- **Native model assembly (`ufactory_mujoco.compose`)**: one `MjSpec.attach` mounting routine and the data in `ufactory_mujoco/robots.py` (recipes, tool mounting rules, combo keyframes, mount poses, task scene geometry) build all 46 named combinations from 19 atomic parts, plus custom stacks such as arm + base plate + F/T sensor + gripper + D435. Exported XML keeps authored values exactly (`compiler.savecompiled` disabled).
+- **`load_model()`**: compiles a model given by name, MJCF path, `MjSpec` or `MjModel`; `SimRobot`, `XArmRobot`, `CollisionChecker`, `ArmDynamics` and `attach_payload` accept the same inputs. `TaskConfig.scene_spec()` and `config.arm_scene_spec()` return scenes in memory.
+- **CLI subcommands**: `ufactory-mujoco export-model` (`--list`, custom composition flags, `--copy-meshes`), `export-calibration` and `kinematics-check`, alongside `pick-place`, `box-pack`, `dynamics` and the four `dynamics-*` entry points.
+- **Task config presets**: `load_task_config(..., preset=...)`, `get_task_preset()` and `list_task_presets()`, backed by `presets:` in `configs/default.yaml`.
 
 ### Changed
 
-- **Models Directory (`65 -> 24` static dirs, `141 -> 59` XMLs, `118 -> 10` symlinks)**: kept the 19 atomic component directories and 5 primary `*_with_gripper` task directories static under `models/` (all 482 canonical meshes untouched); the 41 long-tail combinations are now resolved transparently at runtime via `resolve_model_path()` / `resolve_arm_scene()` / `compose_spec()`.
-- **Task Configs (`12 -> 2` YAMLs)**: merged `configs/pick_place/*.yaml` and `configs/box_pack/*.yaml` into `configs/default.yaml` `presets:`; all 11 resolved task config hashes remain bit-for-bit identical to `0.1.7`.
-- **Packaging, Tests & Tooling**: bumped package version (`pyproject.toml` and `ufactory_mujoco.__version__`) to `0.1.8`; inlined `_build_support.py` into `setup.py` (updated `MANIFEST.in`), deduplicated `ufactory_mujoco/robots.py` gripper/combo registries, consolidated `tests/` from 29 to 20 files (zero test loss plus new compose/export tests), updated `dev/accept_compile.py`, `scripts/accept_installed.py`, `.github/workflows/ci.yml`, `CONTRIBUTING.md`, `NOTICE`, and both `README` pairs, consolidated `dev/asset_tools/` from 7 to 3 scripts, and added automatic temporary-venv cleanup to `dev/accept.sh` (`KEEP_ACCEPT_TMP=1` to retain).
+- **Models**: `models/` moved to `ufactory_mujoco/models/` and holds 19 atomic part directories (39 XML files including `xarm6/scene_obstacles.xml`, 482 meshes, no symlinks). The five `*_with_gripper` combinations and the ten pick-place / box-pack scenes are generated; task props come from the presets. Mesh and material ids of base-plate and F/T + tool combinations are ordered differently; geometry, physics and rendering are unchanged.
+- **Configs**: `configs/` moved to `ufactory_mujoco/configs/`; the ten task overlays are presets in `default.yaml`, which no longer repeat `robot`, `scene` or the default `executor`.
+- **Packaging**: `setup.py` and `MANIFEST.in` are removed; `pyproject.toml` ships `models/` and `configs/` as package data, so the wheel layout equals the source layout.
+- **Model lookup**: package runs load composites in memory; `resolve_model_path()`, `resolve_arm_scene()` and `TaskConfig.scene_path` (now computed on first use) export them to a cache keyed by installation and model name. `resolve_arm_scene` moved to `ufactory_mujoco.config`; top-level imports are unchanged.
+- **Code**: `SimRobot` and `XArmRobot` share their IK and planning helpers through `RobotInterface`; `XARM_IP` is resolved by one helper; robot-key aliases live in `robots.py`.
+- **Tests and CI**: the zero-warning compile check of every model runs in pytest; the CI example smoke step keeps only what pytest does not run; docs no longer hard-code model counts.
 
 ### Breaking (Internal Submodule Paths)
 
-Top-level imports (`from ufactory_mujoco import ...`) and CLI commands are unchanged. Callers importing private/internal submodules directly should migrate as follows:
+Top-level imports (`from ufactory_mujoco import ...`) are unchanged, and `load_model` was added. Callers importing internal submodules directly should migrate as follows:
 
-| Removed internal module (0.1.7) | Consolidated replacement |
+| Removed internal path (0.1.7) | Replacement |
 | :--- | :--- |
-| `ufactory_mujoco.model_paths` | `ufactory_mujoco.robots` |
+| `ufactory_mujoco.model_paths` | `ufactory_mujoco.compose` (`resolve_model_path`, `available_models`), `ufactory_mujoco.config` (`resolve_arm_scene`), `ufactory_mujoco.robots` (registry data) |
 | `ufactory_mujoco.ik` | `ufactory_mujoco.kinematics` |
 | `ufactory_mujoco.collision`, `ufactory_mujoco.path_planning` | `ufactory_mujoco.planning` |
 | `ufactory_mujoco.task_geometry` | `ufactory_mujoco.preflight` |
@@ -32,12 +36,14 @@ Top-level imports (`from ufactory_mujoco import ...`) and CLI commands are uncha
 | `ufactory_mujoco.dynamics.{poses,runtime}` | `ufactory_mujoco.dynamics.profiles` |
 | `ufactory_mujoco.dynamics.{reference,probe}` | `ufactory_mujoco.dynamics.backends` |
 | `ufactory_mujoco.dynamics.plot` | `ufactory_mujoco.dynamics.report` |
+| `ufactory_mujoco.data/` resources | `ufactory_mujoco/models/`, `ufactory_mujoco/configs/`; licenses in `.dist-info/licenses/` |
 
 ### Removed
 
-- `_build_support.py` (inlined into `setup.py`) and `scripts/gen_kinematics_params.py` (replaced by `ufactory-mujoco export-calibration` / `python -m ufactory_mujoco.dynamics export-calibration`).
-- Unused internal symbols `xarm6_default_dynamics_configs` and `HoldTimeSeriesSample`.
-- 41 static long-tail combination directories under `models/` (now dynamically composed) and 10 per-arm task YAML overlays under `configs/{pick_place,box_pack}/` (now in `configs/default.yaml`).
+- `models/*_with_gripper/` (15 XML files, 10 symlinks) and the 41 other static combination directories; `configs/{pick_place,box_pack}/`.
+- `setup.py`, `MANIFEST.in`, `_build_support.py`, `scripts/gen_kinematics_params.py` (use `ufactory-mujoco export-calibration`).
+- `dynamics-hardware-check --include-stress` and the stress pose plumbing; the stress pose set was always empty.
+- `BioGripperG2Model`, the test-only Gripper G2 joint constants (`G2_JOINT_NAMES`, `G2_ARMATURE`, `G2_DAMPING`, `G2_FRICTIONLOSS`, `G2_MIMIC_SOLREF`, `G2_MIMIC_SOLIMP`), five unused aliases in `dynamics.analysis`, `ft_sensor.SENSOR_INTERNAL_HZ`, `xarm6_default_dynamics_configs` and `HoldTimeSeriesSample`.
 
 ## [0.1.7] - 2026-11-19
 

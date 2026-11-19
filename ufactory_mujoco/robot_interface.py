@@ -10,9 +10,12 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from .kinematics import fk_pose, solve_ik
+from .trajectory import DEFAULT_MAX_ROT_VEL, JointTrajectory, plan_cartesian_line, plan_ptp_quintic
+
 if TYPE_CHECKING:
     from .ft_sensor import SensorReading
-    from .trajectory import JointTrajectory
+    from .grippers import GripperSpec
 
 
 class RobotInterface(ABC):
@@ -169,6 +172,80 @@ class RobotInterface(ABC):
     def get_ft_sensor_reading(self) -> SensorReading:
         """Read the current 6-axis force/torque sensor wrench."""
         raise NotImplementedError("This robot has no force/torque sensor")
+
+    # -- shared helpers on the backend's MuJoCo model (model, data, eval_data) -------
+    def _sync_qpos(self) -> None:
+        """Refresh ``data.qpos`` from the robot (hardware backends read the controller)."""
+
+    def _tcp_site_name(self) -> str:
+        return self.model.site(self._site).name
+
+    def _require_jaw(self) -> GripperSpec:
+        if self.gripper_kind == "vacuum":
+            raise NotImplementedError("vacuum gripper has no jaw gap")
+        if self._gripper_spec is None or self._gripper_spec.kind != "jaw":
+            raise NotImplementedError("This robot has no jaw gripper")
+        return self._gripper_spec
+
+    def _eval_qpos(self, q: np.ndarray | None, name: str = "q") -> np.ndarray:
+        """Resolve ``q`` (``None``, arm-only ``(n_arm,)``, or full ``(nq,)``) against current ``data.qpos``."""
+        if q is None:
+            self._sync_qpos()
+            return self.data.qpos.copy()
+        arr = np.asarray(q, dtype=np.float64)
+        if arr.ndim != 1 or not np.all(np.isfinite(arr)):
+            raise ValueError(f"{name} must be a finite 1-D array, got shape {arr.shape}")
+        if len(arr) == self.model.nq:
+            return arr.copy()
+        if len(arr) == self.n_arm:
+            full = self.data.qpos.copy()
+            full[: self.n_arm] = arr
+            return full
+        raise ValueError(
+            f"{name} must have length {self.n_arm} (n_arm) or {self.model.nq} (nq), got {len(arr)}"
+        )
+
+    def solve_tcp(self, pos, quat=None, q_init=None):
+        """IK for a TCP pose seeded from the current state (or ``q_init``); returns ``(q, converged)``."""
+        seed = self._eval_qpos(q_init, "q_init")
+        return solve_ik(self.model, self.eval_data, self._tcp_site_name(),
+                        np.asarray(pos, dtype=float),
+                        None if quat is None else np.asarray(quat, dtype=float),
+                        q_init=seed)
+
+    def plan_joint_trajectory(self, q_goal: np.ndarray, max_vel: float | np.ndarray = 1.57,
+                              max_acc: float | np.ndarray = 4.0,
+                              duration: float | None = None) -> JointTrajectory:
+        """Plan a time-parameterized quintic joint trajectory from the current joints to ``q_goal``."""
+        q0 = self.get_joint_positions()
+        return plan_ptp_quintic(q0, q_goal, max_vel=max_vel, max_acc=max_acc,
+                                duration=duration, dt=self.model.opt.timestep)
+
+    def plan_cartesian_trajectory(self, pos: np.ndarray, quat: np.ndarray | None = None,
+                                  max_lin_vel: float = 0.20, max_lin_acc: float = 1.0,
+                                  site_name: str | None = None, *,
+                                  max_rot_vel: float = DEFAULT_MAX_ROT_VEL) -> tuple[JointTrajectory, bool]:
+        """Plan an arm-joint straight Cartesian line from the current site pose; returns ``(trajectory, ok)``."""
+        site = site_name if site_name is not None else self._tcp_site_name()
+        if site_name is None:
+            p0, quat0 = self.get_tcp_pose()
+        else:
+            self._sync_qpos()
+            p0, quat0 = fk_pose(self.model, self.eval_data, site, self.data.qpos.copy())
+        traj_full, ok = plan_cartesian_line(
+            p0, quat0, pos, quat, self.model, site_name=site,
+            max_lin_vel=max_lin_vel, max_lin_acc=max_lin_acc, max_rot_vel=max_rot_vel,
+            q_init=self.data.qpos.copy(), dt=self.model.opt.timestep,
+            eval_data=self.eval_data,
+        )
+        n = self.n_arm
+        arm_traj = JointTrajectory(
+            times=traj_full.times,
+            q=traj_full.q[:, :n],
+            qd=traj_full.qd[:, :n],
+            qdd=traj_full.qdd[:, :n],
+        )
+        return arm_traj, ok
 
     # -- lifecycle ----------------------------------------------------------
     def close(self) -> None:

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import hashlib
 import json
 import math
+import os
 import time
 from typing import Any
 
@@ -115,6 +116,11 @@ class SdkSimEvidence:
             "created_at_unix_s": self.created_at_unix_s,
             "failures": list(self.failures),
         }
+
+
+def resolve_xarm_ip(ip: str | None) -> str | None:
+    """Controller address from ``ip`` or ``$XARM_IP``, stripped; ``None`` when neither is set."""
+    return (ip or os.environ.get("XARM_IP") or "").strip() or None
 
 
 def stream_sha256(stream: np.ndarray) -> str:
