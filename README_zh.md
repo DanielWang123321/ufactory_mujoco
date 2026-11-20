@@ -36,7 +36,7 @@ python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose
 | `xarm7` | `gripper_g2`、`bio_gripper_g2`、`vacuum_gripper`、`ft_sensor`、`ft_sensor_and_gripper`、`ft_sensor_and_vacuum_gripper` | 配 `gripper_g2` | 支持 |
 | `uf850` | `gripper_g2`、`bio_gripper_g2`、`vacuum_gripper`、`ft_sensor`、`ft_sensor_and_gripper`、`ft_sensor_and_vacuum_gripper` | 配 `gripper_g2` | 支持 |
 
-命名模型覆盖 5 款裸臂、5 款末端工具、4 款深度相机（`d405`、`d435`、`gemini_305`、`zed_x_nano`）、相机支架、AI1500 六维力矩传感器、安装底板（`{xarm,uf850,lite6}_base_plate`）及各类机械臂+配件组合。`ufactory-mujoco export-model --list` 列出全部名称；用 `01_load_and_view.py --model <名称>` 加载，或用 `ufactory-mujoco export-model <名称> --out-dir <目录>` 导出独立 MJCF；各模型的命令见 [examples/simulation/README_zh.md](examples/simulation/README_zh.md#4-按机型的命令)。
+命名模型覆盖 5 款裸臂、5 款末端工具、4 款深度相机（`d405`、`d435`、`gemini_305`、`zed_x_nano`）、相机支架、AI1500 六维力矩传感器、安装底板（`{xarm,uf850,lite6}_base_plate`）及各类机械臂+配件组合。`ufactory-mujoco export-model --list` 列出全部名称；用 `01_load_and_view.py --model <名称>` 加载，或用 `ufactory-mujoco export-model <名称> --out-dir <目录>` 导出独立 MJCF；模型命名规则见 [examples/simulation/README_zh.md](examples/simulation/README_zh.md#模型)。
 
 ## 安装
 
@@ -79,8 +79,8 @@ pip uninstall -y mujoco && pip install "mujoco>=4,<5"
 ## 命令行任务
 
 ```bash
-ufactory-mujoco pick-place --robot xarm6 --headless
-ufactory-mujoco box-pack --robot lite6 --cycles 3 --headless
+ufactory-mujoco pick-place --robot xarm6
+ufactory-mujoco box-pack --robot lite6 --cycles 3
 ufactory-mujoco dynamics --robot all --headless --report reports/dynamics.json
 ufactory-mujoco export-model xarm6_with_ft_sensor_and_gripper --out-dir exported/xarm6_ft_g2
 ufactory-mujoco export-calibration <ROBOT_IP> --output-dir calibrations
@@ -88,7 +88,8 @@ ufactory-mujoco kinematics-check --robot xarm6 --ip <ROBOT_IP> --calibration cal
 ```
 
 - `python -m ufactory_mujoco <命令>` 与之等价；示例 `05`、`08`、`10` 运行的是同一份代码。
-- `命令 --help` 列出参数；完整参数表见 [examples/simulation/README_zh.md](examples/simulation/README_zh.md#3-命令行参数汇总)。
+- `pick-place`、`box-pack` 与 `dynamics` 会打开视窗，加 `--headless` 则不开视窗运行。
+- `命令 --help` 列出参数。
 - `--dry-run` 只做预检，不步进物理。
 - 退出码：`0` 成功；`1` 运行、预检、安全门、模型资源缺失（`UFACTORY_MUJOCO_MODELS`）或报告失败；`2` 参数或配置非法（含任务与场景类型不匹配）。
 - `--report` 路径相对当前目录，自动创建父目录。
@@ -110,7 +111,7 @@ ufactory-mujoco kinematics-check --robot xarm6 --ip <ROBOT_IP> --calibration cal
 
 | 内容 | 文档 |
 | :--- | :--- |
-| 仿真示例 `01`–`11`、命令行参数、按机型的命令、视窗操作、真机命令 | [examples/simulation/README_zh.md](examples/simulation/README_zh.md)（[English](examples/simulation/README.md)） |
+| 仿真示例 `01`–`11`、模型名、起始姿态、真机命令、视窗操作 | [examples/simulation/README_zh.md](examples/simulation/README_zh.md)（[English](examples/simulation/README.md)） |
 | 贡献指南、安全策略、行为准则（英文） | [CONTRIBUTING.md](CONTRIBUTING.md)、[SECURITY.md](SECURITY.md)、[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) |
 | 版本历史 | [CHANGELOG.md](CHANGELOG.md) |
 

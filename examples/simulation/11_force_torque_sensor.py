@@ -9,10 +9,10 @@ read-only live hardware F/T sampling via ``XArmRobot(..., read_only=True)``.
 
 Usage:
     python examples/simulation/11_force_torque_sensor.py
-    python examples/simulation/11_force_torque_sensor.py --headless
-    python examples/simulation/11_force_torque_sensor.py --model ft_sensor --force 0 0 -5 --headless
-    python examples/simulation/11_force_torque_sensor.py --model xarm6_with_ft_sensor_and_vacuum_gripper --headless
-    python examples/simulation/11_force_torque_sensor.py --ip <ROBOT_IP> --robot xarm6 --gripper ft_sensor --headless
+    python examples/simulation/11_force_torque_sensor.py --model ft_sensor --force 0 0 -5
+    python examples/simulation/11_force_torque_sensor.py --model xarm6_with_ft_sensor_and_vacuum_gripper
+    python examples/simulation/11_force_torque_sensor.py --headless   # no viewer, prints metrics
+    python examples/simulation/11_force_torque_sensor.py --ip <ROBOT_IP> --robot xarm6 --gripper ft_sensor
 """
 
 from __future__ import annotations

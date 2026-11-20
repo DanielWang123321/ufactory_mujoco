@@ -8,7 +8,7 @@ where the tool reaches below the floor.
 Usage:
     python examples/simulation/01_load_and_view.py
     python examples/simulation/01_load_and_view.py --pose ready
-    python examples/simulation/01_load_and_view.py --model lite6 --headless
+    python examples/simulation/01_load_and_view.py --model lite6
 """
 
 import argparse

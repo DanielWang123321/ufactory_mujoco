@@ -36,7 +36,7 @@ Without a display, run a task headless: `ufactory-mujoco pick-place --robot xarm
 | `xarm7` | `gripper_g2`, `bio_gripper_g2`, `vacuum_gripper`, `ft_sensor`, `ft_sensor_and_gripper`, `ft_sensor_and_vacuum_gripper` | with `gripper_g2` | yes |
 | `uf850` | `gripper_g2`, `bio_gripper_g2`, `vacuum_gripper`, `ft_sensor`, `ft_sensor_and_gripper`, `ft_sensor_and_vacuum_gripper` | with `gripper_g2` | yes |
 
-Named models cover 5 bare arms, 5 end effectors, 4 depth cameras (`d405`, `d435`, `gemini_305`, `zed_x_nano`), camera stands, the AI1500 F/T sensor, mounting base plates (`{xarm,uf850,lite6}_base_plate`) and arm + accessory combinations. `ufactory-mujoco export-model --list` prints every name. Load a model with `01_load_and_view.py --model <name>`, or export a standalone MJCF directory with `ufactory-mujoco export-model <name> --out-dir <dir>`; commands per model are in [examples/simulation/README.md](examples/simulation/README.md#4-commands-by-model).
+Named models cover 5 bare arms, 5 end effectors, 4 depth cameras (`d405`, `d435`, `gemini_305`, `zed_x_nano`), camera stands, the AI1500 F/T sensor, mounting base plates (`{xarm,uf850,lite6}_base_plate`) and arm + accessory combinations. `ufactory-mujoco export-model --list` prints every name. Load a model with `01_load_and_view.py --model <name>`, or export a standalone MJCF directory with `ufactory-mujoco export-model <name> --out-dir <dir>`; model names are explained in [examples/simulation/README.md](examples/simulation/README.md#models).
 
 ## Installation
 
@@ -79,8 +79,8 @@ If the environment is already broken, repair it with `pip install --force-reinst
 ## Command-Line Tasks
 
 ```bash
-ufactory-mujoco pick-place --robot xarm6 --headless
-ufactory-mujoco box-pack --robot lite6 --cycles 3 --headless
+ufactory-mujoco pick-place --robot xarm6
+ufactory-mujoco box-pack --robot lite6 --cycles 3
 ufactory-mujoco dynamics --robot all --headless --report reports/dynamics.json
 ufactory-mujoco export-model xarm6_with_ft_sensor_and_gripper --out-dir exported/xarm6_ft_g2
 ufactory-mujoco export-calibration <ROBOT_IP> --output-dir calibrations
@@ -88,7 +88,8 @@ ufactory-mujoco kinematics-check --robot xarm6 --ip <ROBOT_IP> --calibration cal
 ```
 
 - `python -m ufactory_mujoco <command>` is equivalent. Examples `05`, `08` and `10` run the same code.
-- `COMMAND --help` lists the options. The full table is in [examples/simulation/README.md](examples/simulation/README.md#3-cli-options-summary).
+- `pick-place`, `box-pack` and `dynamics` open the viewer; `--headless` runs them without it.
+- `COMMAND --help` lists the options.
 - `--dry-run` only runs the preflight and never steps physics.
 - Exit codes: `0` success, `1` runtime, preflight, safety-gate, missing model resource (`UFACTORY_MUJOCO_MODELS`), or report failure, `2` invalid arguments or configuration (including task/scene mismatch).
 - `--report` paths are relative to the current directory; parent directories are created.
@@ -110,7 +111,7 @@ ufactory-mujoco kinematics-check --robot xarm6 --ip <ROBOT_IP> --calibration cal
 
 | Topic | Document |
 | :--- | :--- |
-| Simulation examples `01`–`11`, CLI options, commands by model, viewer controls, hardware commands | [examples/simulation/README.md](examples/simulation/README.md) ([中文](examples/simulation/README_zh.md)) |
+| Simulation examples `01`–`11`, model names, start poses, hardware commands, viewer controls | [examples/simulation/README.md](examples/simulation/README.md) ([中文](examples/simulation/README_zh.md)) |
 | Contributing, security policy, code of conduct | [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) |
 | Release history | [CHANGELOG.md](CHANGELOG.md) |
 

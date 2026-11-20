@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Five-arm dynamics, collision and monitored motion validation.
 
-    ufactory-mujoco dynamics --headless
-    ufactory-mujoco dynamics --robot all --headless \
-        --samples 32 --seed 0 --report build/dynamics/report.json
+    ufactory-mujoco dynamics
+    ufactory-mujoco dynamics --robot all --headless --report build/dynamics/report.json
 
 All modes execute home -> ready -> target -> ready. No robot SDK is required.
 The xArm6 additionally retains the historical 3 kg payload checks.
@@ -751,12 +750,16 @@ def run_hardware_dynamics_validation(
 
 def main(argv=None) -> None:
     """``ufactory-mujoco dynamics`` command line entry point."""
-    parser = argparse.ArgumentParser(prog="ufactory-mujoco dynamics", description=__doc__)
-    parser.add_argument("--robot", choices=(*ARMS, "all"), default="xarm6")
+    parser = argparse.ArgumentParser(prog="ufactory-mujoco dynamics", description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--robot", choices=(*ARMS, "all"), default="xarm6",
+                        help="arm key, or all for every arm in sim mode (default: xarm6)")
     parser.add_argument("--gripper", default=None, help="mounted end effector for hardware collision preflight")
     parser.add_argument("--headless", action="store_true", help="validate without a viewer")
-    parser.add_argument("--samples", type=lambda s: integer_argument(s, positive=True), default=32)
-    parser.add_argument("--seed", type=integer_argument, default=0)
+    parser.add_argument("--samples", type=lambda s: integer_argument(s, positive=True), default=32,
+                        help="random poses per arm (default: 32)")
+    parser.add_argument("--seed", type=integer_argument, default=0,
+                        help="seed of the random poses (default: 0)")
     parser.add_argument("--report", type=Path, help="write a strict JSON validation report")
     parser.add_argument("--mode", choices=("sim", "real-read-only", "sdk-sim", "real"), default="sim",
                         help="execution mode: sim (default), real-read-only, sdk-sim, or real")

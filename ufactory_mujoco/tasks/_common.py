@@ -347,11 +347,13 @@ def _run_hardware_manipulation(command: str, args, config) -> tuple[int, dict]:
 def manipulation_main(command, argv=None):
     """Shared CLI for ``pick-place`` and ``box-pack``: parse arguments, run the mode, return the exit code."""
     task = importlib.import_module(f"ufactory_mujoco.tasks.{command.replace('-', '_')}")
-    parser = argparse.ArgumentParser(prog=f"ufactory-mujoco {command}", description=task.__doc__)
+    parser = argparse.ArgumentParser(prog=f"ufactory-mujoco {command}", description=task.__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--robot", choices=tuple(ARMS), default=None,
                         help="arm key (defaults to xarm6 when --config is omitted)")
     parser.add_argument("--gripper", help="override the overlay gripper")
-    parser.add_argument("--executor", choices=EXECUTORS)
+    parser.add_argument("--executor", choices=EXECUTORS,
+                        help="servo_cartesian (default) tracks TCP waypoints; servo_j moves the joints through IK")
     parser.add_argument("--config", help="overlay YAML instead of the robot default")
     parser.add_argument("--mode", choices=MODES, default=None,
                         help="execution mode: sim (default), dry-run, sdk-sim, or real")
@@ -362,9 +364,12 @@ def manipulation_main(command, argv=None):
     parser.add_argument("--headless", action="store_true", help="run without a viewer")
     parser.add_argument("--dry-run", action="store_true", help="preflight without physics steps")
     parser.add_argument("--report", help="write JSON relative to the current directory")
-    parser.add_argument("--cycles", type=positive_int, default=1)
+    parser.add_argument("--cycles", type=positive_int, default=1,
+                        help="number of cycles (default: 1; box-pack: up to one per feed cube; "
+                             "sdk-sim and real: 1)")
     if command == "box-pack":
-        parser.add_argument("--speed", type=positive_float, help="motion speed multiplier")
+        parser.add_argument("--speed", type=positive_float,
+                            help="motion speed multiplier (default: the preset speed_scale, 1.0)")
     args = parser.parse_args(argv)
 
     if args.dry_run and args.mode not in (None, "dry-run"):

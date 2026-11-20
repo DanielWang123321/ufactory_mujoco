@@ -10,8 +10,8 @@ Success: every released cube is at rest with its collision bounds inside the
 box (1 mm contact tolerance) and the TCP returns within 10 mm of home.
 
 Usage:
-    ufactory-mujoco box-pack --headless
-    ufactory-mujoco box-pack --robot lite6 --cycles 3 --speed 2.0 --headless
+    ufactory-mujoco box-pack
+    ufactory-mujoco box-pack --robot lite6 --cycles 3 --speed 2.0
     ufactory-mujoco box-pack --dry-run
 """
 

@@ -13,8 +13,8 @@ Success: the cube is lifted, place error < 50 mm, and the TCP returns within
 10 mm of the lift pose.
 
 Usage:
-    ufactory-mujoco pick-place --headless
-    ufactory-mujoco pick-place --robot lite6 --executor servo_j --headless
+    ufactory-mujoco pick-place
+    ufactory-mujoco pick-place --robot lite6 --executor servo_j
 """
 
 import mujoco
