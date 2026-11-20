@@ -44,6 +44,11 @@
       </default>
       <default class="g2_collision">
         <geom type="mesh" group="3"/>
+        <!-- Rigid pads: priority makes these contact parameters win over the
+             grasped object's, so the force-limited servo stalls at its surface. -->
+        <default class="g2_pad">
+          <geom priority="1" solref="0.004 1" solimp="0.95 0.99 0.001 0.5 2"/>
+        </default>
       </default>
       <default class="driver">
         <joint range="0.057210812728026743 0.86509464599328212" armature="0.01" damping="0.05" frictionloss="0" solreflimit="0.005 1"/>
@@ -85,7 +90,7 @@
             diaginertia="1.88e-05 1.75e-05 3.57e-06"/>
           <joint name="left_finger_joint" axis="-1 0 0" class="follower"/>
           <geom class="g2_visual" mesh="left_finger_vis" material="black"/>
-          <geom class="g2_collision" mesh="left_finger_col"/>
+          <geom class="g2_pad" mesh="left_finger_col"/>
         </body>
       </body>
       <body name="left_inner_knuckle" pos="0 0.02 0.075602">
@@ -108,7 +113,7 @@
             diaginertia="1.88e-05 1.75e-05 3.57e-06"/>
           <joint name="right_finger_joint" axis="1 0 0" class="follower"/>
           <geom class="g2_visual" mesh="right_finger_vis" material="black"/>
-          <geom class="g2_collision" mesh="right_finger_col"/>
+          <geom class="g2_pad" mesh="right_finger_col"/>
         </body>
       </body>
       <body name="right_inner_knuckle" pos="0 -0.02 0.075602">
@@ -134,12 +139,13 @@
     <exclude body1="left_inner_knuckle" body2="left_finger"/>
   </contact>
 
+  <!-- Stiff couplings keep the pads parallel under the full pinch force. -->
   <equality>
-    <joint joint1="left_driver_joint" joint2="left_finger_joint" polycoef="0 1 0 0 0" solref="0.02 1" solimp="0.9 0.95 0.001 0.5 2"/>
-    <joint joint1="left_driver_joint" joint2="left_inner_knuckle_joint" polycoef="0 1 0 0 0" solref="0.02 1" solimp="0.9 0.95 0.001 0.5 2"/>
-    <joint joint1="left_driver_joint" joint2="right_driver_joint" polycoef="0 1 0 0 0" solref="0.02 1" solimp="0.9 0.95 0.001 0.5 2"/>
-    <joint joint1="left_driver_joint" joint2="right_finger_joint" polycoef="0 1 0 0 0" solref="0.02 1" solimp="0.9 0.95 0.001 0.5 2"/>
-    <joint joint1="left_driver_joint" joint2="right_inner_knuckle_joint" polycoef="0 1 0 0 0" solref="0.02 1" solimp="0.9 0.95 0.001 0.5 2"/>
+    <joint joint1="left_driver_joint" joint2="left_finger_joint" polycoef="0 1 0 0 0" solref="0.004 1" solimp="0.9999 0.9999 0.001 0.5 2"/>
+    <joint joint1="left_driver_joint" joint2="left_inner_knuckle_joint" polycoef="0 1 0 0 0" solref="0.004 1" solimp="0.9999 0.9999 0.001 0.5 2"/>
+    <joint joint1="left_driver_joint" joint2="right_driver_joint" polycoef="0 1 0 0 0" solref="0.004 1" solimp="0.9999 0.9999 0.001 0.5 2"/>
+    <joint joint1="left_driver_joint" joint2="right_finger_joint" polycoef="0 1 0 0 0" solref="0.004 1" solimp="0.9999 0.9999 0.001 0.5 2"/>
+    <joint joint1="left_driver_joint" joint2="right_inner_knuckle_joint" polycoef="0 1 0 0 0" solref="0.004 1" solimp="0.9999 0.9999 0.001 0.5 2"/>
   </equality>
 
   <actuator>

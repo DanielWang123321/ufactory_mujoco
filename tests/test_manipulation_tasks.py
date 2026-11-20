@@ -172,6 +172,77 @@ class MultiArmPickPlaceTests(unittest.TestCase):
                     self.assertLess(report["place_error_mm"], 50.0)
                     self.assertLess(report["home_drift_mm"], 10.0)
 
+def _cube_in_tcp(robot) -> np.ndarray:
+    pos, quat = robot.get_tcp_pose()
+    rot = np.empty(9)
+    mujoco.mju_quat2Mat(rot, quat)
+    return rot.reshape(3, 3).T @ (robot.data.body("cube").xpos - pos)
+
+class GraspHoldTests(unittest.TestCase):
+    """The jaw stalls at the cube surface and the held cube does not creep."""
+
+    @staticmethod
+    def _grasp_and_hold(robot_name: str, hold_s: float = 2.0) -> tuple[float, float, float]:
+        """Grasp and lift the preset cube, then hold still.
+
+        Returns the deepest finger-cube penetration (m), the measured jaw gap (m) and how
+        far the cube moved relative to the TCP during the hold (m).
+        """
+        from ufactory_mujoco.grippers import identify_gripper
+        from ufactory_mujoco.preflight import _close_until_contact
+        from ufactory_mujoco.tasks import _common
+
+        config = load_task_config(preset=("pick_place", robot_name))
+        task = config.pick_place
+        with SimRobot(config.scene_path, viewer=False) as robot:
+            mover = _common.Mover(robot, config.executor, task.cart_v_m_s, task.cart_a_m_s2,
+                                  np.deg2rad(90.0), 3.5)
+            h, q_seed = tcp_task_heights(robot, task)
+            x, y = task.cube_xy
+            robot.open_gripper(wait=True)
+            robot.move_joints(q_seed[:robot.n_arm], duration=3.0)
+            for start, end in (("lift_z", "pre_grasp_z"), ("pre_grasp_z", "grasp_z")):
+                mover.move(np.array([x, y, h[end]]), mover.duration(h[start] - h[end]),
+                           robot.data.qpos.copy())
+            _close_until_contact(robot, "cube", task.grasp_gap_m)
+
+            m, d = robot.model, robot.data
+            spec = identify_gripper(m)
+            cube = m.body("cube").id
+            fingers = {m.body(spec.left_body).id, m.body(spec.right_body).id}
+            depth = 0.0
+            for i in range(d.ncon):
+                contact = d.contact[i]
+                pair = {int(m.geom_bodyid[contact.geom1]), int(m.geom_bodyid[contact.geom2])}
+                if cube in pair and pair & fingers:
+                    depth = max(depth, -float(contact.dist))
+            gap = robot.get_gripper_gap(measured=True)
+
+            mover.move(np.array([x, y, h["lift_z"]]), mover.duration(h["lift_z"] - h["grasp_z"]),
+                       robot.data.qpos.copy())
+            before = _cube_in_tcp(robot)
+            robot.settle(hold_s)
+            drift = float(np.linalg.norm(_cube_in_tcp(robot) - before))
+        return depth, gap, drift
+
+    def test_task_scenes_enable_noslip(self):
+        for task_name in ("pick_place", "box_pack"):
+            for robot_name in ("xarm6", "lite6"):
+                with self.subTest(task=task_name, robot=robot_name):
+                    config = load_task_config(preset=(task_name, robot_name))
+                    model = mujoco.MjModel.from_xml_path(str(config.scene_path))
+                    self.assertGreater(model.opt.noslip_iterations, 0)
+
+    def test_g2_pads_stop_at_cube_surface_and_hold_still(self):
+        depth, gap, drift = self._grasp_and_hold("xarm6")
+        self.assertLess(depth, 1e-3, "pads sank more than 1 mm into the 30 mm cube")
+        self.assertGreater(gap, 0.028, "the jaw closed far past the 30 mm cube")
+        self.assertLess(drift, 5e-4, "the held cube moved more than 0.5 mm relative to the TCP")
+
+    def test_lite6_held_cube_does_not_creep(self):
+        _, _, drift = self._grasp_and_hold("lite6")
+        self.assertLess(drift, 5e-4, "the held cube moved more than 0.5 mm relative to the TCP")
+
 # ==========================================================================
 # From test_box_pack.py
 # ==========================================================================

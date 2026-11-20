@@ -50,8 +50,8 @@ ROOT = Path(__file__).resolve().parents[1]
 G2_JOINT_NAMES = ("left_driver_joint", "left_finger_joint", "left_inner_knuckle_joint",
                   "right_driver_joint", "right_finger_joint", "right_inner_knuckle_joint")
 G2_ARMATURE, G2_DAMPING, G2_FRICTIONLOSS = 0.01, 0.05, 0.0
-G2_MIMIC_SOLREF = (0.02, 1.0)
-G2_MIMIC_SOLIMP = (0.9, 0.95, 0.001, 0.5, 2.0)
+G2_MIMIC_SOLREF = (0.004, 1.0)
+G2_MIMIC_SOLIMP = (0.9999, 0.9999, 0.001, 0.5, 2.0)
 
 G2 = MODELS_ROOT / "gripper_g2"
 

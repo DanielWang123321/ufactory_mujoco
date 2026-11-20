@@ -360,6 +360,10 @@ def task_scene_path(robot: str, task: str, params: Any, models_root: Path | None
     return cached_xml_path(name, _task_xml(robot, task, params, root), f"scene_{task}.xml", root)
 
 
+# MuJoCo's soft friction lets a held prop creep out of the fingers; the noslip pass stops it.
+_TASK_NOSLIP_ITERATIONS = 3
+
+
 @functools.lru_cache(maxsize=32)
 def _task_xml(robot: str, task: str, params: Any, root: Path) -> str:
     name = robots.combo_name(robot, robots.TASK_GRIPPERS[robot])
@@ -370,6 +374,7 @@ def _task_xml(robot: str, task: str, params: Any, root: Path) -> str:
     env.stat.extent = robots.TASK_STATISTIC_EXTENT
     _add_task_props(env.worldbody, robots.TASK_STANDS.get(robot, {}).get(task), task, params)
     _add_env(spec, env)
+    spec.option.noslip_iterations = _TASK_NOSLIP_ITERATIONS
     return _to_xml(spec)
 
 
