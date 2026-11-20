@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Cube pick-and-place for five arm and gripper pairs.
 
-Geometry, speed and grasp gap come from the pick_place presets in configs/default.yaml.
+Geometry, speed and grasp gap come from the pick_place presets in configs/default.yaml;
+all five arms share the cube spot, the target and the TCP lift height. The simulated
+task start (``TASK_START``) points the TCP down above the cube, so the arm descends to
+the grasp in one straight motion; from any other pose it first deploys above the cube.
 servo_cartesian tracks TCP waypoints. servo_j converts each waypoint with IK
 and then moves the joints. The arm lifts only after both finger pads touch
 the cube.
@@ -18,9 +21,21 @@ import mujoco
 import numpy as np
 
 from ufactory_mujoco import SimRobot
-from ufactory_mujoco.preflight import _close_until_contact, preflight_pick_place, tcp_task_heights
+from ufactory_mujoco.preflight import (
+    GRIP_DOWN_QUAT,
+    _close_until_contact,
+    preflight_pick_place,
+    tcp_task_heights,
+)
 from . import _common
 from ._common import manipulation_main, task_report, write_report
+
+
+def _points_down_above(pos: np.ndarray, quat: np.ndarray, xy, min_z: float) -> bool:
+    """True when a TCP pose points down within 2 mm of ``xy`` and at least ``min_z`` high."""
+    tilt = 2.0 * np.arccos(min(1.0, abs(float(np.dot(quat, GRIP_DOWN_QUAT)))))
+    return (float(np.linalg.norm(pos[:2] - np.asarray(xy))) < 2e-3 and float(pos[2]) >= min_z
+            and tilt < np.deg2rad(1.0))
 
 
 def run_pick_place(robot: SimRobot, config, cycles: int = 1, *,
@@ -70,34 +85,47 @@ def run_pick_place(robot: SimRobot, config, cycles: int = 1, *,
         place = np.array([task.target_xy[0], task.target_xy[1], h["grasp_z"]])
 
         # The approach runs without settles: each motion hands over to the next one.
-        print("  Open gripper and deploy above cube ...")
         robot.open_gripper(wait=True)
-        deploy_seg = report.segments.get("approach_deploy")
-        if deploy_seg is not None and deploy_seg.detour:
-            q_seed = mover.segment("approach_deploy", home, 3.0, q_seed, report, wait=False)
-        else:
-            robot.move_joints(q_seed[:robot.n_arm], duration=3.0, wait=False)
-            q_seed = robot.data.qpos.copy()
-        deploy = np.array([task.cube_xy[0], task.cube_xy[1], h["lift_z"]])
-        shift = float(np.linalg.norm(home - deploy))
-        if shift > 1e-3:  # the cube is not on its preset spot
-            q_seed = mover.move(home, mover.duration(shift), q_seed)
-        if viewer_closed():
-            break
-        print("  Descend to the grasp pose ...")
-        approach = [report.segments.get(name) for name in ("approach_pre", "approach_grasp")]
-        if any(seg is not None and seg.detour for seg in approach):
-            q_seed = mover.segment("approach_pre", pre_grasp, mover.duration(
-                h["lift_z"] - h["pre_grasp_z"]), q_seed, report, wait=False)
-            q_seed = mover.segment("approach_grasp", grasp, mover.duration(
-                h["pre_grasp_z"] - h["grasp_z"]), q_seed, report, wait=False)
-        else:
-            # pre_grasp lies on the straight line down to grasp: one motion, no stop.
-            q_seed = mover.move(grasp, mover.duration(h["lift_z"] - h["grasp_z"]), q_seed,
+        approach = [report.segments.get(name)
+                    for name in ("approach_deploy", "approach_pre", "approach_grasp")]
+        detour = any(seg is not None and seg.detour for seg in approach)
+        pos, quat = robot.get_tcp_pose()
+        if not detour and _points_down_above(pos, quat, cube_xy, h["pre_grasp_z"]):
+            # The task start pose is above the cube: one straight descent to the grasp pose.
+            print("  Descend to the grasp pose ...")
+            q_seed = mover.move(grasp, mover.duration(float(pos[2]) - h["grasp_z"]), q_seed,
                                 wait=False)
-        # Close as soon as the lagging arm reaches the grasp pose, not after a fixed settle.
-        robot.settle_until(lambda: float(np.linalg.norm(robot.get_tcp_pose()[0] - grasp)) < 1e-3,
-                           1.0)
+        else:
+            print("  Deploy above cube ...")
+            deploy_seg = approach[0]
+            if deploy_seg is not None and deploy_seg.detour:
+                q_seed = mover.segment("approach_deploy", home, 3.0, q_seed, report, wait=False)
+            else:
+                robot.move_joints(q_seed[:robot.n_arm], duration=3.0, wait=False)
+                q_seed = robot.data.qpos.copy()
+            deploy = np.array([task.cube_xy[0], task.cube_xy[1], h["lift_z"]])
+            shift = float(np.linalg.norm(home - deploy))
+            if shift > 1e-3:  # the cube is not on its preset spot
+                q_seed = mover.move(home, mover.duration(shift), q_seed)
+            if viewer_closed():
+                break
+            print("  Descend to the grasp pose ...")
+            if any(seg is not None and seg.detour for seg in approach[1:]):
+                q_seed = mover.segment("approach_pre", pre_grasp, mover.duration(
+                    h["lift_z"] - h["pre_grasp_z"]), q_seed, report, wait=False)
+                q_seed = mover.segment("approach_grasp", grasp, mover.duration(
+                    h["pre_grasp_z"] - h["grasp_z"]), q_seed, report, wait=False)
+            else:
+                # pre_grasp lies on the straight line down to grasp: one motion, no stop.
+                q_seed = mover.move(grasp, mover.duration(h["lift_z"] - h["grasp_z"]), q_seed,
+                                    wait=False)
+        # Close as soon as the lagging arm reaches the grasp height, not after a fixed settle.
+        # The lag is along the descent; a static sideways offset (1.4 mm on the UF850) remains.
+        def at_grasp() -> bool:
+            err = robot.get_tcp_pose()[0] - grasp
+            return abs(float(err[2])) < 1e-3 and float(np.linalg.norm(err[:2])) < 3e-3
+
+        robot.settle_until(at_grasp, 1.0)
         if viewer_closed():
             break
 

@@ -187,10 +187,11 @@ CAMERA_MOUNT = {
 
 # Task scene geometry that is not part of the hashed task configuration.
 TASK_STATISTIC_CENTER = {
-    ("lite6", "pick_place"): (0.20, 0.05, 0.15), ("lite6", "box_pack"): (0.20, 0.02, 0.15),
-    **{(arm, task): (x, 0, 0.15) for arm, x in (("xarm5", 0.28), ("xarm6", 0.3), ("xarm7", 0.32), ("uf850", 0.35))
-       for task in TASK_SCENES},
+    **{(arm, "pick_place"): (0.30, 0, 0.15) for arm in ("lite6", *_XARM_SERIES)},
+    ("lite6", "box_pack"): (0.20, 0.02, 0.15),
+    **{(arm, "box_pack"): (x, 0, 0.15)
+       for arm, x in (("xarm5", 0.28), ("xarm6", 0.3), ("xarm7", 0.32), ("uf850", 0.35))},
 }
 TASK_STATISTIC_EXTENT = 0.9
-# Cube stands (box half sizes) raise the Lite 6 task cubes by 20 mm.
-TASK_STANDS = {"lite6": {"pick_place": (0.022, 0.022, 0.01), "box_pack": (0.016, 0.016, 0.01)}}
+# Cube stands (box half sizes) raise the Lite 6 box-pack feed cubes by 20 mm.
+TASK_STANDS = {"lite6": {"box_pack": (0.016, 0.016, 0.01)}}

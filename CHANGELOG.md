@@ -2,7 +2,7 @@
 
 ## [0.1.8] - Unreleased
 
-The package now stores only atomic MJCF parts; every arm + accessory combination and every pick-place / box-pack scene is assembled at runtime with MuJoCo's native `MjSpec.attach`. Models and configs moved inside the package and the custom build hook is gone. The assembly itself left supported models and numerical results unchanged (all 30 golden task reports and all 11 task `config_sha256` hashes were byte-identical to 0.1.7); the grasp, timing and start-pose changes below change the pick-place and box-pack simulation reports, and the start pose also changes their dry-run reports. Task `config_sha256` hashes are unchanged.
+The package now stores only atomic MJCF parts; every arm + accessory combination and every pick-place / box-pack scene is assembled at runtime with MuJoCo's native `MjSpec.attach`. Models and configs moved inside the package and the custom build hook is gone. The assembly itself left supported models and numerical results unchanged (all 30 golden task reports and all 11 task `config_sha256` hashes were byte-identical to 0.1.7); the grasp, timing, start-pose and pick-place layout changes below change the pick-place and box-pack simulation reports, and the start pose and layout also change their dry-run reports. The shared pick-place layout changes the xArm 5, xArm 7, UF850 and Lite 6 pick-place `config_sha256`; the other task hashes are unchanged.
 
 ### Added
 
@@ -20,11 +20,12 @@ The package now stores only atomic MJCF parts; every arm + accessory combination
 - **Code**: `SimRobot` and `XArmRobot` share their IK and planning helpers through `RobotInterface`; `XARM_IP` is resolved by one helper; robot-key aliases live in `robots.py`.
 - **Tests and CI**: the zero-warning compile check of every model runs in pytest; the CI example smoke step keeps only what pytest does not run; docs no longer hard-code model counts.
 - **Keyframes and start pose**: `home` is all-zero joints on every model. xArm 5/6/7 combinations, whose tools reach below the floor at zero, add an `init` keyframe equal to `ready`; `SimRobot` and `01_load_and_view.py` start from `init` when present, otherwise from keyframe 0. `SimRobot(start=...)` takes arm joint angles or a TCP pose `(pos, quat)`. Simulated `pick-place` and `box-pack` start every arm with the TCP at `[300, 0, 300]` mm, `RPY = [180, 0, 0]°`; hardware modes start from the measured pose. The xArm 6 combination `ready` now puts the G2 TCP exactly at `(300, 0, 300)` mm (it was 2 mm low).
+- **Pick-place layout**: all five arms take the cube from `(300, 0)` mm on the floor to `(300, 300)` mm and lift it to the same TCP height. xArm 5, xArm 7, UF850 and Lite 6 used to have their own spots, and the Lite 6 cube stood on a 20 mm stand. Lite 6 preset: `flange_grasp_z_m` 0.115 → 0.095, `lift_z_m` 0.24 → 0.21, `approach_m` 0.06 → 0.10.
 
 ### Fixed
 
 - **Gripper G2 grasps**: the finger pads use rigid contacts that take priority over the object's, and the linkage couplings are stiff, so the force-limited servo stops at the object's surface (0.5 mm instead of 3.5 mm penetration per side) with the full calibrated pinch force. Task scenes enable MuJoCo's noslip pass, so a held cube no longer creeps out of the fingers (6.4 mm slip during transport, now 0.02 mm).
-- **Pick-place timing**: the descent to the grasp is one motion without stops, and the lift starts as soon as both pads hold (about 0.45 s after closing instead of 2.5 s).
+- **Pick-place timing**: the arm descends from the task start, which is above the cube, to the grasp in one straight motion without stops (it used to stop above the cube). The jaw closes as soon as the TCP reaches the grasp height, and the lift starts as soon as both pads hold (about 0.45 s after closing instead of 2.5 s).
 
 ### Breaking (Internal Submodule Paths)
 

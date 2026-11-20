@@ -163,6 +163,26 @@ class MultiArmPickPlaceTests(unittest.TestCase):
         self.assertLess(task.grasp_gap_m, 2 * task.cube_half_m)
         self.assertLess(2 * task.cube_half_m, 0.038)
 
+    def test_arms_share_one_layout(self):
+        """All five arms pick the cube off the floor below the task start and lift it equally high."""
+        layouts, lifts = set(), []
+        for robot_name in self.ARMS:
+            config = self._config(robot_name, "servo_cartesian")
+            task = config.pick_place
+            with self.subTest(robot=robot_name), \
+                    SimRobot(config.scene_spec(), viewer=False, start=TASK_START) as robot:
+                for stand in ("pick_stand", "place_stand"):
+                    self.assertEqual(
+                        mujoco.mj_name2id(robot.model, mujoco.mjtObj.mjOBJ_GEOM, stand), -1)
+                np.testing.assert_allclose(robot.data.body("cube").xpos,
+                                           [*task.cube_xy, task.cube_half_m], atol=1e-9)
+                np.testing.assert_allclose(TASK_START[0][:2], task.cube_xy, atol=1e-12)
+                heights, _ = tcp_task_heights(robot, task)
+                lifts.append(heights["lift_z"])
+                layouts.add((tuple(task.cube_xy), tuple(task.target_xy)))
+        self.assertEqual(len(layouts), 1, f"arms use different cube/target spots: {layouts}")
+        self.assertLess(max(lifts) - min(lifts), 1e-3, f"TCP lift heights differ: {lifts}")
+
     def test_grasp_and_place_ik(self):
         from ufactory_mujoco import SimRobot
 
@@ -182,14 +202,33 @@ class MultiArmPickPlaceTests(unittest.TestCase):
                         self.assertEqual(len(q), robot.model.nq)
 
     def test_headless_both_executors(self):
-        from ufactory_mujoco import SimRobot
+        """Each arm descends from the task start to the grasp in one straight motion, lifts
+        within 1 s of the jaw starting to close, and places the cube."""
+        from unittest import mock
+        from ufactory_mujoco.preflight import _close_until_contact
 
         for robot_name in self.ARMS:
             for executor in ("servo_cartesian", "servo_j"):
                 with self.subTest(robot=robot_name, executor=executor):
                     config = self._config(robot_name, executor)
+                    times, tcp, marks = [], [], {}
+
+                    def timed_close(robot, obj, gap):
+                        marks["close"] = robot.data.time
+                        gap = _close_until_contact(robot, obj, gap)
+                        marks["lift"] = robot.data.time
+                        return gap
+
                     with SimRobot(config.scene_path, viewer=False, start=TASK_START) as robot:
-                        results = pick_place.run_pick_place(robot, config, cycles=1)
+                        h, _ = tcp_task_heights(robot, config.pick_place)
+
+                        def record():
+                            times.append(robot.data.time)
+                            tcp.append(robot.get_tcp_pose()[0])
+
+                        with robot.step_hook(record), \
+                                mock.patch.object(pick_place, "_close_until_contact", timed_close):
+                            results = pick_place.run_pick_place(robot, config, cycles=1)
                     self.assertEqual(len(results), 1)
                     report = results[0]
                     self.assertEqual(report["robot"], robot_name)
@@ -197,6 +236,21 @@ class MultiArmPickPlaceTests(unittest.TestCase):
                     self.assertTrue(report["cube_lifted"])
                     self.assertLess(report["place_error_mm"], 50.0)
                     self.assertLess(report["home_drift_mm"], 10.0)
+
+                    # From 10 mm below the start to 10 mm above the grasp, the TCP keeps moving
+                    # down over the cube. Two motions would slow to a stop where they meet.
+                    t, p = np.array(times), np.array(tcp)
+                    grid = np.arange(t[0], marks["close"], 0.05)
+                    z = np.interp(grid, t, p[:, 2])
+                    way_down = (z <= z[0] - 0.01) & (z >= h["grasp_z"] + 0.01)
+                    speed = (z[:-2] - z[2:]) / 0.1
+                    self.assertGreater(float(speed[way_down[1:-1]].min()), 0.02,
+                                       "the arm stopped on its way down to the cube")
+                    xy = np.c_[np.interp(grid, t, p[:, 0]), np.interp(grid, t, p[:, 1])]
+                    off = np.linalg.norm(xy[way_down] - config.pick_place.cube_xy, axis=1)
+                    self.assertLess(float(off.max()), 3e-3, "the descent left the line above the cube")
+                    self.assertLess(marks["lift"] - marks["close"], 1.0,
+                                    "the lift started more than 1 s after the jaw began to close")
 
 def _cube_in_tcp(robot) -> np.ndarray:
     pos, quat = robot.get_tcp_pose()
@@ -268,52 +322,6 @@ class GraspHoldTests(unittest.TestCase):
     def test_lite6_held_cube_does_not_creep(self):
         _, _, drift = self._grasp_and_hold("lite6")
         self.assertLess(drift, 5e-4, "the held cube moved more than 0.5 mm relative to the TCP")
-
-class PickPlaceTimingTest(unittest.TestCase):
-    """The arm descends to the grasp without stopping and lifts soon after the jaw closes."""
-
-    def test_descent_has_no_stop_and_lift_follows_closing(self):
-        from unittest import mock
-        from ufactory_mujoco.preflight import _close_until_contact
-
-        for executor in ("servo_cartesian", "servo_j"):
-            with self.subTest(executor=executor):
-                config = load_task_config(preset=("pick_place", "xarm6"),
-                                          overrides={"executor": executor})
-                times, tcp, marks = [], [], {}
-
-                def timed_close(robot, obj, gap):
-                    marks["close"] = robot.data.time
-                    gap = _close_until_contact(robot, obj, gap)
-                    marks["lift"] = robot.data.time
-                    return gap
-
-                with SimRobot(config.scene_path, viewer=False, start=TASK_START) as robot:
-                    h, _ = tcp_task_heights(robot, config.pick_place)
-                    above = np.array([*config.pick_place.cube_xy, h["lift_z"]])
-
-                    def record():
-                        times.append(robot.data.time)
-                        tcp.append(robot.get_tcp_pose()[0])
-
-                    with robot.step_hook(record), \
-                            mock.patch.object(pick_place, "_close_until_contact", timed_close):
-                        results = pick_place.run_pick_place(robot, config, cycles=1)
-                self.assertTrue(results[0]["cube_lifted"])
-
-                t, p = np.array(times), np.array(tcp)
-                arrived = t[np.argmax(np.linalg.norm(p - above, axis=1) < 2e-3)]
-                window = (t >= arrived) & (t <= marks["close"])
-                speed = np.linalg.norm(np.diff(p, axis=0), axis=1) / np.diff(t)
-                still = np.r_[False, speed < 2e-3] & window
-                longest = run = 0
-                for flag in still:
-                    run = run + 1 if flag else 0
-                    longest = max(longest, run)
-                dt = float(np.median(np.diff(t)))
-                self.assertLess(longest * dt, 0.2, "the arm stopped on its way down to the cube")
-                self.assertLess(marks["lift"] - marks["close"], 1.0,
-                                "the lift started more than 1 s after the jaw began to close")
 
 # ==========================================================================
 # From test_box_pack.py
