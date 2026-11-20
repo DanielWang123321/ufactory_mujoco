@@ -94,8 +94,12 @@ class Mover:
         """Trapezoidal segment time for distance ``dist`` under the Cartesian limits."""
         return dist / self.max_lin_vel + self.max_lin_vel / self.max_lin_acc + 0.1
 
-    def move(self, pos: np.ndarray, duration: float, q_seed: np.ndarray) -> np.ndarray:
-        """Move the TCP to ``pos`` with a grip-down orientation and return the resulting joint seed."""
+    def move(self, pos: np.ndarray, duration: float, q_seed: np.ndarray, *,
+             wait: bool = True) -> np.ndarray:
+        """Move the TCP to ``pos`` with a grip-down orientation and return the resulting joint seed.
+
+        ``wait=False`` skips the final settle, for a motion that the next one continues.
+        """
         robot = self.robot
         if self.executor == "servo_j":
             traj, ok = robot.plan_cartesian_trajectory(
@@ -103,27 +107,27 @@ class Mover:
             if ok:
                 n = robot.n_arm
                 robot.execute_trajectory(JointTrajectory(
-                    traj.times, traj.q[:, :n], traj.qd[:, :n], traj.qdd[:, :n]))
+                    traj.times, traj.q[:, :n], traj.qd[:, :n], traj.qdd[:, :n]), wait=wait)
                 return robot.data.qpos.copy()
             q, ok = robot.solve_tcp(pos, GRIP_DOWN_QUAT, q_init=q_seed)
             if not ok:
                 raise RuntimeError(f"IK failed for joint move to {pos}")
-            robot.move_joints(q[:robot.n_arm], duration)
+            robot.move_joints(q[:robot.n_arm], duration, wait=wait)
             return q
-        robot.move_tcp(pos, GRIP_DOWN_QUAT, duration=duration)
+        robot.move_tcp(pos, GRIP_DOWN_QUAT, duration=duration, wait=wait)
         return robot.data.qpos.copy()
 
     def segment(self, name: str, pos: np.ndarray, duration: float, q_seed: np.ndarray,
-                report) -> np.ndarray:
+                report, *, wait: bool = True) -> np.ndarray:
         """Run preflight segment ``name``: a joint-space detour when preflight planned one, else ``move``."""
         segment = report.segments.get(name)
         if segment is not None and segment.detour:
             traj = plan_joint_waypoints(
                 segment.waypoints, max_vel=self.detour_max_vel, max_acc=self.detour_max_acc,
                 dt=self.robot.model.opt.timestep)
-            self.robot.execute_trajectory(traj)
+            self.robot.execute_trajectory(traj, wait=wait)
             return self.robot.data.qpos.copy()
-        return self.move(pos, duration, q_seed)
+        return self.move(pos, duration, q_seed, wait=wait)
 
 
 def print_phases(report) -> None:

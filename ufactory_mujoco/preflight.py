@@ -31,18 +31,26 @@ _FINGER_PAIR = ("uflite_finger1", "uflite_finger2")
 _CHECK_RES = 0.02
 
 
-def _close_until_contact(robot, object_body: str, gap_m: float) -> float:
-    """Command ``gap_m``, then shrink it until both pads touch. Do not lift otherwise."""
+def _close_until_contact(robot, object_body: str, gap_m: float, *, hold_s: float = 0.2) -> float:
+    """Command ``gap_m`` and shrink it until both pads touch, then hold ``hold_s`` to build the pinch.
+
+    Returns as soon as the grasp holds instead of after a fixed wait. Raises ``GraspError``
+    when the pads never touch, so the caller does not lift.
+    """
     spec = getattr(robot, "_gripper_spec", None)
     min_gap = float(spec.closed_gap_m) if spec is not None else 0.0
     gap = gap_m
+
+    def touching() -> bool:
+        return robot.bilateral_finger_contact(object_body)
+
     robot.set_gripper_gap(gap)
-    robot.settle(2.0)
-    robot.settle(0.5)
-    while not robot.bilateral_finger_contact(object_body) and gap > min_gap:
+    robot.settle_until(touching, 2.5)
+    while not touching() and gap > min_gap:
         gap = max(min_gap, gap - 0.002)
         robot.set_gripper_gap(gap)
-        robot.settle(0.3)
+        robot.settle_until(touching, 0.3)
+    robot.settle(hold_s)
     robot.require_bilateral_contact(object_body)
     return gap
 

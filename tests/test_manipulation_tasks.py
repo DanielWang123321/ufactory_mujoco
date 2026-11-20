@@ -243,6 +243,52 @@ class GraspHoldTests(unittest.TestCase):
         _, _, drift = self._grasp_and_hold("lite6")
         self.assertLess(drift, 5e-4, "the held cube moved more than 0.5 mm relative to the TCP")
 
+class PickPlaceTimingTest(unittest.TestCase):
+    """The arm descends to the grasp without stopping and lifts soon after the jaw closes."""
+
+    def test_descent_has_no_stop_and_lift_follows_closing(self):
+        from unittest import mock
+        from ufactory_mujoco.preflight import _close_until_contact
+
+        for executor in ("servo_cartesian", "servo_j"):
+            with self.subTest(executor=executor):
+                config = load_task_config(preset=("pick_place", "xarm6"),
+                                          overrides={"executor": executor})
+                times, tcp, marks = [], [], {}
+
+                def timed_close(robot, obj, gap):
+                    marks["close"] = robot.data.time
+                    gap = _close_until_contact(robot, obj, gap)
+                    marks["lift"] = robot.data.time
+                    return gap
+
+                with SimRobot(config.scene_path, viewer=False) as robot:
+                    h, _ = tcp_task_heights(robot, config.pick_place)
+                    above = np.array([*config.pick_place.cube_xy, h["lift_z"]])
+
+                    def record():
+                        times.append(robot.data.time)
+                        tcp.append(robot.get_tcp_pose()[0])
+
+                    with robot.step_hook(record), \
+                            mock.patch.object(pick_place, "_close_until_contact", timed_close):
+                        results = pick_place.run_pick_place(robot, config, cycles=1)
+                self.assertTrue(results[0]["cube_lifted"])
+
+                t, p = np.array(times), np.array(tcp)
+                arrived = t[np.argmax(np.linalg.norm(p - above, axis=1) < 2e-3)]
+                window = (t >= arrived) & (t <= marks["close"])
+                speed = np.linalg.norm(np.diff(p, axis=0), axis=1) / np.diff(t)
+                still = np.r_[False, speed < 2e-3] & window
+                longest = run = 0
+                for flag in still:
+                    run = run + 1 if flag else 0
+                    longest = max(longest, run)
+                dt = float(np.median(np.diff(t)))
+                self.assertLess(longest * dt, 0.2, "the arm stopped on its way down to the cube")
+                self.assertLess(marks["lift"] - marks["close"], 1.0,
+                                "the lift started more than 1 s after the jaw began to close")
+
 # ==========================================================================
 # From test_box_pack.py
 # ==========================================================================

@@ -69,24 +69,35 @@ def run_pick_place(robot: SimRobot, config, cycles: int = 1, *,
         above_target = np.array([task.target_xy[0], task.target_xy[1], h["lift_z"]])
         place = np.array([task.target_xy[0], task.target_xy[1], h["grasp_z"]])
 
+        # The approach runs without settles: each motion hands over to the next one.
         print("  Open gripper and deploy above cube ...")
         robot.open_gripper(wait=True)
         deploy_seg = report.segments.get("approach_deploy")
         if deploy_seg is not None and deploy_seg.detour:
-            q_seed = mover.segment("approach_deploy", home, 3.0, q_seed, report)
+            q_seed = mover.segment("approach_deploy", home, 3.0, q_seed, report, wait=False)
         else:
-            robot.move_joints(q_seed[:robot.n_arm], duration=3.0)
+            robot.move_joints(q_seed[:robot.n_arm], duration=3.0, wait=False)
             q_seed = robot.data.qpos.copy()
         deploy = np.array([task.cube_xy[0], task.cube_xy[1], h["lift_z"]])
-        q_seed = mover.move(home, mover.duration(
-            float(np.linalg.norm(home - deploy))), q_seed)
+        shift = float(np.linalg.norm(home - deploy))
+        if shift > 1e-3:  # the cube is not on its preset spot
+            q_seed = mover.move(home, mover.duration(shift), q_seed)
         if viewer_closed():
             break
-        print("  Approach pre-grasp and descend ...")
-        q_seed = mover.segment("approach_pre", pre_grasp, mover.duration(
-            h["lift_z"] - h["pre_grasp_z"]), q_seed, report)
-        q_seed = mover.segment("approach_grasp", grasp, mover.duration(
-            h["pre_grasp_z"] - h["grasp_z"]), q_seed, report)
+        print("  Descend to the grasp pose ...")
+        approach = [report.segments.get(name) for name in ("approach_pre", "approach_grasp")]
+        if any(seg is not None and seg.detour for seg in approach):
+            q_seed = mover.segment("approach_pre", pre_grasp, mover.duration(
+                h["lift_z"] - h["pre_grasp_z"]), q_seed, report, wait=False)
+            q_seed = mover.segment("approach_grasp", grasp, mover.duration(
+                h["pre_grasp_z"] - h["grasp_z"]), q_seed, report, wait=False)
+        else:
+            # pre_grasp lies on the straight line down to grasp: one motion, no stop.
+            q_seed = mover.move(grasp, mover.duration(h["lift_z"] - h["grasp_z"]), q_seed,
+                                wait=False)
+        # Close as soon as the lagging arm reaches the grasp pose, not after a fixed settle.
+        robot.settle_until(lambda: float(np.linalg.norm(robot.get_tcp_pose()[0] - grasp)) < 1e-3,
+                           1.0)
         if viewer_closed():
             break
 
