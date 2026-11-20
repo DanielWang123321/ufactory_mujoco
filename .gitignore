@@ -19,6 +19,7 @@ venv/
 
 # AI agent files
 AGENTS.md
+CLAUDE.md
 worklog.md
 prd.md
 todolist.md
