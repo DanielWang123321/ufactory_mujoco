@@ -201,7 +201,7 @@ def _build_robot(recipe: Recipe, name: str, root: Path) -> tuple[mujoco.MjSpec, 
     tails: list[tuple[list[float], list[float]]] = []
     tool_site = "attachment_site"
     if recipe.ft_sensor:
-        if arm not in robots.COMBO_KEYFRAMES:
+        if arm not in robots.COMBO_READY:
             raise ValueError(f"ft_sensor is not supported on {arm!r}")
         _mount(spec, _part("ft_sensor", root), "ft_sensor_base", site_rgba=site_style[1])
         scene["headlight_specular"] = list(_env("ft_sensor", root).visual.headlight.specular)
@@ -226,9 +226,12 @@ def _build_robot(recipe: Recipe, name: str, root: Path) -> tuple[mujoco.MjSpec, 
         scene["statistic"] = robots.COMBO_STATISTIC[arm]
 
     mounted = recipe.tool is not None or recipe.camera is not None or recipe.ft_sensor
-    if mounted and arm in robots.COMBO_KEYFRAMES:
-        home, ready = robots.COMBO_KEYFRAMES[arm]
-        arm_keys = [("home", list(home), list(home)), ("ready", list(ready), list(ready))]
+    if mounted and arm in robots.COMBO_READY:
+        ready = [float(v) for v in robots.COMBO_READY[arm]]
+        zero = [0.0] * len(ready)
+        arm_keys = [("home", zero, zero), ("ready", ready, ready)]
+        if arm in robots.COMBO_INIT_ARMS:
+            arm_keys.append(("init", ready, ready))
     if mounted:
         for key in list(spec.keys):
             spec.delete(key)
@@ -488,6 +491,18 @@ def load_model(model: str | Path | mujoco.MjSpec | mujoco.MjModel, *, scene: boo
     if isinstance(model, str) and is_composed_model(model) and not Path(model).is_file():
         return compose_model(model, scene=scene)
     return mujoco.MjModel.from_xml_path(str(resolve_model_path(model, scene=scene)))
+
+
+def initial_keyframe(model: mujoco.MjModel) -> int:
+    """Keyframe a simulation starts from: ``init`` when the model has one, else keyframe 0, else -1.
+
+    ``home`` (keyframe 0 of every arm model) is all-zero joints. Tool combinations whose tool
+    would reach below the floor there add ``init``; -1 means the model's ``qpos0``.
+    """
+    key = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_KEY, "init")
+    if key >= 0:
+        return key
+    return 0 if model.nkey else -1
 
 
 def select_arm_scene(robot: str, gripper: str | None, scene: str) -> tuple[Path | None, str | None]:

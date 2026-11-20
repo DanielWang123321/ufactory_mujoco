@@ -1,5 +1,6 @@
 """Unit tests verifying all generated MJCF models can load, step, and parse in MuJoCo."""
 
+import re
 import unittest
 import warnings
 
@@ -7,9 +8,9 @@ import numpy as np
 
 import mujoco
 
-from ufactory_mujoco.compose import COMPOSED_MODELS, compose_model, is_composed_model
+from ufactory_mujoco.compose import COMPOSED_MODELS, compose_model, initial_keyframe, is_composed_model
 from ufactory_mujoco import MODELS_ROOT, available_models, resolve_arm_scene, resolve_model_path
-from ufactory_mujoco.robots import TASK_GRIPPERS
+from ufactory_mujoco.robots import COMBO_INIT_ARMS, RECIPES, TASK_GRIPPERS
 
 ALL_MODELS = [
     "xarm6",
@@ -187,9 +188,38 @@ class AllModelsLoadingTest(unittest.TestCase):
                     d.body("link6").xmat.reshape(3, 3), np.diag([1, -1, -1]), atol=1e-5,
                 )
 
-    def test_xarm5_xarm7_uf850_combo_ready_poses_point_down_at_300mm(self):
-        """xArm 5/7 and UF850 combination ready poses point downward with G2 TCP at (300, 0, 300) mm."""
-        for name in ("xarm5_with_gripper", "xarm7_with_gripper", "uf850_with_gripper"):
+    def test_home_is_all_zero_and_xarm_tool_combos_start_from_init(self):
+        """Every arm model's home is all-zero joints; xArm 5/6/7 combinations add init (= ready)."""
+        for name in ALL_MODELS:
+            m = mujoco.MjModel.from_xml_path(str(resolve_model_path(name)))
+            arm = [int(m.jnt_qposadr[j]) for j in range(m.njnt)
+                   if re.fullmatch(r"joint\d+", m.joint(j).name or "")]
+            if not arm:
+                continue
+            with self.subTest(model=name):
+                home = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_KEY, "home")
+                self.assertEqual(home, 0, "home must be keyframe 0")
+                np.testing.assert_array_equal(m.key(home).qpos[arm], np.zeros(len(arm)))
+                np.testing.assert_array_equal(m.key(home).ctrl[:len(arm)], np.zeros(len(arm)))
+                recipe = RECIPES.get(name)
+                mounted = recipe is not None and bool(recipe.tool or recipe.camera or recipe.ft_sensor)
+                init = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_KEY, "init")
+                self.assertEqual(init >= 0, mounted and recipe.arm in COMBO_INIT_ARMS)
+                if init < 0:
+                    self.assertEqual(initial_keyframe(m), 0)
+                    continue
+                self.assertEqual(initial_keyframe(m), init)
+                ready = m.key("ready")
+                np.testing.assert_array_equal(m.key(init).qpos, ready.qpos)
+                np.testing.assert_array_equal(m.key(init).ctrl, ready.ctrl)
+                d = mujoco.MjData(m)
+                mujoco.mj_resetDataKeyframe(m, d, init)
+                mujoco.mj_forward(m, d)
+                self.assertEqual(d.ncon, 0, f"{name} must start contact-free")
+
+    def test_combo_ready_poses_point_down_at_300mm(self):
+        """xArm 5/6/7 and UF850 combination ready poses point downward with G2 TCP at (300, 0, 300) mm."""
+        for name in ("xarm5_with_gripper", "xarm6_with_gripper", "xarm7_with_gripper", "uf850_with_gripper"):
             with self.subTest(model=name):
                 m = mujoco.MjModel.from_xml_path(str(resolve_model_path(name)))
                 d = mujoco.MjData(m)

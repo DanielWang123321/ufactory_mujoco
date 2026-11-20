@@ -34,7 +34,7 @@ PRESETS: dict[str, tuple[list[float], list[float]]] = {
     # Gripper G2 combos (xarm5, xarm6, xarm7, uf850): ready is the zero-roll IK pose with
     # the gripper TCP at (300, 0, 300) mm, rpy (180, 0, 0).
     "xarm6_with_gripper": (
-        [0.0, -0.631529917, -0.833150486, 0.0, 1.464680403, 0.0],
+        [0.0, -0.63088336, -0.837867545, 0.0, 1.468750905, 0.0],
         [0.3, -1.2, -1.0, 0.6, 0.6, 0.5],
     ),
     "lite6": (

@@ -11,7 +11,7 @@ import xml.etree.ElementTree as ET
 import mujoco
 import numpy as np
 
-from ufactory_mujoco.compose import compose_model, is_composed_model
+from ufactory_mujoco.compose import compose_model, initial_keyframe, is_composed_model
 from ufactory_mujoco import MODELS_ROOT, resolve_model_path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -326,12 +326,13 @@ class CameraAndBracketModelsTest(unittest.TestCase):
         combo = f"{arm}_with_gripper_and_{cam}"
         m = mujoco.MjModel.from_xml_path(str(resolve_model_path(combo)))
         d = mujoco.MjData(m)
-        for key_name in ("home", "ready"):
-            kid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_KEY, key_name)
+        # `home` is the all-zero pose; the model starts from its initial keyframe and goes to `ready`.
+        np.testing.assert_array_equal(m.key("home").qpos[:dof], np.zeros(dof))
+        for kid in (initial_keyframe(m), mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_KEY, "ready")):
             self.assertGreaterEqual(kid, 0)
             mujoco.mj_resetDataKeyframe(m, d, kid)
             mujoco.mj_forward(m, d)
-            self.assertEqual(int(d.ncon), 0, f"{combo} must have 0 runtime contacts in {key_name} pose")
+            self.assertEqual(int(d.ncon), 0, f"{combo} must have 0 runtime contacts in {m.key(kid).name} pose")
 
         # Same weld group on flange link, camera_stand, camera body, and gripper base.
         b_last = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, last_link)
@@ -405,8 +406,9 @@ class CameraAndBracketModelsTest(unittest.TestCase):
         mujoco.mj_forward(m, d)
         self.assertGreater(float(np.linalg.norm(d.site_xpos[cam_site] - before)), 0.005)
 
-        # Zero-gravity G2 close & reopen stroke check.
-        mujoco.mj_resetDataKeyframe(m, d, 0)
+        # Zero-gravity G2 close & reopen stroke check, from the initial pose: at the all-zero
+        # `home` of xArm combinations the fingers sit below the floor.
+        mujoco.mj_resetDataKeyframe(m, d, initial_keyframe(m))
         m.opt.gravity[:] = 0.0
         act_id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_ACTUATOR, "gripper")
         drv_q = m.jnt_qposadr[mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, "left_driver_joint")]

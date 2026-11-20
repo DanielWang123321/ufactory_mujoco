@@ -20,12 +20,38 @@ from ufactory_mujoco.preflight import (
 from ufactory_mujoco.sim_robot import SimRobot
 from ufactory_mujoco.preflight import box_task_heights
 from ufactory_mujoco import MODELS_ROOT
+from ufactory_mujoco.tasks._common import TASK_START
 
 # ==========================================================================
 # From test_pick_place.py
 # ==========================================================================
 
 pick_place = importlib.import_module("ufactory_mujoco.tasks.pick_place")
+
+
+class TaskStartPoseTest(unittest.TestCase):
+    def test_tasks_start_every_arm_at_the_same_tcp_pose(self):
+        """Pick-place and box-pack start each arm at rest, TCP at [300, 0, 300] mm pointing down."""
+        for task in ("pick_place", "box_pack"):
+            for arm in ARMS:
+                with self.subTest(task=task, arm=arm):
+                    config = load_task_config(preset=(task, arm))
+                    with SimRobot(config.scene_spec(), viewer=False, start=TASK_START) as robot:
+                        pos, quat = robot.get_tcp_pose()
+                        np.testing.assert_allclose(pos, TASK_START[0], atol=5e-4)
+                        self.assertAlmostEqual(abs(float(np.dot(quat, GRIP_DOWN_QUAT))), 1.0, places=6)
+                        np.testing.assert_allclose(robot.data.ctrl[:robot.n_arm],
+                                                   robot.get_joint_positions(), atol=1e-12)
+                        props = {0}  # world: floor and stands
+                        for name in ("cube", "cube_0", "cube_1", "cube_2", "pack_box"):
+                            body = mujoco.mj_name2id(robot.model, mujoco.mjtObj.mjOBJ_BODY, name)
+                            if body >= 0:
+                                props.add(body)
+                        bodies = robot.model.geom_bodyid
+                        arm_contacts = [i for i in range(robot.data.ncon)
+                                        if {int(bodies[robot.data.contact[i].geom1]),
+                                            int(bodies[robot.data.contact[i].geom2])} - props]
+                        self.assertEqual(arm_contacts, [], "the arm must start contact-free")
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -56,7 +82,7 @@ class PickPlaceSceneTest(unittest.TestCase):
         """Keyframe state init must keep the free-joint cube at its authored qpos0 pose."""
         from ufactory_mujoco import SimRobot
 
-        with SimRobot(SCENE, viewer=False) as robot:
+        with SimRobot(SCENE, viewer=False, start=TASK_START) as robot:
             cube_id = mujoco.mj_name2id(robot.model, mujoco.mjtObj.mjOBJ_BODY, "cube")
             np.testing.assert_allclose(robot.data.body(cube_id).xpos,
                                        [0.30, 0.0, 0.015], atol=1e-9)
@@ -92,7 +118,7 @@ class PickPlaceEndToEndTest(unittest.TestCase):
         from ufactory_mujoco import SimRobot
         from ufactory_mujoco.grippers import GraspError
 
-        with SimRobot(SCENE, viewer=False) as robot:
+        with SimRobot(SCENE, viewer=False, start=TASK_START) as robot:
             cube_id = mujoco.mj_name2id(robot.model, mujoco.mjtObj.mjOBJ_BODY, "cube")
             z_before = float(robot.data.body(cube_id).xpos[2])
             with self.assertRaises(GraspError):
@@ -104,7 +130,7 @@ class PickPlaceEndToEndTest(unittest.TestCase):
         from ufactory_mujoco import SimRobot
 
         config = load_task_config(preset=("pick_place", "xarm6"))
-        with SimRobot(config.scene_path, viewer=False) as robot:
+        with SimRobot(config.scene_path, viewer=False, start=TASK_START) as robot:
             results = pick_place.run_pick_place(robot, config, cycles=1)
 
         self.assertEqual(len(results), 1)
@@ -144,7 +170,7 @@ class MultiArmPickPlaceTests(unittest.TestCase):
             config = self._config(robot_name, "servo_j")
             task = config.pick_place
             with self.subTest(robot=robot_name):
-                with SimRobot(config.scene_path, viewer=False) as robot:
+                with SimRobot(config.scene_path, viewer=False, start=TASK_START) as robot:
                     heights, q_home = tcp_task_heights(robot, task)
                     for xy, z in (
                         (task.cube_xy, heights["grasp_z"]),
@@ -162,7 +188,7 @@ class MultiArmPickPlaceTests(unittest.TestCase):
             for executor in ("servo_cartesian", "servo_j"):
                 with self.subTest(robot=robot_name, executor=executor):
                     config = self._config(robot_name, executor)
-                    with SimRobot(config.scene_path, viewer=False) as robot:
+                    with SimRobot(config.scene_path, viewer=False, start=TASK_START) as robot:
                         results = pick_place.run_pick_place(robot, config, cycles=1)
                     self.assertEqual(len(results), 1)
                     report = results[0]
@@ -194,7 +220,7 @@ class GraspHoldTests(unittest.TestCase):
 
         config = load_task_config(preset=("pick_place", robot_name))
         task = config.pick_place
-        with SimRobot(config.scene_path, viewer=False) as robot:
+        with SimRobot(config.scene_path, viewer=False, start=TASK_START) as robot:
             mover = _common.Mover(robot, config.executor, task.cart_v_m_s, task.cart_a_m_s2,
                                   np.deg2rad(90.0), 3.5)
             h, q_seed = tcp_task_heights(robot, task)
@@ -262,7 +288,7 @@ class PickPlaceTimingTest(unittest.TestCase):
                     marks["lift"] = robot.data.time
                     return gap
 
-                with SimRobot(config.scene_path, viewer=False) as robot:
+                with SimRobot(config.scene_path, viewer=False, start=TASK_START) as robot:
                     h, _ = tcp_task_heights(robot, config.pick_place)
                     above = np.array([*config.pick_place.cube_xy, h["lift_z"]])
 
@@ -394,7 +420,7 @@ class BoxPackPreflightTest(unittest.TestCase):
         pack_phases = ("接近", "抓取", "抬起", "运送", "释放", "回位")
 
         config = _config("xarm6")
-        with SimRobot(config.scene_path, viewer=False) as robot:
+        with SimRobot(config.scene_path, viewer=False, start=TASK_START) as robot:
             report = preflight_box_pack(robot, config, cycles=3)
             self.assertEqual(robot.data.time, 0.0)
         self.assertTrue(report.ok)
@@ -411,7 +437,7 @@ class BoxPackPreflightTest(unittest.TestCase):
         config = _config("xarm6", overrides={
             "box_pack": {"drop_xy": [[0.30, 0.42], [0.30, 0.30], [0.345, 0.30]]},
         })
-        with SimRobot(config.scene_path, viewer=False) as robot:
+        with SimRobot(config.scene_path, viewer=False, start=TASK_START) as robot:
             report = preflight_box_pack(robot, config, cycles=1)
             self.assertEqual(robot.data.time, 0.0)
         self.assertFalse(report.ok)
@@ -426,7 +452,7 @@ class BoxPackPreflightTest(unittest.TestCase):
         config = _config("xarm6", overrides={
             "box_pack": {"feed_xy": [[1.5, 0.0], [0.30, -0.18], [0.39, -0.18]]},
         })
-        with SimRobot(config.scene_path, viewer=False) as robot:
+        with SimRobot(config.scene_path, viewer=False, start=TASK_START) as robot:
             report = preflight_box_pack(robot, config, cycles=1)
             self.assertEqual(robot.data.time, 0.0)
         self.assertFalse(report.ok)
@@ -438,7 +464,7 @@ class BoxPackPreflightTest(unittest.TestCase):
         from ufactory_mujoco.preflight import preflight_box_pack
 
         config = _config("xarm6", overrides={"box_pack": {"box_center_xy": [1.5, 0.0]}})
-        with SimRobot(config.scene_path, viewer=False) as robot:
+        with SimRobot(config.scene_path, viewer=False, start=TASK_START) as robot:
             report = preflight_box_pack(robot, config, cycles=1)
             self.assertEqual(robot.data.time, 0.0)
         self.assertFalse(report.ok)
@@ -451,7 +477,7 @@ class BoxPackSimTest(unittest.TestCase):
 
         config = _config("xarm6")
         task = config.box_pack
-        with SimRobot(config.scene_path, viewer=False) as robot:
+        with SimRobot(config.scene_path, viewer=False, start=TASK_START) as robot:
             results = box_pack.run_box_pack(robot, config, cycles=1)
         self.assertEqual(len(results), 1)
         r = results[0]
@@ -472,7 +498,7 @@ class BoxPackSimTest(unittest.TestCase):
         for robot_name in ARMS:
             with self.subTest(robot=robot_name):
                 config = _config(robot_name)
-                with SimRobot(config.scene_path, viewer=False) as robot:
+                with SimRobot(config.scene_path, viewer=False, start=TASK_START) as robot:
                     results = box_pack.run_box_pack(robot, config, cycles=1)
                 self.assertEqual(len(results), 1)
                 r = results[0]
@@ -486,7 +512,7 @@ class BoxPackSimTest(unittest.TestCase):
         for robot_name in ARMS:
             with self.subTest(robot=robot_name):
                 config = _config(robot_name, executor="servo_j")
-                with SimRobot(config.scene_path, viewer=False) as robot:
+                with SimRobot(config.scene_path, viewer=False, start=TASK_START) as robot:
                     results = box_pack.run_box_pack(robot, config, cycles=1)
                 self.assertEqual(len(results), 1)
                 r = results[0]
@@ -498,7 +524,7 @@ class BoxPackSimTest(unittest.TestCase):
         from ufactory_mujoco import SimRobot
 
         config = _config("xarm6")
-        with SimRobot(config.scene_path, viewer=False) as robot:
+        with SimRobot(config.scene_path, viewer=False, start=TASK_START) as robot:
             results = box_pack.run_box_pack(robot, config, cycles=3)
         self.assertEqual(len(results), 3)
         for r in results:
@@ -512,7 +538,7 @@ class BoxPackSimTest(unittest.TestCase):
         times = []
         for speed in (1.0, 2.0):
             config = _config("xarm6", overrides={"box_pack": {"speed_scale": speed}})
-            with SimRobot(config.scene_path, viewer=False) as robot:
+            with SimRobot(config.scene_path, viewer=False, start=TASK_START) as robot:
                 results = box_pack.run_box_pack(robot, config, cycles=1)
                 times.append(robot.data.time)
             self.assertTrue(results[0]["in_box"])
@@ -533,7 +559,7 @@ def _key(model, name):
 class PreflightTests(unittest.TestCase):
     def test_joint_limit_fails_without_stepping(self):
         config = load_task_config(preset=("pick_place", "xarm6"))
-        with SimRobot(config.scene_path, viewer=False) as robot:
+        with SimRobot(config.scene_path, viewer=False, start=TASK_START) as robot:
             checker = make_checker(config.scene_path)
             q0 = robot.get_joint_positions()
             q1 = checker.q_hi + 0.2
@@ -570,7 +596,7 @@ class PreflightTests(unittest.TestCase):
     def test_free_segment_is_the_endpoints(self):
         config = load_task_config(preset=("pick_place", "xarm6"))
         checker = make_checker(config.scene_path)
-        with SimRobot(config.scene_path, viewer=False) as robot:
+        with SimRobot(config.scene_path, viewer=False, start=TASK_START) as robot:
             q0 = robot.get_joint_positions()
         q1 = q0.copy()
         q1[5] = np.clip(q1[5] + 0.05, checker.q_lo[5], checker.q_hi[5])
@@ -584,7 +610,7 @@ class PreflightTests(unittest.TestCase):
         import importlib
         pick_place = importlib.import_module("ufactory_mujoco.tasks.pick_place")
         config = load_task_config(preset=("pick_place", "xarm6"))
-        with SimRobot(config.scene_path, viewer=False) as robot:
+        with SimRobot(config.scene_path, viewer=False, start=TASK_START) as robot:
             report = pick_place.run_pick_place(robot, config, dry_run=True)
             self.assertEqual(robot.data.time, 0.0)
         self.assertTrue(report.ok)
@@ -596,7 +622,7 @@ class PreflightTests(unittest.TestCase):
         self.assertAlmostEqual(_CHECK_RES, 0.02)
 
         pp_cfg = load_task_config(preset=("pick_place", "xarm7"))
-        with SimRobot(pp_cfg.scene_path, viewer=False) as robot:
+        with SimRobot(pp_cfg.scene_path, viewer=False, start=TASK_START) as robot:
             plan1 = preflight_pick_place(robot, pp_cfg)
             plan2 = preflight_pick_place(robot, pp_cfg)
             self.assertTrue(plan1.ok)
@@ -610,7 +636,7 @@ class PreflightTests(unittest.TestCase):
             np.testing.assert_allclose(q_exec_pp_full[:7], q_home_1, atol=1e-12)
 
         bp_cfg = load_task_config(preset=("box_pack", "xarm7"))
-        with SimRobot(bp_cfg.scene_path, viewer=False) as robot:
+        with SimRobot(bp_cfg.scene_path, viewer=False, start=TASK_START) as robot:
             bp1 = preflight_box_pack(robot, bp_cfg)
             bp2 = preflight_box_pack(robot, bp_cfg)
             self.assertTrue(bp1.ok)

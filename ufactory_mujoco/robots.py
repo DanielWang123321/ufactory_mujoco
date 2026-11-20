@@ -139,17 +139,17 @@ TOOLS: dict[str, Tool] = {
     "lite6_vacuum_gripper": Tool("uflite_vacuum_gripper_link", tcp=None, excludes=_LITE6_TOOL_EXCLUDES),
 }
 
-# Elevated (home, ready) arm poses used whenever something is mounted on an xArm-series flange.
-COMBO_KEYFRAMES: dict[str, tuple[tuple[float, ...], tuple[float, ...]]] = {
-    "xarm5": ((0, -0.533, -1, 0.5, 0.3),
-              (0, -0.63088336, -0.837867545, 1.468750905, 0)),
-    "xarm6": ((0, -0.631529917, -0.833150486, 0, 1.464680403, 0),
-              (0, -0.631529917, -0.833150486, 0, 1.464680403, 0)),
-    "xarm7": ((0, -0.8, 0, 0, 0, 0, 0),
-              (0, -0.612697406, 0, 0.831413847, 0, 1.444111253, 0)),
-    "uf850": ((0, 0, 0, 0, 0, 0),
-              (0, 0.305871495, -0.534714507, 0, -0.840586002, 0)),
+# `ready` arm pose of anything mounted on these flanges: the zero-roll IK pose that puts the
+# Gripper G2 TCP at (300, 0, 300) mm, pointing down. `home` stays all-zero joints.
+COMBO_READY: dict[str, tuple[float, ...]] = {
+    "xarm5": (0, -0.63088336, -0.837867545, 1.468750905, 0),
+    "xarm6": (0, -0.63088336, -0.837867545, 0, 1.468750905, 0),
+    "xarm7": (0, -0.612697406, 0, 0.831413847, 0, 1.444111253, 0),
+    "uf850": (0, 0.305871495, -0.534714507, 0, -0.840586002, 0),
 }
+# At all-zero joints a tool on these flanges reaches below the floor, so their combinations
+# also get an `init` keyframe (the `ready` pose) to start from.
+COMBO_INIT_ARMS = frozenset({"xarm5", "xarm6", "xarm7"})
 
 # Scene statistic (center, extent) of arms carrying a tool or camera.
 COMBO_STATISTIC = {"lite6": ((0.25, 0, 0.25), 0.7), **{arm: ((0.3, 0, 0.3), 0.9) for arm in _XARM_SERIES}}

@@ -10,7 +10,7 @@
 
 | 脚本 | 核心模块 | 支持模型 | 功能说明 |
 | :--- | :--- | :--- | :--- |
-| `01_load_and_view.py` | `ufactory_mujoco.viewer`, `ufactory_mujoco.compose` | 全部模型（机械臂、夹爪、相机、支架、力矩传感器、安装底板及组合） | 载入 MJCF 场景（支持 `home` / `ready` 关键帧）并启动交互视窗 |
+| `01_load_and_view.py` | `ufactory_mujoco.viewer`, `ufactory_mujoco.compose` | 全部模型（机械臂、夹爪、相机、支架、力矩传感器、安装底板及组合） | 载入 MJCF 场景（默认初始关键帧，可选 `home` / `ready` / `init`）并启动交互视窗 |
 | `02_joint_control.py` | `ufactory_mujoco.sim_robot` | 全部 47 套含机械臂及组合模型 | 基于速度的五次多项式关节插值控制（裸臂 `xarm6` 默认运行 20 姿态动力学轨迹） |
 | `03_cartesian_ik.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.kinematics` | `xarm6` | 基于阻尼最小二乘法（DLS）IK 的笛卡尔直线往返与 X-Z 平面圆弧轨迹跟踪 |
 | `04_gripper_control.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.g2`, `ufactory_mujoco.bio_g2` | 23 套可动夹爪模型（独立夹爪及组合） | 执行 `闭合 (1.0) -> 全开 (0.0) -> 半开 (0.5) -> 全开 (0.0)` 循环；G2 与 Bio G2 支持 `--speed-percent` 与 `--force-percent` |
@@ -196,7 +196,7 @@ dynamics-report-compare reports/dyn_ver_<SN>/<old>.jsonl reports/dyn_ver_<SN>/<n
 | :--- | :--- | :--- | :--- |
 | `--headless` | `01`–`04`, `06`, `07`, `09`, `11` | `False` | 不开视窗运行并输出指标（`01` 只加载模型并打印摘要） |
 | `--model <name>` | `01`, `02`, `04`, `11` | `xarm6`（`04` 为 `xarm6_with_gripper`，`11` 为 `xarm6_with_ft_sensor_and_gripper`） | 模型目录名或自定义 MJCF XML 路径 |
-| `--pose <home\|ready>` | `01` | `home` | 初始加载关键帧姿态 |
+| `--pose <home\|ready\|init>` | `01` | 模型有 `init` 时为 `init`，否则 `home` | 初始加载关键帧姿态 |
 | `--motion <mode>` | `02` | `auto` | 动作模式：`auto`、`dynamics`（20 姿态，仅限裸臂 `xarm6`）或 `demo` |
 | `--speed <deg/s>` | `02`, `06` | `90.0` | 关节峰值目标速度（度/秒） |
 | `--duration <s>` | `02`, `11` | `None`（`11` 为 `1.0`） | 固定单段运动时长（`02`）或外力加载持续时长（`11`） |
@@ -275,7 +275,8 @@ python examples/simulation/08_dynamics.py --robot all --headless
 
 - **裸臂 xArm 5/6/7 与 UF850（及对应 `*_with_base_plate`）**：`home` 与 `ready` 均为全零关节角。
 - **Lite 6（裸臂、`lite6_with_base_plate` 及组合）**：`home` 为全零；`ready` 为 Studio 出厂位姿 `[0, 9.9, 31.8, 0, 21.9, 0]°`（法兰约在 `[200, 0, 200]` mm，姿态 `[180, 0, 0]°`）。
-- **xArm 5/6/7 与 UF850 组合**：`ready` 为安装 Gripper G2 时 TCP 位于 `(300, 0, 300)` mm、姿态 `(180, 0, 0)°` 的无滚转朝下 IK 位姿（`xArm 6` 的 `home` 与之相同；`xArm 5`、`xArm 7` 与 `UF850` 组合的 `home` 各自定义在 MJCF 中——注意 `uf850_with_*` 的 `home` 为全零竖直姿态，预览组合模型时建议使用 `--pose ready`）。`<机械臂>_with_ft_sensor` 复用 `<机械臂>_with_vacuum_gripper` 关键帧，保证传感器在抬高姿态下垂直朝下。
+- **xArm 5/6/7 与 UF850 组合**：`home` 为全零关节角（软件零点）。`ready` 为安装 Gripper G2 时 TCP 位于 `(300, 0, 300)` mm、姿态 `(180, 0, 0)°` 的无滚转朝下 IK 位姿，其他工具沿用同一组关节角。xArm 5/6/7 法兰上的工具在全零时会伸到地面以下，因此这些组合另有 `init` 关键帧，取值与 `ready` 相同；UF850 组合在全零时不触地，没有 `init`。`<机械臂>_with_ft_sensor` 复用 `<机械臂>_with_vacuum_gripper` 关键帧，保证传感器在 `ready` 下垂直朝下。
+- **起始姿态**：`SimRobot` 与 `01_load_and_view.py` 在模型有 `init` 时从 `init` 起步，否则从第 0 个关键帧起步（机械臂模型即 `home`）。`SimRobot(start=...)` 可改为指定机械臂关节角或 TCP 位姿 `(pos, quat)`。`pick-place` 与 `box-pack` 仿真让各款机械臂的 TCP 统一从 `[300, 0, 300]` mm、`RPY = [180, 0, 0]°` 起步；真机模式从机械臂实际位置出发。
 - **工具偏移与 D435 视野朝向**：组合模型的 TCP 包含夹爪或吸盘的工具偏移；`<机械臂>_with_d435` 将 `attachment_site` 沿法兰 `+Z` 偏移 `+3 mm`（相机支架板厚）；`ft_sensor` 将下游工具体与 `attachment_site` 沿法兰 `+Z` 偏移 `+58.6 mm`（物理步长 `timestep="0.001"`）。安装在机械臂上的 `d435` 组合采用与人眼一致的正向视野（工具朝下时画面上方朝基座 `+X`，USB-C 接口位于法兰 `+Y` / 基座 `Y-` 侧）。
 - **独立模型**：独立可动夹爪（`gripper_g2`、`bio_gripper_g2`、`lite6_gripper`）定义 `open` 与 `close` 关键帧；真空吸盘、独立相机、支架、`ft_sensor` 及 `*_base_plate` 无关键帧（`nkey == 0`），以默认姿态加载。
 

@@ -22,7 +22,7 @@ from ufactory_mujoco.cli import main
 from ufactory_mujoco.config import get_task_preset, load_task_config
 from ufactory_mujoco.preflight import PreflightReport
 from ufactory_mujoco.tasks import pick_place, box_pack
-from ufactory_mujoco.tasks._common import task_report
+from ufactory_mujoco.tasks._common import TASK_START, task_report
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -99,6 +99,15 @@ class CommandTests(unittest.TestCase):
             )
             self.assertEqual(json.loads(rep_path.read_text(encoding="utf-8"))["robot"], "lite6")
 
+    def test_sim_tasks_start_from_the_shared_tcp_pose(self):
+        for command, module, function in (("pick-place", pick_place, "run_pick_place"),
+                                          ("box-pack", box_pack, "run_box_pack")):
+            for mode in ([], ["--dry-run"]):
+                with self.subTest(command=command, mode=mode), patch.object(module, "SimRobot") as robot, \
+                        patch.object(module, function, return_value=[]):
+                    exit_code([command, "--headless", *mode])
+                    self.assertEqual(robot.call_args.kwargs["start"], TASK_START)
+
     def test_runtime_value_error_is_failure_not_argument_error(self):
         for command, module, function in (("pick-place", pick_place, "run_pick_place"),
                                           ("box-pack", box_pack, "run_box_pack")):
@@ -157,7 +166,7 @@ class TaskPackagingTests(unittest.TestCase):
                 for arm in ("lite6", "xarm5", "xarm6", "xarm7", "uf850"):
                     with self.subTest(task=section, arm=arm):
                         config = load_task_config(preset=(section, arm))
-                        with SimRobot(config.scene_path) as robot:
+                        with SimRobot(config.scene_path, start=TASK_START) as robot:
                             outcome = getattr(module, "run_" + section)(robot, config, dry_run=True)
                             self.assertEqual(robot.data.time, 0)
                             self.assertTrue(outcome.ok)

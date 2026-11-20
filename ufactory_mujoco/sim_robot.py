@@ -3,7 +3,7 @@ joint interpolation, optional passive viewer, IK-based TCP moves, and
 optional gripper control.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from contextlib import contextmanager
 import math
 import time
@@ -42,7 +42,7 @@ from .grippers import (
     require_bilateral_contact,
 )
 from .kinematics import manipulability, solve_ik_trajectory, solve_joint_velocity
-from .compose import load_model
+from .compose import initial_keyframe, load_model
 from .robots import MODELS_ROOT
 from .robot_interface import RobotInterface
 from .trajectory import JointTrajectory
@@ -64,11 +64,17 @@ class SimRobot(RobotInterface):
     Arm position servos, an optional gripper (calibrated G2 servo when present), IK helpers
     and an optional passive viewer. ``model_path`` is a model name, MJCF path, ``MjSpec`` or
     ``MjModel`` (used as is) and defaults to the bundled xArm6 scene.
+
+    The arm starts at rest from the model's initial keyframe (``init`` when present, else
+    ``home``, the all-zero joints; see ``compose.initial_keyframe``). ``start`` overrides it with
+    arm joint angles ``(n_arm,)`` or a TCP pose ``(pos, quat)`` (wxyz), solved by IK from the
+    ``ready`` keyframe. It is applied before the viewer opens.
     """
     def __init__(self, model_path: str | Path | mujoco.MjSpec | mujoco.MjModel = _MODEL_PATH,
                  timestep: float | None = None,
                  viewer: bool = False, *, viewer_hz: float = 30.0,
-                 low_power_rendering: bool = False):
+                 low_power_rendering: bool = False,
+                 start: Sequence[float] | tuple[Sequence[float], Sequence[float]] | None = None):
         if not np.isfinite(viewer_hz) or viewer_hz <= 0:
             raise ValueError("viewer_hz must be finite and positive")
         self.model = load_model(model_path)
@@ -160,8 +166,9 @@ class SimRobot(RobotInterface):
 
         # --- Initialise state ---
         self._viewer = None
-        if self.model.nkey > 0:
-            mujoco.mj_resetDataKeyframe(self.model, self.data, 0)  # home
+        key = initial_keyframe(self.model)
+        if key >= 0:
+            mujoco.mj_resetDataKeyframe(self.model, self.data, key)
         else:
             mujoco.mj_resetData(self.model, self.data)
         # Keyframes define only the robot joints; restore floating scene props
@@ -170,6 +177,8 @@ class SimRobot(RobotInterface):
             if int(self.model.jnt_type[j]) == int(mujoco.mjtJoint.mjJNT_FREE):
                 adr = self.model.jnt_qposadr[j]
                 self.data.qpos[adr:adr + 7] = self.model.qpos0[adr:adr + 7]
+        if start is not None:
+            self.data.qpos[:self._n_arm_qpos] = self._start_joints(start)
         self.data.ctrl[:self._n_arm_actuators] = self.data.qpos[:self._n_arm_qpos]
 
         if (
@@ -250,6 +259,20 @@ class SimRobot(RobotInterface):
         if self._viewer is not None:
             self._viewer.sync()
 
+
+    def _start_joints(self, start) -> np.ndarray:
+        """Arm joints for ``start``: joint angles ``(n_arm,)`` or a TCP pose ``(pos, quat)``."""
+        if len(start) == 2 and np.size(start[0]) == 3 and np.size(start[1]) == 4:
+            pos, quat = start
+            seed = self.data.qpos.copy()
+            ready = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_KEY, "ready")
+            if ready >= 0:
+                seed[:self._n_arm_qpos] = self.model.key(ready).qpos[:self._n_arm_qpos]
+            q, ok = self.solve_tcp(pos, quat, q_init=seed)
+            if not ok:
+                raise ValueError(f"start TCP pose {np.asarray(pos).tolist()} is not reachable")
+            return self._require_arm_q(q[:self._n_arm_qpos], "start")
+        return self._require_arm_q(start, "start")
 
     def _require_arm_q(self, q: np.ndarray, name: str) -> np.ndarray:
         q = np.asarray(q, dtype=float)

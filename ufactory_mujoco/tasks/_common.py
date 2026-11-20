@@ -36,6 +36,10 @@ from ..xarm_robot import XArmRobot
 
 MODES = ("sim", "dry-run", "sdk-sim", "real")
 
+# Simulated pick-place and box-pack start every arm with the TCP at [300, 0, 300] mm,
+# RPY [180, 0, 0] deg. Hardware modes start from the arm's measured pose.
+TASK_START = ((0.30, 0.0, 0.30), tuple(float(v) for v in GRIP_DOWN_QUAT))
+
 
 def write_report(path, payload):
     """Write ``payload`` as strict JSON to ``path``; ``None`` skips writing."""
@@ -405,7 +409,8 @@ def manipulation_main(command, argv=None):
                 payload = {"error": f"{type(exc).__name__}: {exc}"}
         else:
             try:
-                with task.SimRobot(config.scene_spec(), viewer=not args.headless and not args.dry_run) as robot:
+                with task.SimRobot(config.scene_spec(), viewer=not args.headless and not args.dry_run,
+                                   start=TASK_START) as robot:
                     run = task.run_pick_place if command == "pick-place" else task.run_box_pack
                     outcome = run(robot, config, cycles=args.cycles,
                                   dry_run=args.dry_run, report_path=args.report)

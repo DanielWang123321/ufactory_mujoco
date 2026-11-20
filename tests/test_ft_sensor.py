@@ -25,7 +25,7 @@ from ufactory_mujoco import (
     read_hardware_ft_sensor,
     read_hardware_ft_sensor_config,
 )
-from ufactory_mujoco.compose import is_composed_model
+from ufactory_mujoco.compose import initial_keyframe, is_composed_model
 from ufactory_mujoco.ft_sensor import EXT_NOISE_STD, RAW_NOISE_STD
 from ufactory_mujoco import MODELS_ROOT, resolve_model_path
 
@@ -51,9 +51,13 @@ def _name_id(model: mujoco.MjModel, kind: int, name: str) -> int:
     return idx
 
 
-def _key_data(model: mujoco.MjModel, key_name: str = "home") -> mujoco.MjData:
+def _key_data(model: mujoco.MjModel, key_name: str | None = None) -> mujoco.MjData:
+    """Data at keyframe ``key_name``; ``None`` is the model's initial keyframe."""
     data = mujoco.MjData(model)
-    key = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_KEY, key_name)
+    if key_name is None:
+        key = initial_keyframe(model)
+    else:
+        key = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_KEY, key_name)
     if key >= 0:
         mujoco.mj_resetDataKeyframe(model, data, key)
     mujoco.mj_forward(model, data)
@@ -156,7 +160,7 @@ def test_mjcf_authoring_and_scene_step_contracts(name):
     np.testing.assert_allclose(model.site_pos[site_id], [0.0, 0.0, -0.0266], atol=1e-12)
     assert int(model.site_group[site_id]) == 4
 
-    data = _key_data(model, "home")
+    data = _key_data(model)
     assert data.ncon == 0
     reader = FTSensorReader(model, data)
     reader.update()
@@ -229,7 +233,7 @@ def test_assembly_preserves_arm_tool_and_offsets_tcp(robot, tool):
 def test_mounted_g2_actuator_remains_movable(robot):
     name = f"{robot}_with_ft_sensor_and_gripper"
     model = mujoco.MjModel.from_xml_path(str(resolve_model_path(name)))
-    data = _key_data(model, "home")
+    data = _key_data(model)
     actuator = _name_id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, "gripper")
     joint = _name_id(model, mujoco.mjtObj.mjOBJ_JOINT, "left_driver_joint")
     adr = int(model.jnt_qposadr[joint])

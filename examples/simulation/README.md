@@ -10,7 +10,7 @@ Requires Python **3.12–3.14** and the core install (see the [installation guid
 
 | Script | Core Module(s) | Supported Models | Description |
 | :--- | :--- | :--- | :--- |
-| `01_load_and_view.py` | `ufactory_mujoco.viewer`, `ufactory_mujoco.compose` | All models (arms, grippers, cameras, brackets, F/T sensor, base plates & combos) | Load MJCF scene at `home` or `ready` keyframe in the interactive viewer |
+| `01_load_and_view.py` | `ufactory_mujoco.viewer`, `ufactory_mujoco.compose` | All models (arms, grippers, cameras, brackets, F/T sensor, base plates & combos) | Load MJCF scene at its initial keyframe (or `home` / `ready` / `init`) in the interactive viewer |
 | `02_joint_control.py` | `ufactory_mujoco.sim_robot` | All 47 arm & combination models | Speed-based quintic joint interpolation (`xarm6` runs 20 dynamics poses by default) |
 | `03_cartesian_ik.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.kinematics` | `xarm6` | Cartesian straight-line (`move_tcp`) and X-Z circle tracking via DLS IK |
 | `04_gripper_control.py` | `ufactory_mujoco.sim_robot`, `ufactory_mujoco.g2`, `ufactory_mujoco.bio_g2` | 23 jaw-gripper models (standalone & combos) | Cycle `close (1.0) -> open (0.0) -> half (0.5) -> open (0.0)`; G2 and Bio G2 support `--speed-percent` & `--force-percent` |
@@ -196,7 +196,7 @@ Examples `03` and `07` accept only `--headless`.
 | :--- | :--- | :--- | :--- |
 | `--headless` | `01`–`04`, `06`, `07`, `09`, `11` | `False` | Run without a viewer and print metrics (`01`: load and print summary only) |
 | `--model <name>` | `01`, `02`, `04`, `11` | `xarm6` (`04`: `xarm6_with_gripper`, `11`: `xarm6_with_ft_sensor_and_gripper`) | Model directory name or path to an MJCF XML file |
-| `--pose <home\|ready>` | `01` | `home` | Initial keyframe pose |
+| `--pose <home\|ready\|init>` | `01` | `init` if the model has it, else `home` | Initial keyframe pose |
 | `--motion <mode>` | `02` | `auto` | Motion preset: `auto`, `dynamics` (20 poses, bare `xarm6` only), or `demo` |
 | `--speed <deg/s>` | `02`, `06` | `90.0` | Peak target joint speed in degrees/s |
 | `--duration <s>` | `02`, `11` | `None` (`11`: `1.0`) | Fixed seconds per segment (`02`) or wrench application duration (`11`) |
@@ -275,7 +275,8 @@ Camera and bracket models have `mass=0` and no optical sensor. Base plates place
 
 - **Bare xArm 5/6/7 and UF850 (and `*_with_base_plate`)**: `home` and `ready` are all-zero joint angles.
 - **Lite 6 (bare, `lite6_with_base_plate`, and combinations)**: `home` is all zeros; `ready` is the Studio factory pose `[0, 9.9, 31.8, 0, 21.9, 0]°` (flange near `[200, 0, 200]` mm, orientation `[180, 0, 0]°`).
-- **xArm 5/6/7 and UF850 combinations**: `ready` is the zero-roll downward IK pose placing Gripper G2's TCP at `(300, 0, 300)` mm with `RPY = (180, 0, 0)°` (`xArm 6` uses the same pose for `home`; `xArm 5`, `xArm 7`, and `UF850` define their own `home` in each MJCF—note that `uf850_with_*` uses all-zero `home`, so `--pose ready` is recommended when inspecting combinations). `<arm>_with_ft_sensor` reuses `<arm>_with_vacuum_gripper` keyframes so the mounted sensor stays elevated and points downward at `ready`.
+- **xArm 5/6/7 and UF850 combinations**: `home` is all-zero joint angles (the software zero point). `ready` is the zero-roll downward IK pose placing Gripper G2's TCP at `(300, 0, 300)` mm with `RPY = (180, 0, 0)°`; other tools use the same arm angles. At all-zero joints a tool on an xArm 5/6/7 flange reaches below the floor, so those combinations add an `init` keyframe equal to `ready`; UF850 combinations clear the floor at zero and have no `init`. `<arm>_with_ft_sensor` reuses `<arm>_with_vacuum_gripper` keyframes so the mounted sensor points downward at `ready`.
+- **Starting pose**: `SimRobot` and `01_load_and_view.py` start from `init` when the model has one, otherwise from keyframe 0 (`home` for arm models). `SimRobot(start=...)` takes arm joint angles or a TCP pose `(pos, quat)` instead. The `pick-place` and `box-pack` simulations start every arm with the TCP at `[300, 0, 300]` mm, `RPY = [180, 0, 0]°`; hardware modes start from the arm's measured pose.
 - **Tool offsets and D435 orientation**: combination TCPs include the mounted tool offset; `<arm>_with_d435` shifts `attachment_site` `+3 mm` along flange `+Z` for the bracket plate thickness, and `ft_sensor` shifts downstream bodies and `attachment_site` `+58.6 mm` along flange `+Z` (running at `timestep="0.001"`). Mounted `d435` assemblies orient the camera for a human-eye upright view (image top toward base `+X`, USB-C port on flange `+Y` / base `Y-` in tool-down poses).
 - **Standalone models**: movable grippers (`gripper_g2`, `bio_gripper_g2`, `lite6_gripper`) define `open` and `close` keyframes; passive vacuum grippers, cameras, stands, `ft_sensor`, and `*_base_plate` have no keyframes (`nkey == 0`) and load in their default pose.
 

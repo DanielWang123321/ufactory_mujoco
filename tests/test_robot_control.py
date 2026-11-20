@@ -260,5 +260,39 @@ class JointControlTests(unittest.TestCase):
                     robot.move_joints(bad_q, duration=0.2)
             np.testing.assert_array_equal(robot.data.ctrl, ctrl)
 
+
+class StartPoseTests(unittest.TestCase):
+    """Where SimRobot starts: the model's initial keyframe, or ``start``."""
+
+    def test_default_start_is_zero_unless_the_model_has_init(self):
+        for name, zero in (("xarm6", True), ("xarm6_with_gripper", False), ("xarm5_with_vacuum_gripper", False),
+                           ("uf850_with_gripper", True), ("lite6_with_gripper", True)):
+            with self.subTest(model=name), SimRobot(name) as robot:
+                q = robot.get_joint_positions()
+                np.testing.assert_array_equal(robot.data.ctrl[:robot.n_arm], q)
+                if zero:
+                    np.testing.assert_array_equal(q, np.zeros(robot.n_arm))
+                else:
+                    np.testing.assert_array_equal(q, robot.model.key("init").qpos[:robot.n_arm])
+                    self.assertEqual(robot.data.ncon, 0)
+
+    def test_start_joints_and_tcp_pose(self):
+        q_start = np.array([0.1, -0.5, -0.5, 0.0, 1.0, 0.0])
+        with SimRobot("xarm6_with_gripper", start=q_start) as robot:
+            np.testing.assert_array_equal(robot.get_joint_positions(), q_start)
+            np.testing.assert_array_equal(robot.data.ctrl[:6], q_start)
+            np.testing.assert_array_equal(robot.data.qvel, 0.0)
+        down = (0.0, 1.0, 0.0, 0.0)
+        with SimRobot("lite6_with_gripper", start=((0.25, 0.05, 0.25), down)) as robot:
+            pos, quat = robot.get_tcp_pose()
+            np.testing.assert_allclose(pos, [0.25, 0.05, 0.25], atol=5e-4)
+            self.assertAlmostEqual(abs(float(np.dot(quat, down))), 1.0, places=6)
+
+    def test_bad_start_is_rejected(self):
+        for start in (np.zeros(5), np.full(6, 10.0), ((2.0, 0.0, 0.3), (0.0, 1.0, 0.0, 0.0))):
+            with self.subTest(start=start), self.assertRaises(ValueError):
+                SimRobot("xarm6_with_gripper", start=start)
+
+
 if __name__ == "__main__":
     unittest.main()
