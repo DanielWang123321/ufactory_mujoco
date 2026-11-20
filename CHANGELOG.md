@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.1.8] - Unreleased
+## [0.1.8] - 2026-11-20
 
 The package now stores only atomic MJCF parts; every arm + accessory combination and every pick-place / box-pack scene is assembled at runtime with MuJoCo's native `MjSpec.attach`. Models and configs moved inside the package and the custom build hook is gone. The assembly itself left supported models and numerical results unchanged (all 30 golden task reports and all 11 task `config_sha256` hashes were byte-identical to 0.1.7); the grasp, timing, start-pose and pick-place layout changes below change the pick-place and box-pack simulation reports, and the start pose and layout also change their dry-run reports. The shared pick-place layout changes the xArm 5, xArm 7, UF850 and Lite 6 pick-place `config_sha256`; the other task hashes are unchanged.
 
