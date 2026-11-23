@@ -524,10 +524,16 @@ class CameraAndBracketModelsTest(unittest.TestCase):
         self.assertGreater(float(usb_band[:, 0].max()), 0.0449, "D435 native +X end wall must be intact")
 
         for arm in ("xarm5", "xarm6", "xarm7"):
-            vis_dir = MODELS_ROOT / arm / "assets" / arm / "visual"
-            ll = LAST_LINKS[arm]
-            avi_verts = _read_obj_vertices(vis_dir / f"{ll}_white.obj")
-            pogo_verts = _read_obj_vertices(vis_dir / f"{ll}_black.obj")
+            arm_xml = MODELS_ROOT / arm / f"{arm}.xml"
+            root = ET.parse(arm_xml).getroot()
+            comp = root.find("compiler")
+            meshdir = arm_xml.parent / (comp.get("meshdir", "assets") if comp is not None else "assets")
+            meshes = {m.get("name"): (meshdir / m.get("file", "")).resolve() for m in root.findall("./asset/mesh")}
+            body = root.find(f".//body[@name='{LAST_LINKS[arm]}']")
+            assert body is not None
+            by_mat = {g.get("material"): meshes[g.get("mesh", "")] for g in body.findall("geom[@class='visual']")}
+            avi_verts = _read_obj_vertices(by_mat["white"])
+            pogo_verts = _read_obj_vertices(by_mat["black"])
             self.assertLess(float(avi_verts[:, 1].mean()), -0.040, f"{arm} aviation connector must lie on flange -Y")
             self.assertGreater(float(pogo_verts[:, 1].mean()), 0.020, f"{arm} pogo-pin block must lie on flange +Y")
         uf_verts = _read_obj_vertices(MODELS_ROOT / "uf850" / "assets" / "uf850" / "visual" / "link6.obj")

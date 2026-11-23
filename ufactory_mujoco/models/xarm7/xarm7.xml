@@ -12,7 +12,7 @@
     <material name="gray" rgba="0.753 0.753 0.753 1"/>
 
     <!-- High-fidelity visual OBJs -->
-    <mesh name="link_base_vis" file="xarm7/visual/link_base.obj"/>
+    <mesh name="link_base_vis" file="../../xarm6/assets/xarm6/visual/link_base.obj"/>
     <mesh name="link1_white_vis" file="xarm7/visual/link1_white.obj"/>
     <mesh name="link1_silver_vis" file="xarm7/visual/link1_silver.obj"/>
     <mesh name="link2_white_vis" file="xarm7/visual/link2_white.obj"/>
@@ -25,9 +25,9 @@
     <mesh name="link5_silver_vis" file="xarm7/visual/link5_silver.obj" inertia="shell"/>
     <mesh name="link6_white_vis" file="xarm7/visual/link6_white.obj"/>
     <mesh name="link6_silver_vis" file="xarm7/visual/link6_silver.obj" inertia="shell"/>
-    <mesh name="link7_white_vis" file="xarm7/visual/link7_white.obj" inertia="shell"/>
-    <mesh name="link7_silver_vis" file="xarm7/visual/link7_silver.obj" inertia="shell"/>
-    <mesh name="link7_black_vis" file="xarm7/visual/link7_black.obj" inertia="shell"/>
+    <mesh name="link7_white_vis" file="../../xarm6/assets/xarm6/visual/link6_white.obj" inertia="shell"/>
+    <mesh name="link7_silver_vis" file="../../xarm6/assets/xarm6/visual/link6_silver.obj" inertia="shell"/>
+    <mesh name="link7_black_vis" file="../../xarm6/assets/xarm6/visual/link6_black.obj" inertia="shell"/>
 
     <!-- Multi-convex collision STLs -->
     <mesh name="xarm7_link1_col_00" file="xarm7/collision/xarm7_link1_col_00.stl"/>
@@ -53,9 +53,9 @@
     <mesh name="xarm7_link5_col_04" file="xarm7/collision/xarm7_link5_col_04.stl"/>
     <mesh name="xarm7_link6_col_00" file="xarm7/collision/xarm7_link6_col_00.stl"/>
     <mesh name="xarm7_link6_col_01" file="xarm7/collision/xarm7_link6_col_01.stl"/>
-    <mesh name="xarm7_link7_col_00" file="xarm7/collision/xarm7_link7_col_00.stl"/>
-    <mesh name="xarm7_link_base_col_00" file="xarm7/collision/xarm7_link_base_col_00.stl"/>
-    <mesh name="xarm7_link_base_col_01" file="xarm7/collision/xarm7_link_base_col_01.stl"/>
+    <mesh name="xarm6_link6_col_00" file="../../xarm6/assets/xarm6/collision/xarm6_link6_col_00.stl"/>
+    <mesh name="xarm6_link_base_col_00" file="../../xarm6/assets/xarm6/collision/xarm6_link_base_col_00.stl"/>
+    <mesh name="xarm6_link_base_col_01" file="../../xarm6/assets/xarm6/collision/xarm6_link_base_col_01.stl"/>
   </asset>
 
   <default>
@@ -89,8 +89,8 @@
     <body name="link_base" childclass="xarm7">
       <inertial pos="-0.021131 -0.0016302 0.056488" mass="0.88556" fullinertia="0.0030595 0.0037783 0.0020125 0.00012259 -0.00062705 0.00027023"/>
       <geom class="visual" mesh="link_base_vis" material="silver"/>
-      <geom class="collision" mesh="xarm7_link_base_col_00"/>
-      <geom class="collision" mesh="xarm7_link_base_col_01"/>
+      <geom class="collision" mesh="xarm6_link_base_col_00"/>
+      <geom class="collision" mesh="xarm6_link_base_col_01"/>
       <body name="link1" pos="0 0 0.267">
         <inertial pos="0.0002 0.03578 -0.006443" mass="2.507"
           fullinertia="0.0056406 0.003777 0.0045654 3e-05 -1.7e-06 -0.0005894"/>
@@ -157,7 +157,7 @@
                     <geom class="visual" mesh="link7_white_vis" material="white"/>
                     <geom class="visual" mesh="link7_silver_vis" material="silver"/>
                     <geom class="visual" mesh="link7_black_vis" material="black"/>
-                    <geom class="collision" mesh="xarm7_link7_col_00"/>
+                    <geom class="collision" mesh="xarm6_link6_col_00"/>
                     <site name="attachment_site" pos="0 0 0"/>
                   </body>
                 </body>

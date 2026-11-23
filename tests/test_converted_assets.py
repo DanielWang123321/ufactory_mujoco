@@ -2,7 +2,7 @@
 """Automated tests validating all converted UFACTORY visual OBJs and collision STLs.
 
 Tests verify:
-1. All 10 target directories exist with expected OBJ and STL counts.
+1. All target asset directories exist with expected OBJ and STL counts.
 2. Every visual OBJ loads successfully into MuJoCo without colocated-vertex or convex-hull errors.
 3. Every collision STL loads successfully into MuJoCo.
 4. Mesh statistics (vertices, faces) are non-zero.
@@ -25,7 +25,7 @@ from ufactory_mujoco import MODELS_ROOT
 
 MODELS_DIR = MODELS_ROOT
 
-# Full-precision visual OBJs total about 592 MiB (0.1.5); the decimated 0.1.3 set was about 95 MiB.
+# Full-precision visual OBJs total about 469 MiB (after unifying xArm5/xArm7 on xArm6); decimated 0.1.3 was ~95 MiB.
 VISUAL_OBJ_MIN_MIB = 450
 VISUAL_OBJ_MAX_MIB = 650
 
@@ -34,8 +34,8 @@ VISUAL_OBJ_MAX_MIB = 650
 FLAT_NORMAL_DOT = 0.8
 FLAT_AREA_MAX = 0.005
 
-# Thin-walled visual OBJs carrying reversed twin faces (0.1.5 + 0.1.7 ft_sensor); MJCF must load with inertia="shell".
-DOUBLE_SIDED_COUNT = 51
+# Thin-walled visual OBJs carrying reversed twin faces; MJCF must load with inertia="shell".
+DOUBLE_SIDED_COUNT = 44
 
 
 def _is_double_sided(path: Path) -> bool:
@@ -94,12 +94,11 @@ def _flat_normal_area_ratio(model: mujoco.MjModel) -> float:
 
 EXPECTED_TARGETS = {
     "xarm6": {"min_objs": 15, "min_stls": 22},
-    "xarm5": {"min_objs": 12, "min_stls": 19},
-    "xarm7": {"min_objs": 16, "min_stls": 26},
+    "xarm7": {"min_objs": 12, "min_stls": 23},
     "uf850": {"min_objs": 11, "min_stls": 27},
     "lite6": {"min_objs": 12, "min_stls": 17},
     "gripper_g2": {"min_objs": 7, "min_stls": 16},
-    "bio_gripper_g2": {"min_objs": 4, "min_stls": 5},
+    "bio_gripper_g2": {"min_objs": 4, "min_stls": 11},
     "lite6_gripper": {"min_objs": 7, "min_stls": 1},
     "lite6_vacuum_gripper": {"min_objs": 1, "min_stls": 1},
     "vacuum_gripper": {"min_objs": 3, "min_stls": 33},
@@ -187,27 +186,34 @@ class ConvertedAssetsTest(unittest.TestCase):
     def test_double_sided_visuals(self) -> None:
         """OBJs loaded with inertia="shell" have reversed twin faces, and every reference to them uses shell."""
         mesh_re = re.compile(r"<mesh\b[^>]*>")
+        comp_re = re.compile(r"<compiler\b[^>]*>")
         tags = []
         for xml in sorted(MODELS_DIR.glob("*/*.xml")):
-            for tag in mesh_re.findall(xml.read_text(encoding="utf-8")):
+            text = xml.read_text(encoding="utf-8")
+            comp = comp_re.search(text)
+            meshdir_match = re.search(r'meshdir="([^"]+)"', comp.group(0)) if comp else None
+            meshdir = xml.parent / (meshdir_match.group(1) if meshdir_match else "assets")
+            for tag in mesh_re.findall(text):
                 file_match = re.search(r'file="([^"]+)"', tag)
                 if file_match:
-                    tags.append((xml.name, file_match.group(1), tag))
+                    tags.append((xml.name, (meshdir / file_match.group(1)).resolve(), tag))
         # Camera glass STLs also use shell inertia (thin panels); only OBJs carry twin faces.
-        tails = {name for _, name, tag in tags if name.endswith(".obj") and 'inertia="shell"' in tag}
-        self.assertEqual(len(tails), DOUBLE_SIDED_COUNT)
+        shell_paths = {path for _, path, tag in tags if path.suffix == ".obj" and 'inertia="shell"' in tag}
+        self.assertEqual(len(shell_paths), DOUBLE_SIDED_COUNT)
         self.assertTrue(
-            {f"gripper_g2/visual/{n}.obj" for n in (
-                "base", "left_finger", "left_inner_knuckle", "left_outer_knuckle",
-                "right_finger", "right_inner_knuckle", "right_outer_knuckle",
-            )} <= tails,
+            {
+                (MODELS_DIR / "gripper_g2/assets/gripper_g2/visual" / f"{n}.obj").resolve()
+                for n in (
+                    "base", "left_finger", "left_inner_knuckle", "left_outer_knuckle",
+                    "right_finger", "right_inner_knuckle", "right_outer_knuckle",
+                )
+            } <= shell_paths,
         )
-        for tail in sorted(tails):
-            path = MODELS_DIR / tail.split("/", 1)[0] / "assets" / tail
+        for path in sorted(shell_paths):
             self.assertTrue(path.is_file(), path)
             self.assertTrue(_is_double_sided(path), f"{path} is not double-sided")
-        for xml_name, name, tag in tags:
-            if name in tails:
+        for xml_name, path, tag in tags:
+            if path in shell_paths:
                 self.assertIn('inertia="shell"', tag, f"{xml_name}: {tag}")
 
 if __name__ == "__main__":

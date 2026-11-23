@@ -1,5 +1,5 @@
 <mujoco model="bio_gripper_g2">
-  <!-- UFACTORY Bio Gripper G2 (bio_g2_calibrated_v1), 0.79 kg calibrated dynamics and 5-part convex collision STLs. -->
+  <!-- UFACTORY Bio Gripper G2 (bio_g2_calibrated_v1), 0.79 kg calibrated dynamics and 11-part convex collision STLs. -->
   <compiler angle="radian" autolimits="true" meshdir="assets"/>
 
   <option integrator="implicitfast"/>
@@ -16,8 +16,14 @@
     <mesh name="base_col_0" file="bio_gripper_g2/collision/bio_gripper_g2_base_link_convex_0.stl"/>
     <mesh name="left_finger_col_0" file="bio_gripper_g2/collision/bio_gripper_g2_left_finger_convex_0.stl"/>
     <mesh name="left_finger_col_1" file="bio_gripper_g2/collision/bio_gripper_g2_left_finger_convex_1.stl"/>
+    <mesh name="left_finger_col_2" file="bio_gripper_g2/collision/bio_gripper_g2_left_finger_convex_2.stl"/>
+    <mesh name="left_finger_col_3" file="bio_gripper_g2/collision/bio_gripper_g2_left_finger_convex_3.stl"/>
+    <mesh name="left_finger_col_4" file="bio_gripper_g2/collision/bio_gripper_g2_left_finger_convex_4.stl"/>
     <mesh name="right_finger_col_0" file="bio_gripper_g2/collision/bio_gripper_g2_right_finger_convex_0.stl"/>
     <mesh name="right_finger_col_1" file="bio_gripper_g2/collision/bio_gripper_g2_right_finger_convex_1.stl"/>
+    <mesh name="right_finger_col_2" file="bio_gripper_g2/collision/bio_gripper_g2_right_finger_convex_2.stl"/>
+    <mesh name="right_finger_col_3" file="bio_gripper_g2/collision/bio_gripper_g2_right_finger_convex_3.stl"/>
+    <mesh name="right_finger_col_4" file="bio_gripper_g2/collision/bio_gripper_g2_right_finger_convex_4.stl"/>
   </asset>
 
   <default>
@@ -49,6 +55,9 @@
         <geom class="bio_visual" mesh="left_finger_vis" material="silver" pos="0 0.00695659220219 0"/>
         <geom class="bio_collision" mesh="left_finger_col_0" pos="0 0 0"/>
         <geom class="bio_collision" mesh="left_finger_col_1" pos="0 0 0"/>
+        <geom class="bio_collision" mesh="left_finger_col_2" pos="0 0 0"/>
+        <geom class="bio_collision" mesh="left_finger_col_3" pos="0 0 0"/>
+        <geom class="bio_collision" mesh="left_finger_col_4" pos="0 0 0"/>
       </body>
 
       <body name="bio_gripper_g2_right_finger" pos="0.059 0 0.027">
@@ -58,6 +67,9 @@
         <geom class="bio_visual" mesh="right_finger_vis" material="silver" pos="0 -0.00811730325222 0"/>
         <geom class="bio_collision" mesh="right_finger_col_0" pos="0 0 0"/>
         <geom class="bio_collision" mesh="right_finger_col_1" pos="0 0 0"/>
+        <geom class="bio_collision" mesh="right_finger_col_2" pos="0 0 0"/>
+        <geom class="bio_collision" mesh="right_finger_col_3" pos="0 0 0"/>
+        <geom class="bio_collision" mesh="right_finger_col_4" pos="0 0 0"/>
       </body>
 
       <site name="link_tcp" pos="0.135 0 0.055"/>

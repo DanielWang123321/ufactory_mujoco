@@ -26,10 +26,11 @@ PLATES: dict[str, dict] = {
     "lite6": {"thickness_mm": 5.0, "extent_mm": (130.0, 190.0), "collision_count": 1, "solid_xy_mm": (0.0, 70.0)},
 }
 
+_XARM_PLATE_FIT = ("xarm", (-0.00012433, -0.00038722, -0.00001016), 0.000002356)
 ARM_ASSEMBLY: dict[str, tuple[str, tuple[float, float, float], float]] = {
-    "xarm5": ("xarm", (-0.00012433, -0.00038722, -0.00001016), 0.000002356),
-    "xarm6": ("xarm", (0.00007243, 0.00002863, -0.00004715), -0.00726035),
-    "xarm7": ("xarm", (-0.00057017, 0.00006319, 0.00001328), -0.00725905),
+    "xarm5": _XARM_PLATE_FIT,
+    "xarm6": _XARM_PLATE_FIT,
+    "xarm7": _XARM_PLATE_FIT,
     "uf850": ("uf850", (-0.00001021, 0.00000350, 0.00000420), 0.0),
     "lite6": ("lite6", (0.00298920, 0.00001614, 0.00171732), 0.000000298),
 }
@@ -216,7 +217,8 @@ def test_sphere_lands_on_solid_and_filled_holes(plate, where):
 
 def _upstream_base_vertices_mm(arm: str) -> np.ndarray:
     obj = "link_base_white.obj" if arm == "lite6" else "link_base.obj"
-    path = MODELS_ROOT / arm / "assets" / arm / "visual" / obj
+    mesh_arm = "xarm6" if arm in ("xarm5", "xarm7") else arm
+    path = MODELS_ROOT / mesh_arm / "assets" / mesh_arm / "visual" / obj
     return np.array(
         [
             [float(v) * 1000.0 for v in line.split()[1:4]]

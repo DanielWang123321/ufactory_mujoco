@@ -154,19 +154,18 @@ COMBO_INIT_ARMS = frozenset({"xarm5", "xarm6", "xarm7"})
 # Scene statistic (center, extent) of arms carrying a tool or camera.
 COMBO_STATISTIC = {"lite6": ((0.25, 0, 0.25), 0.7), **{arm: ((0.3, 0, 0.3), 0.9) for arm in _XARM_SERIES}}
 
-# Bio Gripper G2 flange mount (pos, quat) per arm.
+# Bio Gripper G2 flange mount (pos, quat), shared across all xArm-flange robots.
+_BIO_GRIPPER_XARM_MOUNT = ((0.022642, 0.000814, 0.002516), (0.99999506177, 0, 0, -0.0031426798269))
 BIO_GRIPPER_MOUNT: dict[str, tuple[tuple[float, ...], tuple[float, ...] | None]] = {
-    "xarm5": ((0.026044, -0.000867, -0.000697), (0.999993824591, 0, 0, -0.00351436776576)),
-    "xarm6": ((0.027018, -0.000715, -0.000692), (0.999993767297, 0, 0, -0.00353063266485)),
-    "xarm7": ((0.026931, -0.000882, -0.00076), (0.99999230379, 0, 0, -0.0039233099351)),
-    "uf850": ((0.024657, 0, 0), None),
+    arm: _BIO_GRIPPER_XARM_MOUNT for arm in _XARM_SERIES
 }
 
 # Base plate part, least-squares fit of link_base on the plate (pos, yaw) per arm.
+_XARM_BASE_PLATE_FIT = ("xarm_base_plate", (-0.00012433, -0.00038722, -0.00001016), 0.000002356)
 BASE_PLATE_MOUNT: dict[str, tuple[str, tuple[float, float, float], float]] = {
-    "xarm5": ("xarm_base_plate", (-0.00012433, -0.00038722, -0.00001016), 0.000002356),
-    "xarm6": ("xarm_base_plate", (0.00007243, 0.00002863, -0.00004715), -0.00726035),
-    "xarm7": ("xarm_base_plate", (-0.00057017, 0.00006319, 0.00001328), -0.00725905),
+    "xarm5": _XARM_BASE_PLATE_FIT,
+    "xarm6": _XARM_BASE_PLATE_FIT,
+    "xarm7": _XARM_BASE_PLATE_FIT,
     "uf850": ("uf850_base_plate", (-0.00001021, 0.00000350, 0.00000420), 0.0),
     "lite6": ("lite6_base_plate", (0.00298920, 0.00001614, 0.00171732), 0.000000298),
 }

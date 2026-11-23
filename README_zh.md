@@ -132,7 +132,7 @@ ruff check .                      # 与 CI 相同的静态检查（pip install r
 - 深度相机与 `camera_stand` 模型提供外观几何、安装面/螺钉孔 `<site>`（`group=4`）与近似碰撞体（`group=3`），`mass=0` 且不含 MuJoCo `<camera>` 光学成像传感器；动力学场景请通过 `attach_payload` 注入相机与支架负载。
 - `ft_sensor` 系列模型以实测参数对 UFACTORY AI1500 建模（总质量 `0.6 kg` 拆分为 `0.45 kg` 底座与 `0.15 kg` 浮动端头，`ft_sensor_site` 位于法兰 `+32.0 mm`、浮动端质心超前 `+3.87 mm`、输出端面偏置 `+58.6 mm`，`1 ms` 物理步长 / `200 Hz` IEEE-754 `fp32` 采样保持，`±400 N / ±20 Nm` 超量程、`±600 N / ±30 Nm` 过载），输出与真机一致的符号极性（`+` = 施加于输出面的外力/力矩）及 `raw`（含浮动头与下游重力）/ `ext`（动态重力与零偏补偿）双通道、可选实测噪声（`noise_std="calibrated"`），并打通 `XArmRobot` 只读真机读取与防裸臂误运动预检门控（`--gripper ft_sensor*`，避免 `SERVO_R16B` 触发状态退化）；未模拟滞后、串扰、温漂与硬件低通滤波动态。`lite6`（物理/通信不兼容）与 `bio_gripper_g2` 未构建 `ft_sensor` 组合。
 - 跨后端契约差异（`RobotInterface`）：`SimRobot.move_tcp` 执行笛卡尔直线与 SLERP 插值，而 `XArmRobot.move_tcp` 求解目标位姿 IK 后走关节空间运动（`XArmRobot.move_joints` 受 `max_joint_speed_rad_s` 限速约束，`SimRobot` 中 `wait=False` 仅跳过末尾 `settle`）；需跨仿真与真机严格走同一空间直线时请统一调用 `plan_cartesian_trajectory` + `execute_trajectory`。Gripper G2 / Bio Gripper G2 传入 `speed_percent=0` 会暂停夹爪运动并维持接触预紧，后续省略 `speed_percent` 的指令会自动恢复上一次正速度。
-- 安装底板（`*_base_plate`）碰撞网格（`group=3`）采用填孔凸棱柱以便在默认步长下稳定接触；视觉网格（`group=2`）保留完整通孔与安装槽，因此碰撞检测不适用于模拟螺栓穿孔。`<机械臂>_with_base_plate` 中的 `link_base` 采用安装孔/底面最小二乘拟合位姿，因此法兰/TCP 相对裸臂原点存在毫米级几何拟合偏移（如 `xarm6` `Δy ≈ -1.47 mm`；`lite6` `Δx ≈ +2.99 mm, Δz ≈ +1.72 mm`）。
+- 安装底板（`*_base_plate`）碰撞网格（`group=3`）采用填孔凸棱柱以便在默认步长下稳定接触；视觉网格（`group=2`）保留完整通孔与安装槽，因此碰撞检测不适用于模拟螺栓穿孔。`<机械臂>_with_base_plate` 中的 `link_base` 采用安装孔/底面最小二乘拟合位姿，因此法兰/TCP 相对裸臂原点存在毫米级几何拟合偏移（如 `xarm5`/`xarm6`/`xarm7` `Δx ≈ -0.12 mm, Δy ≈ -0.39 mm`；`lite6` `Δx ≈ +2.99 mm, Δz ≈ +1.72 mm`）。
 - 任务报告在 MuJoCo 4.0.0 与 4.0.1 下逐字节一致；其他 MuJoCo 版本可能使结果在数值上不同。
 
 ## 项目结构

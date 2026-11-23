@@ -258,9 +258,11 @@ class BioG2ControllerTest(unittest.TestCase):
                             tip[:, 1].max() if side == "left" else tip[:, 1].min()
                         )
                     self.assertAlmostEqual(bounds[(side, "visual")], bounds[(side, "collision")], delta=5e-5)
-                    self.assertTrue(collision.is_convex and collision.is_watertight)
-                    root_hull = trimesh.load(ASSETS_DIR / f"collision/{name}_convex_1.stl", force="mesh")
-                    self.assertTrue(root_hull.is_convex and root_hull.is_watertight)
+                    for idx in range(5):
+                        hull = trimesh.load(ASSETS_DIR / f"collision/{name}_convex_{idx}.stl", force="mesh")
+                        self.assertTrue(hull.is_convex and hull.is_watertight, f"{name}_convex_{idx}")
+                base_hull = trimesh.load(ASSETS_DIR / "collision/bio_gripper_g2_base_link_convex_0.stl", force="mesh")
+                self.assertTrue(base_hull.is_convex and base_hull.is_watertight)
                 self.assertAlmostEqual(
                     (bounds[("right", "collision")] - bounds[("left", "collision")]) * 1000.0,
                     gap,

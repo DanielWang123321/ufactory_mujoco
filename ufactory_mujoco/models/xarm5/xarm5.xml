@@ -1,6 +1,6 @@
 <mujoco model="xarm5">
-  <!-- UFACTORY xArm 5 (1305 variant), high-fidelity multi-material visual OBJs with multi-convex collision STLs. -->
-  <compiler angle="radian" autolimits="true" meshdir="assets"/>
+  <!-- UFACTORY xArm 5 (1305 variant), sharing visual OBJs and multi-convex collision STLs with xarm6. -->
+  <compiler angle="radian" autolimits="true" meshdir="../xarm6/assets"/>
 
   <option integrator="implicitfast"/>
 
@@ -9,41 +9,48 @@
     <material name="white" rgba="0.95 0.95 0.95 1" specular="0.4" shininess="0.3"/>
     <material name="silver" rgba="0.85 0.85 0.88 1" specular="0.9" shininess="0.8" reflectance="0.05"/>
     <material name="black" rgba="0.25 0.25 0.25 1" specular="0.2" shininess="0.1"/>
+    <material name="seal" rgba="0.8 0.82 0.85 1" specular="0.3" shininess="0.2"/>
 
-    <!-- High-fidelity visual OBJs -->
-    <mesh name="link_base_vis" file="xarm5/visual/link_base.obj"/>
-    <mesh name="link1_white_vis" file="xarm5/visual/link1_white.obj"/>
-    <mesh name="link1_silver_vis" file="xarm5/visual/link1_silver.obj"/>
-    <mesh name="link2_white_vis" file="xarm5/visual/link2_white.obj"/>
-    <mesh name="link2_silver_vis" file="xarm5/visual/link2_silver.obj"/>
-    <mesh name="link3_white_vis" file="xarm5/visual/link3_white.obj"/>
-    <mesh name="link3_silver_vis" file="xarm5/visual/link3_silver.obj" inertia="shell"/>
-    <mesh name="link4_white_vis" file="xarm5/visual/link4_white.obj"/>
-    <mesh name="link4_silver_vis" file="xarm5/visual/link4_silver.obj"/>
-    <mesh name="link5_white_vis" file="xarm5/visual/link5_white.obj" inertia="shell"/>
-    <mesh name="link5_silver_vis" file="xarm5/visual/link5_silver.obj" inertia="shell"/>
-    <mesh name="link5_black_vis" file="xarm5/visual/link5_black.obj" inertia="shell"/>
+    <!-- High-fidelity visual OBJs (shared with xarm6) -->
+    <mesh name="link_base_vis" file="xarm6/visual/link_base.obj"/>
+    <mesh name="link1_seal_vis" file="xarm6/visual/link1_seal.obj" inertia="shell"/>
+    <mesh name="link1_white_vis" file="xarm6/visual/link1_white.obj"/>
+    <mesh name="link1_silver_vis" file="xarm6/visual/link1_silver.obj"/>
+    <mesh name="link2_white_vis" file="xarm6/visual/link2_white.obj"/>
+    <mesh name="link2_silver_vis" file="xarm6/visual/link2_silver.obj"/>
+    <mesh name="link3_white_vis" file="xarm6/visual/link3_white.obj"/>
+    <mesh name="link3_silver_vis" file="xarm6/visual/link3_silver.obj"/>
+    <mesh name="link4_white_vis" file="xarm6/visual/link4_white.obj"/>
+    <mesh name="link4_silver_vis" file="xarm6/visual/link4_silver.obj" inertia="shell"/>
+    <mesh name="link5_white_vis" file="xarm6/visual/link5_white.obj"/>
+    <mesh name="link5_silver_vis" file="xarm6/visual/link5_silver.obj"/>
+    <mesh name="link6_white_vis" file="xarm6/visual/link6_white.obj" inertia="shell"/>
+    <mesh name="link6_black_vis" file="xarm6/visual/link6_black.obj" inertia="shell"/>
+    <mesh name="link6_silver_vis" file="xarm6/visual/link6_silver.obj" inertia="shell"/>
 
-    <!-- Multi-convex collision STLs -->
-    <mesh name="xarm5_link1_col_00" file="xarm5/collision/xarm5_link1_col_00.stl"/>
-    <mesh name="xarm5_link1_col_01" file="xarm5/collision/xarm5_link1_col_01.stl"/>
-    <mesh name="xarm5_link2_col_00" file="xarm5/collision/xarm5_link2_col_00.stl"/>
-    <mesh name="xarm5_link2_col_01" file="xarm5/collision/xarm5_link2_col_01.stl"/>
-    <mesh name="xarm5_link2_col_02" file="xarm5/collision/xarm5_link2_col_02.stl"/>
-    <mesh name="xarm5_link2_col_03" file="xarm5/collision/xarm5_link2_col_03.stl"/>
-    <mesh name="xarm5_link2_col_04" file="xarm5/collision/xarm5_link2_col_04.stl"/>
-    <mesh name="xarm5_link3_col_00" file="xarm5/collision/xarm5_link3_col_00.stl"/>
-    <mesh name="xarm5_link3_col_01" file="xarm5/collision/xarm5_link3_col_01.stl"/>
-    <mesh name="xarm5_link3_col_02" file="xarm5/collision/xarm5_link3_col_02.stl"/>
-    <mesh name="xarm5_link3_col_03" file="xarm5/collision/xarm5_link3_col_03.stl"/>
-    <mesh name="xarm5_link3_col_04" file="xarm5/collision/xarm5_link3_col_04.stl"/>
-    <mesh name="xarm5_link3_col_05" file="xarm5/collision/xarm5_link3_col_05.stl"/>
-    <mesh name="xarm5_link3_col_06" file="xarm5/collision/xarm5_link3_col_06.stl"/>
-    <mesh name="xarm5_link4_col_00" file="xarm5/collision/xarm5_link4_col_00.stl"/>
-    <mesh name="xarm5_link4_col_01" file="xarm5/collision/xarm5_link4_col_01.stl"/>
-    <mesh name="xarm5_link5_col_00" file="xarm5/collision/xarm5_link5_col_00.stl"/>
-    <mesh name="xarm5_link_base_col_00" file="xarm5/collision/xarm5_link_base_col_00.stl"/>
-    <mesh name="xarm5_link_base_col_01" file="xarm5/collision/xarm5_link_base_col_01.stl"/>
+    <!-- Multi-convex collision STLs (shared with xarm6) -->
+    <mesh name="xarm6_link1_col_00" file="xarm6/collision/xarm6_link1_col_00.stl"/>
+    <mesh name="xarm6_link1_col_01" file="xarm6/collision/xarm6_link1_col_01.stl"/>
+    <mesh name="xarm6_link2_col_00" file="xarm6/collision/xarm6_link2_col_00.stl"/>
+    <mesh name="xarm6_link2_col_01" file="xarm6/collision/xarm6_link2_col_01.stl"/>
+    <mesh name="xarm6_link2_col_02" file="xarm6/collision/xarm6_link2_col_02.stl"/>
+    <mesh name="xarm6_link2_col_03" file="xarm6/collision/xarm6_link2_col_03.stl"/>
+    <mesh name="xarm6_link2_col_04" file="xarm6/collision/xarm6_link2_col_04.stl"/>
+    <mesh name="xarm6_link3_col_00" file="xarm6/collision/xarm6_link3_col_00.stl"/>
+    <mesh name="xarm6_link3_col_01" file="xarm6/collision/xarm6_link3_col_01.stl"/>
+    <mesh name="xarm6_link3_col_02" file="xarm6/collision/xarm6_link3_col_02.stl"/>
+    <mesh name="xarm6_link3_col_03" file="xarm6/collision/xarm6_link3_col_03.stl"/>
+    <mesh name="xarm6_link3_col_04" file="xarm6/collision/xarm6_link3_col_04.stl"/>
+    <mesh name="xarm6_link4_col_00" file="xarm6/collision/xarm6_link4_col_00.stl"/>
+    <mesh name="xarm6_link4_col_01" file="xarm6/collision/xarm6_link4_col_01.stl"/>
+    <mesh name="xarm6_link4_col_02" file="xarm6/collision/xarm6_link4_col_02.stl"/>
+    <mesh name="xarm6_link4_col_03" file="xarm6/collision/xarm6_link4_col_03.stl"/>
+    <mesh name="xarm6_link4_col_04" file="xarm6/collision/xarm6_link4_col_04.stl"/>
+    <mesh name="xarm6_link5_col_00" file="xarm6/collision/xarm6_link5_col_00.stl"/>
+    <mesh name="xarm6_link5_col_01" file="xarm6/collision/xarm6_link5_col_01.stl"/>
+    <mesh name="xarm6_link6_col_00" file="xarm6/collision/xarm6_link6_col_00.stl"/>
+    <mesh name="xarm6_link_base_col_00" file="xarm6/collision/xarm6_link_base_col_00.stl"/>
+    <mesh name="xarm6_link_base_col_01" file="xarm6/collision/xarm6_link_base_col_01.stl"/>
   </asset>
 
   <default>
@@ -77,56 +84,63 @@
     <body name="link_base" childclass="xarm5">
       <inertial pos="-0.00218 -0.00023 0.08604" mass="1.95" fullinertia="0.004805 0.0050349 0.0025418 -8.33e-06 0.00026847 7.23e-06"/>
       <geom class="visual" mesh="link_base_vis" material="silver"/>
-      <geom class="collision" mesh="xarm5_link_base_col_00"/>
-      <geom class="collision" mesh="xarm5_link_base_col_01"/>
+      <geom class="collision" mesh="xarm6_link_base_col_00"/>
+      <geom class="collision" mesh="xarm6_link_base_col_01"/>
       <body name="link1" pos="0 0 0.267">
         <inertial pos="-0.000164 0.03594 -0.0065" mass="2.527"
           fullinertia="0.005692 0.003851 0.004606 -2.375e-05 3.47e-07 -0.000607"/>
         <joint name="joint1" class="size1"/>
         <geom class="visual" mesh="link1_white_vis" material="white"/>
         <geom class="visual" mesh="link1_silver_vis" material="silver"/>
-        <geom class="collision" mesh="xarm5_link1_col_00"/>
-        <geom class="collision" mesh="xarm5_link1_col_01"/>
+        <geom class="visual" mesh="link1_seal_vis" material="seal"/>
+        <geom class="collision" mesh="xarm6_link1_col_00"/>
+        <geom class="collision" mesh="xarm6_link1_col_01"/>
         <body name="link2" quat="0.707105 -0.707108 0 0">
           <inertial pos="0.04084 -0.2403 0.03254" mass="2.242"
             fullinertia="0.023064 0.0059781 0.021902 0.004092 0.0005122 -0.003718"/>
           <joint name="joint2" range="-2.059 2.0944" class="size1"/>
           <geom class="visual" mesh="link2_white_vis" material="white"/>
           <geom class="visual" mesh="link2_silver_vis" material="silver"/>
-          <geom class="collision" mesh="xarm5_link2_col_00"/>
-          <geom class="collision" mesh="xarm5_link2_col_01"/>
-          <geom class="collision" mesh="xarm5_link2_col_02"/>
-          <geom class="collision" mesh="xarm5_link2_col_03"/>
-          <geom class="collision" mesh="xarm5_link2_col_04"/>
+          <geom class="collision" mesh="xarm6_link2_col_00"/>
+          <geom class="collision" mesh="xarm6_link2_col_01"/>
+          <geom class="collision" mesh="xarm6_link2_col_02"/>
+          <geom class="collision" mesh="xarm6_link2_col_03"/>
+          <geom class="collision" mesh="xarm6_link2_col_04"/>
           <body name="link3" pos="0.0535 -0.2845 0">
             <inertial pos="0.072 0.2363 0.00083" mass="2.24"
               fullinertia="0.035477 0.005848 0.033753 -0.0030302 0.0010594 0.00612"/>
             <joint name="joint3" range="-3.927 0.19198" class="size2"/>
             <geom class="visual" mesh="link3_white_vis" material="white"/>
             <geom class="visual" mesh="link3_silver_vis" material="silver"/>
-            <geom class="collision" mesh="xarm5_link3_col_00"/>
-            <geom class="collision" mesh="xarm5_link3_col_01"/>
-            <geom class="collision" mesh="xarm5_link3_col_02"/>
-            <geom class="collision" mesh="xarm5_link3_col_03"/>
-            <geom class="collision" mesh="xarm5_link3_col_04"/>
-            <geom class="collision" mesh="xarm5_link3_col_05"/>
-            <geom class="collision" mesh="xarm5_link3_col_06"/>
+            <geom class="collision" mesh="xarm6_link3_col_00"/>
+            <geom class="collision" mesh="xarm6_link3_col_01"/>
+            <geom class="collision" mesh="xarm6_link3_col_02"/>
+            <geom class="collision" mesh="xarm6_link3_col_03"/>
+            <geom class="collision" mesh="xarm6_link3_col_04"/>
+            <!-- xArm6 link4 at J4 = 0: xArm5 replaces J4 with a fixed aluminium key. -->
+            <geom class="visual" mesh="link4_white_vis" material="white" pos="0.0775 0.3425 0" quat="0.707105 -0.707108 0 0"/>
+            <geom class="visual" mesh="link4_silver_vis" material="silver" pos="0.0775 0.3425 0" quat="0.707105 -0.707108 0 0"/>
+            <geom class="collision" mesh="xarm6_link4_col_00" pos="0.0775 0.3425 0" quat="0.707105 -0.707108 0 0"/>
+            <geom class="collision" mesh="xarm6_link4_col_01" pos="0.0775 0.3425 0" quat="0.707105 -0.707108 0 0"/>
+            <geom class="collision" mesh="xarm6_link4_col_02" pos="0.0775 0.3425 0" quat="0.707105 -0.707108 0 0"/>
+            <geom class="collision" mesh="xarm6_link4_col_03" pos="0.0775 0.3425 0" quat="0.707105 -0.707108 0 0"/>
+            <geom class="collision" mesh="xarm6_link4_col_04" pos="0.0775 0.3425 0" quat="0.707105 -0.707108 0 0"/>
             <body name="link4" pos="0.0775 0.3425 0">
               <inertial pos="0.06824 0.03342 0.00264" mass="1.345"
                 fullinertia="0.001624 0.00173 0.0022881 -0.0003378 0.00024388 0.00011526"/>
               <joint name="joint4" range="-1.69297 3.14159" class="size3"/>
-              <geom class="visual" mesh="link4_white_vis" material="white"/>
-              <geom class="visual" mesh="link4_silver_vis" material="silver"/>
-              <geom class="collision" mesh="xarm5_link4_col_00"/>
-              <geom class="collision" mesh="xarm5_link4_col_01"/>
+              <geom class="visual" mesh="link5_white_vis" material="white"/>
+              <geom class="visual" mesh="link5_silver_vis" material="silver"/>
+              <geom class="collision" mesh="xarm6_link5_col_00"/>
+              <geom class="collision" mesh="xarm6_link5_col_01"/>
               <body name="link5" pos="0.076 0.097 0" quat="0.707105 -0.707108 0 0">
                 <inertial pos="0.0008 -0.00359 -0.01326" mass="0.173"
                   fullinertia="0.0001119 8.951e-05 0.00017916 0 0 -2.94e-06"/>
                 <joint name="joint5" class="size3"/>
-                <geom class="visual" mesh="link5_white_vis" material="white"/>
-                <geom class="visual" mesh="link5_silver_vis" material="silver"/>
-                <geom class="visual" mesh="link5_black_vis" material="black"/>
-                <geom class="collision" mesh="xarm5_link5_col_00"/>
+                <geom class="visual" mesh="link6_white_vis" material="white"/>
+                <geom class="visual" mesh="link6_silver_vis" material="silver"/>
+                <geom class="visual" mesh="link6_black_vis" material="black"/>
+                <geom class="collision" mesh="xarm6_link6_col_00"/>
                 <site name="attachment_site" pos="0 0 0"/>
               </body>
             </body>
