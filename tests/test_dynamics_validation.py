@@ -26,8 +26,8 @@ ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = ROOT / "examples" / "simulation" / "08_dynamics.py"
 PLANAR = ROOT / "tests" / "fixtures" / "planar_arm.xml"
 PHASES = ("deploy", "deploy_settle", "outbound", "outbound_settle", "return", "return_settle")
-BASELINE = np.array([0.0, -5.457423426494502, -21.096553945585573,
-                     -1.5295099439534692, -1.570599127710176, 0.0066876600139051945])
+BASELINE = np.array([0.0, -5.462099852974736, -21.552282045241267,
+                     -1.548964151681691, -1.5779067359994878, 0.0025181361379145173])
 
 
 @lru_cache(maxsize=1)

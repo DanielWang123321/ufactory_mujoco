@@ -779,16 +779,62 @@ def test_dynamics_sim_regression_all_robots(tmp_path: Path, robot_key: str):
         assert s["l3a_mass_rel_fro"] < 1e-5
 
 
+def _sync_urdf_link_inertials(urdf_path: Path, mj_model, dof: int, out_path: Path) -> Path:
+    """Copy a URDF into ``out_path`` with ``link1..link{dof}`` inertials synced from ``mj_model``."""
+    import xml.etree.ElementTree as ET
+    import mujoco
+
+    tree = ET.parse(str(urdf_path))
+    links = {el.get("name"): el for el in tree.getroot().findall("link")}
+    for i in range(1, dof + 1):
+        lname = f"link{i}"
+        bid = mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_BODY, lname)
+        w, x, y, z = (float(v) for v in mj_model.body_iquat[bid])
+        rot = np.array(
+            [
+                [1.0 - 2.0 * (y * y + z * z), 2.0 * (x * y - w * z), 2.0 * (x * z + w * y)],
+                [2.0 * (x * y + w * z), 1.0 - 2.0 * (x * x + z * z), 2.0 * (y * z - w * x)],
+                [2.0 * (x * z - w * y), 2.0 * (y * z + w * x), 1.0 - 2.0 * (x * x + y * y)],
+            ],
+            dtype=np.float64,
+        )
+        tensor = rot @ np.diag(mj_model.body_inertia[bid]) @ rot.T
+        inert = links[lname].find("inertial")
+        assert inert is not None
+        origin = inert.find("origin")
+        assert origin is not None
+        origin.set("xyz", " ".join(f"{float(v):.16g}" for v in mj_model.body_ipos[bid]))
+        origin.set("rpy", "0 0 0")
+        mass_el = inert.find("mass")
+        assert mass_el is not None
+        mass_el.set("value", f"{float(mj_model.body_mass[bid]):.16g}")
+        iel = inert.find("inertia")
+        assert iel is not None
+        iel.set("ixx", f"{float(tensor[0, 0]):.16g}")
+        iel.set("ixy", f"{float(tensor[0, 1]):.16g}")
+        iel.set("ixz", f"{float(tensor[0, 2]):.16g}")
+        iel.set("iyy", f"{float(tensor[1, 1]):.16g}")
+        iel.set("iyz", f"{float(tensor[1, 2]):.16g}")
+        iel.set("izz", f"{float(tensor[2, 2]):.16g}")
+    tree.write(out_path, encoding="utf-8")
+    return out_path
+
+
 @pytest.mark.parametrize("robot_key", ALL_ROBOTS)
-def test_mujoco_rnea_matches_pinocchio_urdf_reference(robot_key: str):
+def test_mujoco_rnea_matches_pinocchio_urdf_reference(robot_key: str, tmp_path: Path):
     pytest.importorskip("pinocchio")
     urdf = default_urdf_for_robot(robot_key)
     if urdf is None:
         pytest.skip(f"Sibling URDF not found for {robot_key}")
 
     mj_ref = load_reference_backend(robot_key, backend="mujoco-rnea", required=True)
+    assert mj_ref is not None
+    # Sibling ufactory_genesis URDFs still ship legacy HT_BR2 inertials; sync xArm links in a temp copy.
+    if robot_key in {"xarm5", "xarm6", "xarm7"}:
+        dof = get_robot_runtime_profile(robot_key).model.dof
+        urdf = _sync_urdf_link_inertials(urdf, mj_ref.dyn.model, dof, tmp_path / f"{robot_key}.urdf")
     pin_ref = load_reference_backend(robot_key, backend="pinocchio", urdf_path=urdf, required=True)
-    assert mj_ref is not None and pin_ref is not None
+    assert pin_ref is not None
 
     for _pose_name, q in dynamics_default_configs(robot_key)[:6]:
         np.testing.assert_allclose(mj_ref.gravity(q), pin_ref.gravity(q), atol=1e-3)
@@ -796,6 +842,75 @@ def test_mujoco_rnea_matches_pinocchio_urdf_reference(robot_key: str):
         m_pin = pin_ref.mass_matrix(q)
         rel_fro = float(np.linalg.norm(m_mj - m_pin) / np.linalg.norm(m_pin))
         assert rel_fro < 1e-4
+
+
+@pytest.mark.parametrize(
+    ("robot_key", "expected_masses", "expected_coms", "expected_total_mass"),
+    [
+        (
+            "xarm5",
+            (2.527, 2.242, 2.24, 1.345, 0.173),
+            (
+                (-0.000164, 0.03594, -0.0065),
+                (0.04084, -0.2403, 0.03254),
+                (0.072, 0.2363, 0.00083),
+                (0.06824, 0.03342, 0.00264),
+                (0.0008, -0.00359, -0.01326),
+            ),
+            8.5270,
+        ),
+        (
+            "xarm6",
+            (2.531, 2.242, 2.019, 1.361, 1.345, 0.173),
+            (
+                (-0.00017, 0.03575, -0.00647),
+                (0.04084, -0.2403, 0.0324),
+                (0.0714, 0.1268, 0.0109),
+                (0.000185, 0.01466, -0.02197),
+                (0.0682, 0.03342, 0.00263),
+                (0.00084, -0.00359, -0.01326),
+            ),
+            9.6710,
+        ),
+        (
+            "xarm7",
+            (2.507, 2.2812, 2.0, 2.1212, 1.36, 1.345, 0.17),
+            (
+                (0.0002, 0.03578, -0.006443),
+                (-0.00022, -0.13322, 0.02018),
+                (0.0464, -0.022, -0.00804),
+                (0.0703, -0.12318, 0.0131),
+                (0.000192, 0.014597, -0.02198),
+                (0.06824, 0.033418, 0.00264),
+                (0.0, -0.0036, -0.01325),
+            ),
+            11.7844,
+        ),
+    ],
+)
+def test_xarm_1305_uj_br_2403_link_inertials(
+    robot_key: str,
+    expected_masses: tuple[float, ...],
+    expected_coms: tuple[tuple[float, float, float], ...],
+    expected_total_mass: float,
+):
+    import mujoco
+
+    runtime = get_robot_runtime_profile(robot_key)
+    model = mujoco.MjModel.from_xml_path(str(runtime.model.model_path))
+    dof = runtime.model.dof
+    assert dof == len(expected_masses)
+    masses = []
+    for i, (exp_m, exp_com) in enumerate(zip(expected_masses, expected_coms), start=1):
+        bid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, f"link{i}")
+        assert bid >= 0
+        m_val = float(model.body_mass[bid])
+        masses.append(m_val)
+        assert math.isclose(m_val, exp_m, rel_tol=0.0, abs_tol=1e-12)
+        np.testing.assert_allclose(model.body_ipos[bid], exp_com, rtol=0.0, atol=1e-12)
+    assert math.isclose(sum(masses), expected_total_mass, rel_tol=0.0, abs_tol=1e-9)
+    issues = validate_mjcf_dynamics(model, dof=dof)
+    assert [issue for issue in issues if issue.severity == "ERROR"] == []
 
 
 def test_port502_calibration_decode_and_xarm5_degeneracy_skip(tmp_path: Path, monkeypatch, capsys):

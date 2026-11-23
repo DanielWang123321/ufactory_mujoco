@@ -127,7 +127,7 @@ ruff check .                      # 与 CI 相同的静态检查（pip install r
 
 ## 已知限制
 
-- 对齐 `ufactory_genesis` Schema v4 的裸臂 20 姿态真机静态力矩验证（`dynamics-hardware-check`，真机关节运动速度硬限制 `<= 40 °/s`）已在 Python 3.14.6、MuJoCo 4.0.1 下完成全部五款机型实测：xArm 5（固件 v2.8.2，`--nominal-model`，20/20 PASS，L2 力矩误差 0.520–0.780 Nm —— 因控制盒 502 端口 `0x08` 在平行轴构型下返回退化参数，`export-calibration` 返回退出码 `2` 跳过，验证改用名义 MJCF 模型，静态力矩与标定前一致，仅相对控制盒 POE 存在约 `2.6–4.2 mm` 笛卡尔正运动学差异）、xArm 6（固件 v2.8.0，20/20 PASS，L2 力矩误差 0.470–0.765 Nm）、xArm 7（固件 v2.8.2，20/20 PASS，L2 力矩误差 0.816–3.303 Nm）、Lite 6（固件 v2.8.2，20/20 PASS，L2 力矩误差 0.028–0.156 Nm）与 UF850（固件 v2.8.100，20/20 PASS，L2 力矩误差 0.086–0.569 Nm）各一台；抓放/装箱真机模式已在 xArm 6（v2.8.0）上验证，3 kg 负载静态力矩比对（≤ 2.5 %）为单次历史实测。
+- 对齐 `ufactory_genesis` Schema v4 的裸臂 20 姿态真机静态力矩验证（`dynamics-hardware-check`，真机关节运动速度硬限制 `<= 40 °/s`）已在 Python 3.14.6、MuJoCo 4.0.1 下完成全部五款机型实测：xArm 5（固件 v2.8.2，`--nominal-model`，20/20 PASS，L2 力矩误差 0.520–0.780 Nm —— 因控制盒 502 端口 `0x08` 在平行轴构型下返回退化参数，`export-calibration` 返回退出码 `2` 跳过，验证改用名义 MJCF 模型，静态力矩与标定前一致，仅相对控制盒 POE 存在约 `2.6–4.2 mm` 笛卡尔正运动学差异）、xArm 6（固件 v2.8.0，20/20 PASS，L2 力矩误差 0.470–0.765 Nm；另基于更新后的 `UJ_BR_2403` 惯量在 `XI130505L56A01` / 固件 v2.8.2 上复测 20 姿态：20/20 PASS，L2 力矩误差 0.029–0.183 Nm，均值 0.097 Nm）、xArm 7（固件 v2.8.2，20/20 PASS，L2 力矩误差 0.816–3.303 Nm）、Lite 6（固件 v2.8.2，20/20 PASS，L2 力矩误差 0.028–0.156 Nm）与 UF850（固件 v2.8.100，20/20 PASS，L2 力矩误差 0.086–0.569 Nm）各一台；抓放/装箱真机模式已在 xArm 6（v2.8.0）上验证，3 kg 负载静态力矩比对（≤ 2.5 %）为单次历史实测。
 - 真空吸盘（`lite6_vacuum_gripper`、`vacuum_gripper` 及其机械臂组合）为静态模型，不含吸附模型。它们与独立相机、`camera_stand*`、`<机械臂>_with_d435`、`ft_sensor`、`<机械臂>_with_ft_sensor`、`*_base_plate`、`<机械臂>_with_base_plate` 都没有夹爪执行器，`04_gripper_control.py` 会拒绝这些模型（退出码 `2`）。
 - 深度相机与 `camera_stand` 模型提供外观几何、安装面/螺钉孔 `<site>`（`group=4`）与近似碰撞体（`group=3`），`mass=0` 且不含 MuJoCo `<camera>` 光学成像传感器；动力学场景请通过 `attach_payload` 注入相机与支架负载。
 - `ft_sensor` 系列模型以实测参数对 UFACTORY AI1500 建模（总质量 `0.6 kg` 拆分为 `0.45 kg` 底座与 `0.15 kg` 浮动端头，`ft_sensor_site` 位于法兰 `+32.0 mm`、浮动端质心超前 `+3.87 mm`、输出端面偏置 `+58.6 mm`，`1 ms` 物理步长 / `200 Hz` IEEE-754 `fp32` 采样保持，`±400 N / ±20 Nm` 超量程、`±600 N / ±30 Nm` 过载），输出与真机一致的符号极性（`+` = 施加于输出面的外力/力矩）及 `raw`（含浮动头与下游重力）/ `ext`（动态重力与零偏补偿）双通道、可选实测噪声（`noise_std="calibrated"`），并打通 `XArmRobot` 只读真机读取与防裸臂误运动预检门控（`--gripper ft_sensor*`，避免 `SERVO_R16B` 触发状态退化）；未模拟滞后、串扰、温漂与硬件低通滤波动态。`lite6`（物理/通信不兼容）与 `bio_gripper_g2` 未构建 `ft_sensor` 组合。
@@ -170,7 +170,7 @@ tests/                     测试套件（pytest）
 
 ## 模型说明
 
-- 运动学与惯量来自 UFACTORY 官方定义（[xarm_ros](https://github.com/xArm-Developer/xarm_ros)、[ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis)）。
+- 运动学与惯量来自 UFACTORY 官方定义（[xarm_ros](https://github.com/xArm-Developer/xarm_ros)、[xarm_ros2](https://github.com/xArm-Developer/xarm_ros2)、[ufactory_genesis](https://github.com/xArm-Developer/ufactory_genesis)）；其中 xArm 5/6/7（`>= 1305`）连杆惯量采用官方 `UJ_BR_2403` 参数集。
 - 执行器参数遵循 [MuJoCo Menagerie](https://github.com/google-deepmind/mujoco_menagerie) 规范；其中 Lite 6 关节位置执行器 PD 增益按统一时间常数 `0.04 s` 调优以提升笛卡尔直线跟踪精度，Gripper G2 与 Bio Gripper G2 采用实测标定伺服模型。
 - 视觉网格（`group=2`，`contype=0 conaffinity=0`）与碰撞网格（`group=3`）分离；相机与支架安装基准及螺钉孔以 `group=4` 的 `<site>` 提供（D435 含 `0.055 mm` 法向间隙以避免 ROS 视觉网格越过支架安装面；安装在机械臂上的 `d435` 采用与人眼一致的正向视野朝向，工具朝下姿态下 USB-C 口位于法兰 `+Y` / 基座 `Y-` 侧）。
 

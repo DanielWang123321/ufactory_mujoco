@@ -80,16 +80,16 @@
       <geom class="collision" mesh="xarm5_link_base_col_00"/>
       <geom class="collision" mesh="xarm5_link_base_col_01"/>
       <body name="link1" pos="0 0 0.267">
-        <inertial pos="0.00013 0.0294 -0.01239" quat="0.976897 -0.212169 0.00886257 0.0240422" mass="2.3849"
-          diaginertia="0.00570618 0.00530019 0.00294197"/>
+        <inertial pos="-0.000164 0.03594 -0.0065" mass="2.527"
+          fullinertia="0.005692 0.003851 0.004606 -2.375e-05 3.47e-07 -0.000607"/>
         <joint name="joint1" class="size1"/>
         <geom class="visual" mesh="link1_white_vis" material="white"/>
         <geom class="visual" mesh="link1_silver_vis" material="silver"/>
         <geom class="collision" mesh="xarm5_link1_col_00"/>
         <geom class="collision" mesh="xarm5_link1_col_01"/>
         <body name="link2" quat="0.707105 -0.707108 0 0">
-          <inertial pos="0.03788 -0.2254 0.03447" quat="0.632994 0.750527 0.187997 -0.0261719" mass="2.164"
-            diaginertia="0.0289206 0.0277808 0.00354667"/>
+          <inertial pos="0.04084 -0.2403 0.03254" mass="2.242"
+            fullinertia="0.023064 0.0059781 0.021902 0.004092 0.0005122 -0.003718"/>
           <joint name="joint2" range="-2.059 2.0944" class="size1"/>
           <geom class="visual" mesh="link2_white_vis" material="white"/>
           <geom class="visual" mesh="link2_silver_vis" material="silver"/>
@@ -99,8 +99,8 @@
           <geom class="collision" mesh="xarm5_link2_col_03"/>
           <geom class="collision" mesh="xarm5_link2_col_04"/>
           <body name="link3" pos="0.0535 -0.2845 0">
-            <inertial pos="0.06883 0.22985 0.00102" quat="0.75411 0.568954 -0.247614 0.215165" mass="2.121"
-              diaginertia="0.0382682 0.0373731 0.00349086"/>
+            <inertial pos="0.072 0.2363 0.00083" mass="2.24"
+              fullinertia="0.035477 0.005848 0.033753 -0.0030302 0.0010594 0.00612"/>
             <joint name="joint3" range="-3.927 0.19198" class="size2"/>
             <geom class="visual" mesh="link3_white_vis" material="white"/>
             <geom class="visual" mesh="link3_silver_vis" material="silver"/>
@@ -112,16 +112,16 @@
             <geom class="collision" mesh="xarm5_link3_col_05"/>
             <geom class="collision" mesh="xarm5_link3_col_06"/>
             <body name="link4" pos="0.0775 0.3425 0">
-              <inertial pos="0.06489 0.03122 0.00319" quat="-0.224519 0.773365 0.156356 0.571884" mass="1.3169"
-                diaginertia="0.00240435 0.00212066 0.00106127"/>
+              <inertial pos="0.06824 0.03342 0.00264" mass="1.345"
+                fullinertia="0.001624 0.00173 0.0022881 -0.0003378 0.00024388 0.00011526"/>
               <joint name="joint4" range="-1.69297 3.14159" class="size3"/>
               <geom class="visual" mesh="link4_white_vis" material="white"/>
               <geom class="visual" mesh="link4_silver_vis" material="silver"/>
               <geom class="collision" mesh="xarm5_link4_col_00"/>
               <geom class="collision" mesh="xarm5_link4_col_01"/>
               <body name="link5" pos="0.076 0.097 0" quat="0.707105 -0.707108 0 0">
-                <inertial pos="0 -0.00677 -0.01098" quat="0.487612 0.512088 -0.512088 0.487612" mass="0.17"
-                  diaginertia="0.000132176 9.3e-05 5.85236e-05"/>
+                <inertial pos="0.0008 -0.00359 -0.01326" mass="0.173"
+                  fullinertia="0.0001119 8.951e-05 0.00017916 0 0 -2.94e-06"/>
                 <joint name="joint5" class="size3"/>
                 <geom class="visual" mesh="link5_white_vis" material="white"/>
                 <geom class="visual" mesh="link5_silver_vis" material="silver"/>

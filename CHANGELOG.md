@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **xArm 5/6/7 link inertials (`UJ_BR_2403`)**: updated `link1..linkN` masses, COM offsets and full inertia tensors in `ufactory_mujoco/models/{xarm5,xarm6,xarm7}/{xarm5,xarm6,xarm7}.xml` from pre-1305 `HT_BR2` defaults to the official `xarm_ros2` `UJ_BR_2403` parameters (`>= 1305` hardware). Offline validation across `xarm5`, `xarm6` and `xarm7` reduces static `S1` gravity L2 residual mean by 91%–95% (to `0.031–0.139 Nm`), and real-hardware 20-pose `S1` validation on `xArm 6` (`XI130505L56A01`, firmware v2.8.2) reduces mean L2 torque error by 84.0% (`0.603 -> 0.097 Nm`). Updated the frozen xArm 6 3 kg payload gravity regression baseline (`ufactory_mujoco/tasks/dynamics.py`, `tests/test_dynamics_validation.py`); joint/actuator parameters (`armature`, `damping`, `frictionloss`, `forcerange`) remain unchanged for separate evaluation.
+
 ## [0.1.8] - 2026-11-20
 
 The package now stores only atomic MJCF parts; every arm + accessory combination and every pick-place / box-pack scene is assembled at runtime with MuJoCo's native `MjSpec.attach`. Models and configs moved inside the package and the custom build hook is gone. The assembly itself left supported models and numerical results unchanged (all 30 golden task reports and all 11 task `config_sha256` hashes were byte-identical to 0.1.7); the grasp, timing, start-pose and pick-place layout changes below change the pick-place and box-pack simulation reports, and the start pose and layout also change their dry-run reports. The shared pick-place layout changes the xArm 5, xArm 7, UF850 and Lite 6 pick-place `config_sha256`; the other task hashes are unchanged.
