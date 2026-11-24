@@ -35,7 +35,7 @@ FLAT_NORMAL_DOT = 0.8
 FLAT_AREA_MAX = 0.005
 
 # Thin-walled visual OBJs carrying reversed twin faces; MJCF must load with inertia="shell".
-DOUBLE_SIDED_COUNT = 44
+DOUBLE_SIDED_COUNT = 47
 
 
 def _is_double_sided(path: Path) -> bool:
@@ -97,7 +97,7 @@ EXPECTED_TARGETS = {
     "xarm7": {"min_objs": 12, "min_stls": 23},
     "uf850": {"min_objs": 11, "min_stls": 27},
     "lite6": {"min_objs": 12, "min_stls": 17},
-    "gripper_g2": {"min_objs": 7, "min_stls": 16},
+    "gripper_g2": {"min_objs": 12, "min_stls": 16},
     "bio_gripper_g2": {"min_objs": 4, "min_stls": 11},
     "lite6_gripper": {"min_objs": 7, "min_stls": 1},
     "lite6_vacuum_gripper": {"min_objs": 1, "min_stls": 1},
@@ -204,8 +204,9 @@ class ConvertedAssetsTest(unittest.TestCase):
             {
                 (MODELS_DIR / "gripper_g2/assets/gripper_g2/visual" / f"{n}.obj").resolve()
                 for n in (
-                    "base", "left_finger", "left_inner_knuckle", "left_outer_knuckle",
-                    "right_finger", "right_inner_knuckle", "right_outer_knuckle",
+                    "base_anodized_black", "base_black", "base_silver", "base_white",
+                    "left_finger_black", "left_inner_knuckle", "left_outer_knuckle",
+                    "right_finger_black", "right_inner_knuckle", "right_outer_knuckle",
                 )
             } <= shell_paths,
         )

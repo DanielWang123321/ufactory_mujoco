@@ -13,7 +13,7 @@ import numpy as np
 from ufactory_mujoco.g2 import gripper_g2_gap_m_to_sim_drive
 from ufactory_mujoco.grippers import gripper_object_contact_forces_n, identify_gripper, measured_g2_pad_gap_mm
 from ufactory_mujoco.sim_robot import SimRobot
-from ufactory_mujoco import compose_model, compose_spec
+from ufactory_mujoco import compose_model, compose_spec, resolve_model_path
 from dataclasses import asdict
 import math
 from ufactory_mujoco.g2 import G2Controller
@@ -79,15 +79,89 @@ def test_snapshot_file_hashes():
         assert hashlib.sha256((SOURCE / name).read_bytes()).hexdigest() == expected
     assert hashlib.sha256(REFERENCE_CSV.read_bytes()).hexdigest() == metadata["reference_axial_length_csv"]["sha256"]
 
+def _classify_glb_material(pbr: dict) -> str:
+    color = pbr.get("baseColorFactor", [1.0, 1.0, 1.0, 1.0])
+    metal = float(pbr.get("metallicFactor", 0.0))
+    rgb = color[:3]
+    if metal > 0.5:
+        return "anodized_black" if max(rgb) < 0.3 else "silver"
+    if len(color) >= 4 and color[3] < 0.99 and min(rgb) > 0.8:
+        return "silicone"
+    if max(rgb) < 0.6:
+        return "black"
+    return "white"
+
+
+def _load_front_half_obj(path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Load vertices (mm), front-half vertex normals, and front-half triangle vertex indices."""
+    verts, normals, faces = [], [], []
+    with path.open(encoding="utf-8") as stream:
+        for line in stream:
+            if line.startswith("v "):
+                verts.append([float(x) for x in line.split()[1:4]])
+            elif line.startswith("vn "):
+                normals.append([float(x) for x in line.split()[1:4]])
+            elif line.startswith("f "):
+                tokens = line.split()[1:]
+                v_idx = [int(tok.split("/")[0]) - 1 for tok in tokens]
+                n_idx = [int(tok.split("/")[2]) - 1 for tok in tokens]
+                faces.append((v_idx, n_idx))
+    half_faces = faces[: len(faces) // 2]
+    half_normals = np.asarray(normals[: len(normals) // 2], dtype=np.float64)
+    v_arr = np.asarray(verts, dtype=np.float64) * 1000.0
+    fv_arr = np.asarray([fv for fv, _ in half_faces], dtype=np.int64)
+    fn_arr = np.asarray([fn for _, fn in half_faces], dtype=np.int64)
+    vert_normals = np.zeros_like(v_arr)
+    vert_normals[fv_arr] = half_normals[fn_arr]
+    return v_arr, vert_normals, fv_arr
+
+
+def _section_mm(tri_mm: np.ndarray, z_mm: float) -> np.ndarray:
+    """Intersect triangles (mm) with horizontal plane z = z_mm and return 2D XY points (mm)."""
+    segments = []
+    for i, j in ((0, 1), (1, 2), (2, 0)):
+        pa, pb = tri_mm[:, i], tri_mm[:, j]
+        za, zb = pa[:, 2] - z_mm, pb[:, 2] - z_mm
+        mask = (za * zb <= 0.0) & (np.abs(zb - za) > 1e-12)
+        if np.any(mask):
+            t = (-za[mask] / (zb[mask] - za[mask]))[:, None]
+            segments.append(pa[mask, :2] + t * (pb[mask, :2] - pa[mask, :2]))
+    return np.concatenate(segments, axis=0)
+
+
+_G2_FLANGE_CIRCLES = (
+    ("boss", (0.0, 0.0), 15.75, (-4.4, 1.4), 1, -1.5, None),
+    ("flange outer", (0.0, 0.0), 37.50, (0.4, 7.9), 1, 4.5, (117.0, 423.0)),
+    ("boss pocket", (0.0, 0.0), 15.75, (0.35, 1.95), -1, 1.15, None),
+    ("pin hole", (0.0, -25.0), 3.00, (0.35, 1.95), -1, 1.15, None),
+    ("cover outer", (0.0, 0.0), 37.50, (0.1, 8.0), 1, 4.5, (67.0, 113.0)),
+    ("cover fillet +x", (5.5, 27.15), 10.00, (0.1, 2.8), 1, 1.45, (272.0, 358.0)),
+    ("cover fillet -x", (-5.5, 27.15), 10.00, (0.1, 2.8), 1, 1.45, (182.0, 268.0)),
+)
+
+
 def test_base_flange_and_mesh_correspondence():
     for name in ("base", "left_finger", "right_finger", "left_inner_knuckle", "right_inner_knuckle",
                  "left_outer_knuckle", "right_outer_knuckle"):
-        visual = _vertices(ASSETS / f"visual/{name}.obj")
         if name == "base":
+            base_objs = sorted((ASSETS / "visual").glob("base_*.obj"))
+            assert [p.name for p in base_objs] == [
+                "base_anodized_black.obj",
+                "base_black.obj",
+                "base_silver.obj",
+                "base_white.obj",
+            ]
+            visual = np.vstack([_vertices(p) for p in base_objs])
             base_stls = sorted((ASSETS / "collision").glob("base_link_col_*.stl"))
             assert len(base_stls) >= 2
             collision = np.vstack([_vertices(p) for p in base_stls])
+        elif name in ("left_finger", "right_finger"):
+            finger_objs = sorted((ASSETS / "visual").glob(f"{name}_*.obj"))
+            assert [p.name for p in finger_objs] == [f"{name}_black.obj", f"{name}_silicone.obj"]
+            visual = np.vstack([_vertices(p) for p in finger_objs])
+            collision = _vertices(ASSETS / f"collision/{name}.stl")
         else:
+            visual = _vertices(ASSETS / f"visual/{name}.obj")
             collision = _vertices(ASSETS / f"collision/{name}.stl")
         bounds_v = np.array([visual.min(axis=0), visual.max(axis=0)])
         bounds_c = np.array([collision.min(axis=0), collision.max(axis=0)])
@@ -103,17 +177,40 @@ def test_converted_visual_matches_draco_snapshot():
         pytest.skip("dev/g2_sources snapshot not present")
     draco = pytest.importorskip("DracoPy")
     gltf_lib = pytest.importorskip("pygltflib")
-    for obj in sorted((ASSETS / "visual").glob("*.obj")):
-        glb = gltf_lib.GLTF2().load(str(SOURCE / f"meshes/visual/visual_glb/{obj.stem}.glb"))
+
+    split_parts: dict[str, np.ndarray] = {}
+    for stem in ("base", "left_finger", "right_finger"):
+        glb = gltf_lib.GLTF2().load(str(SOURCE / f"meshes/visual/visual_glb/{stem}.glb"))
         blob = glb.binary_blob()
-        points = []
         for mesh in glb.meshes:
             for primitive in mesh.primitives:
+                mat = glb.materials[primitive.material]
+                pbr = mat.pbrMetallicRoughness
+                cat = _classify_glb_material(
+                    {
+                        "baseColorFactor": pbr.baseColorFactor or [1.0, 1.0, 1.0, 1.0],
+                        "metallicFactor": pbr.metallicFactor or 0.0,
+                    }
+                )
                 extension = primitive.extensions["KHR_draco_mesh_compression"]
                 view = glb.bufferViews[extension["bufferView"]]
                 start = view.byteOffset or 0
-                points.append(np.asarray(draco.decode(blob[start:start + view.byteLength]).points))
-        source = np.vstack(points)
+                split_parts[f"{stem}_{cat}"] = np.asarray(draco.decode(blob[start:start + view.byteLength]).points)
+
+    for obj in sorted((ASSETS / "visual").glob("*.obj")):
+        if obj.stem in split_parts:
+            source = split_parts[obj.stem]
+        else:
+            glb = gltf_lib.GLTF2().load(str(SOURCE / f"meshes/visual/visual_glb/{obj.stem}.glb"))
+            blob = glb.binary_blob()
+            points = []
+            for mesh in glb.meshes:
+                for primitive in mesh.primitives:
+                    extension = primitive.extensions["KHR_draco_mesh_compression"]
+                    view = glb.bufferViews[extension["bufferView"]]
+                    start = view.byteOffset or 0
+                    points.append(np.asarray(draco.decode(blob[start:start + view.byteLength]).points))
+            source = np.vstack(points)
         converted = _vertices(obj)
         assert len(source) == len(converted)
         np.testing.assert_allclose([converted.min(axis=0), converted.max(axis=0)],
@@ -130,8 +227,14 @@ def test_85_reference_openings_and_axial_lengths():
                       ("right_inner_knuckle", [0, -0.02, 0.075602])]:
         np.testing.assert_allclose(model.body(name).pos, pos, atol=1e-12)
     np.testing.assert_allclose(model.site("link_tcp").pos, [0, 0, 0.1735], atol=1e-12)
-    vertices = {(side, kind): _vertices(ASSETS / f"{kind}/{side}_finger.{'obj' if kind == 'visual' else 'stl'}")
-                for side in ("left", "right") for kind in ("visual", "collision")}
+    vertices = {
+        (side, kind): (
+            np.vstack([_vertices(ASSETS / f"visual/{side}_finger_{part}.obj") for part in ("black", "silicone")])
+            if kind == "visual"
+            else _vertices(ASSETS / f"collision/{side}_finger.stl")
+        )
+        for side in ("left", "right") for kind in ("visual", "collision")
+    }
     for row in rows:
         gap = float(row["opening_mm"])
         q = gripper_g2_gap_m_to_sim_drive(gap / 1000)
@@ -140,15 +243,255 @@ def test_85_reference_openings_and_axial_lengths():
             data.joint(name).qpos[0] = q
         mujoco.mj_forward(model, data)
         assert measured_g2_pad_gap_mm(model, data) == pytest.approx(gap, abs=0.005)
+        base = data.body("xarm_gripper_base_link")
+        base_pos = base.xpos
+        base_mat = base.xmat.reshape(3, 3)
         for kind in ("visual", "collision"):
             surfaces = []
             for side in ("left", "right"):
                 body = data.body(f"{side}_finger")
-                surfaces.append(vertices[(side, kind)] @ body.xmat.reshape(3, 3).T + body.xpos)
+                world = vertices[(side, kind)] @ body.xmat.reshape(3, 3).T + body.xpos
+                surfaces.append((world - base_pos) @ base_mat)
             mesh_gap = (surfaces[0][:, 1].min() - surfaces[1][:, 1].max()) * 1000
             axial = max(surface[:, 2].max() for surface in surfaces) * 1000
             assert mesh_gap == pytest.approx(gap, abs=0.005)
             assert axial == pytest.approx(float(row["axial_length_mm"]), abs=0.005)
+
+def test_standalone_orientation_flange_up_tcp_down():
+    """Standalone gripper_g2 flips flange up (+Z) and TCP down without changing mounted combos."""
+    for filename in ("gripper_g2.xml", "scene.xml"):
+        m = mujoco.MjModel.from_xml_path(str(G2 / filename))
+        d = mujoco.MjData(m)
+        mujoco.mj_forward(m, d)
+        base_pos = d.body("xarm_gripper_base_link").xpos
+        base_mat = d.body("xarm_gripper_base_link").xmat.reshape(3, 3)
+        tcp_pos = d.site("link_tcp").xpos
+        np.testing.assert_allclose(base_pos, [0.0, 0.0, 0.23], atol=1e-12)
+        np.testing.assert_allclose(base_mat, np.diag([1.0, -1.0, -1.0]), atol=1e-12)
+        np.testing.assert_allclose(tcp_pos, [0.0, 0.0, 0.23 - 0.1735], atol=1e-12)
+        assert tcp_pos[2] < base_pos[2]
+        assert d.ncon == 0
+
+    flange_links = {
+        "xarm5": "link5",
+        "xarm6": "link6",
+        "xarm7": "link7",
+        "uf850": "link6",
+    }
+    for arm, flange_link in flange_links.items():
+        name = f"{arm}_with_gripper"
+        m = compose_model(name, scene=True)
+        d = mujoco.MjData(m)
+        mujoco.mj_forward(m, d)
+        flange_pos = d.body(flange_link).xpos
+        flange_rot = d.body(flange_link).xmat.reshape(3, 3)
+        base = d.body("xarm_gripper_base_link")
+        np.testing.assert_allclose(flange_rot.T @ (base.xpos - flange_pos), [0.0, 0.0, 0.0], atol=1e-12)
+        np.testing.assert_allclose(flange_rot.T @ base.xmat.reshape(3, 3), np.eye(3), atol=1e-12)
+        tcp_in_flange = flange_rot.T @ (d.site("attachment_site").xpos - flange_pos)
+        np.testing.assert_allclose(tcp_in_flange, [0.0, 0.0, 0.1735], atol=1e-12)
+
+def test_base_materials_and_scene_specular():
+    """G2 base parts bind 4 distinct materials and soft scene specular without breaking F/T scenes."""
+    for name in ("gripper_g2", "xarm5_with_gripper", "xarm6_with_gripper", "xarm7_with_gripper", "uf850_with_gripper"):
+        m = mujoco.MjModel.from_xml_path(str(resolve_model_path(name, scene=True)))
+        alu_id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_MATERIAL, "g2_anodized_aluminum")
+        ab_id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_MATERIAL, "g2_anodized_black")
+        white_id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_MATERIAL, "white")
+        black_id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_MATERIAL, "black")
+        assert min(alu_id, ab_id, white_id, black_id) >= 0
+
+        np.testing.assert_allclose(m.mat_rgba[alu_id], [0.60, 0.62, 0.64, 1.0], atol=1e-6)
+        assert float(m.mat_specular[alu_id]) == pytest.approx(0.72, abs=1e-6)
+        assert float(m.mat_shininess[alu_id]) == pytest.approx(0.16, abs=1e-6)
+        assert float(m.mat_reflectance[alu_id]) == pytest.approx(0.03, abs=1e-6)
+        assert float(m.mat_metallic[alu_id]) == pytest.approx(0.8, abs=1e-6)
+        assert float(m.mat_roughness[alu_id]) == pytest.approx(0.64, abs=1e-6)
+
+        np.testing.assert_allclose(m.mat_rgba[ab_id], [0.12, 0.12, 0.125, 1.0], atol=1e-6)
+        assert float(m.mat_specular[ab_id]) == pytest.approx(0.50, abs=1e-6)
+        assert float(m.mat_shininess[ab_id]) == pytest.approx(0.18, abs=1e-6)
+        assert float(m.mat_reflectance[ab_id]) == pytest.approx(0.02, abs=1e-6)
+        assert float(m.mat_metallic[ab_id]) == pytest.approx(0.8, abs=1e-6)
+        assert float(m.mat_roughness[ab_id]) == pytest.approx(0.62, abs=1e-6)
+
+        base_id = m.body("xarm_gripper_base_link").id
+        vis_geoms = np.flatnonzero((m.geom_bodyid == base_id) & (m.geom_group == 2))
+        prefix = "" if name == "gripper_g2" else "g2_"
+        mats = {
+            mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_MESH, int(m.geom_dataid[gid])): int(m.geom_matid[gid])
+            for gid in vis_geoms
+        }
+        assert mats == {
+            f"{prefix}base_white_vis": white_id,
+            f"{prefix}base_silver_vis": alu_id,
+            f"{prefix}base_black_vis": black_id,
+            f"{prefix}base_anodized_black_vis": ab_id,
+        }
+        np.testing.assert_allclose(m.vis.headlight.specular, [0.35, 0.35, 0.38], atol=1e-6)
+
+    m_ft = mujoco.MjModel.from_xml_path(str(resolve_model_path("xarm6_with_ft_sensor_and_gripper", scene=True)))
+    np.testing.assert_allclose(m_ft.vis.headlight.specular, [0.55, 0.57, 0.6], atol=1e-6)
+
+
+def test_finger_silicone_pad_material_and_geometry():
+    """G2 finger inner pads bind single-sided translucent g2_silicone and match CAD bounds."""
+    for name in (
+        "gripper_g2",
+        "xarm5_with_gripper",
+        "xarm6_with_gripper",
+        "xarm7_with_gripper",
+        "uf850_with_gripper",
+        "xarm6_with_ft_sensor_and_gripper",
+    ):
+        m = mujoco.MjModel.from_xml_path(str(resolve_model_path(name, scene=True)))
+        sil_id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_MATERIAL, "g2_silicone")
+        black_id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_MATERIAL, "black")
+        assert min(sil_id, black_id) >= 0
+
+        np.testing.assert_allclose(m.mat_rgba[sil_id], [0.92, 0.92, 0.90, 0.75], atol=1e-6)
+        assert float(m.mat_specular[sil_id]) == pytest.approx(0.45, abs=1e-6)
+        assert float(m.mat_shininess[sil_id]) == pytest.approx(0.55, abs=1e-6)
+        assert float(m.mat_metallic[sil_id]) == pytest.approx(0.0, abs=1e-6)
+        assert float(m.mat_roughness[sil_id]) == pytest.approx(0.30, abs=1e-6)
+
+        prefix = "" if name == "gripper_g2" else "g2_"
+        for side in ("left", "right"):
+            body_id = m.body(f"{side}_finger").id
+            vis_geoms = np.flatnonzero((m.geom_bodyid == body_id) & (m.geom_group == 2))
+            mats = {
+                mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_MESH, int(m.geom_dataid[gid])): int(m.geom_matid[gid])
+                for gid in vis_geoms
+            }
+            assert mats == {
+                f"{prefix}{side}_finger_black_vis": black_id,
+                f"{prefix}{side}_finger_silicone_vis": sil_id,
+            }
+
+    for side in ("left", "right"):
+        obj_path = ASSETS / f"visual/{side}_finger_silicone.obj"
+        lines = obj_path.read_text(encoding="utf-8").splitlines()
+        verts = np.array([[float(x) for x in line.split()[1:4]] for line in lines if line.startswith("v ")]) * 1000.0
+        n_faces = sum(line.startswith("f ") for line in lines)
+        assert len(verts) == 338
+        assert n_faces == 320
+        want_y_min, want_y_max = (-26.0, -23.0) if side == "left" else (23.0, 26.0)
+        assert verts.min(0) == pytest.approx([-14.75, want_y_min, 22.26], abs=0.05)
+        assert verts.max(0) == pytest.approx([14.75, want_y_max, 59.75], abs=0.05)
+        inner_y_m = float(verts[:, 1].min() if side == "left" else -verts[:, 1].max()) * 0.001
+        assert inner_y_m == pytest.approx(G2_LINKAGE_GEOMETRY.pad_inner_y_m, abs=5e-5)
+
+
+def test_flange_outer_circle_boss_and_locating_pin_geometry():
+    """Base flange outer rim, boss, cover, bearing cover, and slotted round pin match analytic CAD geometry."""
+    silver_pts, silver_nrm, silver_faces = _load_front_half_obj(ASSETS / "visual/base_silver.obj")
+    black_pts, black_nrm, black_faces = _load_front_half_obj(ASSETS / "visual/base_black.obj")
+    bearing_pts, _, _ = _load_front_half_obj(ASSETS / "visual/base_anodized_black.obj")
+
+    assert bearing_pts[:, 0].min() > -14.6 and bearing_pts[:, 0].max() < 14.4
+    assert bearing_pts[:, 1].min() > -15.1 and bearing_pts[:, 1].max() < 15.1
+    assert bearing_pts[:, 2].min() == pytest.approx(92.94, abs=0.05)
+    assert bearing_pts[:, 2].max() == pytest.approx(101.94, abs=0.05)
+
+    # 1. Locating pin at (0, -25) mm: r = 2.98 mm, 2 mm dome to z = -4.50 mm, -7.04 deg 1 mm slot.
+    silver_tri = silver_pts[silver_faces]
+    pin_axis = np.array([0.0, -25.0])
+    pin_r = np.hypot(silver_tri[:, :, 0] - pin_axis[0], silver_tri[:, :, 1] - pin_axis[1])
+    pin_tri = silver_tri[(pin_r.max(axis=1) <= 3.1) & (silver_tri[:, :, 2].min(axis=1) < -0.05)]
+    assert len(pin_tri) > 200
+    pin_pts = pin_tri.reshape(-1, 3)
+    assert float(pin_pts[:, 2].min()) == pytest.approx(-4.50, abs=0.02)
+
+    cyl_sec = _section_mm(pin_tri, -1.25)
+    cyl_d = cyl_sec - pin_axis
+    np.testing.assert_allclose(np.hypot(cyl_d[:, 0], cyl_d[:, 1]), 2.98, atol=0.02)
+    pin_angles = np.sort(np.degrees(np.arctan2(cyl_d[:, 1], cyl_d[:, 0])) % 360.0)
+    assert float(np.diff(np.r_[pin_angles, pin_angles[0] + 360.0]).max()) < 15.0
+
+    yaw = -0.12283004
+    c, s = np.cos(-yaw), np.sin(-yaw)
+    rot2 = np.array([[c, -s], [s, c]])
+    for z in np.linspace(-4.30, -2.65, 6):
+        sec = _section_mm(pin_tri, z)
+        assert sec.any() and float(np.hypot(sec[:, 0] - pin_axis[0], sec[:, 1] - pin_axis[1]).max()) <= 3.00
+        uv = (sec - pin_axis) @ rot2.T
+        assert not (np.abs(uv[:, 0]) < 0.45).any()
+        assert (uv[:, 0] > 0.55).any() and (uv[:, 0] < -0.55).any()
+    floor_pts = pin_pts[np.abs(pin_pts[:, 2] + 2.50) < 0.02]
+    assert (np.abs(((floor_pts[:, :2] - pin_axis) @ rot2.T)[:, 0]) < 0.40).any()
+
+    # 2. Analytic circular walls & vertex normals across flange, boss, pin hole, and connector cover.
+    pts_all = np.vstack([silver_pts, black_pts])
+    nrm_all = np.vstack([silver_nrm, black_nrm])
+    tri_all = np.vstack([silver_tri, black_pts[black_faces]])
+    fn = np.cross(tri_all[:, 1] - tri_all[:, 0], tri_all[:, 2] - tri_all[:, 0])
+    fn_norm = np.linalg.norm(fn, axis=1)
+    valid = fn_norm > 1e-10
+    tri_all = tri_all[valid]
+    fn = fn[valid] / fn_norm[valid, None]
+    centers = tri_all.mean(axis=1)
+
+    for label, xy, radius, (z_lo, z_hi), side, z_sec, arc in _G2_FLANGE_CIRCLES:
+        axis = np.asarray(xy)
+        dc = centers[:, :2] - axis
+        rc = np.hypot(dc[:, 0], dc[:, 1])
+        uc = dc / np.maximum(rc[:, None], 1e-12)
+        ang_c = np.degrees(np.arctan2(uc[:, 1], uc[:, 0])) % 360.0
+        sel = (
+            (tri_all[:, :, 2].min(axis=1) >= z_lo - 0.5)
+            & (tri_all[:, :, 2].max(axis=1) <= z_hi + 0.5)
+            & (np.abs(rc - radius) < 0.8)
+            & (side * (fn[:, :2] * uc).sum(axis=1) > 0.85)
+            & (np.abs(fn[:, 2]) < 0.1)
+        )
+        if arc is not None:
+            a0, a1 = arc
+            sel &= ((ang_c >= a0) | (ang_c <= a1 - 360.0)) if a1 > 360.0 else ((ang_c >= a0) & (ang_c <= a1))
+        assert sel.sum() >= 60, f"{label}: too few triangles ({sel.sum()})"
+        sec = _section_mm(tri_all[sel], z_sec)
+        sec_d = sec - axis
+        assert float(np.abs(np.hypot(sec_d[:, 0], sec_d[:, 1]) - radius).max()) < 0.02, label
+        sa = np.sort(np.degrees(np.arctan2(sec_d[:, 1], sec_d[:, 0])) % 360.0)
+        diffs = (
+            np.diff(np.sort((sa - arc[0]) % 360.0))
+            if arc is not None and arc[1] > 360.0
+            else (np.diff(sa) if arc is not None else np.diff(np.r_[sa, sa[0] + 360.0]))
+        )
+        assert float(diffs.max()) < 6.0, f"{label} gap {diffs.max():.2f} deg"
+
+        dv = pts_all[:, :2] - axis
+        rv = np.hypot(dv[:, 0], dv[:, 1])
+        uv = dv / np.maximum(rv[:, None], 1e-12)
+        ang_v = np.degrees(np.arctan2(uv[:, 1], uv[:, 0])) % 360.0
+        vsel = (
+            (pts_all[:, 2] >= z_lo - 0.15)
+            & (pts_all[:, 2] <= z_hi + 0.15)
+            & (np.abs(rv - radius) < 0.05)
+            & (side * (nrm_all[:, :2] * uv).sum(axis=1) > 0.9)
+            & (np.abs(nrm_all[:, 2]) < 0.1)
+        )
+        if arc is not None:
+            a0, a1 = arc
+            vsel &= ((ang_v >= a0) | (ang_v <= a1 - 360.0)) if a1 > 360.0 else ((ang_v >= a0) & (ang_v <= a1))
+        assert vsel.sum() >= 60, f"{label} normals: too few vertices ({vsel.sum()})"
+        expected_n = side * np.c_[uv[vsel], np.zeros(vsel.sum())]
+        err_deg = np.degrees(np.arccos(np.clip((nrm_all[vsel] * expected_n).sum(axis=1), -1.0, 1.0)))
+        assert float(err_deg.max()) < 1.0, f"{label} normal error {err_deg.max():.2f} deg"
+
+    # 3. 360 deg flange outer wall partition between anodized aluminum and +Y black connector cover.
+    grid = np.array([(i, j) for i in range(31) for j in range(31 - i)]) / 30.0
+    weights = np.c_[grid, 1.0 - grid.sum(axis=1)]
+
+    def outer_degrees(triangles: np.ndarray) -> set[int]:
+        centre = triangles.mean(axis=1)
+        side = (np.hypot(centre[:, 0], centre[:, 1]) > 37.0) & (centre[:, 2] > 0.5) & (centre[:, 2] < 7.5)
+        sampled = np.einsum("sk,nkd->nsd", weights, triangles[side]).reshape(-1, 3)
+        return set((np.degrees(np.arctan2(sampled[:, 1], sampled[:, 0])) // 1 % 360).astype(int).tolist())
+
+    metal_deg = outer_degrees(silver_tri)
+    cover_deg = outer_degrees(black_pts[black_faces])
+    assert metal_deg | cover_deg == set(range(360))
+    assert cover_deg <= set(range(64, 116)) and not (metal_deg & set(range(66, 114)))
 
 @pytest.mark.parametrize("name", ["gripper_g2", "xarm5_with_gripper", "xarm6_with_gripper",
                                    "xarm7_with_gripper", "uf850_with_gripper"])

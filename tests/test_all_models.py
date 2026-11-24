@@ -255,6 +255,51 @@ class AllModelsLoadingTest(unittest.TestCase):
                         d.body(last_link).xmat.reshape(3, 3), np.diag([1, -1, -1]), atol=2e-5,
                     )
 
+    def test_standalone_remaining_grippers_flange_up_and_mounted_combos_unchanged(self):
+        """Standalone vacuum and Lite6 grippers flip flange up (+Z) without altering mounted combos."""
+        standalone = (
+            ("vacuum_gripper", "xarm_vacuum_gripper_link", 0.20, "suction_site", 0.126),
+            ("lite6_gripper", "uflite_gripper_link", 0.18, "link_tcp", 0.0836),
+            ("lite6_vacuum_gripper", "uflite_vacuum_gripper_link", 0.17, "suction_site", 0.061),
+        )
+        for name, root_body, base_z, site_name, tcp_z in standalone:
+            for scene in (False, True):
+                with self.subTest(model=name, scene=scene):
+                    m = mujoco.MjModel.from_xml_path(str(resolve_model_path(name, scene=scene)))
+                    d = mujoco.MjData(m)
+                    mujoco.mj_forward(m, d)
+                    base_pos = d.body(root_body).xpos
+                    base_mat = d.body(root_body).xmat.reshape(3, 3)
+                    site_pos = d.site(site_name).xpos
+                    np.testing.assert_allclose(base_pos, [0.0, 0.0, base_z], atol=1e-12)
+                    np.testing.assert_allclose(base_mat, np.diag([1.0, -1.0, -1.0]), atol=1e-12)
+                    np.testing.assert_allclose(site_pos, [0.0, 0.0, base_z - tcp_z], atol=1e-12)
+                    self.assertLess(site_pos[2], base_pos[2])
+                    self.assertEqual(d.ncon, 0)
+
+        combos = (
+            ("xarm5_with_vacuum_gripper", "link5", "xarm_vacuum_gripper_link", 0.126),
+            ("xarm6_with_vacuum_gripper", "link6", "xarm_vacuum_gripper_link", 0.126),
+            ("xarm7_with_vacuum_gripper", "link7", "xarm_vacuum_gripper_link", 0.126),
+            ("uf850_with_vacuum_gripper", "link6", "xarm_vacuum_gripper_link", 0.126),
+            ("xarm6_with_ft_sensor_and_vacuum_gripper", "ft_sensor_output", "xarm_vacuum_gripper_link", 0.126),
+            ("lite6_with_gripper", "link6", "uflite_gripper_link", 0.0836),
+            ("lite6_with_vacuum_gripper", "link6", "uflite_vacuum_gripper_link", 0.061),
+        )
+        for name, parent_body, tool_body, tcp_z in combos:
+            with self.subTest(combo=name):
+                m = compose_model(name, scene=True)
+                d = mujoco.MjData(m)
+                mujoco.mj_forward(m, d)
+                parent = d.body(parent_body)
+                parent_pos = parent.xpos
+                parent_rot = parent.xmat.reshape(3, 3)
+                tool = d.body(tool_body)
+                np.testing.assert_allclose(parent_rot.T @ (tool.xpos - parent_pos), [0.0, 0.0, 0.0], atol=1e-12)
+                np.testing.assert_allclose(parent_rot.T @ tool.xmat.reshape(3, 3), np.eye(3), atol=1e-12)
+                tcp_in_parent = parent_rot.T @ (d.site("attachment_site").xpos - parent_pos)
+                np.testing.assert_allclose(tcp_in_parent, [0.0, 0.0, tcp_z], atol=1e-12)
+
 
 if __name__ == "__main__":
     unittest.main()

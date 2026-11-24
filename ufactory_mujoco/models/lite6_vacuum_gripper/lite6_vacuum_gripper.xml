@@ -23,7 +23,7 @@
   </default>
 
   <worldbody>
-    <body name="uflite_vacuum_gripper_link" childclass="vg">
+    <body name="uflite_vacuum_gripper_link" pos="0 0 0.17" quat="0 1 0 0" childclass="vg">
       <inertial pos="0 0 0.03" mass="0.14" fullinertia="0.00047106 0.00033072 0.00025642 0.00000039292 0.0000026537 -0.000010975"/>
       <geom class="vg_visual" mesh="vacuum_vis" material="white"/>
       <geom class="vg_collision" mesh="vacuum_col"/>

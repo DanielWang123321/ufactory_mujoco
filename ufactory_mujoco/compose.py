@@ -209,8 +209,11 @@ def _build_robot(recipe: Recipe, name: str, root: Path) -> tuple[mujoco.MjSpec, 
         if recipe.tool == "bio_gripper_g2":
             pos, quat = robots.BIO_GRIPPER_MOUNT[arm]
             scene.setdefault("headlight_specular", list(_env("bio_gripper_g2", root).visual.headlight.specular))
-        elif recipe.camera is not None:
-            pos = (0, 0, robots.STAND_FLANGE_LIFT)
+        else:
+            if recipe.tool == "gripper_g2":
+                scene.setdefault("headlight_specular", list(_env("gripper_g2", root).visual.headlight.specular))
+            if recipe.camera is not None:
+                pos = (0, 0, robots.STAND_FLANGE_LIFT)
         tails.append(_mount_tool(spec, recipe.tool, root, site=tool_site, flange=flange, prev=prev,
                                  site_style=site_style, pos=pos, quat=quat))
         if recipe.ft_sensor:

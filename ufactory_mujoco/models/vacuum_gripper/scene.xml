@@ -1,7 +1,7 @@
 <mujoco model="vacuum_gripper scene">
   <include file="vacuum_gripper.xml"/>
 
-  <statistic center="0 0 0.06" extent="0.25"/>
+  <statistic center="0 0 0.14" extent="0.25"/>
 
   <visual>
     <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0"/>

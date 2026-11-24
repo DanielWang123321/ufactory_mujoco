@@ -35,7 +35,7 @@
   </default>
 
   <worldbody>
-    <body name="uflite_gripper_link" childclass="lg">
+    <body name="uflite_gripper_link" pos="0 0 0.18" quat="0 1 0 0" childclass="lg">
       <inertial pos="0 0 0.03" mass="0.25" fullinertia="0.00047106 0.00033072 0.00025642 0.00000039292 0.0000026537 -0.000010975"/>
       <geom class="lg_visual" mesh="shell_vis" material="white"/>
       <geom class="lg_collision" mesh="shell_col"/>

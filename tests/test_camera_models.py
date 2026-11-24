@@ -262,8 +262,9 @@ class CameraAndBracketModelsTest(unittest.TestCase):
 
     def test_plan_a_flange_section_partition_and_pin_bound(self) -> None:
         """Plan A Rule 1: strict zero flange overlap everywhere including (0, -25) mm locating pin (r <= 3.00 mm)."""
-        g2_obj = MODELS_ROOT / "gripper_g2" / "assets" / "gripper_g2" / "visual" / "base.obj"
-        tris_mm = _parse_obj_triangles(g2_obj) * 1000.0
+        base_objs = sorted((MODELS_ROOT / "gripper_g2" / "assets" / "gripper_g2" / "visual").glob("base_*.obj"))
+        self.assertEqual(len(base_objs), 4)
+        tris_mm = np.concatenate([_parse_obj_triangles(p) for p in base_objs], axis=0) * 1000.0
         # In xarm6_with_gripper_and_*, xarm_gripper_base_link is shifted +3.0 mm along link6 +Z.
         tris_mm[:, :, 2] += 3.0
 
