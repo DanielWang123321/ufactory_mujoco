@@ -112,8 +112,7 @@ def _mount(parent: mujoco.MjSpec, child: mujoco.MjSpec, root: str, *, site: str 
     """Attach ``child`` with body ``root`` placed at ``site``, which is then removed."""
     body = child.body(root)
     body.pos = list(pos)
-    if quat is not None:
-        body.quat = list(quat)
+    body.quat = list(quat) if quat is not None else [1, 0, 0, 0]
     anchor = parent.site(site)
     anchor.name = "_mount"
     _attach(parent, child, site=anchor, site_rgba=site_rgba)
@@ -209,6 +208,7 @@ def _build_robot(recipe: Recipe, name: str, root: Path) -> tuple[mujoco.MjSpec, 
         pos, quat = (0, 0, 0), None
         if recipe.tool == "bio_gripper_g2":
             pos, quat = robots.BIO_GRIPPER_MOUNT[arm]
+            scene.setdefault("headlight_specular", list(_env("bio_gripper_g2", root).visual.headlight.specular))
         elif recipe.camera is not None:
             pos = (0, 0, robots.STAND_FLANGE_LIFT)
         tails.append(_mount_tool(spec, recipe.tool, root, site=tool_site, flange=flange, prev=prev,

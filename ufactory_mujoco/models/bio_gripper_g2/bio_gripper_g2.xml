@@ -6,7 +6,7 @@
 
   <asset>
     <material name="white" rgba="0.95 0.95 0.95 1" specular="0.4" shininess="0.3"/>
-    <material name="silver" rgba="0.85 0.85 0.88 1" specular="0.9" shininess="0.8" reflectance="0.05"/>
+    <material name="bio_g2_anodized_aluminum" rgba="0.60 0.62 0.64 1" specular="0.72" shininess="0.16" reflectance="0.03" metallic="0.8" roughness="0.64"/>
 
     <mesh name="base_white_vis" file="bio_gripper_g2/visual/bio_gripper_g2_base_white.obj" inertia="shell"/>
     <mesh name="base_silver_vis" file="bio_gripper_g2/visual/bio_gripper_g2_base_silver.obj" inertia="shell"/>
@@ -41,18 +41,18 @@
   </default>
 
   <worldbody>
-    <body name="bio_gripper_g2_base_link" childclass="bio_g2">
+    <body name="bio_gripper_g2_base_link" pos="0 0 0.17" quat="0 1 0 0" childclass="bio_g2">
       <inertial pos="-0.006296 -0.000853911 0.019201" mass="0.765827"
         fullinertia="0.0017431206103973 0.000359990156603239 0.00186685736722713 9.59625381852357e-08 1.10970672945902e-05 8.05087539099313e-08"/>
       <geom class="bio_visual" mesh="base_white_vis" material="white" pos="0 0 0"/>
-      <geom class="bio_visual" mesh="base_silver_vis" material="silver" pos="0 0 0"/>
+      <geom class="bio_visual" mesh="base_silver_vis" material="bio_g2_anodized_aluminum" pos="0 0 0"/>
       <geom class="bio_collision" mesh="base_col_0" pos="0 0 0"/>
 
       <body name="bio_gripper_g2_left_finger" pos="0.059 0 0.027">
         <inertial pos="0.008976 -0.02730000121 0.009692" mass="0.012105"
           fullinertia="3.7322E-06 1.744E-05 1.7775E-05 4.1705E-06 -4.0142E-06 1.2237E-06"/>
         <joint name="bio_gripper_g2_left_finger_joint" class="bio_slide" range="-0.0395 0"/>
-        <geom class="bio_visual" mesh="left_finger_vis" material="silver" pos="0 0.00695659220219 0"/>
+        <geom class="bio_visual" mesh="left_finger_vis" material="bio_g2_anodized_aluminum" pos="0 0.00695659220219 0"/>
         <geom class="bio_collision" mesh="left_finger_col_0" pos="0 0 0"/>
         <geom class="bio_collision" mesh="left_finger_col_1" pos="0 0 0"/>
         <geom class="bio_collision" mesh="left_finger_col_2" pos="0 0 0"/>
@@ -64,7 +64,7 @@
         <inertial pos="0.00658 0.02726500121 0.009235" mass="0.012068"
           fullinertia="4.1413E-06 1.6115E-05 1.6032E-05 -3.9682E-06 -4.5734E-06 -1.6711E-06"/>
         <joint name="bio_gripper_g2_right_finger_joint" class="bio_slide" range="0 0.0395"/>
-        <geom class="bio_visual" mesh="right_finger_vis" material="silver" pos="0 -0.00811730325222 0"/>
+        <geom class="bio_visual" mesh="right_finger_vis" material="bio_g2_anodized_aluminum" pos="0 -0.00811730325222 0"/>
         <geom class="bio_collision" mesh="right_finger_col_0" pos="0 0 0"/>
         <geom class="bio_collision" mesh="right_finger_col_1" pos="0 0 0"/>
         <geom class="bio_collision" mesh="right_finger_col_2" pos="0 0 0"/>

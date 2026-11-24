@@ -7,7 +7,8 @@ import unittest
 import xml.etree.ElementTree as ET
 import mujoco
 import numpy as np
-from ufactory_mujoco import MODELS_ROOT, resolve_model_path
+from scipy.spatial.transform import Rotation
+from ufactory_mujoco import MODELS_ROOT, compose_model, resolve_model_path
 import copy
 from ufactory_mujoco.bio_g2 import (
     BioGripperG2Controller,
@@ -158,6 +159,72 @@ class BioModelTest(unittest.TestCase):
                         mujoco.mj_step(model, data)
                     np.testing.assert_allclose(data.qpos, [-target, target], rtol=0, atol=5e-5)
                     self.assertTrue(all(contact.dist >= -1e-6 for contact in data.contact))
+
+    def test_standalone_orientation_flange_up_tcp_down(self):
+        """Standalone bio_gripper_g2 flips flange up (+Z) and TCP down without changing mounted combos."""
+        for filename in ("bio_gripper_g2.xml", "scene.xml"):
+            with self.subTest(file=filename):
+                m = mujoco.MjModel.from_xml_path(str(MODELS_ROOT / "bio_gripper_g2" / filename))
+                d = mujoco.MjData(m)
+                mujoco.mj_forward(m, d)
+                base_pos = d.body("bio_gripper_g2_base_link").xpos
+                base_mat = d.body("bio_gripper_g2_base_link").xmat.reshape(3, 3)
+                tcp_pos = d.site("link_tcp").xpos
+                np.testing.assert_allclose(base_pos, [0.0, 0.0, 0.17], atol=1e-12)
+                np.testing.assert_allclose(base_mat, np.diag([1.0, -1.0, -1.0]), atol=1e-12)
+                np.testing.assert_allclose(tcp_pos, [0.135, 0.0, 0.115], atol=1e-12)
+                self.assertLess(tcp_pos[2], base_pos[2])
+                self.assertGreater(tcp_pos[2], 0.10)
+                self.assertEqual(d.ncon, 0)
+
+        flange_links = {
+            "xarm5": "link5",
+            "xarm6": "link6",
+            "xarm7": "link7",
+            "uf850": "link6",
+        }
+        for arm, flange_link in flange_links.items():
+            name = f"{arm}_with_bio_gripper"
+            with self.subTest(model=name):
+                m = compose_model(name, scene=True)
+                d = mujoco.MjData(m)
+                mujoco.mj_forward(m, d)
+                flange_pos = d.body(flange_link).xpos
+                flange_rot = d.body(flange_link).xmat.reshape(3, 3)
+                tcp_in_flange = flange_rot.T @ (d.site("attachment_site").xpos - flange_pos)
+                np.testing.assert_allclose(tcp_in_flange * 1000.0, [157.64, -0.03, 57.52], atol=0.1)
+
+    def test_anodized_aluminum_material_and_scene_specular(self):
+        """Bio G2 fingers and metallic base use frosted anodized aluminum with soft scene specular."""
+        for name in MODEL_NAMES:
+            with self.subTest(model=name):
+                m = mujoco.MjModel.from_xml_path(str(resolve_model_path(name, scene=True)))
+                mat_id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_MATERIAL, "bio_g2_anodized_aluminum")
+                self.assertGreaterEqual(mat_id, 0)
+                np.testing.assert_allclose(m.mat_rgba[mat_id], [0.60, 0.62, 0.64, 1.0], atol=1e-6)
+                self.assertAlmostEqual(float(m.mat_specular[mat_id]), 0.72, places=6)
+                self.assertAlmostEqual(float(m.mat_shininess[mat_id]), 0.16, places=6)
+                self.assertAlmostEqual(float(m.mat_reflectance[mat_id]), 0.03, places=6)
+                self.assertAlmostEqual(float(m.mat_metallic[mat_id]), 0.8, places=6)
+                self.assertAlmostEqual(float(m.mat_roughness[mat_id]), 0.64, places=6)
+
+                for body_name in ("bio_gripper_g2_left_finger", "bio_gripper_g2_right_finger"):
+                    body_id = m.body(body_name).id
+                    vis_geoms = np.flatnonzero((m.geom_bodyid == body_id) & (m.geom_group == 2))
+                    self.assertGreater(len(vis_geoms), 0)
+                    for gid in vis_geoms:
+                        self.assertEqual(int(m.geom_matid[gid]), mat_id)
+
+                base_id = m.body("bio_gripper_g2_base_link").id
+                base_vis = np.flatnonzero((m.geom_bodyid == base_id) & (m.geom_group == 2))
+                base_mats = {
+                    mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_MESH, int(m.geom_dataid[gid])): int(m.geom_matid[gid])
+                    for gid in base_vis
+                }
+                white_id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_MATERIAL, "white")
+                self.assertEqual(base_mats["base_silver_vis"], mat_id)
+                self.assertEqual(base_mats["base_white_vis"], white_id)
+                np.testing.assert_allclose(m.vis.headlight.specular, [0.35, 0.35, 0.38], atol=1e-6)
 
 # ==========================================================================
 # From test_bio_g2_controller.py
@@ -349,7 +416,7 @@ class BioG2ControllerTest(unittest.TestCase):
     def test_mujoco_closed_loop_contact_force_and_speed_calibration(self):
         """Closed-loop MuJoCo grasping of an 85 mm rigid plate tracks 4..20 N force and rate limits."""
         spec_xml = mujoco.MjSpec.from_file(str(MODELS_ROOT / "bio_gripper_g2/bio_gripper_g2.xml"))
-        plate = spec_xml.worldbody.add_body(name="test_plate", pos=[0.128, 0.0, 0.050])
+        plate = spec_xml.worldbody.add_body(name="test_plate", pos=[0.128, 0.0, 0.120])
         plate.add_geom(
             type=mujoco.mjtGeom.mjGEOM_BOX,
             size=[0.020, 0.0425, 0.015],
@@ -406,6 +473,155 @@ class BioG2ControllerTest(unittest.TestCase):
             out = robot.gripper_control_output
             self.assertIsNotNone(out)
             self.assertAlmostEqual(out.force_limit_n, drive_limit_n(80.0), places=6)
+
+
+_PCD = 25.0 * np.sqrt(0.5)
+_LUG = {"+y": (15.01, 43.07), "-y": (15.04, -43.02)}
+_PIN = (0.044, -24.990)
+_ADAPTER_CIRCLES = {
+    "rim": ((0.0, 0.0), 37.59, 0.0, (1.6, 3.4), 1, ((0, 42), (90, 270), (318, 360))),
+    "bore": ((0.0, 0.0), 15.97, 0.0, (1.6, 3.4), -1, None),
+    "M6 hole 45": ((_PCD, _PCD), 3.13, 0.0, (0.2, 0.9), -1, None),
+    "M6 hole 135": ((-_PCD, _PCD), 3.13, 0.0, (0.2, 0.9), -1, None),
+    "M6 hole -135": ((-_PCD, -_PCD), 3.13, 0.0, (0.2, 0.9), -1, None),
+    "M6 hole -45": ((_PCD, -_PCD), 3.13, 0.0, (0.2, 0.9), -1, None),
+    "lug arc +y": (_LUG["+y"], 8.02, 0.0, (1.6, 3.4), 1, ((10, 170),)),
+    "lug arc -y": (_LUG["-y"], 8.02, 0.0, (1.6, 3.4), 1, ((190, 350),)),
+    "lug arc fillet +y": ((2.28, 42.27), 4.74, 0.0, (1.1, 3.9), -1, ((277, 353),)),
+    "lug arc fillet -y": ((2.31, -42.26), 4.74, 0.0, (1.1, 3.9), -1, ((7, 83),)),
+    "lug flank fillet +y": ((36.26, 35.69), 13.27, 0.0, (1.1, 3.9), -1, ((185, 219),)),
+    "lug flank fillet -y": ((36.30, -35.65), 13.27, 0.0, (1.1, 3.9), -1, ((141, 175),)),
+    "lug countersink +y": (_LUG["+y"], 7.01, -1.0, (0.4, 3.4), -1, None),
+    "lug countersink -y": (_LUG["-y"], 7.01, -1.0, (0.4, 3.4), -1, None),
+    "lug screw head +y": (_LUG["+y"], 5.68, 0.0, (0.15, 0.6), 1, None),
+    "lug screw head -y": (_LUG["-y"], 5.68, 0.0, (0.15, 0.6), 1, None),
+    "pin counterbore": (_PIN, 2.54, 0.0, (0.25, 3.1), -1, None),
+    "pin hole": (_PIN, 1.04, 0.0, (2.9, 5.1), -1, None),
+}
+_ADAPTER_RIMS = {
+    "bore": ((0.031, 0.026), 16.972, 16.972),
+    "M6 hole 45": ((17.688, 17.695), 3.129, 7.025),
+    "M6 hole 135": ((-17.657, 17.678), 3.129, 7.025),
+    "M6 hole -135": ((-17.647, -17.670), 3.129, 7.025),
+    "M6 hole -45": ((17.700, -17.656), 3.129, 7.025),
+    "pin hole": (_PIN, 2.739, 1.040),
+}
+
+
+def _load_bio_g2_adapter_silver_half() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Parse first-half geometry of bio_gripper_g2_base_silver.obj into adapter frame (mm)."""
+    path = ASSETS_DIR / "visual" / "bio_gripper_g2_base_silver.obj"
+    verts: list[list[float]] = []
+    norms: list[list[float]] = []
+    faces_v: list[list[int]] = []
+    faces_n: list[list[int]] = []
+    with path.open(encoding="utf-8") as stream:
+        for line in stream:
+            if line.startswith("v "):
+                verts.append([float(t) for t in line.split()[1:4]])
+            elif line.startswith("vn "):
+                norms.append([float(t) for t in line.split()[1:4]])
+            elif line.startswith("f "):
+                fv, fn = [], []
+                for tok in line.split()[1:]:
+                    parts = tok.split("/")
+                    v_idx = int(parts[0]) - 1
+                    n_idx = int(parts[2]) - 1 if len(parts) > 2 and parts[2] else v_idx
+                    fv.append(v_idx)
+                    fn.append(n_idx)
+                faces_v.append(fv)
+                faces_n.append(fn)
+
+    half_faces = len(faces_v) // 2
+    half_norms = len(norms) // 2
+    v_arr = np.asarray(verts, dtype=np.float64)
+    n_arr = np.asarray(norms[:half_norms], dtype=np.float64)
+    fv_arr = np.asarray(faces_v[:half_faces], dtype=np.int64)
+    fn_arr = np.asarray(faces_n[:half_faces], dtype=np.int64)
+    if n_arr.shape != v_arr.shape or not np.array_equal(fv_arr, fn_arr):
+        # Remap vertex normals if OBJ face normal indices differ from vertex indices.
+        mapped = np.zeros_like(v_arr)
+        mapped[fv_arr] = n_arr[fn_arr]
+        n_arr = mapped
+
+    rotation = Rotation.from_euler("xyz", np.radians([0.031, 0.254, 0.360])).as_matrix()
+    points_mm = (v_arr * 1000.0 - np.array([-22.636, -0.956, -2.516])) @ rotation
+    normals = n_arr @ rotation
+    return points_mm, normals, fv_arr
+
+
+class BioG2AdapterGeometryTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.points, cls.normals, cls.faces = _load_bio_g2_adapter_silver_half()
+
+    def test_adapter_plate_circles_and_normals(self) -> None:
+        """Adapter plate curved faces are analytic surfaces of revolution with analytic normals."""
+        points, normals = self.points, self.normals
+        z = points[:, 2]
+        for feature, (centre, nominal, slope, (z_low, z_high), side, arcs) in _ADAPTER_CIRCLES.items():
+            with self.subTest(feature=feature):
+                c = np.asarray(centre, dtype=np.float64)
+                d = points[:, :2] - c
+                r = np.linalg.norm(d, axis=1)
+                u = d / np.maximum(r[:, None], 1e-12)
+                equivalent = r - slope * z
+                facing = side * (normals[:, :2] * u).sum(1) > 0.3
+                surface = (z > z_low) & (z < z_high) & (np.abs(equivalent - nominal) < 0.6) & facing
+                if arcs is not None:
+                    azimuth = np.degrees(np.arctan2(u[:, 1], u[:, 0])) % 360
+                    surface &= np.any([(azimuth >= lo) & (azimuth <= hi) for lo, hi in arcs], axis=0)
+                self.assertGreater(int(surface.sum()), 30)
+                xy = c + equivalent[surface, None] * u[surface]
+                fx, fy, k = np.linalg.lstsq(np.c_[2 * xy, np.ones(len(xy))], (xy**2).sum(1), rcond=None)[0]
+                fitted = float(np.sqrt(k + fx**2 + fy**2))
+                residual = np.hypot(xy[:, 0] - fx, xy[:, 1] - fy) - fitted
+                d2 = points[:, :2] - np.array([fx, fy])
+                u2 = d2 / np.maximum(np.linalg.norm(d2, axis=1)[:, None], 1e-12)
+                expected = side * np.c_[u2, np.full(len(u2), -slope)] / np.hypot(1.0, slope)
+                normal_error = np.degrees(np.arccos(np.clip((normals * expected).sum(1), -1.0, 1.0)))[surface]
+                self.assertLess(float(np.abs(residual).max()), 0.03)
+                self.assertLess(float(normal_error.max()), 1.0)
+                self.assertAlmostEqual(fitted, nominal, delta=0.05)
+
+    def test_adapter_plate_through_holes_no_protruding_screws(self) -> None:
+        """Adapter plate has open M6 holes at +/-135 deg without protruding screw tips."""
+        points = self.points
+        self.assertGreater(float(points[:, 2].min()), -0.1)
+        for azimuth in (135.0, -135.0):
+            axis = 25.0 * np.array([np.cos(np.radians(azimuth)), np.sin(np.radians(azimuth))])
+            self.assertFalse(
+                bool((np.hypot(*(points[:, :2] - axis).T) < 2.5).any()),
+                f"Unexpected geometry inside {azimuth:+.0f} deg M6 hole",
+            )
+
+    def test_adapter_plate_flat_faces_stop_at_hole_rims(self) -> None:
+        """Contact face (z=0) and plate top (z=5) end cleanly at every hole rim."""
+        points, normals, faces = self.points, self.normals, self.faces
+        normal_z = normals[faces][:, :, 2]
+        tri = points[faces]
+        deepest: dict[str, float] = {}
+        for hole, (centre, rim_bottom, rim_top) in _ADAPTER_RIMS.items():
+            c = np.asarray(centre, dtype=np.float64)
+            for z_face, sign, rim in ((0.0, -1.0, rim_bottom), (5.0, 1.0, rim_top)):
+                flat = (sign * normal_z > 0.99).all(axis=1) & (np.abs(tri[:, :, 2] - z_face) < 0.03).all(axis=1)
+                t = tri[flat][:, :, :2]
+                t = t[np.linalg.norm(t - c, axis=2).min(axis=1) < rim + 1.0]
+                self.assertGreater(len(t), 0, f"No flat faces near {hole} at z={z_face}")
+                dist = np.full(len(t), np.inf)
+                for i in range(3):
+                    a = t[:, i]
+                    d = t[:, (i + 1) % 3] - a
+                    s = np.clip(((c - a) * d).sum(1) / np.maximum((d * d).sum(1), 1e-30), 0.0, 1.0)
+                    dist = np.minimum(dist, np.linalg.norm(a + s[:, None] * d - c, axis=1))
+                e = [t[:, (i + 1) % 3] - t[:, i] for i in range(3)]
+                w = [c - t[:, i] for i in range(3)]
+                side = [np.sign(e[i][:, 0] * w[i][:, 1] - e[i][:, 1] * w[i][:, 0]) for i in range(3)]
+                dist[(side[0] == side[1]) & (side[1] == side[2])] = 0.0
+                deepest[f"{hole} z{z_face:.0f}"] = float(rim - dist.min())
+        worst = max(deepest, key=deepest.get)
+        self.assertLess(deepest[worst], 0.025, f"Flat faces reach {deepest[worst]:.3f} mm into {worst} rim")
+
 
 if __name__ == "__main__":
     unittest.main()
