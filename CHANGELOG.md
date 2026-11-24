@@ -1,6 +1,8 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.9] - 2026-11-24
+
+Upgraded xArm 5/6/7 link inertials to the official `UJ_BR_2403` parameters, unified xArm meshes on `xarm6` with the production version A base, fixed Bio Gripper G2's flange mount and 11-hull collision geometry, refined Bio Gripper G2 and Gripper G2 visual meshes and materials (including frosted anodized aluminum and translucent inner silicone finger pads), and aligned all standalone gripper display poses flange-up. All 11 task `config_sha256` hashes and `lite6`/`uf850` task reports remain unchanged, while `xarm5`/`xarm6`/`xarm7` task reports reflect the updated inertials and unified `xarm5` collision meshes.
 
 ### Changed
 
