@@ -47,6 +47,7 @@ from .grippers import (
     position_to_gap,
 )
 from .robot_interface import RobotInterface
+from .robotiq import ROBOTIQ_ADAPTERS
 from .compose import load_model
 from .config import arm_scene_spec
 from .robots import ARMS
@@ -508,6 +509,10 @@ class XArmRobot(RobotInterface):
     def get_gripper_position(self) -> float:
         if not self.has_gripper:
             raise NotImplementedError("This robot has no gripper")
+        if self._gripper_spec is not None and self._gripper_spec.name in ROBOTIQ_ADAPTERS:
+            raise NotImplementedError(
+                "Robotiq hardware control via XArmRobot is not supported; use SimRobot for simulation"
+            )
         if self._gripper_spec is not None and self._gripper_spec.name == "bio_gripper_g2":
             bio_getter = getattr(self._arm, "get_bio_gripper_g2_position", None)
             if callable(bio_getter):
@@ -546,6 +551,10 @@ class XArmRobot(RobotInterface):
         self._require_motion_unlocked("set_gripper")
         if not self.has_gripper:
             raise NotImplementedError("This robot has no gripper")
+        if self._gripper_spec is not None and self._gripper_spec.name in ROBOTIQ_ADAPTERS:
+            raise NotImplementedError(
+                "Robotiq hardware control via XArmRobot is not supported; use SimRobot for simulation"
+            )
         if not np.isfinite(float(pos)):
             raise ValueError(f"gripper position must be finite, got {pos!r}")
         pos_clamped = float(np.clip(pos, 0.0, 1.0))

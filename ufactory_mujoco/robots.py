@@ -41,6 +41,8 @@ _XARM_SERIES = ("xarm5", "xarm6", "xarm7", "uf850")
 _XARM_GRIPPER_SUFFIXES = {
     "gripper_g2": "with_gripper",
     "bio_gripper_g2": "with_bio_gripper",
+    "robotiq_2f_85": "with_robotiq_2f_85",
+    "robotiq_2f_140": "with_robotiq_2f_140",
     "vacuum_gripper": "with_vacuum_gripper",
     "ft_sensor": "with_ft_sensor",
     "ft_sensor_and_gripper": "with_ft_sensor_and_gripper",
@@ -95,12 +97,16 @@ def _recipes() -> dict[str, Recipe]:
     for arm in _XARM_SERIES:
         recipes[f"{arm}_with_gripper"] = Recipe(arm, "gripper_g2")
         recipes[f"{arm}_with_bio_gripper"] = Recipe(arm, "bio_gripper_g2")
+        recipes[f"{arm}_with_robotiq_2f_85"] = Recipe(arm, "robotiq_2f_85")
+        recipes[f"{arm}_with_robotiq_2f_140"] = Recipe(arm, "robotiq_2f_140")
         recipes[f"{arm}_with_vacuum_gripper"] = Recipe(arm, "vacuum_gripper")
         recipes[f"{arm}_with_d435"] = Recipe(arm, camera="d435")
         recipes[f"{arm}_with_gripper_and_d435"] = Recipe(arm, "gripper_g2", camera="d435")
         recipes[f"{arm}_with_ft_sensor"] = Recipe(arm, ft_sensor=True)
         recipes[f"{arm}_with_ft_sensor_and_gripper"] = Recipe(arm, "gripper_g2", ft_sensor=True)
         recipes[f"{arm}_with_ft_sensor_and_vacuum_gripper"] = Recipe(arm, "vacuum_gripper", ft_sensor=True)
+    recipes["xarm6_with_robotiq_2f_85_and_d435"] = Recipe("xarm6", "robotiq_2f_85", camera="d435")
+    recipes["xarm6_with_robotiq_2f_140_and_d435"] = Recipe("xarm6", "robotiq_2f_140", camera="d435")
     for cam in CAMERAS:
         recipes.setdefault(f"xarm6_with_gripper_and_{cam}", Recipe("xarm6", "gripper_g2", camera=cam))
     return dict(sorted(recipes.items()))
@@ -125,16 +131,20 @@ class Tool:
     root: str
     tcp: str | None = "link_tcp"
     actuator: str | None = None
+    adapter: str | None = None
     mesh_prefix: str = ""
     drop_root_excludes: bool = False
     excludes: tuple[tuple[str, str], ...] = (("{flange}", "{root}"),)
 
 
 _LITE6_TOOL_EXCLUDES = (("link4", "link6"), ("{flange}", "{root}"), ("{prev}", "{root}"), ("link4", "{root}"))
+ROBOTIQ_MOUNTING_LIFT = 0.011  # UFACTORY 11 mm xArm-to-Robotiq flange adapter height
 
 TOOLS: dict[str, Tool] = {
     "gripper_g2": Tool("xarm_gripper_base_link", actuator="gripper", mesh_prefix="g2_", drop_root_excludes=True),
     "bio_gripper_g2": Tool("bio_gripper_g2_base_link"),
+    "robotiq_2f_85": Tool("robotiq_2f_85_base_link", adapter="robotiq_mounting"),
+    "robotiq_2f_140": Tool("robotiq_2f_140_base_link", adapter="robotiq_mounting"),
     "vacuum_gripper": Tool("xarm_vacuum_gripper_link", tcp=None,
                            excludes=(("{flange}", "{root}"), ("{prev}", "{root}"))),
     "lite6_gripper": Tool("uflite_gripper_link", excludes=_LITE6_TOOL_EXCLUDES),
@@ -152,6 +162,15 @@ COMBO_READY: dict[str, tuple[float, ...]] = {
 # At all-zero joints a tool on these flanges reaches below the floor, so their combinations
 # also get an `init` keyframe (the `ready` pose) to start from.
 COMBO_INIT_ARMS = frozenset({"xarm5", "xarm6", "xarm7"})
+
+
+def needs_combo_init(recipe: Recipe | None) -> bool:
+    """True when a mounted composite reaches below the floor at all-zero joints (adds ``init``)."""
+    mounted = recipe is not None and (recipe.tool is not None or recipe.camera is not None or recipe.ft_sensor)
+    if not mounted or recipe.arm not in COMBO_READY:
+        return False
+    # UF850+robotiq_2f_140+11 mm adapter reaches 246.1 mm down vs 238 mm home flange height.
+    return recipe.arm in COMBO_INIT_ARMS or (recipe.arm == "uf850" and recipe.tool == "robotiq_2f_140")
 
 # Scene statistic (center, extent) of arms carrying a tool or camera.
 COMBO_STATISTIC = {"lite6": ((0.25, 0, 0.25), 0.7), **{arm: ((0.3, 0, 0.3), 0.9) for arm in _XARM_SERIES}}

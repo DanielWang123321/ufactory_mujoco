@@ -11,7 +11,7 @@ The examples need only the core install ([installation](../../README.md#installa
 | `01_load_and_view.py` | Any model in the viewer | all |
 | `02_joint_control.py` | Quintic joint moves; bare `xarm6` runs the 20 dynamics-check poses | with an arm |
 | `03_cartesian_ik.py` | Straight line and circle tracked with DLS IK | `xarm6` |
-| `04_gripper_control.py` | Close, open, half open; Gripper G2 and Bio Gripper G2 take `--speed-percent` and `--force-percent` | with a jaw gripper |
+| `04_gripper_control.py` | Close, open, half open; Gripper G2, Bio Gripper G2, and Robotiq 2F-85/2F-140 take `--speed-percent` and `--force-percent` | with a jaw gripper |
 | `05_pick_place.py` | Cube pick-and-place with preflight | `--robot`, five arms |
 | `06_trajectory_planning.py` | Quintic point-to-point, C2 spline, Cartesian line, feedforward torques | `xarm6` |
 | `07_kinematics.py` | FK, Jacobian against finite differences, velocity IK, manipulability | `xarm6` |
@@ -45,17 +45,17 @@ python examples/simulation/11_force_torque_sensor.py --model xarm6_with_ft_senso
 
 | Arm | `<parts>` |
 | :--- | :--- |
-| `xarm5`, `xarm6`, `xarm7`, `uf850` | `gripper` (Gripper G2), `bio_gripper`, `vacuum_gripper`, `d435`, `gripper_and_d435`, `ft_sensor`, `ft_sensor_and_gripper`, `ft_sensor_and_vacuum_gripper`, `base_plate` |
-| `xarm6` only | `gripper_and_d405`, `gripper_and_gemini_305`, `gripper_and_zed_x_nano` |
+| `xarm5`, `xarm6`, `xarm7`, `uf850` | `gripper` (Gripper G2), `bio_gripper`, `robotiq_2f_85`, `robotiq_2f_140`, `vacuum_gripper`, `d435`, `gripper_and_d435`, `ft_sensor`, `ft_sensor_and_gripper`, `ft_sensor_and_vacuum_gripper`, `base_plate` |
+| `xarm6` only | `gripper_and_d405`, `gripper_and_gemini_305`, `gripper_and_zed_x_nano`, `robotiq_2f_85_and_d435`, `robotiq_2f_140_and_d435` |
 | `lite6` | `gripper` (Lite 6 gripper), `vacuum_gripper`, `d435`, `gripper_and_d435`, `base_plate` |
 
-Standalone parts open in `01`: the grippers `gripper_g2`, `bio_gripper_g2`, `lite6_gripper`, `vacuum_gripper` and `lite6_vacuum_gripper`; the cameras `d405`, `d435`, `gemini_305` and `zed_x_nano`; `camera_stand` and `camera_stand_with_<camera>`; `ft_sensor`; and the base plates `xarm_base_plate`, `uf850_base_plate` and `lite6_base_plate`. `04` also runs the three standalone jaw grippers, and `11` runs `ft_sensor`. A script exits with code `2` when it cannot run the given model.
+Standalone parts open in `01`: the grippers `gripper_g2`, `bio_gripper_g2`, `robotiq_2f_85`, `robotiq_2f_140`, `lite6_gripper`, `vacuum_gripper` and `lite6_vacuum_gripper`; `robotiq_mounting` (11 mm xArm-to-Robotiq flange adapter); the cameras `d405`, `d435`, `gemini_305` and `zed_x_nano`; `camera_stand` and `camera_stand_with_<camera>`; `ft_sensor`; and the base plates `xarm_base_plate`, `uf850_base_plate` and `lite6_base_plate`. `04` also runs the five standalone jaw grippers, and `11` runs `ft_sensor`. A script exits with code `2` when it cannot run the given model.
 
 ## Start Pose
 
 - `home` sets every joint to zero on every model.
 - `ready` points the tool down. On xArm and UF850 models with a tool, camera or F/T sensor it puts the Gripper G2 TCP at `(300, 0, 300)` mm, and the other tools use the same joint angles. Lite 6 models use the factory pose `[0, 9.9, 31.8, 0, 21.9, 0]°`. Bare xArm and UF850 arms, also on a base plate, keep `ready` at zero.
-- The xArm 5/6/7 models with a tool, camera or F/T sensor also have `init`, equal to `ready`, because at zero many of these tools reach below the floor.
+- Models whose mounted tool reaches below the floor at zero (xArm 5/6/7 combinations and `uf850` with `robotiq_2f_140`) also have `init`, equal to `ready`.
 - The examples start from `init` when the model has it, otherwise from `home`; `01 --pose` selects another keyframe. `05` and `10` start every arm with the TCP at `(300, 0, 300)` mm pointing down. In `05` this is straight above the cube, which every arm carries from `(300, 0)` to `(300, 300)` mm.
 - The standalone jaw grippers have `open` and `close` keyframes; the other standalone parts have none.
 

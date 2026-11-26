@@ -205,19 +205,32 @@ def _build_robot(recipe: Recipe, name: str, root: Path) -> tuple[mujoco.MjSpec, 
         _mount(spec, _part("ft_sensor", root), "ft_sensor_base", site_rgba=site_style[1])
         scene["headlight_specular"] = list(_env("ft_sensor", root).visual.headlight.specular)
     if recipe.tool is not None:
-        pos, quat = (0, 0, 0), None
-        if recipe.tool == "bio_gripper_g2":
-            pos, quat = robots.BIO_GRIPPER_MOUNT[arm]
-            scene.setdefault("headlight_specular", list(_env("bio_gripper_g2", root).visual.headlight.specular))
-        else:
-            if recipe.tool == "gripper_g2":
-                scene.setdefault("headlight_specular", list(_env("gripper_g2", root).visual.headlight.specular))
+        tool_cfg = TOOLS[recipe.tool]
+        if tool_cfg.adapter is not None:
+            adapter_pos = (0, 0, robots.STAND_FLANGE_LIFT if recipe.camera is not None else 0.0)
+            _mount(spec, _part(tool_cfg.adapter, root), tool_cfg.adapter, site=tool_site,
+                   pos=adapter_pos, quat=None, site_rgba=site_style[1])
+            spec.add_exclude(bodyname1=flange, bodyname2=tool_cfg.adapter)
             if recipe.camera is not None:
-                pos = (0, 0, robots.STAND_FLANGE_LIFT)
-        tails.append(_mount_tool(spec, recipe.tool, root, site=tool_site, flange=flange, prev=prev,
-                                 site_style=site_style, pos=pos, quat=quat))
+                spec.add_exclude(bodyname1="camera_stand", bodyname2=tool_cfg.adapter)
+            spec.body(tool_cfg.adapter).add_site(name="_adapter_tool_mount", pos=[0, 0, robots.ROBOTIQ_MOUNTING_LIFT])
+            scene.setdefault("headlight_specular", list(_env(recipe.tool, root).visual.headlight.specular))
+            tails.append(_mount_tool(spec, recipe.tool, root, site="_adapter_tool_mount", flange=tool_cfg.adapter,
+                                     prev=flange, site_style=site_style, pos=(0, 0, 0), quat=None))
+        else:
+            pos, quat = (0, 0, 0), None
+            if recipe.tool == "bio_gripper_g2":
+                pos, quat = robots.BIO_GRIPPER_MOUNT[arm]
+                scene.setdefault("headlight_specular", list(_env("bio_gripper_g2", root).visual.headlight.specular))
+            else:
+                if recipe.tool == "gripper_g2":
+                    scene.setdefault("headlight_specular", list(_env("gripper_g2", root).visual.headlight.specular))
+                if recipe.camera is not None:
+                    pos = (0, 0, robots.STAND_FLANGE_LIFT)
+            tails.append(_mount_tool(spec, recipe.tool, root, site=tool_site, flange=flange, prev=prev,
+                                     site_style=site_style, pos=pos, quat=quat))
         if recipe.ft_sensor:
-            spec.add_exclude(bodyname1="ft_sensor_base", bodyname2=TOOLS[recipe.tool].root)
+            spec.add_exclude(bodyname1="ft_sensor_base", bodyname2=tool_cfg.root)
     if recipe.camera is not None:
         scene.setdefault("headlight_specular", list(_env("camera_stand", root).visual.headlight.specular))
         if recipe.tool is None:
@@ -234,7 +247,7 @@ def _build_robot(recipe: Recipe, name: str, root: Path) -> tuple[mujoco.MjSpec, 
         ready = [float(v) for v in robots.COMBO_READY[arm]]
         zero = [0.0] * len(ready)
         arm_keys = [("home", zero, zero), ("ready", ready, ready)]
-        if arm in robots.COMBO_INIT_ARMS:
+        if robots.needs_combo_init(recipe):
             arm_keys.append(("init", ready, ready))
     if mounted:
         for key in list(spec.keys):
@@ -547,7 +560,12 @@ def _require_file(path: Path) -> Path:
 
 def _require_parts(robot: str, gripper: str | None) -> None:
     recipe = RECIPES[robots.combo_name(robot, gripper)] if gripper else None
-    parts = [robot] + ([p for p in (recipe.tool, "ft_sensor" if recipe.ft_sensor else None) if p] if recipe else [])
+    parts = [robot]
+    if recipe:
+        adapter = TOOLS[recipe.tool].adapter if recipe.tool else None
+        for p in (adapter, recipe.tool, "ft_sensor" if recipe.ft_sensor else None):
+            if p:
+                parts.append(p)
     for part in parts:
         _require_file(MODELS_ROOT / part / "scene.xml")
         _require_file(MODELS_ROOT / part / f"{part}.xml")

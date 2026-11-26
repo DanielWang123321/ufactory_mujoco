@@ -1,0 +1,144 @@
+<mujoco model="robotiq_2f_140">
+  <!-- Robotiq 2F-140 parallel/adaptive gripper (0..140 mm jaw gap, 1.00 kg, 11-hull collision STLs). -->
+  <compiler angle="radian" autolimits="true" meshdir="assets"/>
+
+  <option integrator="implicitfast"/>
+
+  <asset>
+    <material name="robotiq_dark_metal" rgba="0.12 0.12 0.13 1" specular="0.45" shininess="0.22" reflectance="0.02" metallic="0.45" roughness="0.48"/>
+    <material name="robotiq_black" rgba="0.11 0.11 0.12 1" specular="0.25" shininess="0.15" metallic="0.05" roughness="0.65"/>
+    <material name="robotiq_silver" rgba="0.78 0.79 0.80 1" specular="0.80" shininess="0.35" reflectance="0.04" metallic="0.80" roughness="0.42"/>
+
+    <!-- Visual OBJs -->
+    <mesh name="robotiq_2f_140_base_dark_vis" file="robotiq_2f_140/visual/base_dark.obj" inertia="shell"/>
+    <mesh name="robotiq_2f_140_base_silver_vis" file="robotiq_2f_140/visual/base_silver.obj" inertia="shell"/>
+    <mesh name="robotiq_2f_140_left_outer_knuckle_dark_vis" file="robotiq_2f_140/visual/left_outer_knuckle_dark.obj" inertia="shell"/>
+    <mesh name="robotiq_2f_140_left_outer_knuckle_silver_vis" file="robotiq_2f_140/visual/left_outer_knuckle_silver.obj" inertia="shell"/>
+    <mesh name="robotiq_2f_140_left_finger_dark_vis" file="robotiq_2f_140/visual/left_finger_dark.obj" inertia="shell"/>
+    <mesh name="robotiq_2f_140_left_finger_silver_vis" file="robotiq_2f_140/visual/left_finger_silver.obj" inertia="shell"/>
+    <mesh name="robotiq_2f_140_left_inner_knuckle_vis" file="robotiq_2f_140/visual/left_inner_knuckle.obj" inertia="shell"/>
+    <mesh name="robotiq_2f_140_right_outer_knuckle_dark_vis" file="robotiq_2f_140/visual/right_outer_knuckle_dark.obj" inertia="shell"/>
+    <mesh name="robotiq_2f_140_right_outer_knuckle_silver_vis" file="robotiq_2f_140/visual/right_outer_knuckle_silver.obj" inertia="shell"/>
+    <mesh name="robotiq_2f_140_right_finger_dark_vis" file="robotiq_2f_140/visual/right_finger_dark.obj" inertia="shell"/>
+    <mesh name="robotiq_2f_140_right_finger_silver_vis" file="robotiq_2f_140/visual/right_finger_silver.obj" inertia="shell"/>
+    <mesh name="robotiq_2f_140_right_inner_knuckle_vis" file="robotiq_2f_140/visual/right_inner_knuckle.obj" inertia="shell"/>
+
+    <!-- Collision STLs -->
+    <mesh name="robotiq_2f_140_base_col_00" file="robotiq_2f_140/collision/robotiq_2f_140_base_col_00.stl"/>
+    <mesh name="robotiq_2f_140_left_outer_knuckle_col_0" file="robotiq_2f_140/collision/robotiq_2f_140_left_outer_knuckle_col_0.stl"/>
+    <mesh name="robotiq_2f_140_left_outer_finger_col_1" file="robotiq_2f_140/collision/robotiq_2f_140_left_outer_finger_col_1.stl"/>
+    <mesh name="robotiq_2f_140_left_finger_pad" file="robotiq_2f_140/collision/robotiq_2f_140_left_finger_pad.stl"/>
+    <mesh name="robotiq_2f_140_left_finger_body" file="robotiq_2f_140/collision/robotiq_2f_140_left_finger_body.stl"/>
+    <mesh name="robotiq_2f_140_left_inner_knuckle_col" file="robotiq_2f_140/collision/robotiq_2f_140_left_inner_knuckle.stl"/>
+    <mesh name="robotiq_2f_140_right_outer_knuckle_col_0" file="robotiq_2f_140/collision/robotiq_2f_140_right_outer_knuckle_col_0.stl"/>
+    <mesh name="robotiq_2f_140_right_outer_finger_col_1" file="robotiq_2f_140/collision/robotiq_2f_140_right_outer_finger_col_1.stl"/>
+    <mesh name="robotiq_2f_140_right_finger_pad" file="robotiq_2f_140/collision/robotiq_2f_140_right_finger_pad.stl"/>
+    <mesh name="robotiq_2f_140_right_finger_body" file="robotiq_2f_140/collision/robotiq_2f_140_right_finger_body.stl"/>
+    <mesh name="robotiq_2f_140_right_inner_knuckle_col" file="robotiq_2f_140/collision/robotiq_2f_140_right_inner_knuckle.stl"/>
+  </asset>
+
+  <default>
+    <default class="rq140">
+      <default class="rq140_visual">
+        <geom type="mesh" contype="0" conaffinity="0" group="2"/>
+      </default>
+      <default class="rq140_collision">
+        <geom type="mesh" group="3"/>
+        <default class="rq140_pad">
+          <geom priority="1" solref="0.004 1" solimp="0.95 0.99 0.001 0.5 2"/>
+        </default>
+      </default>
+      <default class="rq140_jnt">
+        <joint range="0.0038593285902723817 0.7665940156296729" armature="0.02" damping="0.1" frictionloss="0" solreflimit="0.005 1"/>
+      </default>
+    </default>
+  </default>
+
+  <worldbody>
+    <body name="robotiq_2f_140_base_link" pos="0 0 0.29" quat="0 1 0 0" childclass="rq140">
+      <inertial pos="0 0 0.03145" mass="0.511654" fullinertia="0.00045186466 0.000402781835 0.000304435485 -6.0109124e-21 0 0"/>
+      <geom class="rq140_visual" mesh="robotiq_2f_140_base_dark_vis" material="robotiq_dark_metal"/>
+      <geom class="rq140_visual" mesh="robotiq_2f_140_base_silver_vis" material="robotiq_silver"/>
+      <geom class="rq140_collision" mesh="robotiq_2f_140_base_col_00"/>
+
+      <!-- Left finger chain -->
+      <body name="robotiq_2f_140_left_outer_knuckle" pos="0 0.030601 0.054663">
+        <inertial pos="-2.68e-06 0.04357638 0.02633231" mass="0.086227" fullinertia="6.64688691e-05 5.40415039e-05 2.44819983e-05 6.06033761e-10 8.56259119e-10 -2.78519659e-05"/>
+        <joint name="robotiq_2f_140_drive_joint" axis="1 0 0" class="rq140_jnt"/>
+        <geom class="rq140_visual" mesh="robotiq_2f_140_left_outer_knuckle_silver_vis" material="robotiq_silver"/>
+        <geom class="rq140_visual" mesh="robotiq_2f_140_left_outer_knuckle_dark_vis" material="robotiq_black"/>
+        <geom class="rq140_collision" mesh="robotiq_2f_140_left_outer_knuckle_col_0"/>
+        <geom class="rq140_collision" mesh="robotiq_2f_140_left_outer_finger_col_1"/>
+        <body name="robotiq_2f_140_left_finger" pos="0 0.066855 0.074366">
+          <inertial pos="5.5e-07 -0.01667953 0.03894517" mass="0.089834" fullinertia="3.8101843e-05 4.04906481e-05 7.44695497e-06 5.74065035e-09 -9.49924727e-09 3.92615878e-06"/>
+          <joint name="robotiq_2f_140_left_finger_joint" axis="-1 0 0" class="rq140_jnt"/>
+          <geom class="rq140_visual" mesh="robotiq_2f_140_left_finger_dark_vis" material="robotiq_black"/>
+          <geom class="rq140_visual" mesh="robotiq_2f_140_left_finger_silver_vis" material="robotiq_silver"/>
+          <geom class="rq140_pad" mesh="robotiq_2f_140_left_finger_pad"/>
+          <geom class="rq140_collision" mesh="robotiq_2f_140_left_finger_body"/>
+        </body>
+      </body>
+      <body name="robotiq_2f_140_left_inner_knuckle" pos="0 0.0127 0.061178">
+        <inertial pos="0 0.035558 0.039592" mass="0.068112" fullinertia="4.53847e-05 3.28597e-05 2.55428e-05 -5.08846e-08 1.15833e-08 -2.15828e-05"/>
+        <joint name="robotiq_2f_140_left_inner_knuckle_joint" axis="1 0 0" class="rq140_jnt"/>
+        <geom class="rq140_visual" mesh="robotiq_2f_140_left_inner_knuckle_vis" material="robotiq_black"/>
+        <geom class="rq140_collision" mesh="robotiq_2f_140_left_inner_knuckle_col"/>
+      </body>
+
+      <!-- Right finger chain -->
+      <body name="robotiq_2f_140_right_outer_knuckle" pos="0 -0.030601 0.054663">
+        <inertial pos="-2.68e-06 -0.04357638 0.02633231" mass="0.086227" fullinertia="6.64688691e-05 5.40415039e-05 2.44819983e-05 -6.06033761e-10 8.56259119e-10 2.78519659e-05"/>
+        <joint name="robotiq_2f_140_right_outer_knuckle_joint" axis="-1 0 0" class="rq140_jnt"/>
+        <geom class="rq140_visual" mesh="robotiq_2f_140_right_outer_knuckle_silver_vis" material="robotiq_silver"/>
+        <geom class="rq140_visual" mesh="robotiq_2f_140_right_outer_knuckle_dark_vis" material="robotiq_black"/>
+        <geom class="rq140_collision" mesh="robotiq_2f_140_right_outer_knuckle_col_0"/>
+        <geom class="rq140_collision" mesh="robotiq_2f_140_right_outer_finger_col_1"/>
+        <body name="robotiq_2f_140_right_finger" pos="0 -0.066855 0.074366">
+          <inertial pos="5.5e-07 0.01667953 0.03894517" mass="0.089834" fullinertia="3.8101843e-05 4.04906481e-05 7.44695497e-06 -5.74065035e-09 -9.49924727e-09 -3.92615878e-06"/>
+          <joint name="robotiq_2f_140_right_finger_joint" axis="1 0 0" class="rq140_jnt"/>
+          <geom class="rq140_visual" mesh="robotiq_2f_140_right_finger_dark_vis" material="robotiq_black"/>
+          <geom class="rq140_visual" mesh="robotiq_2f_140_right_finger_silver_vis" material="robotiq_silver"/>
+          <geom class="rq140_pad" mesh="robotiq_2f_140_right_finger_pad"/>
+          <geom class="rq140_collision" mesh="robotiq_2f_140_right_finger_body"/>
+        </body>
+      </body>
+      <body name="robotiq_2f_140_right_inner_knuckle" pos="0 -0.0127 0.061178">
+        <inertial pos="0 -0.035558 0.039592" mass="0.068112" fullinertia="4.53847e-05 3.28597e-05 2.55428e-05 5.08846e-08 1.15833e-08 2.15828e-05"/>
+        <joint name="robotiq_2f_140_right_inner_knuckle_joint" axis="-1 0 0" class="rq140_jnt"/>
+        <geom class="rq140_visual" mesh="robotiq_2f_140_right_inner_knuckle_vis" material="robotiq_black"/>
+        <geom class="rq140_collision" mesh="robotiq_2f_140_right_inner_knuckle_col"/>
+      </body>
+
+      <site name="link_tcp" pos="0 0 0.234466"/>
+    </body>
+  </worldbody>
+
+  <contact>
+    <exclude body1="robotiq_2f_140_base_link" body2="robotiq_2f_140_left_outer_knuckle"/>
+    <exclude body1="robotiq_2f_140_base_link" body2="robotiq_2f_140_left_inner_knuckle"/>
+    <exclude body1="robotiq_2f_140_base_link" body2="robotiq_2f_140_right_outer_knuckle"/>
+    <exclude body1="robotiq_2f_140_base_link" body2="robotiq_2f_140_right_inner_knuckle"/>
+    <exclude body1="robotiq_2f_140_left_inner_knuckle" body2="robotiq_2f_140_left_outer_knuckle"/>
+    <exclude body1="robotiq_2f_140_left_inner_knuckle" body2="robotiq_2f_140_left_finger"/>
+    <exclude body1="robotiq_2f_140_right_inner_knuckle" body2="robotiq_2f_140_right_outer_knuckle"/>
+    <exclude body1="robotiq_2f_140_right_inner_knuckle" body2="robotiq_2f_140_right_finger"/>
+  </contact>
+
+  <!-- Stiff couplings keep the pads parallel under the full pinch force. -->
+  <equality>
+    <joint joint1="robotiq_2f_140_drive_joint" joint2="robotiq_2f_140_left_finger_joint" polycoef="0 1 0 0 0" solref="0.004 1" solimp="0.9999 0.9999 0.001 0.5 2"/>
+    <joint joint1="robotiq_2f_140_drive_joint" joint2="robotiq_2f_140_left_inner_knuckle_joint" polycoef="0 1 0 0 0" solref="0.004 1" solimp="0.9999 0.9999 0.001 0.5 2"/>
+    <joint joint1="robotiq_2f_140_drive_joint" joint2="robotiq_2f_140_right_outer_knuckle_joint" polycoef="0 1 0 0 0" solref="0.004 1" solimp="0.9999 0.9999 0.001 0.5 2"/>
+    <joint joint1="robotiq_2f_140_drive_joint" joint2="robotiq_2f_140_right_finger_joint" polycoef="0 1 0 0 0" solref="0.004 1" solimp="0.9999 0.9999 0.001 0.5 2"/>
+    <joint joint1="robotiq_2f_140_drive_joint" joint2="robotiq_2f_140_right_inner_knuckle_joint" polycoef="0 1 0 0 0" solref="0.004 1" solimp="0.9999 0.9999 0.001 0.5 2"/>
+  </equality>
+
+  <actuator>
+    <position name="robotiq_2f_140_motor" joint="robotiq_2f_140_drive_joint" kp="120" kv="10" forcerange="-23.721543379318 23.721543379318" ctrlrange="0.0038593285902723817 0.7665940156296729"/>
+  </actuator>
+
+  <keyframe>
+    <key name="open" qpos="0.0038593285902723817 0.0038593285902723817 0.0038593285902723817 0.0038593285902723817 0.0038593285902723817 0.0038593285902723817" ctrl="0.0038593285902723817"/>
+    <key name="close" qpos="0.7665940156296729 0.7665940156296729 0.7665940156296729 0.7665940156296729 0.7665940156296729 0.7665940156296729" ctrl="0.7665940156296729"/>
+  </keyframe>
+</mujoco>

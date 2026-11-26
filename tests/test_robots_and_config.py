@@ -49,9 +49,10 @@ class ArmRegistryTests(unittest.TestCase):
             self.assertGreaterEqual(mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, "attachment_site"), 0)
 
     def test_incompatible_gripper(self):
-        with self.assertRaises(ConfigError) as caught:
-            resolve_arm_scene("lite6", "gripper_g2", "scene")
-        self.assertIn("does not support", str(caught.exception))
+        for unsupported in ("gripper_g2", "robotiq_2f_85", "robotiq_2f_140"):
+            with self.assertRaises(ConfigError) as caught:
+                resolve_arm_scene("lite6", unsupported, "scene")
+            self.assertIn("does not support", str(caught.exception))
         for ft_combo in ("ft_sensor", "ft_sensor_and_gripper", "ft_sensor_and_vacuum_gripper"):
             with self.assertRaises(ConfigError) as ft_caught:
                 resolve_arm_scene("lite6", ft_combo, "scene")

@@ -11,7 +11,7 @@
 | `01_load_and_view.py` | 在视窗中查看任意模型 | 全部 |
 | `02_joint_control.py` | 五次多项式关节运动；裸臂 `xarm6` 运行动力学校验的 20 个姿态 | 含机械臂的模型 |
 | `03_cartesian_ik.py` | 用 DLS 逆解跟踪直线和圆 | `xarm6` |
-| `04_gripper_control.py` | 闭合、张开、半开；Gripper G2 与 Bio Gripper G2 支持 `--speed-percent` 和 `--force-percent` | 带可动夹爪的模型 |
+| `04_gripper_control.py` | 闭合、张开、半开；Gripper G2、Bio Gripper G2 与 Robotiq 2F-85/2F-140 支持 `--speed-percent` 和 `--force-percent` | 带可动夹爪的模型 |
 | `05_pick_place.py` | 带预检的方块抓放 | `--robot`，五款机械臂 |
 | `06_trajectory_planning.py` | 点到点五次多项式、C2 样条、笛卡尔直线、前馈力矩 | `xarm6` |
 | `07_kinematics.py` | 正运动学、雅可比与有限差分对照、速度级逆解、可操作度 | `xarm6` |
@@ -45,17 +45,17 @@ python examples/simulation/11_force_torque_sensor.py --model xarm6_with_ft_senso
 
 | 机械臂 | `<部件>` |
 | :--- | :--- |
-| `xarm5`、`xarm6`、`xarm7`、`uf850` | `gripper`（Gripper G2）、`bio_gripper`、`vacuum_gripper`、`d435`、`gripper_and_d435`、`ft_sensor`、`ft_sensor_and_gripper`、`ft_sensor_and_vacuum_gripper`、`base_plate` |
-| 仅 `xarm6` | `gripper_and_d405`、`gripper_and_gemini_305`、`gripper_and_zed_x_nano` |
+| `xarm5`、`xarm6`、`xarm7`、`uf850` | `gripper`（Gripper G2）、`bio_gripper`、`robotiq_2f_85`、`robotiq_2f_140`、`vacuum_gripper`、`d435`、`gripper_and_d435`、`ft_sensor`、`ft_sensor_and_gripper`、`ft_sensor_and_vacuum_gripper`、`base_plate` |
+| 仅 `xarm6` | `gripper_and_d405`、`gripper_and_gemini_305`、`gripper_and_zed_x_nano`、`robotiq_2f_85_and_d435`、`robotiq_2f_140_and_d435` |
 | `lite6` | `gripper`（Lite 6 夹爪）、`vacuum_gripper`、`d435`、`gripper_and_d435`、`base_plate` |
 
-独立部件可以在 `01` 中查看：夹爪 `gripper_g2`、`bio_gripper_g2`、`lite6_gripper`、`vacuum_gripper`、`lite6_vacuum_gripper`；相机 `d405`、`d435`、`gemini_305`、`zed_x_nano`；`camera_stand` 与 `camera_stand_with_<相机>`；`ft_sensor`；安装底板 `xarm_base_plate`、`uf850_base_plate`、`lite6_base_plate`。`04` 还支持三款独立的可动夹爪，`11` 还支持 `ft_sensor`。脚本遇到不支持的模型时以退出码 `2` 退出。
+独立部件可以在 `01` 中查看：夹爪 `gripper_g2`、`bio_gripper_g2`、`robotiq_2f_85`、`robotiq_2f_140`、`lite6_gripper`、`vacuum_gripper`、`lite6_vacuum_gripper`；`robotiq_mounting`（11 mm xArm 转 Robotiq 法兰转接板）；相机 `d405`、`d435`、`gemini_305`、`zed_x_nano`；`camera_stand` 与 `camera_stand_with_<相机>`；`ft_sensor`；安装底板 `xarm_base_plate`、`uf850_base_plate`、`lite6_base_plate`。`04` 还支持五款独立的可动夹爪，`11` 还支持 `ft_sensor`。脚本遇到不支持的模型时以退出码 `2` 退出。
 
 ## 起始姿态
 
 - `home`：所有模型都是关节全零。
 - `ready`：工具竖直朝下。装有工具、相机或力矩传感器的 xArm 与 UF850 模型，`ready` 让 Gripper G2 的 TCP 位于 `(300, 0, 300)` mm，其他工具沿用同一组关节角。Lite 6 模型用出厂位姿 `[0, 9.9, 31.8, 0, 21.9, 0]°`。xArm 与 UF850 裸臂（包括装了底板的）的 `ready` 仍是全零。
-- 装有工具、相机或力矩传感器的 xArm 5/6/7 模型另有 `init`，与 `ready` 相同，因为在全零姿态下其中很多工具会伸到地面以下。
+- 在全零姿态下会伸到地面以下的工具组合（装有工具、相机或力矩传感器的 xArm 5/6/7 模型，以及配 `robotiq_2f_140` 的 `uf850`）另有 `init`，与 `ready` 相同。
 - 示例在模型有 `init` 时从 `init` 起步，否则从 `home` 起步；`01 --pose` 可以选其他关键帧。`05` 与 `10` 让每款机械臂的 TCP 从 `(300, 0, 300)` mm 竖直朝下起步。在 `05` 中这个位置正好在方块上方，五款机械臂都把方块从 `(300, 0)` 搬到 `(300, 300)` mm。
 - 独立的可动夹爪有 `open` 与 `close` 关键帧，其他独立部件没有关键帧。
 

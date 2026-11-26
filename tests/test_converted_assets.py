@@ -37,7 +37,7 @@ FLAT_NORMAL_DOT = 0.8
 FLAT_AREA_MAX = 0.005
 
 # Thin-walled visual OBJs carrying reversed twin faces; MJCF must load with inertia="shell".
-DOUBLE_SIDED_COUNT = 47
+DOUBLE_SIDED_COUNT = 73
 
 
 def _is_double_sided(path: Path) -> bool:
@@ -104,6 +104,9 @@ EXPECTED_TARGETS = {
     "lite6_gripper": {"min_objs": 7, "min_stls": 1},
     "lite6_vacuum_gripper": {"min_objs": 1, "min_stls": 1},
     "vacuum_gripper": {"min_objs": 3, "min_stls": 33},
+    "robotiq_mounting": {"min_objs": 1, "min_stls": 2},
+    "robotiq_2f_85": {"min_objs": 14, "min_stls": 11},
+    "robotiq_2f_140": {"min_objs": 12, "min_stls": 11},
 }
 
 

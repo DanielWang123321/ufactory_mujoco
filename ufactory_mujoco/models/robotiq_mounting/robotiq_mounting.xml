@@ -1,0 +1,36 @@
+<mujoco model="robotiq_mounting">
+  <!-- UFACTORY 11 mm xArm-to-Robotiq flange adapter (OD 75 mm, 0.118 kg measured mass). -->
+  <compiler angle="radian" autolimits="true" meshdir="assets"/>
+
+  <option integrator="implicitfast"/>
+
+  <asset>
+    <material name="robotiq_mounting_aluminum" rgba="0.60 0.62 0.64 1" specular="0.72" shininess="0.16" reflectance="0.03" metallic="0.8" roughness="0.64"/>
+
+    <mesh name="robotiq_mounting_vis" file="robotiq_mounting/visual/robotiq_mounting.obj"/>
+    <mesh name="robotiq_mounting_col_00" file="robotiq_mounting/collision/robotiq_mounting_col_00.stl"/>
+    <mesh name="robotiq_mounting_col_01" file="robotiq_mounting/collision/robotiq_mounting_col_01.stl"/>
+  </asset>
+
+  <worldbody>
+    <body name="robotiq_mounting" pos="0 0 0.0056">
+      <inertial pos="0 -0.0007996449433 0.004455899167" mass="0.118" fullinertia="4.427070717e-05 4.997953153e-05 9.018403314e-05 0 0 7.208106518e-08"/>
+      <geom name="robotiq_mounting_visual" type="mesh" mesh="robotiq_mounting_vis" material="robotiq_mounting_aluminum" contype="0" conaffinity="0" group="2"/>
+      <geom name="robotiq_mounting_col_00" type="mesh" mesh="robotiq_mounting_col_00" group="3"/>
+      <geom name="robotiq_mounting_col_01" type="mesh" mesh="robotiq_mounting_col_01" group="3"/>
+
+      <site name="robotiq_mounting_flange_mount" pos="0 0 0" size="0.002" group="4"/>
+      <site name="robotiq_mounting_tool_mount" pos="0 0 0.011" size="0.002" group="4"/>
+      <site name="robotiq_mounting_xarm_pin" pos="0 -0.025 0" size="0.002" group="4"/>
+      <site name="robotiq_mounting_robotiq_pin" pos="0 -0.0305 0.011" size="0.002" group="4"/>
+      <site name="robotiq_mounting_xarm_hole_0" pos="0.01767766953 0.01767766953 0" size="0.002" group="4"/>
+      <site name="robotiq_mounting_xarm_hole_1" pos="-0.01767766953 0.01767766953 0" size="0.002" group="4"/>
+      <site name="robotiq_mounting_xarm_hole_2" pos="-0.01767766953 -0.01767766953 0" size="0.002" group="4"/>
+      <site name="robotiq_mounting_xarm_hole_3" pos="0.01767766953 -0.01767766953 0" size="0.002" group="4"/>
+      <site name="robotiq_mounting_robotiq_hole_0" pos="0.016 0.027 0.011" size="0.002" group="4"/>
+      <site name="robotiq_mounting_robotiq_hole_1" pos="-0.016 0.027 0.011" size="0.002" group="4"/>
+      <site name="robotiq_mounting_robotiq_hole_2" pos="-0.016 -0.027 0.011" size="0.002" group="4"/>
+      <site name="robotiq_mounting_robotiq_hole_3" pos="0.016 -0.027 0.011" size="0.002" group="4"/>
+    </body>
+  </worldbody>
+</mujoco>

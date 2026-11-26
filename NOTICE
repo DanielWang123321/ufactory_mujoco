@@ -55,7 +55,19 @@ licenses/ (and in the .dist-info/licenses/ directory of installed distributions)
      plates; hole-filled convex collision prism STLs and static MJCF definitions
      are authored in this project for visual and mounting-clearance simulation.
 
+7. Robotiq 2F-85, 2F-140, and Flange Adapter Models (ufactory_mujoco/models/{robotiq_mounting,robotiq_2f_85,robotiq_2f_140} and composed *_with_robotiq_2f_* assemblies)
+   - Robotiq 2F-85 and 2F-140 visual meshes, collision hulls, kinematics, and
+     link inertials are derived from PickNik Robotics' Robotiq/robotiq-ros
+     (https://github.com/Robotiq/robotiq-ros, commit
+     49167c4f44a1da2b564715fba3e729c8ce958b63), licensed under the BSD 3-Clause
+     License (Copyright (c) 2022, PickNik Robotics; see
+     licenses/robotiq_ros.LICENSE), via ufactory_genesis.
+   - The UFACTORY 11 mm robotiq_mounting xArm-to-Robotiq flange adapter mesh,
+     collision hulls, CAD sites, and measured inertial parameters (0.118 kg)
+     are derived from ufactory_genesis for visual and mounting simulation.
+
 Trademarks: xArm, UF850, Lite 6 and UFACTORY are trademarks of UFACTORY;
 RealSense is a trademark of Intel Corporation; Orbbec and Gemini are trademarks
-of Orbbec Inc.; Stereolabs and ZED are trademarks of Stereolabs Inc. Their use
-here describes hardware compatibility only and does not imply endorsement.
+of Orbbec Inc.; Stereolabs and ZED are trademarks of Stereolabs Inc.; Robotiq
+is a trademark of Robotiq Inc. Their use here describes hardware compatibility
+only and does not imply endorsement.

@@ -38,8 +38,16 @@ from .grippers import (
     identify_gripper,
     measured_bio_g2_gap_m,
     measured_g2_pad_gap_mm,
+    measured_robotiq_pad_gap_mm,
     position_to_gap,
     require_bilateral_contact,
+)
+from .robotiq import (
+    ROBOTIQ_ADAPTERS,
+    RobotiqController,
+    RobotiqModel,
+    robotiq_gap_m_to_sim_drive,
+    robotiq_sim_drive_to_gap_m,
 )
 from .kinematics import manipulability, solve_ik_trajectory, solve_joint_velocity
 from .compose import initial_keyframe, load_model
@@ -149,6 +157,11 @@ class SimRobot(RobotInterface):
         self._bio_g2_adapter: MuJoCoBioG2Adapter | None = None
         self._bio_g2_controller: BioGripperG2Controller | None = None
         self._bio_g2_last_output: BioG2ControlOutput | None = None
+        self._robotiq_model: RobotiqModel | None = None
+        self._robotiq_controller: RobotiqController | None = None
+        self._robotiq_driver_qpos_adr: int | None = None
+        self._robotiq_driver_dof_adr: int | None = None
+        self._robotiq_last_output: ControlOutput | None = None
         self._last_active_gripper_speed_percent: float = 100.0
         self._step_hooks: list[Callable[[], None]] = []
 
@@ -217,6 +230,28 @@ class SimRobot(RobotInterface):
             self._bio_g2_controller = BioGripperG2Controller(self._bio_g2_adapter)
             self._bio_g2_controller.reset(init_gap_mm)
             self._bio_g2_controller.command(init_gap_mm, speed_percent=100.0, force_percent=100.0)
+        elif (
+            self._gripper_spec is not None
+            and self._gripper_spec.name in ROBOTIQ_ADAPTERS
+            and self._gripper_actuator_id is not None
+        ):
+            variant = self._gripper_spec.name
+            drv_jnt = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, f"{variant}_drive_joint")
+            if drv_jnt >= 0:
+                self._robotiq_driver_qpos_adr = int(self.model.jnt_qposadr[drv_jnt])
+                self._robotiq_driver_dof_adr = int(self.model.jnt_dofadr[drv_jnt])
+                # Allow RobotiqController's integral preload + velocity feedforward bias beyond nominal range.
+                self.model.actuator_ctrllimited[self._gripper_actuator_id] = 0
+                init_q = float(self.data.qpos[self._robotiq_driver_qpos_adr])
+                init_gap_mm = robotiq_sim_drive_to_gap_m(variant, init_q) * 1000.0
+                self._robotiq_model = RobotiqModel.load(variant)
+                self._robotiq_controller = RobotiqController(self._robotiq_model, initial_position_mm=init_gap_mm)
+                self._robotiq_controller.command(init_gap_mm, speed_percent=100.0, force_percent=100.0)
+                limit = float(self._robotiq_controller.torque_limit_nm[0])
+                self.model.actuator_forcerange[self._gripper_actuator_id] = (-limit, limit)
+                self.data.ctrl[self._gripper_actuator_id] = robotiq_gap_m_to_sim_drive(
+                    variant, init_gap_mm / 1000.0
+                )
 
         mujoco.mj_forward(self.model, self.data)
         self._ft_sensor: AI1500Reader | None = None
@@ -308,6 +343,24 @@ class SimRobot(RobotInterface):
                 self._viewer.sync()
                 self._last_viewer_sync = time.monotonic()
 
+    def _apply_4bar_controller(
+        self,
+        controller: G2Controller | RobotiqController,
+        q_adr: int,
+        v_adr: int,
+        measured_gap_mm: float,
+    ) -> ControlOutput:
+        assert self._gripper_actuator_id is not None
+        q_drv = float(self.data.qpos[q_adr])
+        v_drv = float(self.data.qvel[v_adr])
+        dt = float(self.model.opt.timestep)
+        output = controller.update(q_drv, v_drv, dt, measured_gap_mm=measured_gap_mm)
+        limit = float(output.torque_limit_nm[0])
+        self.model.actuator_forcerange[self._gripper_actuator_id] = (-limit, limit)
+        vel_bias = (controller.kv / controller.kp) * float(output.velocity_rad_s[0])
+        self.data.ctrl[self._gripper_actuator_id] = float(output.position_rad[0]) + vel_bias
+        return output
+
     def _step(self) -> None:
         """One physics step with gravity-compensation feedforward (like real
         xArm position mode, which has model-based compensation built in)."""
@@ -318,18 +371,25 @@ class SimRobot(RobotInterface):
             and self._g2_driver_qpos_adr is not None
             and self._g2_driver_dof_adr is not None
         ):
-            q_drv = float(self.data.qpos[self._g2_driver_qpos_adr])
-            v_drv = float(self.data.qvel[self._g2_driver_dof_adr])
-            meas_gap_mm = measured_g2_pad_gap_mm(self.model, self.data)
-            dt = float(self.model.opt.timestep)
-            output = self._g2_controller.update(
-                q_drv, v_drv, dt, measured_gap_mm=meas_gap_mm
+            self._g2_last_output = self._apply_4bar_controller(
+                self._g2_controller,
+                self._g2_driver_qpos_adr,
+                self._g2_driver_dof_adr,
+                measured_g2_pad_gap_mm(self.model, self.data),
             )
-            self._g2_last_output = output
-            limit = float(output.torque_limit_nm[0])
-            self.model.actuator_forcerange[self._gripper_actuator_id] = (-limit, limit)
-            vel_bias = (self._g2_controller.kv / self._g2_controller.kp) * float(output.velocity_rad_s[0])
-            self.data.ctrl[self._gripper_actuator_id] = float(output.position_rad[0]) + vel_bias
+        elif (
+            self._robotiq_controller is not None
+            and self._gripper_actuator_id is not None
+            and self._robotiq_driver_qpos_adr is not None
+            and self._robotiq_driver_dof_adr is not None
+            and self._gripper_spec is not None
+        ):
+            self._robotiq_last_output = self._apply_4bar_controller(
+                self._robotiq_controller,
+                self._robotiq_driver_qpos_adr,
+                self._robotiq_driver_dof_adr,
+                measured_robotiq_pad_gap_mm(self.model, self.data, self._gripper_spec.name),
+            )
         elif self._bio_g2_controller is not None:
             dt = float(self.model.opt.timestep)
             self._bio_g2_last_output = self._bio_g2_controller.apply(dt)
@@ -560,6 +620,11 @@ class SimRobot(RobotInterface):
         """Calibrated Bio Gripper G2 controller instance when Bio Gripper G2 is mounted."""
         return self._bio_g2_controller
 
+    @property
+    def robotiq_controller(self) -> RobotiqController | None:
+        """Calibrated Robotiq 2F-85 / 2F-140 controller instance when mounted."""
+        return self._robotiq_controller
+
     # -- force/torque sensor -----------------------------------------------
     @property
     def has_ft_sensor(self) -> bool:
@@ -610,9 +675,11 @@ class SimRobot(RobotInterface):
 
     @property
     def gripper_control_output(self) -> ControlOutput | BioG2ControlOutput | None:
-        """Most recent control output from the calibrated Gripper G2 or Bio Gripper G2 controller."""
+        """Most recent control output from the calibrated G2, Bio G2, or Robotiq controller."""
         if self._g2_last_output is not None:
             return self._g2_last_output
+        if self._robotiq_last_output is not None:
+            return self._robotiq_last_output
         return self._bio_g2_last_output
 
     @property
@@ -640,7 +707,11 @@ class SimRobot(RobotInterface):
         """Current gripper target (0.0 = fully open, 1.0 = fully closed)."""
         if not self.has_gripper:
             raise NotImplementedError("This robot has no gripper")
-        if (self._g2_controller is not None or self._bio_g2_controller is not None) and self._gripper_spec is not None:
+        if (
+            self._g2_controller is not None
+            or self._bio_g2_controller is not None
+            or self._robotiq_controller is not None
+        ) and self._gripper_spec is not None:
             return gap_to_position(self._gripper_spec, self.get_gripper_gap())
         ctrl = self.data.ctrl[self._gripper_actuator_id]
         span = self._gripper_close_ctrl - self._gripper_open_ctrl
@@ -690,7 +761,11 @@ class SimRobot(RobotInterface):
         if not math.isfinite(pos_f):
             raise ValueError(f"gripper position must be finite, got {pos!r}")
         pos_clamped = float(np.clip(pos_f, 0.0, 1.0))
-        if (self._g2_controller is not None or self._bio_g2_controller is not None) and self._gripper_spec is not None:
+        if (
+            self._g2_controller is not None
+            or self._bio_g2_controller is not None
+            or self._robotiq_controller is not None
+        ) and self._gripper_spec is not None:
             gap_m = position_to_gap(self._gripper_spec, pos_clamped)
             self.set_gripper_gap(gap_m, speed_percent=speed_percent, force_percent=force_percent)
             return
@@ -708,6 +783,8 @@ class SimRobot(RobotInterface):
             return self._measured_gripper_gap(spec)
         if self._g2_controller is not None:
             return float(self._g2_controller.position_mm[0] / 1000.0)
+        if self._robotiq_controller is not None:
+            return float(self._robotiq_controller.position_mm[0] / 1000.0)
         if self._bio_g2_controller is not None:
             return float(self._bio_g2_controller.position_mm / 1000.0)
         return position_to_gap(spec, self.get_gripper_position())
@@ -715,6 +792,8 @@ class SimRobot(RobotInterface):
     def _measured_gripper_gap(self, spec: GripperSpec) -> float:
         if self._g2_controller is not None:
             return measured_g2_pad_gap_mm(self.model, self.data) / 1000.0
+        if self._robotiq_controller is not None:
+            return measured_robotiq_pad_gap_mm(self.model, self.data, spec.name) / 1000.0
         if self._bio_g2_controller is not None or spec.name == "bio_gripper_g2":
             return measured_bio_g2_gap_m(self.model, self.data)
         drive_qpos = float(self.data.qpos[self._n_arm_qpos])
@@ -762,6 +841,18 @@ class SimRobot(RobotInterface):
             self.model.actuator_forcerange[self._gripper_actuator_id] = (-limit, limit)
             self.data.ctrl[self._gripper_actuator_id] = gripper_g2_gap_m_to_sim_drive(gap_f)
             return
+        if self._robotiq_controller is not None and self._gripper_actuator_id is not None:
+            spd, frc = self._resolve_gripper_speed_force(
+                float(self._robotiq_controller.speed_percent[0]),
+                float(self._robotiq_controller.force_percent[0]),
+                speed_percent,
+                force_percent,
+            )
+            self._robotiq_controller.command(gap_f * 1000.0, speed_percent=spd, force_percent=frc)
+            limit = float(self._robotiq_controller.torque_limit_nm[0])
+            self.model.actuator_forcerange[self._gripper_actuator_id] = (-limit, limit)
+            self.data.ctrl[self._gripper_actuator_id] = robotiq_gap_m_to_sim_drive(spec.name, gap_f)
+            return
         if self._bio_g2_controller is not None:
             spd, frc = self._resolve_gripper_speed_force(
                 float(self._bio_g2_controller.speed_percent),
@@ -798,6 +889,14 @@ class SimRobot(RobotInterface):
             if spd_mm_s <= 0.0:
                 return 0.5
             travel_mm = abs(float(self._g2_controller.position_mm[0] - self._g2_controller.reference_gap_mm[0]))
+            return max(0.5, travel_mm / spd_mm_s + 0.12)
+        if self._robotiq_controller is not None:
+            spd_mm_s = float(self._robotiq_controller.requested_speed_mm_s[0])
+            if spd_mm_s <= 0.0:
+                return 0.5
+            travel_mm = abs(
+                float(self._robotiq_controller.position_mm[0] - self._robotiq_controller.reference_gap_mm[0])
+            )
             return max(0.5, travel_mm / spd_mm_s + 0.12)
         if self._bio_g2_controller is not None:
             if self._bio_g2_controller.paused or self._bio_g2_controller.speed_mm_s <= 0.0:

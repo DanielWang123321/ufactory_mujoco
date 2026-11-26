@@ -45,6 +45,7 @@ from .kinematics import (
 )
 from .planning import CollisionChecker, PlanningError, plan_collision_free, shortcut_path
 from .robot_interface import RobotInterface
+from .robotiq import RobotiqController
 from .robots import ARMS, MODELS_ROOT, SCENES, ArmSpec
 from .safety import MotionApproval, SafetyGateError
 from .sim_robot import SimRobot
@@ -111,6 +112,7 @@ __all__ = [
     # grippers
     "G2Controller",
     "BioGripperG2Controller",
+    "RobotiqController",
     "GripperSpec",
     "identify_gripper",
     "GraspError",

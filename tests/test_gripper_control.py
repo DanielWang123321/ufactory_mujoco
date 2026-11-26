@@ -24,6 +24,8 @@ class GripperControlTest(unittest.TestCase):
         scenes = {
             "xarm6_with_gripper": (0.0, 0.022, 0.084),
             "xarm6_with_bio_gripper": (0.071, 0.1105, 0.150),
+            "xarm6_with_robotiq_2f_85": (0.0, 0.0425, 0.085),
+            "xarm6_with_robotiq_2f_140": (0.0, 0.070, 0.140),
             "lite6_with_gripper": (0.020, 0.029, 0.038),
         }
         for name, (closed_gap, mid_gap, open_gap) in scenes.items():
@@ -236,6 +238,8 @@ class GripperControlTest(unittest.TestCase):
         for model_name, closed_gap_m, open_gap_m in (
             ("xarm6_with_gripper", 0.0, 0.084),
             ("xarm6_with_bio_gripper", 0.071, 0.150),
+            ("xarm6_with_robotiq_2f_85", 0.0, 0.085),
+            ("xarm6_with_robotiq_2f_140", 0.0, 0.140),
         ):
             with self.subTest(model=model_name):
                 with SimRobot(resolve_model_path(model_name), viewer=False) as robot:

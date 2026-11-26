@@ -1,7 +1,7 @@
 """Jaw and vacuum gripper specs recognized from MJCF body names.
 
 Includes calibrated 4-bar linkage geometry conversions and contact-force helpers
-for Gripper G2 and Bio Gripper G2.
+for Gripper G2, Bio Gripper G2, and Robotiq 2F-85 / 2F-140.
 """
 
 from __future__ import annotations
@@ -26,11 +26,28 @@ from .g2 import (
     G2LinkageGeometry,
     gripper_g2_sim_drive_to_gap_m,
 )
+from .robotiq import (
+    ROBOTIQ_2F_85_OPEN_GAP_M,
+    ROBOTIQ_2F_85_SIM_CLOSE_DRIVE,
+    ROBOTIQ_2F_85_SIM_OPEN_DRIVE,
+    ROBOTIQ_2F_140_OPEN_GAP_M,
+    ROBOTIQ_2F_140_SIM_CLOSE_DRIVE,
+    ROBOTIQ_2F_140_SIM_OPEN_DRIVE,
+    ROBOTIQ_ADAPTERS,
+    get_robotiq_spec,
+    robotiq_sim_drive_to_gap_m,
+)
 
 _CONTACT_DIST_M = 1e-4
 
 # MJCF actuator names that drive a gripper (excluded from the arm joints).
-GRIPPER_ACTUATOR_NAMES = ("gripper", "gripper_motor", "finger_actuator")
+GRIPPER_ACTUATOR_NAMES = (
+    "gripper",
+    "gripper_motor",
+    "finger_actuator",
+    "robotiq_2f_85_motor",
+    "robotiq_2f_140_motor",
+)
 
 
 class GraspError(RuntimeError):
@@ -78,6 +95,24 @@ _JAWS = (
         open_gap_m=0.038,
         closed_gap_m=0.020,
         drive_range_rad=(0.0089, 0.0),
+    ),
+    GripperSpec(
+        "jaw",
+        "robotiq_2f_85",
+        "robotiq_2f_85_left_finger",
+        "robotiq_2f_85_right_finger",
+        open_gap_m=ROBOTIQ_2F_85_OPEN_GAP_M,
+        closed_gap_m=0.0,
+        drive_range_rad=(ROBOTIQ_2F_85_SIM_OPEN_DRIVE, ROBOTIQ_2F_85_SIM_CLOSE_DRIVE),
+    ),
+    GripperSpec(
+        "jaw",
+        "robotiq_2f_140",
+        "robotiq_2f_140_left_finger",
+        "robotiq_2f_140_right_finger",
+        open_gap_m=ROBOTIQ_2F_140_OPEN_GAP_M,
+        closed_gap_m=0.0,
+        drive_range_rad=(ROBOTIQ_2F_140_SIM_OPEN_DRIVE, ROBOTIQ_2F_140_SIM_CLOSE_DRIVE),
     ),
 )
 _VACUUMS = (
@@ -142,6 +177,8 @@ def drive_to_gap(
         return gripper_g2_sim_drive_to_gap_m(float(drive_qpos))
     if spec.name == "bio_gripper_g2":
         return bio_g2_sim_drive_to_gap_m(float(drive_qpos))
+    if spec.name in ROBOTIQ_ADAPTERS:
+        return robotiq_sim_drive_to_gap_m(spec.name, float(drive_qpos))
     lo = spec.drive_range_rad[0] if open_ctrl is None else float(open_ctrl)
     hi = spec.drive_range_rad[1] if close_ctrl is None else float(close_ctrl)
     span = hi - lo
@@ -169,6 +206,43 @@ def _body_id(model: mujoco.MjModel, name: str) -> int:
     return body_id
 
 
+def _jaw_pad_centers(
+    model: mujoco.MjModel,
+    data: mujoco.MjData,
+    pad_inner_y_m: float,
+    pad_center_z_m: float,
+    left_body: str,
+    right_body: str,
+) -> tuple[np.ndarray, np.ndarray]:
+    """World-frame inner pad centers for a symmetric parallel-pad 4-bar jaw gripper."""
+    left_id = _body_id(model, left_body)
+    right_id = _body_id(model, right_body)
+    l_pos = np.asarray(data.body(left_id).xpos, dtype=float)
+    l_mat = np.asarray(data.body(left_id).xmat, dtype=float).reshape(3, 3)
+    r_pos = np.asarray(data.body(right_id).xpos, dtype=float)
+    r_mat = np.asarray(data.body(right_id).xmat, dtype=float).reshape(3, 3)
+    l_local = np.array([0.0, pad_inner_y_m, pad_center_z_m], dtype=float)
+    r_local = np.array([0.0, -pad_inner_y_m, pad_center_z_m], dtype=float)
+    return l_pos + l_mat @ l_local, r_pos + r_mat @ r_local
+
+
+def _measured_jaw_pad_gap_mm(
+    model: mujoco.MjModel,
+    data: mujoco.MjData,
+    pad_inner_y_m: float,
+    pad_center_z_m: float,
+    left_body: str,
+    right_body: str,
+) -> float:
+    left_center, right_center = _jaw_pad_centers(
+        model, data, pad_inner_y_m, pad_center_z_m, left_body, right_body
+    )
+    left_id = _body_id(model, left_body)
+    l_mat = np.asarray(data.body(left_id).xmat, dtype=float).reshape(3, 3)
+    normal = l_mat @ np.array([0.0, 1.0, 0.0], dtype=float)
+    return float(abs(np.dot(right_center - left_center, normal)) * 1000.0)
+
+
 def g2_pad_centers(
     model: mujoco.MjModel,
     data: mujoco.MjData,
@@ -178,15 +252,9 @@ def g2_pad_centers(
     right_body: str = "right_finger",
 ) -> tuple[np.ndarray, np.ndarray]:
     """World-frame inner pad centers of Gripper G2."""
-    left_id = _body_id(model, left_body)
-    right_id = _body_id(model, right_body)
-    l_pos = np.asarray(data.body(left_id).xpos, dtype=float)
-    l_mat = np.asarray(data.body(left_id).xmat, dtype=float).reshape(3, 3)
-    r_pos = np.asarray(data.body(right_id).xpos, dtype=float)
-    r_mat = np.asarray(data.body(right_id).xmat, dtype=float).reshape(3, 3)
-    l_local = np.array([0.0, geometry.pad_inner_y_m, geometry.pad_center_z_m], dtype=float)
-    r_local = np.array([0.0, -geometry.pad_inner_y_m, geometry.pad_center_z_m], dtype=float)
-    return l_pos + l_mat @ l_local, r_pos + r_mat @ r_local
+    return _jaw_pad_centers(
+        model, data, geometry.pad_inner_y_m, geometry.pad_center_z_m, left_body, right_body
+    )
 
 
 def measured_g2_pad_gap_mm(
@@ -198,13 +266,35 @@ def measured_g2_pad_gap_mm(
     right_body: str = "right_finger",
 ) -> float:
     """Actual pad separation (mm) along the Gripper G2 closing normal in world frame."""
-    left_center, right_center = g2_pad_centers(
-        model, data, geometry, left_body=left_body, right_body=right_body
+    return _measured_jaw_pad_gap_mm(
+        model, data, geometry.pad_inner_y_m, geometry.pad_center_z_m, left_body, right_body
     )
-    left_id = _body_id(model, left_body)
-    l_mat = np.asarray(data.body(left_id).xmat, dtype=float).reshape(3, 3)
-    normal = l_mat @ np.array([0.0, 1.0, 0.0], dtype=float)
-    return float(abs(np.dot(right_center - left_center, normal)) * 1000.0)
+
+
+def robotiq_pad_centers(
+    model: mujoco.MjModel,
+    data: mujoco.MjData,
+    variant: str = "robotiq_2f_85",
+) -> tuple[np.ndarray, np.ndarray]:
+    """World-frame inner pad centers of Robotiq 2F-85 or 2F-140."""
+    spec = get_robotiq_spec(variant)
+    g = spec.linkage
+    return _jaw_pad_centers(
+        model, data, g.pad_inner_y_m, g.pad_center_z_m, f"{spec.prefix}_left_finger", f"{spec.prefix}_right_finger"
+    )
+
+
+def measured_robotiq_pad_gap_mm(
+    model: mujoco.MjModel,
+    data: mujoco.MjData,
+    variant: str = "robotiq_2f_85",
+) -> float:
+    """Actual pad separation (mm) along the Robotiq closing normal in world frame."""
+    spec = get_robotiq_spec(variant)
+    g = spec.linkage
+    return _measured_jaw_pad_gap_mm(
+        model, data, g.pad_inner_y_m, g.pad_center_z_m, f"{spec.prefix}_left_finger", f"{spec.prefix}_right_finger"
+    )
 
 
 def gripper_object_contact_forces_n(

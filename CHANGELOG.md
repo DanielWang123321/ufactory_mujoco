@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Robotiq 2F-85, 2F-140, and `robotiq_mounting` 11 mm flange adapter** (synced from `ufactory_genesis`, excluding Hand-E): added atomic models `robotiq_mounting` (`0.118 kg` measured mass with 12 CAD `<site>`s and 2 convex collision STLs), `robotiq_2f_85` (`0..85 mm` jaw gap, `20..235 N`, `0.92 kg`, 14 double-sided OBJs + 11 collision STLs), and `robotiq_2f_140` (`0..140 mm` jaw gap, `10..125 N`, `1.00 kg`, 12 double-sided OBJs + 11 collision STLs) with BSD-3-Clause notice (`licenses/robotiq_ros.LICENSE`); wired runtime composition across `{xarm5,xarm6,xarm7,uf850}_with_robotiq_2f_{85,140}` and `xarm6_with_robotiq_2f_{85,140}_and_d435` (`22` static / `58` composed / `80` total models, with automatic `robotiq_mounting` insertion and `camera_stand` stacking, `init` keyframe for floor-reaching `uf850_with_robotiq_2f_140`, and `lite6` / `ft_sensor` rejection); and implemented pure-NumPy `ufactory_mujoco.robotiq.RobotiqController` (`kp=120, kv=10, ki=160`) + `SimRobot` closed-loop integration and fail-closed `XArmRobot` guard.
 - **Lite 6 camera stand and depth camera support** (synced from `ufactory_genesis` `b33810e`): added named recipes `lite6_with_d435` and `lite6_with_gripper_and_d435` (`COMPOSED_MODELS` `46 -> 48`), enabled `compose_model` with `camera_stand` and all 4 cameras across bare Lite 6, `lite6_gripper`, and `lite6_vacuum_gripper` (`+3 mm` flange lift, zero runtime contacts), and guarded incompatible arm/gripper and `bio_gripper_g2` + camera combinations in `_recipe_for()`.
 
 ### Changed

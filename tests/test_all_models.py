@@ -10,7 +10,7 @@ import mujoco
 
 from ufactory_mujoco.compose import COMPOSED_MODELS, compose_model, initial_keyframe, is_composed_model
 from ufactory_mujoco import MODELS_ROOT, available_models, resolve_arm_scene, resolve_model_path
-from ufactory_mujoco.robots import COMBO_INIT_ARMS, RECIPES, TASK_GRIPPERS
+from ufactory_mujoco.robots import RECIPES, TASK_GRIPPERS, needs_combo_init
 
 ALL_MODELS = [
     "xarm6",
@@ -20,6 +20,9 @@ ALL_MODELS = [
     "lite6",
     "gripper_g2",
     "bio_gripper_g2",
+    "robotiq_2f_85",
+    "robotiq_2f_140",
+    "robotiq_mounting",
     "lite6_gripper",
     "lite6_vacuum_gripper",
     "vacuum_gripper",
@@ -31,6 +34,14 @@ ALL_MODELS = [
     "xarm6_with_bio_gripper",
     "xarm7_with_bio_gripper",
     "uf850_with_bio_gripper",
+    "xarm5_with_robotiq_2f_85",
+    "xarm6_with_robotiq_2f_85",
+    "xarm7_with_robotiq_2f_85",
+    "uf850_with_robotiq_2f_85",
+    "xarm5_with_robotiq_2f_140",
+    "xarm6_with_robotiq_2f_140",
+    "xarm7_with_robotiq_2f_140",
+    "uf850_with_robotiq_2f_140",
     "xarm5_with_vacuum_gripper",
     "xarm6_with_vacuum_gripper",
     "xarm7_with_vacuum_gripper",
@@ -52,6 +63,8 @@ ALL_MODELS = [
     "xarm6_with_gripper_and_d435",
     "xarm6_with_gripper_and_gemini_305",
     "xarm6_with_gripper_and_zed_x_nano",
+    "xarm6_with_robotiq_2f_85_and_d435",
+    "xarm6_with_robotiq_2f_140_and_d435",
     "xarm5_with_d435",
     "xarm6_with_d435",
     "xarm7_with_d435",
@@ -197,7 +210,7 @@ class AllModelsLoadingTest(unittest.TestCase):
                 )
 
     def test_home_is_all_zero_and_xarm_tool_combos_start_from_init(self):
-        """Every arm model's home is all-zero joints; xArm 5/6/7 combinations add init (= ready)."""
+        """Every arm model's home is all-zero joints; floor-reaching combos add init (= ready)."""
         for name in ALL_MODELS:
             m = mujoco.MjModel.from_xml_path(str(resolve_model_path(name)))
             arm = [int(m.jnt_qposadr[j]) for j in range(m.njnt)
@@ -210,9 +223,8 @@ class AllModelsLoadingTest(unittest.TestCase):
                 np.testing.assert_array_equal(m.key(home).qpos[arm], np.zeros(len(arm)))
                 np.testing.assert_array_equal(m.key(home).ctrl[:len(arm)], np.zeros(len(arm)))
                 recipe = RECIPES.get(name)
-                mounted = recipe is not None and bool(recipe.tool or recipe.camera or recipe.ft_sensor)
                 init = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_KEY, "init")
-                self.assertEqual(init >= 0, mounted and recipe.arm in COMBO_INIT_ARMS)
+                self.assertEqual(init >= 0, needs_combo_init(recipe))
                 if init < 0:
                     self.assertEqual(initial_keyframe(m), 0)
                     continue
@@ -244,6 +256,8 @@ class AllModelsLoadingTest(unittest.TestCase):
             for suffix in (
                 "gripper",
                 "bio_gripper",
+                "robotiq_2f_85",
+                "robotiq_2f_140",
                 "vacuum_gripper",
                 "d435",
                 "gripper_and_d435",
