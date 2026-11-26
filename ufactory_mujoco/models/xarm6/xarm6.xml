@@ -83,7 +83,7 @@
 
   <worldbody>
     <body name="link_base" childclass="xarm6">
-      <inertial pos="0 0 0.09103" mass="2.7" fullinertia="0.00494875 0.00494174 0.002219 -3.5e-06 1.25e-05 1.67e-06"/>
+      <inertial pos="-0.002587 -0.000269 0.103569" mass="2.788411" fullinertia="0.008738440348 0.008801398397 0.003241739845 -1.7243198e-05 -0.000169824247 -4.797104e-06"/>
       <geom class="visual" mesh="link_base_vis" material="silver"/>
       <geom class="collision" mesh="xarm6_link_base_col_00"/>
       <geom class="collision" mesh="xarm6_link_base_col_01"/>

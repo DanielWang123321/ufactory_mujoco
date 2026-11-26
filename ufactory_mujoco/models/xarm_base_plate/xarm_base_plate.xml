@@ -25,6 +25,7 @@
   </asset>
   <worldbody>
     <body name="base_plate">
+      <inertial pos="0.005152769601 8.383892666e-06 -0.004002269367" mass="0.3554330342" fullinertia="0.00122851631 0.000632058027 0.001856787105 1.680453887e-07 -1.531076171e-09 6.984660691e-12" />
       <geom name="base_plate_visual" type="mesh" mesh="xarm_plate_visual_mesh" material="xarm_plate_material" group="2" contype="0" conaffinity="0" />
       <geom name="base_plate_collision_00" type="mesh" mesh="xarm_plate_collision_00" group="3" rgba="0.2 0.7 0.3 0.45" solref="0.004 1" solmix="1000" />
       <geom name="base_plate_collision_01" type="mesh" mesh="xarm_plate_collision_01" group="3" rgba="0.2 0.7 0.3 0.45" solref="0.004 1" solmix="1000" />

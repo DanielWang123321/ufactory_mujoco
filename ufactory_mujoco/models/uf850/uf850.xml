@@ -82,7 +82,7 @@
 
   <worldbody>
     <body name="link_base" childclass="uf850">
-      <inertial pos="-0.00025599 -2.8579e-06 0.085749" mass="2.2684" fullinertia="0.0063949 0.0064375 0.0048631 -8.0653e-07 -2.1841e-05 -4.2181e-07"/>
+      <inertial pos="-0.000762 -4.4e-05 0.11761" mass="5.869631" fullinertia="0.032711870245 0.03295126767 0.013458380527 8.0733473e-05 -0.000343329636 -1.0328638e-05"/>
       <geom class="visual" mesh="link_base_vis" material="silver"/>
       <geom class="collision" mesh="uf850_link_base_col_00"/>
       <geom class="collision" mesh="uf850_link_base_col_01"/>

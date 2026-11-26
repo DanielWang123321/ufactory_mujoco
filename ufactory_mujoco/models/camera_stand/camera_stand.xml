@@ -1,5 +1,5 @@
 <mujoco model="camera_stand">
-  <!-- UFACTORY camera mounting bracket (visual + 175-piece convex collision; mass=0; Roadmap 0.1.2). -->
+  <!-- UFACTORY camera mounting bracket (visual + 175-piece convex collision; mass=0.048 kg; Roadmap 0.1.2). -->
   <compiler angle="radian" autolimits="true" meshdir="assets" />
   <option integrator="implicitfast" />
   <asset>
@@ -183,6 +183,7 @@
   </asset>
   <worldbody>
     <body name="camera_stand">
+      <inertial pos="0.02948552626 0.001487745437 0.0003964609769" mass="0.048" fullinertia="1.892272835e-05 7.762638551e-05 5.877496985e-05 -1.734394854e-08 5.611133269e-07 3.169062853e-09" />
       <geom name="stand_visual" type="mesh" mesh="stand_visual_mesh" group="2" contype="0" conaffinity="0" mass="0" material="stand_anodized_aluminum" />
       <geom name="stand_collision_000" type="mesh" mesh="stand_collision_mesh_000" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />
       <geom name="stand_collision_001" type="mesh" mesh="stand_collision_mesh_001" group="3" mass="0" rgba="0.9 0.2 0.1 0.25" />

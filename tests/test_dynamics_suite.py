@@ -779,6 +779,20 @@ def test_dynamics_sim_regression_all_robots(tmp_path: Path, robot_key: str):
         assert s["l3a_mass_rel_fro"] < 1e-5
 
 
+def _body_inertia_tensor(mj_model, body_id: int) -> np.ndarray:
+    """Reconstruct the body 3x3 inertia tensor in the body frame from MuJoCo body_iquat and body_inertia."""
+    w, x, y, z = (float(v) for v in mj_model.body_iquat[body_id])
+    rot = np.array(
+        [
+            [1.0 - 2.0 * (y * y + z * z), 2.0 * (x * y - w * z), 2.0 * (x * z + w * y)],
+            [2.0 * (x * y + w * z), 1.0 - 2.0 * (x * x + z * z), 2.0 * (y * z - w * x)],
+            [2.0 * (x * z - w * y), 2.0 * (y * z + w * x), 1.0 - 2.0 * (x * x + y * y)],
+        ],
+        dtype=np.float64,
+    )
+    return rot @ np.diag(mj_model.body_inertia[body_id]) @ rot.T
+
+
 def _sync_urdf_link_inertials(urdf_path: Path, mj_model, dof: int, out_path: Path) -> Path:
     """Copy a URDF into ``out_path`` with ``link1..link{dof}`` inertials synced from ``mj_model``."""
     import xml.etree.ElementTree as ET
@@ -789,16 +803,7 @@ def _sync_urdf_link_inertials(urdf_path: Path, mj_model, dof: int, out_path: Pat
     for i in range(1, dof + 1):
         lname = f"link{i}"
         bid = mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_BODY, lname)
-        w, x, y, z = (float(v) for v in mj_model.body_iquat[bid])
-        rot = np.array(
-            [
-                [1.0 - 2.0 * (y * y + z * z), 2.0 * (x * y - w * z), 2.0 * (x * z + w * y)],
-                [2.0 * (x * y + w * z), 1.0 - 2.0 * (x * x + z * z), 2.0 * (y * z - w * x)],
-                [2.0 * (x * z - w * y), 2.0 * (y * z + w * x), 1.0 - 2.0 * (x * x + y * y)],
-            ],
-            dtype=np.float64,
-        )
-        tensor = rot @ np.diag(mj_model.body_inertia[bid]) @ rot.T
+        tensor = _body_inertia_tensor(mj_model, bid)
         inert = links[lname].find("inertial")
         assert inert is not None
         origin = inert.find("origin")
@@ -910,6 +915,60 @@ def test_xarm_1305_uj_br_2403_link_inertials(
         np.testing.assert_allclose(model.body_ipos[bid], exp_com, rtol=0.0, atol=1e-12)
     assert math.isclose(sum(masses), expected_total_mass, rel_tol=0.0, abs_tol=1e-9)
     issues = validate_mjcf_dynamics(model, dof=dof)
+    assert [issue for issue in issues if issue.severity == "ERROR"] == []
+
+
+_XARM_BASE_INERTIAL = (
+    2.788411,
+    (-0.002587, -0.000269, 0.103569),
+    (0.008738440348, 0.008801398397, 0.003241739845, -1.7243198e-05, -0.000169824247, -4.797104e-06),
+    (3236492.910e-9, 8739003.273e-9, 8806082.405e-9),
+)
+_UF850_BASE_INERTIAL = (
+    5.869631,
+    (-0.000762, -4.4e-05, 0.11761),
+    (0.032711870245, 0.03295126767, 0.013458380527, 8.0733473e-05, -0.000343329636, -1.0328638e-05),
+    (13452256.142e-9, 32692678.345e-9, 32976583.954e-9),
+)
+
+
+@pytest.mark.parametrize(
+    ("robot_key", "base_inertial", "expected_bare_total_mass"),
+    [
+        ("xarm5", _XARM_BASE_INERTIAL, 11.315411),
+        ("xarm6", _XARM_BASE_INERTIAL, 12.459411),
+        ("xarm7", _XARM_BASE_INERTIAL, 14.572811),
+        ("uf850", _UF850_BASE_INERTIAL, 19.844631),
+    ],
+)
+def test_xarm_and_uf850_link_base_inertials(
+    robot_key: str,
+    base_inertial: tuple[float, tuple[float, float, float], tuple[float, ...], tuple[float, ...]],
+    expected_bare_total_mass: float,
+):
+    """xArm5/6/7 (Xarm+_P01) and UF850 (Arm850_P01) share SolidWorks link_base inertials."""
+    import mujoco
+
+    expected_mass, expected_com, fi, expected_principal = base_inertial
+    ixx, iyy, izz, ixy, ixz, iyz = fi
+    expected_tensor = np.array([[ixx, ixy, ixz], [ixy, iyy, iyz], [ixz, iyz, izz]], dtype=np.float64)
+
+    runtime = get_robot_runtime_profile(robot_key)
+    model = mujoco.MjModel.from_xml_path(str(runtime.model.model_path))
+    bid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "link_base")
+    assert bid >= 0
+    assert math.isclose(float(model.body_mass[bid]), expected_mass, rel_tol=0.0, abs_tol=1e-12)
+    np.testing.assert_allclose(model.body_ipos[bid], expected_com, rtol=0.0, atol=1e-12)
+
+    tensor = _body_inertia_tensor(model, bid)
+    np.testing.assert_allclose(tensor, expected_tensor, rtol=0.0, atol=1e-12)
+    eig = np.linalg.eigvalsh(tensor)
+    assert eig.min() > 0.0 and eig[0] + eig[1] > eig[2]
+    np.testing.assert_allclose(eig, expected_principal, rtol=0.0, atol=1e-11)
+
+    total_mass = float(np.sum(model.body_mass))
+    assert math.isclose(total_mass, expected_bare_total_mass, rel_tol=0.0, abs_tol=1e-9)
+    issues = validate_mjcf_dynamics(model, dof=runtime.model.dof)
     assert [issue for issue in issues if issue.severity == "ERROR"] == []
 
 

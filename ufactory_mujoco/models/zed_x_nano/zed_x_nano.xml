@@ -1,5 +1,5 @@
 <mujoco model="zed_x_nano">
-  <!-- Stereolabs ZED X Nano depth camera (visual, mount sites, box collision; mass=0, no optical sensor; Roadmap 0.1.2). -->
+  <!-- Stereolabs ZED X Nano depth camera (visual, mount sites, box collision; mass=0.075 kg, no optical sensor; Roadmap 0.1.2). -->
   <compiler angle="radian" autolimits="true" meshdir="assets" />
   <option integrator="implicitfast" />
   <asset>
@@ -12,6 +12,7 @@
   </asset>
   <worldbody>
     <body name="zed_x_nano_body">
+      <inertial pos="0 0.004065771519 0.01527253103" mass="0.075" fullinertia="1.340894392e-05 1.655550153e-05 1.851894828e-05 0 0 -3.695521113e-08" />
       <geom name="zed_x_nano_visual_00" type="mesh" mesh="zed_x_nano_visual_mesh_00" group="2" contype="0" conaffinity="0" mass="0" material="zed_x_nano_anodized_aluminum" />
       <geom name="zed_x_nano_visual_01" type="mesh" mesh="zed_x_nano_visual_mesh_01" group="2" contype="0" conaffinity="0" mass="0" material="zed_x_nano_anodized_aluminum" />
       <geom name="zed_x_nano_visual_02" type="mesh" mesh="zed_x_nano_visual_mesh_02" group="2" contype="0" conaffinity="0" mass="0" material="zed_x_nano_anodized_aluminum" />

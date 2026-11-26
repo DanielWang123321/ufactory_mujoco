@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **Unified xArm 5/6/7 and UF850 `link_base` inertials**: updated `link_base` mass, COM, and `fullinertia` in `xarm5.xml`/`xarm6.xml`/`xarm7.xml` from the SolidWorks `Xarm+_P01` assembly (`2.788411 kg`, CoM `(-2.587, -0.269, 103.569) mm`; bare-arm total mass `11.315411 / 12.459411 / 14.572811 kg`) and in `uf850.xml` from `Arm850_P01` (`5.869631 kg`, CoM `(-0.762, -0.044, 117.610) mm`; bare-arm total mass `19.844631 kg`), synced with `ufactory_genesis`. Fixed-base arm joint dynamics remain unchanged.
+- **Explicit `camera_stand` and depth camera inertials**: added physical body masses, COM offsets, and `fullinertia` tensors to `camera_stand.xml` (`0.048 kg`), `d405.xml` (`0.058 kg`), `d435.xml` (`0.075 kg`), `gemini_305.xml` (`0.068 kg`), and `zed_x_nano.xml` (`0.075 kg`) matching `ufactory_genesis`.
+- **Explicit mounting base plate inertials**: added explicit `<inertial>` blocks to `xarm_base_plate.xml` (`0.3554330342 kg`, 6061 aluminum CAD), `lite6_base_plate.xml` (`0.2431144384 kg`, 6061 aluminum CAD), and `uf850_base_plate.xml` (`1.056 kg`, measured hardware mass with scaled CAD inertia tensor); fixed-base arm dynamics remain invariant.
+
 ## [0.1.9] - 2026-11-24
 
 Upgraded xArm 5/6/7 link inertials to the official `UJ_BR_2403` parameters, unified xArm meshes on `xarm6` with the production version A base, fixed Bio Gripper G2's flange mount and 11-hull collision geometry, refined Bio Gripper G2 and Gripper G2 visual meshes and materials (including frosted anodized aluminum and translucent inner silicone finger pads), and aligned all standalone gripper display poses flange-up. All 11 task `config_sha256` hashes and `lite6`/`uf850` task reports remain unchanged, while `xarm5`/`xarm6`/`xarm7` task reports reflect the updated inertials and unified `xarm5` collision meshes.

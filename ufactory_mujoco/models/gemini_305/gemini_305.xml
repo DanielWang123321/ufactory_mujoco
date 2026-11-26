@@ -1,5 +1,5 @@
 <mujoco model="gemini_305">
-  <!-- Orbbec Gemini 305 depth camera (visual, mount sites, box collision; mass=0, no optical sensor; Roadmap 0.1.2). -->
+  <!-- Orbbec Gemini 305 depth camera (visual, mount sites, box collision; mass=0.068 kg, no optical sensor; Roadmap 0.1.2). -->
   <compiler angle="radian" autolimits="true" meshdir="assets" />
   <option integrator="implicitfast" />
   <asset>
@@ -11,6 +11,7 @@
   </asset>
   <worldbody>
     <body name="gemini_305_body">
+      <inertial pos="0.018345856 0.011576704 -0.017181074" mass="0.068" fullinertia="1.30072849e-05 2.00193365e-05 1.300738493e-05 0 0 0" />
       <geom name="gemini_305_visual_00" type="mesh" mesh="gemini_305_visual_mesh_00" group="2" contype="0" conaffinity="0" mass="0" material="gemini_305_anodized_aluminum" />
       <geom name="gemini_305_visual_01" type="mesh" mesh="gemini_305_visual_mesh_01" group="2" contype="0" conaffinity="0" mass="0" material="gemini_305_anodized_aluminum" />
       <geom name="gemini_305_visual_02" type="mesh" mesh="gemini_305_visual_mesh_02" group="2" contype="0" conaffinity="0" mass="0" material="gemini_305_optical_glass" />

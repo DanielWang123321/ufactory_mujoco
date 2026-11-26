@@ -1,5 +1,5 @@
 <mujoco model="d405">
-  <!-- RealSense D405 depth camera (visual, mount sites, box collision; mass=0, no optical sensor; Roadmap 0.1.2). -->
+  <!-- RealSense D405 depth camera (visual, mount sites, box collision; mass=0.058 kg, no optical sensor; Roadmap 0.1.2). -->
   <compiler angle="radian" autolimits="true" meshdir="assets" />
   <option integrator="implicitfast" />
   <asset>
@@ -10,6 +10,7 @@
   </asset>
   <worldbody>
     <body name="d405_body">
+      <inertial pos="-4.5e-05 0 -0.0115" mass="0.058" fullinertia="1.108283333e-05 1.111941248e-05 1.708857915e-05 0 0 0" />
       <geom name="d405_visual_00" type="mesh" mesh="d405_visual_mesh_00" group="2" contype="0" conaffinity="0" mass="0" material="d405_anodized_aluminum" />
       <geom name="d405_visual_01" type="mesh" mesh="d405_visual_mesh_01" group="2" contype="0" conaffinity="0" mass="0" material="d405_optical_glass" />
       <geom name="d405_collision_00" type="box" pos="-4.5e-05 0 -0.0115" size="0.021045 0.021 0.0115" group="3" mass="0" rgba="0.8 0.15 0.1 0.3" />

@@ -35,6 +35,39 @@ EXPECTED_DIMENSIONS: dict[str, tuple[tuple[float, float, float], float, float]] 
     "zed_x_nano": ((0.042, 0.04454, 0.0305), 0.001, 0.00015),
 }
 
+EXPECTED_STAND_INERTIAL: tuple[float, tuple[float, float, float], tuple[float, ...]] = (
+    0.048,
+    (0.02948552626, 0.001487745437, 0.0003964609769),
+    (1.892272835e-05, 7.762638551e-05, 5.877496985e-05, -1.734394854e-08, 5.611133269e-07, 3.169062853e-09),
+)
+EXPECTED_CAMERA_INERTIALS: dict[str, tuple[float, tuple[float, float, float], tuple[float, ...]]] = {
+    "d405": (0.058, (-4.5e-05, 0.0, -0.0115), (1.108283333e-05, 1.111941248e-05, 1.708857915e-05, 0.0, 0.0, 0.0)),
+    "d435": (0.075, (0.0, 0.0, -0.0125), (7.8125e-06, 5.453125e-05, 5.453125e-05, 0.0, 0.0, 0.0)),
+    "gemini_305": (
+        0.068,
+        (0.018345856, 0.011576704, -0.017181074),
+        (1.30072849e-05, 2.00193365e-05, 1.300738493e-05, 0.0, 0.0, 0.0),
+    ),
+    "zed_x_nano": (
+        0.075,
+        (0.0, 0.004065771519, 0.01527253103),
+        (1.340894392e-05, 1.655550153e-05, 1.851894828e-05, 0.0, 0.0, -3.695521113e-08),
+    ),
+}
+
+
+def _body_inertia_tensor(model: mujoco.MjModel, body_id: int) -> np.ndarray:
+    w, x, y, z = (float(v) for v in model.body_iquat[body_id])
+    rot = np.array(
+        [
+            [1.0 - 2.0 * (y * y + z * z), 2.0 * (x * y - w * z), 2.0 * (x * z + w * y)],
+            [2.0 * (x * y + w * z), 1.0 - 2.0 * (x * x + z * z), 2.0 * (y * z - w * x)],
+            [2.0 * (x * z - w * y), 2.0 * (y * z + w * x), 1.0 - 2.0 * (x * x + y * y)],
+        ],
+        dtype=np.float64,
+    )
+    return rot @ np.diag(model.body_inertia[body_id]) @ rot.T
+
 
 def _read_binary_stl_vertices(path: Path, scale: float = 1.0) -> tuple[np.ndarray, int]:
     raw = path.read_bytes()
@@ -342,12 +375,18 @@ class CameraAndBracketModelsTest(unittest.TestCase):
         b_g2 = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, "xarm_gripper_base_link")
         self.assertEqual(len({int(m.body_weldid[b]) for b in (b_last, b_stand, b_cam, b_g2)}), 1)
 
-        # Total mass matches <arm>_with_gripper, and camera_stand/camera geoms have mass=0.
-        self.assertAlmostEqual(float(np.sum(m.body_mass)), base_total_mass, places=12)
+        # Total mass matches <arm>_with_gripper + camera_stand + camera, with symmetric positive-definite M(q).
+        stand_mass = EXPECTED_STAND_INERTIAL[0]
+        cam_mass = EXPECTED_CAMERA_INERTIALS[cam][0]
+        self.assertAlmostEqual(float(m.body_mass[b_stand]), stand_mass, places=12)
+        self.assertAlmostEqual(float(m.body_mass[b_cam]), cam_mass, places=12)
+        self.assertAlmostEqual(float(np.sum(m.body_mass)), base_total_mass + stand_mass + cam_mass, places=12)
         mujoco.mj_resetDataKeyframe(m, d, 0)
         mujoco.mj_forward(m, d)
         mass = np.empty((m.nv, m.nv))
         mujoco.mj_fullM(m, d, mass)
+        np.testing.assert_allclose(mass, mass.T, atol=1e-12, rtol=0)
+        self.assertGreater(float(np.linalg.eigvalsh(mass).min()), 0.0)
 
         # TCP shifted +3.000 mm along flange +Z.
         tcp = d.site_xpos[mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_SITE, "attachment_site")].copy()
@@ -426,22 +465,56 @@ class CameraAndBracketModelsTest(unittest.TestCase):
         self.assertLess(q_reopen, q_closed - 0.55)
         return mass
 
+    def test_camera_and_stand_inertials(self) -> None:
+        """Verify camera_stand and depth cameras declare positive-definite physical inertials."""
+        checks = [
+            ("camera_stand", "camera_stand", EXPECTED_STAND_INERTIAL),
+            *((cam, f"{cam}_body", EXPECTED_CAMERA_INERTIALS[cam]) for cam in CAMERAS),
+        ]
+        for model_name, body_name, (exp_mass, exp_com, fi) in checks:
+            m = mujoco.MjModel.from_xml_path(str(MODELS_ROOT / model_name / f"{model_name}.xml"))
+            bid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, body_name)
+            self.assertGreaterEqual(bid, 0)
+            self.assertAlmostEqual(float(m.body_mass[bid]), exp_mass, places=12)
+            np.testing.assert_allclose(m.body_ipos[bid], exp_com, atol=1e-12, rtol=0)
+            tensor = _body_inertia_tensor(m, bid)
+            ixx, iyy, izz, ixy, ixz, iyz = fi
+            expected_tensor = np.array([[ixx, ixy, ixz], [ixy, iyy, iyz], [ixz, iyz, izz]], dtype=np.float64)
+            np.testing.assert_allclose(tensor, expected_tensor, atol=1e-12, rtol=0)
+            eig = np.linalg.eigvalsh(tensor)
+            self.assertGreater(float(eig.min()), 0.0)
+            self.assertGreater(float(eig[0] + eig[1]), float(eig[2]))
+
+        for cam in CAMERAS:
+            m = compose_model(f"camera_stand_with_{cam}", scene=False)
+            self.assertAlmostEqual(
+                float(np.sum(m.body_mass)),
+                EXPECTED_STAND_INERTIAL[0] + EXPECTED_CAMERA_INERTIALS[cam][0],
+                places=12,
+            )
+
     def test_plan_a_xarm6_g2_camera_assemblies_weld_and_motion_clearances(self) -> None:
-        """Plan A Rule 2: weld-aware clearance, +3 mm TCP shift, identical mass matrix, and G2 stroke."""
+        """Plan A Rule 2: weld-aware clearance, +3 mm TCP shift, physical M(q) delta, and G2 stroke."""
         base_m = compose_model("xarm6_with_gripper", scene=False)
         base_d = mujoco.MjData(base_m)
         mujoco.mj_resetDataKeyframe(base_m, base_d, 0)
         mujoco.mj_forward(base_m, base_d)
-        ref_combo_mass: np.ndarray | None = None
+        base_mass = np.empty((base_m.nv, base_m.nv))
+        mujoco.mj_fullM(base_m, base_d, base_mass)
+
+        combo_masses: dict[str, np.ndarray] = {}
         for cam in CAMERAS:
             mass = self._verify_g2_camera_combo("xarm6", cam, base_m, base_d)
-            if ref_combo_mass is None:
-                ref_combo_mass = mass
-            else:
-                np.testing.assert_allclose(mass, ref_combo_mass, atol=1e-12, rtol=1e-12)
+            delta = mass - base_mass
+            np.testing.assert_allclose(delta, delta.T, atol=1e-12, rtol=0)
+            self.assertGreaterEqual(float(np.linalg.eigvalsh(delta).min()), -1e-12)
+            self.assertGreater(float(np.trace(delta)), 1e-4)
+            combo_masses[cam] = mass
+        self.assertGreater(float(np.max(np.abs(combo_masses["d435"] - combo_masses["d405"]))), 1e-4)
+        self.assertGreater(float(np.max(np.abs(combo_masses["zed_x_nano"] - combo_masses["d405"]))), 1e-4)
 
     def test_multi_arm_d435_bare_and_gripper_assemblies(self) -> None:
-        """Verify weld, mass/M(q) conservation, +3 mm TCP shift, and clearances across all D435 arm combos."""
+        """Verify weld, mass/M(q)/gravity delta, +3 mm TCP shift, and clearances across D435 arm combos."""
         for arm in ("xarm5", "xarm7", "uf850"):
             base_m = compose_model(f"{arm}_with_gripper", scene=False)
             base_d = mujoco.MjData(base_m)
@@ -449,6 +522,8 @@ class CameraAndBracketModelsTest(unittest.TestCase):
             mujoco.mj_forward(base_m, base_d)
             self._verify_g2_camera_combo(arm, "d435", base_m, base_d)
 
+        stand_mass = EXPECTED_STAND_INERTIAL[0]
+        d435_mass = EXPECTED_CAMERA_INERTIALS["d435"][0]
         for arm in D435_ARMS:
             last_link = LAST_LINKS[arm]
             dof = ARM_DOFS[arm]
@@ -482,10 +557,27 @@ class CameraAndBracketModelsTest(unittest.TestCase):
 
             mujoco.mj_resetData(m, d)
             mujoco.mj_forward(m, d)
-            self.assertAlmostEqual(float(np.sum(m.body_mass)), float(np.sum(base_m.body_mass)), places=12)
+            self.assertAlmostEqual(
+                float(np.sum(m.body_mass)),
+                float(np.sum(base_m.body_mass)) + stand_mass + d435_mass,
+                places=12,
+            )
             combo_mass = np.empty((m.nv, m.nv))
             mujoco.mj_fullM(m, d, combo_mass)
-            np.testing.assert_allclose(combo_mass, base_mass, atol=1e-12, rtol=1e-12)
+            delta_m = combo_mass - base_mass
+            np.testing.assert_allclose(delta_m, delta_m.T, atol=1e-12, rtol=0)
+            self.assertGreaterEqual(float(np.linalg.eigvalsh(delta_m).min()), -1e-12)
+            self.assertGreater(float(np.trace(delta_m)), 1e-4)
+
+            jac_stand = np.zeros((3, m.nv))
+            jac_cam = np.zeros((3, m.nv))
+            mujoco.mj_jac(m, d, jac_stand, None, d.xipos[b_stand], b_stand)
+            mujoco.mj_jac(m, d, jac_cam, None, d.xipos[b_cam], b_cam)
+            expected_bias_delta = -(
+                jac_stand.T @ (stand_mass * m.opt.gravity)
+                + jac_cam.T @ (d435_mass * m.opt.gravity)
+            )
+            np.testing.assert_allclose(d.qfrc_bias - base_d.qfrc_bias, expected_bias_delta, atol=1e-10, rtol=0)
             tcp = d.site_xpos[mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_SITE, "attachment_site")].copy()
             np.testing.assert_allclose(tcp - base_tcp, last_z * 0.003, atol=1e-7, rtol=0)
 

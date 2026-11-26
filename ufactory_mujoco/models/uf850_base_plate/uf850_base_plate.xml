@@ -9,6 +9,7 @@
   </asset>
   <worldbody>
     <body name="base_plate">
+      <inertial pos="-5.112679085e-08 -1.296273053e-07 -0.005000003168" mass="1.056" fullinertia="0.007494367693 0.003785981885 0.0112627498 2.827268798e-09 8.907087421e-11 -2.155216145e-11" />
       <geom name="base_plate_visual" type="mesh" mesh="uf850_plate_visual_mesh" material="uf850_plate_material" group="2" contype="0" conaffinity="0" />
       <geom name="base_plate_collision_00" type="mesh" mesh="uf850_plate_collision_00" group="3" rgba="0.2 0.7 0.3 0.45" solref="0.004 1" solmix="1000" />
       <site name="arm_mount" pos="0 0 0" size="0.002" group="4" />

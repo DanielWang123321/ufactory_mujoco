@@ -35,6 +35,24 @@ ARM_ASSEMBLY: dict[str, tuple[str, tuple[float, float, float], float]] = {
     "lite6": ("lite6", (0.00298920, 0.00001614, 0.00171732), 0.000000298),
 }
 
+EXPECTED_PLATE_INERTIALS: dict[str, tuple[float, tuple[float, float, float], tuple[float, ...]]] = {
+    "xarm": (
+        0.3554330342,
+        (0.005152769601, 8.383892666e-06, -0.004002269367),
+        (0.00122851631, 0.000632058027, 0.001856787105, 1.680453887e-07, -1.531076171e-09, 6.984660691e-12),
+    ),
+    "uf850": (
+        1.056,
+        (-5.112679085e-08, -1.296273053e-07, -0.005000003168),
+        (0.007494367693, 0.003785981885, 0.0112627498, 2.827268798e-09, 8.907087421e-11, -2.155216145e-11),
+    ),
+    "lite6": (
+        0.2431144384,
+        (-1.337875423e-09, -4.98910057e-09, -0.002500000446),
+        (0.0009285150389, 0.0004114629089, 0.001338964964, -3.469964159e-12, -1.052637941e-12, 3.218466868e-12),
+    ),
+}
+
 
 def _read_binary_stl(path: Path) -> np.ndarray:
     raw = path.read_bytes()
@@ -319,3 +337,61 @@ def test_arm_on_base_plate_preserves_robot_and_steps_stably(arm):
     assert np.isfinite(data.qpos).all() and np.isfinite(data.qvel).all()
     assert float(np.max(np.abs(data.qvel))) < 0.1
     assert data.ncon == 0
+
+
+def _body_inertia_tensor(model: mujoco.MjModel, body_id: int) -> np.ndarray:
+    w, x, y, z = (float(v) for v in model.body_iquat[body_id])
+    rot = np.array(
+        [
+            [1.0 - 2.0 * (y * y + z * z), 2.0 * (x * y - w * z), 2.0 * (x * z + w * y)],
+            [2.0 * (x * y + w * z), 1.0 - 2.0 * (x * x + z * z), 2.0 * (y * z - w * x)],
+            [2.0 * (x * z - w * y), 2.0 * (y * z + w * x), 1.0 - 2.0 * (x * x + y * y)],
+        ],
+        dtype=np.float64,
+    )
+    return rot @ np.diag(model.body_inertia[body_id]) @ rot.T
+
+
+@pytest.mark.parametrize("plate", tuple(PLATES))
+def test_base_plate_inertials(plate):
+    """Verify explicit mass, CoM, and positive-definite inertia tensor on each base plate."""
+    exp_mass, exp_com, fi = EXPECTED_PLATE_INERTIALS[plate]
+    ixx, iyy, izz, ixy, ixz, iyz = fi
+    expected_tensor = np.array([[ixx, ixy, ixz], [ixy, iyy, iyz], [ixz, iyz, izz]], dtype=np.float64)
+
+    model = mujoco.MjModel.from_xml_path(str(MODELS_ROOT / f"{plate}_base_plate" / f"{plate}_base_plate.xml"))
+    bid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "base_plate")
+    assert bid >= 0
+    assert float(model.body_mass[bid]) == pytest.approx(exp_mass, abs=1e-12)
+    np.testing.assert_allclose(model.body_ipos[bid], exp_com, atol=1e-12, rtol=0)
+
+    tensor = _body_inertia_tensor(model, bid)
+    np.testing.assert_allclose(tensor, expected_tensor, atol=1e-12, rtol=0)
+    eig = np.linalg.eigvalsh(tensor)
+    assert eig.min() > 0.0 and eig[0] + eig[1] > eig[2]
+
+
+@pytest.mark.parametrize("arm", tuple(ARM_ASSEMBLY))
+def test_arm_on_base_plate_inertials_and_dynamics_invariance(arm):
+    """Verify arm+base_plate total mass adds the plate mass while fixed-base arm dynamics stay invariant."""
+    plate = ARM_ASSEMBLY[arm][0]
+    plate_mass = EXPECTED_PLATE_INERTIALS[plate][0]
+    reference = mujoco.MjModel.from_xml_path(str(resolve_model_path(arm, scene=False)))
+    model = mujoco.MjModel.from_xml_path(str(resolve_model_path(f"{arm}_with_base_plate", scene=False)))
+
+    assert float(np.sum(model.body_mass)) == pytest.approx(float(np.sum(reference.body_mass)) + plate_mass, abs=1e-9)
+
+    ref_data = mujoco.MjData(reference)
+    data = mujoco.MjData(model)
+    for q in (np.zeros(model.nq), np.linspace(-0.3, 0.3, model.nq)):
+        ref_data.qpos[:] = q
+        data.qpos[:] = q
+        mujoco.mj_forward(reference, ref_data)
+        mujoco.mj_forward(model, data)
+
+        ref_m = np.empty((reference.nv, reference.nv))
+        plate_m = np.empty((model.nv, model.nv))
+        mujoco.mj_fullM(reference, ref_data, ref_m)
+        mujoco.mj_fullM(model, data, plate_m)
+        np.testing.assert_allclose(plate_m, ref_m, atol=1e-12, rtol=0)
+        np.testing.assert_allclose(data.qfrc_bias, ref_data.qfrc_bias, atol=1e-12, rtol=0)
