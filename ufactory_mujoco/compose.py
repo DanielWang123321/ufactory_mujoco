@@ -219,6 +219,7 @@ def _build_robot(recipe: Recipe, name: str, root: Path) -> tuple[mujoco.MjSpec, 
         if recipe.ft_sensor:
             spec.add_exclude(bodyname1="ft_sensor_base", bodyname2=TOOLS[recipe.tool].root)
     if recipe.camera is not None:
+        scene.setdefault("headlight_specular", list(_env("camera_stand", root).visual.headlight.specular))
         if recipe.tool is None:
             spec.site("attachment_site").pos = [0, 0, robots.STAND_FLANGE_LIFT]
         stand = _part("camera_stand", root)
@@ -296,6 +297,10 @@ def _recipe_for(name: str | None, arm=None, base_plate=False, ft_sensor=False, g
         raise ValueError(f"Unknown camera {camera!r}; expected one of {robots.CAMERAS}")
     if gripper is not None and gripper not in TOOLS:
         raise ValueError(f"Unsupported gripper for composition: {gripper!r}")
+    if arm is not None and gripper is not None and gripper not in ARMS[arm].grippers:
+        raise ValueError(f"{arm!r} does not support gripper {gripper!r}")
+    if gripper == "bio_gripper_g2" and camera is not None:
+        raise ValueError("camera_stand does not fit with 'bio_gripper_g2'")
     if ft_sensor and gripper not in (None, "gripper_g2", "vacuum_gripper"):
         raise ValueError(f"ft_sensor composition does not support gripper {gripper!r}")
     parts = [p for p, on in (("base_plate", base_plate), ("ft_sensor", ft_sensor)) if on]

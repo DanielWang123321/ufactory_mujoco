@@ -47,7 +47,7 @@ python examples/simulation/11_force_torque_sensor.py --model xarm6_with_ft_senso
 | :--- | :--- |
 | `xarm5`, `xarm6`, `xarm7`, `uf850` | `gripper` (Gripper G2), `bio_gripper`, `vacuum_gripper`, `d435`, `gripper_and_d435`, `ft_sensor`, `ft_sensor_and_gripper`, `ft_sensor_and_vacuum_gripper`, `base_plate` |
 | `xarm6` only | `gripper_and_d405`, `gripper_and_gemini_305`, `gripper_and_zed_x_nano` |
-| `lite6` | `gripper` (Lite 6 gripper), `vacuum_gripper`, `base_plate` |
+| `lite6` | `gripper` (Lite 6 gripper), `vacuum_gripper`, `d435`, `gripper_and_d435`, `base_plate` |
 
 Standalone parts open in `01`: the grippers `gripper_g2`, `bio_gripper_g2`, `lite6_gripper`, `vacuum_gripper` and `lite6_vacuum_gripper`; the cameras `d405`, `d435`, `gemini_305` and `zed_x_nano`; `camera_stand` and `camera_stand_with_<camera>`; `ft_sensor`; and the base plates `xarm_base_plate`, `uf850_base_plate` and `lite6_base_plate`. `04` also runs the three standalone jaw grippers, and `11` runs `ft_sensor`. A script exits with code `2` when it cannot run the given model.
 

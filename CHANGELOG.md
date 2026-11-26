@@ -2,11 +2,17 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Lite 6 camera stand and depth camera support** (synced from `ufactory_genesis` `b33810e`): added named recipes `lite6_with_d435` and `lite6_with_gripper_and_d435` (`COMPOSED_MODELS` `46 -> 48`), enabled `compose_model` with `camera_stand` and all 4 cameras across bare Lite 6, `lite6_gripper`, and `lite6_vacuum_gripper` (`+3 mm` flange lift, zero runtime contacts), and guarded incompatible arm/gripper and `bio_gripper_g2` + camera combinations in `_recipe_for()`.
+
 ### Changed
 
 - **Unified xArm 5/6/7 and UF850 `link_base` inertials**: updated `link_base` mass, COM, and `fullinertia` in `xarm5.xml`/`xarm6.xml`/`xarm7.xml` from the SolidWorks `Xarm+_P01` assembly (`2.788411 kg`, CoM `(-2.587, -0.269, 103.569) mm`; bare-arm total mass `11.315411 / 12.459411 / 14.572811 kg`) and in `uf850.xml` from `Arm850_P01` (`5.869631 kg`, CoM `(-0.762, -0.044, 117.610) mm`; bare-arm total mass `19.844631 kg`), synced with `ufactory_genesis`. Fixed-base arm joint dynamics remain unchanged.
 - **Explicit `camera_stand` and depth camera inertials**: added physical body masses, COM offsets, and `fullinertia` tensors to `camera_stand.xml` (`0.048 kg`), `d405.xml` (`0.058 kg`), `d435.xml` (`0.075 kg`), `gemini_305.xml` (`0.068 kg`), and `zed_x_nano.xml` (`0.075 kg`) matching `ufactory_genesis`.
 - **Explicit mounting base plate inertials**: added explicit `<inertial>` blocks to `xarm_base_plate.xml` (`0.3554330342 kg`, 6061 aluminum CAD), `lite6_base_plate.xml` (`0.2431144384 kg`, 6061 aluminum CAD), and `uf850_base_plate.xml` (`1.056 kg`, measured hardware mass with scaled CAD inertia tensor); fixed-base arm dynamics remain invariant.
+- **Lite 6 `link6` 3-hull collision & `link_base` Z=0 alignment** (synced from `ufactory_genesis` `e583917`, `634a6d8`): replaced the single `lite6_link6_col_00.stl` hull with three exact convex hulls (`lite6_link6_col_00..02.stl`) preserving near-limit `link4`/`link6` contact detection, shifted `lite6` `link_base_white.obj` and `link_base_gray.obj` vertices `+1.71732 mm` along `+Z` so the visual bottom sits at `z = 0`, and zeroed `BASE_PLATE_MOUNT["lite6"]` Z offset (`0.0`).
+- **Camera stand and silver camera housing material** (aligned with `ufactory_genesis` `4f59818`): matched `stand_anodized_aluminum`, `d405_anodized_aluminum`, `d435_anodized_aluminum`, and `gemini_305_anodized_aluminum` to the unified frosted anodized aluminum material (`rgba="0.60 0.62 0.64 1"`, `metallic="0.8"`, `roughness="0.64"`) with satin headlight specular (`0.35 0.35 0.38`) in standalone camera/stand scenes and camera-equipped arm compositions (leaving `zed_x_nano`, optical glass, and F/T-sensor scenes unchanged).
 
 ## [0.1.9] - 2026-11-24
 

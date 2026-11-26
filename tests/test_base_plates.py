@@ -32,7 +32,7 @@ ARM_ASSEMBLY: dict[str, tuple[str, tuple[float, float, float], float]] = {
     "xarm6": _XARM_PLATE_FIT,
     "xarm7": _XARM_PLATE_FIT,
     "uf850": ("uf850", (-0.00001021, 0.00000350, 0.00000420), 0.0),
-    "lite6": ("lite6", (0.00298920, 0.00001614, 0.00171732), 0.000000298),
+    "lite6": ("lite6", (0.00298920, 0.00001614, 0.0), 0.000000298),
 }
 
 EXPECTED_PLATE_INERTIALS: dict[str, tuple[float, tuple[float, float, float], tuple[float, ...]]] = {
@@ -277,6 +277,9 @@ def test_fitted_robot_mounting_holes_and_z0_plane(arm):
     _, position, yaw = ARM_ASSEMBLY[arm]
     rot = np.array([[math.cos(yaw), -math.sin(yaw)], [math.sin(yaw), math.cos(yaw)]])
     assert lowest_z + position[2] * 1000.0 == pytest.approx(0.0, abs=1e-5)
+    if arm == "lite6":
+        assert lowest_z == pytest.approx(0.0, abs=1e-5)
+        assert position[2] == 0.0
 
     for nominal in centers:
         guess = nominal + shift
@@ -330,7 +333,7 @@ def test_arm_on_base_plate_preserves_robot_and_steps_stably(arm):
     ]
     assert plate_geoms and base_geoms
     nearest = min(mujoco.mj_geomDistance(model, data, a, b, 0.1, None) for a in plate_geoms for b in base_geoms)
-    assert -0.0001 < nearest < (0.0018 if arm == "lite6" else 0.0001)
+    assert -0.0001 < nearest < 0.0001
 
     for _ in range(500):
         mujoco.mj_step(model, data)

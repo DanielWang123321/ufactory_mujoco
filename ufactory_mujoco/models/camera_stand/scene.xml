@@ -4,7 +4,7 @@
   <statistic center="0.04 0.01 0" extent="0.24"/>
 
   <visual>
-    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0"/>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0.35 0.35 0.38"/>
     <rgba haze="0.15 0.25 0.35 1"/>
     <global azimuth="-140" elevation="-25" offwidth="1280" offheight="720"/>
   </visual>

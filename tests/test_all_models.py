@@ -37,6 +37,8 @@ ALL_MODELS = [
     "uf850_with_vacuum_gripper",
     "lite6_with_gripper",
     "lite6_with_vacuum_gripper",
+    "lite6_with_d435",
+    "lite6_with_gripper_and_d435",
     "d405",
     "d435",
     "gemini_305",
@@ -172,7 +174,13 @@ class AllModelsLoadingTest(unittest.TestCase):
     def test_lite6_studio_factory_ready_pose(self):
         """Lite 6 ready matches Studio joint angles and the 200 mm flange pose."""
         expected_q = np.deg2rad([0, 9.9, 31.8, 0, 21.9, 0])
-        for name in ("lite6", "lite6_with_gripper", "lite6_with_vacuum_gripper"):
+        for name in (
+            "lite6",
+            "lite6_with_gripper",
+            "lite6_with_vacuum_gripper",
+            "lite6_with_d435",
+            "lite6_with_gripper_and_d435",
+        ):
             with self.subTest(model=name):
                 m = mujoco.MjModel.from_xml_path(str(resolve_model_path(name)))
                 d = mujoco.MjData(m)

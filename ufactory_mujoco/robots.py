@@ -90,6 +90,8 @@ def _recipes() -> dict[str, Recipe]:
     recipes.update({f"{arm}_with_base_plate": Recipe(arm, base_plate=True) for arm in ARMS})
     recipes["lite6_with_gripper"] = Recipe("lite6", "lite6_gripper")
     recipes["lite6_with_vacuum_gripper"] = Recipe("lite6", "lite6_vacuum_gripper")
+    recipes["lite6_with_d435"] = Recipe("lite6", camera="d435")
+    recipes["lite6_with_gripper_and_d435"] = Recipe("lite6", "lite6_gripper", camera="d435")
     for arm in _XARM_SERIES:
         recipes[f"{arm}_with_gripper"] = Recipe(arm, "gripper_g2")
         recipes[f"{arm}_with_bio_gripper"] = Recipe(arm, "bio_gripper_g2")
@@ -167,7 +169,7 @@ BASE_PLATE_MOUNT: dict[str, tuple[str, tuple[float, float, float], float]] = {
     "xarm6": _XARM_BASE_PLATE_FIT,
     "xarm7": _XARM_BASE_PLATE_FIT,
     "uf850": ("uf850_base_plate", (-0.00001021, 0.00000350, 0.00000420), 0.0),
-    "lite6": ("lite6_base_plate", (0.00298920, 0.00001614, 0.00171732), 0.000000298),
+    "lite6": ("lite6_base_plate", (0.00298920, 0.00001614, 0.0), 0.000000298),
 }
 
 # Camera stand on a flange, and cameras on the stand (camera_stand coordinates).

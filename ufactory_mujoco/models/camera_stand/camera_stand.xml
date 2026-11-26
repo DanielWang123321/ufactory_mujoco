@@ -3,7 +3,7 @@
   <compiler angle="radian" autolimits="true" meshdir="assets" />
   <option integrator="implicitfast" />
   <asset>
-    <material name="stand_anodized_aluminum" rgba="0.72 0.74 0.76 1" specular="0.5" shininess="0.35" />
+    <material name="stand_anodized_aluminum" rgba="0.60 0.62 0.64 1" specular="0.72" shininess="0.16" reflectance="0.03" metallic="0.8" roughness="0.64" />
     <mesh name="stand_visual_mesh" file="camera_stand/visual/stand_mm.stl" scale="0.001 0.001 0.001" />
     <mesh name="stand_collision_mesh_000" file="camera_stand/collision/piece_000.stl" />
     <mesh name="stand_collision_mesh_001" file="camera_stand/collision/piece_001.stl" />

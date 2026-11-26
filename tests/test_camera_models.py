@@ -16,14 +16,15 @@ from ufactory_mujoco import MODELS_ROOT, resolve_model_path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CAMERAS = ("d405", "d435", "gemini_305", "zed_x_nano")
-D435_ARMS = ("xarm5", "xarm6", "xarm7", "uf850")
-LAST_LINKS = {"xarm5": "link5", "xarm6": "link6", "xarm7": "link7", "uf850": "link6"}
-ARM_DOFS = {"xarm5": 5, "xarm6": 6, "xarm7": 7, "uf850": 6}
+D435_ARMS = ("xarm5", "xarm6", "xarm7", "uf850", "lite6")
+LAST_LINKS = {"xarm5": "link5", "xarm6": "link6", "xarm7": "link7", "uf850": "link6", "lite6": "link6"}
+ARM_DOFS = {"xarm5": 5, "xarm6": 6, "xarm7": 7, "uf850": 6, "lite6": 6}
 STAND_COMBOS = tuple(f"camera_stand_with_{c}" for c in CAMERAS)
 XARM6_G2_COMBOS = tuple(f"xarm6_with_gripper_and_{c}" for c in CAMERAS)
 OTHER_G2_D435_COMBOS = tuple(f"{a}_with_gripper_and_d435" for a in ("xarm5", "xarm7", "uf850"))
+LITE6_GRIPPER_D435_COMBOS = ("lite6_with_gripper_and_d435",)
 BARE_ARM_D435_COMBOS = tuple(f"{a}_with_d435" for a in D435_ARMS)
-ARM_COMBOS = (*XARM6_G2_COMBOS, *OTHER_G2_D435_COMBOS, *BARE_ARM_D435_COMBOS)
+ARM_COMBOS = (*XARM6_G2_COMBOS, *OTHER_G2_D435_COMBOS, *LITE6_GRIPPER_D435_COMBOS, *BARE_ARM_D435_COMBOS)
 ALL_NEW_MODELS = (*CAMERAS, "camera_stand", *STAND_COMBOS, *ARM_COMBOS)
 
 STL_TRIANGLE = np.dtype([("normal", "<f4", (3,)), ("points", "<f4", (3, 3)), ("attribute", "<u2")])
@@ -603,6 +604,158 @@ class CameraAndBracketModelsTest(unittest.TestCase):
             mujoco.mj_forward(m, d)
             self.assertGreater(float(np.linalg.norm(d.site_xpos[cam_site] - before)), 0.005)
 
+    def test_camera_and_stand_aluminum_material_and_specular(self) -> None:
+        """Camera stand and silver camera housings match anodized aluminum with soft scene specular."""
+        g2_m = mujoco.MjModel.from_xml_path(str(MODELS_ROOT / "gripper_g2" / "gripper_g2.xml"))
+        g2_alu = mujoco.mj_name2id(g2_m, mujoco.mjtObj.mjOBJ_MATERIAL, "g2_anodized_aluminum")
+        self.assertGreaterEqual(g2_alu, 0)
+
+        for model_name, mat_name in (
+            ("camera_stand", "stand_anodized_aluminum"),
+            ("d405", "d405_anodized_aluminum"),
+            ("d435", "d435_anodized_aluminum"),
+            ("gemini_305", "gemini_305_anodized_aluminum"),
+        ):
+            with self.subTest(model=model_name):
+                m = mujoco.MjModel.from_xml_path(str(MODELS_ROOT / model_name / f"{model_name}.xml"))
+                mid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_MATERIAL, mat_name)
+                self.assertGreaterEqual(mid, 0)
+                np.testing.assert_allclose(m.mat_rgba[mid], g2_m.mat_rgba[g2_alu], atol=1e-6)
+                self.assertAlmostEqual(float(m.mat_specular[mid]), float(g2_m.mat_specular[g2_alu]), places=6)
+                self.assertAlmostEqual(float(m.mat_shininess[mid]), float(g2_m.mat_shininess[g2_alu]), places=6)
+                self.assertAlmostEqual(float(m.mat_reflectance[mid]), float(g2_m.mat_reflectance[g2_alu]), places=6)
+                self.assertAlmostEqual(float(m.mat_metallic[mid]), float(g2_m.mat_metallic[g2_alu]), places=6)
+                self.assertAlmostEqual(float(m.mat_roughness[mid]), float(g2_m.mat_roughness[g2_alu]), places=6)
+
+        zed_m = mujoco.MjModel.from_xml_path(str(MODELS_ROOT / "zed_x_nano" / "zed_x_nano.xml"))
+        zed_alu = mujoco.mj_name2id(zed_m, mujoco.mjtObj.mjOBJ_MATERIAL, "zed_x_nano_anodized_aluminum")
+        np.testing.assert_allclose(zed_m.mat_rgba[zed_alu], [0.15, 0.16, 0.17, 1.0], atol=1e-6)
+        for cam in CAMERAS:
+            cam_m = mujoco.MjModel.from_xml_path(str(MODELS_ROOT / cam / f"{cam}.xml"))
+            glass_id = mujoco.mj_name2id(cam_m, mujoco.mjtObj.mjOBJ_MATERIAL, f"{cam}_optical_glass")
+            np.testing.assert_allclose(cam_m.mat_rgba[glass_id], [0.025, 0.03, 0.035, 1.0], atol=1e-6)
+
+        for name in (
+            "camera_stand",
+            *CAMERAS,
+            "camera_stand_with_d435",
+            "xarm6_with_d435",
+            "lite6_with_d435",
+            "lite6_with_gripper_and_d435",
+        ):
+            with self.subTest(scene=name):
+                sm = mujoco.MjModel.from_xml_path(str(resolve_model_path(name, scene=True)))
+                np.testing.assert_allclose(sm.vis.headlight.specular, [0.35, 0.35, 0.38], atol=1e-6)
+
+        ft_cam_m = compose_model(arm="xarm6", ft_sensor=True, gripper="gripper_g2", camera="d435", scene=True)
+        np.testing.assert_allclose(ft_cam_m.vis.headlight.specular, [0.55, 0.57, 0.6], atol=1e-6)
+
+    def test_lite6_camera_stand_and_tool_assemblies(self) -> None:
+        """Verify Lite6 camera_stand + 4 cameras (bare, lite6_gripper, lite6_vacuum_gripper) and guards."""
+        stand_mass = EXPECTED_STAND_INERTIAL[0]
+        lower_bodies = {"link_base", *(f"link{i}" for i in range(1, 6))}
+        tool_roots = {
+            "lite6_gripper": "uflite_gripper_link",
+            "lite6_vacuum_gripper": "uflite_vacuum_gripper_link",
+        }
+
+        for gripper in (None, "lite6_gripper", "lite6_vacuum_gripper"):
+            base_name = (
+                "lite6"
+                if gripper is None
+                else ("lite6_with_gripper" if gripper == "lite6_gripper" else "lite6_with_vacuum_gripper")
+            )
+            base_m = mujoco.MjModel.from_xml_path(str(resolve_model_path(base_name, scene=False)))
+            base_d = mujoco.MjData(base_m)
+            mujoco.mj_resetDataKeyframe(base_m, base_d, 0)
+            mujoco.mj_forward(base_m, base_d)
+            base_mass = np.empty((base_m.nv, base_m.nv))
+            mujoco.mj_fullM(base_m, base_d, base_mass)
+            base_tcp = base_d.site_xpos[mujoco.mj_name2id(base_m, mujoco.mjtObj.mjOBJ_SITE, "attachment_site")].copy()
+            l6_id = mujoco.mj_name2id(base_m, mujoco.mjtObj.mjOBJ_BODY, "link6")
+            last_z = base_d.xmat[l6_id].reshape(3, 3)[:, 2].copy()
+            base_total = float(np.sum(base_m.body_mass))
+
+            for cam in CAMERAS:
+                with self.subTest(gripper=gripper, camera=cam):
+                    cam_mass = EXPECTED_CAMERA_INERTIALS[cam][0]
+                    if gripper in (None, "lite6_gripper") and cam == "d435":
+                        named = "lite6_with_d435" if gripper is None else "lite6_with_gripper_and_d435"
+                        m = mujoco.MjModel.from_xml_path(str(resolve_model_path(named, scene=True)))
+                    else:
+                        m = compose_model(arm="lite6", gripper=gripper, camera=cam, scene=True)
+                    d = mujoco.MjData(m)
+                    for key_name in ("home", "ready"):
+                        kid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_KEY, key_name)
+                        self.assertGreaterEqual(kid, 0)
+                        mujoco.mj_resetDataKeyframe(m, d, kid)
+                        mujoco.mj_forward(m, d)
+                        self.assertEqual(int(d.ncon), 0)
+
+                    b_l6 = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, "link6")
+                    b_stand = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, "camera_stand")
+                    b_cam = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, f"{cam}_body")
+                    weld_ids = {int(m.body_weldid[b]) for b in (b_l6, b_stand, b_cam)}
+                    if gripper is not None:
+                        b_tool = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, tool_roots[gripper])
+                        weld_ids.add(int(m.body_weldid[b_tool]))
+                    self.assertEqual(len(weld_ids), 1)
+
+                    mujoco.mj_resetDataKeyframe(m, d, 0)
+                    mujoco.mj_forward(m, d)
+                    self.assertAlmostEqual(float(np.sum(m.body_mass)), base_total + stand_mass + cam_mass, places=12)
+                    combo_mass = np.empty((m.nv, m.nv))
+                    mujoco.mj_fullM(m, d, combo_mass)
+                    np.testing.assert_allclose(combo_mass, combo_mass.T, atol=1e-12, rtol=0)
+                    delta = combo_mass - base_mass
+                    self.assertGreaterEqual(float(np.linalg.eigvalsh(delta).min()), -1e-12)
+                    self.assertGreater(float(np.trace(delta)), 1e-4)
+
+                    tcp = d.site_xpos[mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_SITE, "attachment_site")].copy()
+                    np.testing.assert_allclose(tcp - base_tcp, last_z * 0.003, atol=1e-7, rtol=0)
+
+                    gnames = [mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, i) or "" for i in range(m.ngeom)]
+                    bnames = [
+                        mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_BODY, m.geom_bodyid[i]) or ""
+                        for i in range(m.ngeom)
+                    ]
+                    stand_geoms = [i for i, n in enumerate(gnames) if n.startswith("stand_collision_")]
+                    cam_geoms = [i for i, n in enumerate(gnames) if n.startswith(f"{cam}_collision_")]
+                    l6_geoms = [i for i in range(m.ngeom) if m.geom_group[i] == 3 and bnames[i] == "link6"]
+                    lower_geoms = [i for i in range(m.ngeom) if m.geom_group[i] == 3 and bnames[i] in lower_bodies]
+                    self.assertGreater(_min_geom_distance(m, d, stand_geoms, l6_geoms), -1e-5)
+
+                    if gripper is not None:
+                        tool_geoms = [
+                            i for i in range(m.ngeom) if m.geom_group[i] == 3 and bnames[i] == tool_roots[gripper]
+                        ]
+                        self.assertGreater(_min_geom_distance(m, d, stand_geoms, tool_geoms), -1e-5)
+                        self.assertGreater(_min_geom_distance(m, d, cam_geoms, tool_geoms), 0.007)
+
+                    if gripper == "lite6_gripper":
+                        finger_geoms = [i for i in range(m.ngeom) if m.geom_group[i] == 3 and "finger" in bnames[i]]
+                        j1 = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, "finger_joint1")
+                        j2 = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, "finger_joint2")
+                        for stroke in (0.0, 0.00445, 0.0089):
+                            mujoco.mj_resetDataKeyframe(m, d, 0)
+                            d.qpos[m.jnt_qposadr[j1]] = stroke
+                            d.qpos[m.jnt_qposadr[j2]] = stroke
+                            mujoco.mj_forward(m, d)
+                            self.assertGreater(_min_geom_distance(m, d, cam_geoms, finger_geoms), 0.045)
+                            self.assertGreater(_min_geom_distance(m, d, stand_geoms, finger_geoms), 0.045)
+
+                    ready_id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_KEY, "ready")
+                    mujoco.mj_resetDataKeyframe(m, d, ready_id)
+                    mujoco.mj_forward(m, d)
+                    self.assertGreater(_min_geom_distance(m, d, stand_geoms + cam_geoms, lower_geoms), 0.020)
+
+        with self.assertRaises(ValueError):
+            compose_model(arm="lite6", gripper="gripper_g2", camera="d435")
+        with self.assertRaises(ValueError):
+            compose_model(arm="xarm6", gripper="lite6_gripper", camera="d435")
+        with self.assertRaises(ValueError):
+            compose_model(arm="xarm6", gripper="bio_gripper_g2", camera="d435")
+
     def test_d435_human_eye_view_and_base_yminus_usb_port(self) -> None:
         """Verify D435 meshes, flange aviation/pogo sides, human-eye upright view, and base Y- USB-C port."""
         d435_pts = np.concatenate(
@@ -680,6 +833,8 @@ class CameraAndBracketModelsTest(unittest.TestCase):
             "xarm6_with_gripper_and_zed_x_nano",
             "xarm6_with_d435",
             "uf850_with_gripper_and_d435",
+            "lite6_with_d435",
+            "lite6_with_gripper_and_d435",
         ):
             res = subprocess.run(
                 [sys.executable, str(ex01), "--headless", "--model", model_name],
@@ -689,7 +844,7 @@ class CameraAndBracketModelsTest(unittest.TestCase):
             )
             self.assertEqual(res.returncode, 0, f"01_load_and_view failed on {model_name}: {res.stderr}")
 
-        for passive_model in ("d405", "camera_stand_with_d405", "xarm6_with_d435"):
+        for passive_model in ("d405", "camera_stand_with_d405", "xarm6_with_d435", "lite6_with_d435"):
             res = subprocess.run(
                 [sys.executable, str(ex04), "--headless", "--model", passive_model],
                 capture_output=True,
@@ -698,7 +853,7 @@ class CameraAndBracketModelsTest(unittest.TestCase):
             )
             self.assertEqual(res.returncode, 2, f"Expected exit code 2 on {passive_model}, got {res.returncode}")
 
-        for combo_name in ("xarm6_with_gripper_and_d405", "uf850_with_gripper_and_d435"):
+        for combo_name in ("xarm6_with_gripper_and_d405", "uf850_with_gripper_and_d435", "lite6_with_gripper_and_d435"):
             res = subprocess.run(
                 [sys.executable, str(ex04), "--headless", "--model", combo_name, "--cycles", "1"],
                 capture_output=True,

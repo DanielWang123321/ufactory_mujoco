@@ -47,7 +47,7 @@ python examples/simulation/11_force_torque_sensor.py --model xarm6_with_ft_senso
 | :--- | :--- |
 | `xarm5`、`xarm6`、`xarm7`、`uf850` | `gripper`（Gripper G2）、`bio_gripper`、`vacuum_gripper`、`d435`、`gripper_and_d435`、`ft_sensor`、`ft_sensor_and_gripper`、`ft_sensor_and_vacuum_gripper`、`base_plate` |
 | 仅 `xarm6` | `gripper_and_d405`、`gripper_and_gemini_305`、`gripper_and_zed_x_nano` |
-| `lite6` | `gripper`（Lite 6 夹爪）、`vacuum_gripper`、`base_plate` |
+| `lite6` | `gripper`（Lite 6 夹爪）、`vacuum_gripper`、`d435`、`gripper_and_d435`、`base_plate` |
 
 独立部件可以在 `01` 中查看：夹爪 `gripper_g2`、`bio_gripper_g2`、`lite6_gripper`、`vacuum_gripper`、`lite6_vacuum_gripper`；相机 `d405`、`d435`、`gemini_305`、`zed_x_nano`；`camera_stand` 与 `camera_stand_with_<相机>`；`ft_sensor`；安装底板 `xarm_base_plate`、`uf850_base_plate`、`lite6_base_plate`。`04` 还支持三款独立的可动夹爪，`11` 还支持 `ft_sensor`。脚本遇到不支持的模型时以退出码 `2` 退出。
 

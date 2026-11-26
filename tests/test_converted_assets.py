@@ -16,8 +16,10 @@ Tests verify:
 from __future__ import annotations
 
 import re
+import struct
 import unittest
 from pathlib import Path
+import xml.etree.ElementTree as ET
 
 import mujoco
 import numpy as np
@@ -96,7 +98,7 @@ EXPECTED_TARGETS = {
     "xarm6": {"min_objs": 15, "min_stls": 22},
     "xarm7": {"min_objs": 12, "min_stls": 23},
     "uf850": {"min_objs": 11, "min_stls": 27},
-    "lite6": {"min_objs": 12, "min_stls": 17},
+    "lite6": {"min_objs": 12, "min_stls": 19},
     "gripper_g2": {"min_objs": 12, "min_stls": 16},
     "bio_gripper_g2": {"min_objs": 4, "min_stls": 11},
     "lite6_gripper": {"min_objs": 7, "min_stls": 1},
@@ -216,6 +218,150 @@ class ConvertedAssetsTest(unittest.TestCase):
         for xml_name, path, tag in tags:
             if path in shell_paths:
                 self.assertIn('inertia="shell"', tag, f"{xml_name}: {tag}")
+
+    def test_lite6_link6_three_hull_geometry_and_wrist_clearance(self) -> None:
+        """Verify Lite6 link6 uses 3 tight convex hulls and detects near-limit link4/link6 contact."""
+        col_dir = MODELS_DIR / "lite6" / "assets" / "lite6" / "collision"
+        col_files = sorted(col_dir.glob("lite6_link6_col_*.stl"))
+        self.assertEqual([p.name for p in col_files], [f"lite6_link6_col_{i:02d}.stl" for i in range(3)])
+
+        tri_dtype = np.dtype([("n", "<f4", 3), ("v", "<f4", (3, 3)), ("attr", "<u2")])
+        expected_specs = ((324, -20.0, 0.0), (184, -24.5, -20.0), (92, -14.0, -4.0))
+        hulls: list[tuple[np.ndarray, np.ndarray]] = []
+        for path, (exp_tris, exp_z_min_mm, exp_z_max_mm) in zip(col_files, expected_specs, strict=True):
+            raw = path.read_bytes()
+            count = struct.unpack_from("<I", raw, 80)[0]
+            self.assertEqual(count, exp_tris, path.name)
+            self.assertEqual(len(raw), 84 + 50 * count)
+            tris = np.frombuffer(raw, dtype=tri_dtype, offset=84, count=count)["v"].astype(np.float64)
+            z_mm = tris.reshape(-1, 3)[:, 2] * 1000.0
+            self.assertAlmostEqual(float(z_mm.min()), exp_z_min_mm, delta=0.01)
+            self.assertAlmostEqual(float(z_mm.max()), exp_z_max_mm, delta=0.01)
+            normals = np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])
+            normals /= np.maximum(np.linalg.norm(normals, axis=1, keepdims=True), 1e-12)
+            hulls.append((tris, normals))
+
+        vis_dir = MODELS_DIR / "lite6" / "assets" / "lite6" / "visual"
+        vis_pts = np.asarray(
+            [
+                [float(tok) for tok in line.split()[1:4]]
+                for name in ("link6_silver.obj", "link6_seal.obj")
+                for line in (vis_dir / name).open(encoding="utf-8")
+                if line.startswith("v ")
+            ],
+            dtype=np.float64,
+        )
+        min_outside = np.full(len(vis_pts), np.inf, dtype=np.float64)
+        for tris, normals in hulls:
+            outside = np.max(vis_pts @ normals.T - np.sum(tris[:, 0] * normals, axis=1)[None, :], axis=1)
+            min_outside = np.minimum(min_outside, outside)
+        self.assertLess(float(min_outside.max()) * 1000.0, 0.25)
+
+        model = mujoco.MjModel.from_xml_path(str(MODELS_DIR / "lite6" / "lite6.xml"))
+        data = mujoco.MjData(model)
+        l4_geoms = [
+            i
+            for i in range(model.ngeom)
+            if model.geom_group[i] == 3
+            and (mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_BODY, int(model.geom_bodyid[i])) or "") == "link4"
+        ]
+        l6_geoms = [
+            i
+            for i in range(model.ngeom)
+            if model.geom_group[i] == 3
+            and (mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_BODY, int(model.geom_bodyid[i])) or "") == "link6"
+        ]
+        self.assertEqual(len(l6_geoms), 3)
+
+        def link4_link6_min_mm(q5: float, q6: float) -> float:
+            data.qpos[:] = [0.0, 0.0, 0.0, 0.0, q5, q6]
+            mujoco.mj_forward(model, data)
+            min_d = min(mujoco.mj_geomDistance(model, data, a, b, 0.2, None) for a in l4_geoms for b in l6_geoms)
+            return min_d * 1000.0
+
+        normal_min_mm = min(
+            link4_link6_min_mm(q5, q6)
+            for q5 in (-1.8, -1.0, 0.0, 0.2742, 1.0, 1.8)
+            for q6 in np.linspace(-np.pi, np.pi, 13)
+        )
+        self.assertGreater(normal_min_mm, 5.8)
+
+        limit_min_mm = min(link4_link6_min_mm(2.1642, q6) for q6 in np.linspace(-np.pi, np.pi, 13))
+        self.assertLess(limit_min_mm, 0.5)
+
+    def test_xarm_bases_use_production_version_a_and_shared_meshes(self) -> None:
+        """Verify xArm 5/6/7 share xarm6 base/flange meshes with production version A dimensions."""
+        x6_vis = MODELS_DIR / "xarm6" / "assets" / "xarm6" / "visual"
+        expected_base_vis = (x6_vis / "link_base.obj").resolve()
+        expected_flange_vis = {
+            (x6_vis / f"link6_{part}.obj").resolve() for part in ("white", "silver", "black")
+        }
+        expected_cols = {
+            (MODELS_DIR / "xarm6" / "assets" / "xarm6" / "collision" / f"xarm6_link_base_col_{i:02d}.stl").resolve()
+            for i in range(2)
+        }
+        for arm, flange_prefix in (("xarm5", "link6"), ("xarm6", "link6"), ("xarm7", "link7")):
+            xml_path = MODELS_DIR / arm / f"{arm}.xml"
+            root = ET.parse(xml_path).getroot()
+            comp = root.find("compiler")
+            meshdir = xml_path.parent / (comp.get("meshdir", "assets") if comp is not None else "assets")
+            resolved = {m.get("name"): (meshdir / m.get("file", "")).resolve() for m in root.findall("./asset/mesh")}
+            self.assertEqual(resolved["link_base_vis"], expected_base_vis)
+            self.assertEqual(
+                {resolved["xarm6_link_base_col_00"], resolved["xarm6_link_base_col_01"]},
+                expected_cols,
+            )
+            self.assertEqual(
+                {resolved[f"{flange_prefix}_{part}_vis"] for part in ("white", "silver", "black")},
+                expected_flange_vis,
+            )
+
+        self.assertFalse((MODELS_DIR / "xarm5" / "assets").exists())
+        self.assertFalse((MODELS_DIR / "xarm7" / "assets" / "xarm7" / "visual" / "link_base.obj").exists())
+
+        def read_obj_verts_mm(path: Path) -> np.ndarray:
+            with path.open(encoding="utf-8") as fh:
+                verts = [[float(t) * 1000.0 for t in line.split()[1:4]] for line in fh if line.startswith("v ")]
+            return np.asarray(verts, dtype=np.float64)
+
+        base_vis_mm = read_obj_verts_mm(expected_base_vis)
+        z_min = float(base_vis_mm[:, 2].min())
+        z_max = float(base_vis_mm[:, 2].max())
+        self.assertTrue(-0.05 <= z_min <= 0.05, f"base visual z_min={z_min:.4f} mm")
+        self.assertTrue(150.25 <= z_max <= 150.45, f"base visual z_max={z_max:.4f} mm")
+        flange_d_mm = 2.0 * float(np.hypot(base_vis_mm[:, 0], base_vis_mm[:, 1]).max())
+        self.assertTrue(125.5 <= flange_d_mm <= 127.0, f"base flange D={flange_d_mm:.3f} mm")
+
+        r_base = np.hypot(base_vis_mm[:, 0], base_vis_mm[:, 1])
+        cyl_mask = (base_vis_mm[:, 2] >= 60.0) & (base_vis_mm[:, 2] <= 100.0)
+        self.assertTrue(95.0 <= float(2.0 * np.median(r_base[cyl_mask])) <= 96.0)
+        cyl_fwd_mask = cyl_mask & (base_vis_mm[:, 0] > -20.0)
+        self.assertLess(float(2.0 * r_base[cyl_fwd_mask].max()), 96.5)
+
+        tri_dtype = np.dtype([("n", "<f4", 3), ("v", "<f4", (3, 3)), ("attr", "<u2")])
+        col_chunks: list[np.ndarray] = []
+        for col_path in sorted(expected_cols):
+            raw = col_path.read_bytes()
+            tri_cnt = struct.unpack_from("<I", raw, 80)[0]
+            col_chunks.append(
+                np.frombuffer(raw, dtype=tri_dtype, offset=84, count=tri_cnt)["v"].reshape(-1, 3).astype(np.float64)
+                * 1000.0
+            )
+        col_pts_mm = np.concatenate(col_chunks, axis=0)
+        self.assertTrue(-0.05 <= float(col_pts_mm[:, 2].min()) <= 0.05)
+        self.assertTrue(150.25 <= float(col_pts_mm[:, 2].max()) <= 150.45)
+
+        x6_root = ET.parse(MODELS_DIR / "xarm6" / "xarm6.xml").getroot()
+        link1_el = x6_root.find(".//body[@name='link1']")
+        assert link1_el is not None
+        link1_z_mm = float(link1_el.get("pos", "0 0 0").split()[2]) * 1000.0
+        l1_white_mm = read_obj_verts_mm(x6_vis / "link1_white.obj")
+        l1_white_mm[:, 2] += link1_z_mm
+        r_l1 = np.hypot(l1_white_mm[:, 0], l1_white_mm[:, 1])
+        outer_mask = r_l1 > 45.0
+        self.assertGreater(float(l1_white_mm[outer_mask, 2].min()) - z_max, 0.3)
+        skirt_mask = outer_mask & (l1_white_mm[:, 2] >= 151.0) & (l1_white_mm[:, 2] <= 185.0)
+        self.assertGreater(2.0 * float(np.median(r_l1[skirt_mask])), 97.0)
 
 if __name__ == "__main__":
     unittest.main()
