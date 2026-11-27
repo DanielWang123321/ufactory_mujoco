@@ -43,6 +43,17 @@ from .kinematics import (
     solve_ik,
     solve_joint_velocity,
 )
+from .linear_motor import (
+    AL0700_STROKE_MM,
+    DragChain,
+    RailConfig,
+    RailController,
+    RailSimulation,
+    RailViewer,
+    create_rail_viewer,
+    has_linear_motor,
+    move_to_rail_position,
+)
 from .planning import CollisionChecker, PlanningError, plan_collision_free, shortcut_path
 from .robot_interface import RobotInterface
 from .robotiq import RobotiqController
@@ -126,4 +137,14 @@ __all__ = [
     "KinematicsCalibration",
     "load_kinematics_calibration",
     "CalibrationError",
+    # linear motor
+    "AL0700_STROKE_MM",
+    "DragChain",
+    "RailConfig",
+    "RailController",
+    "RailSimulation",
+    "RailViewer",
+    "create_rail_viewer",
+    "has_linear_motor",
+    "move_to_rail_position",
 ]

@@ -4,7 +4,7 @@
 
 [English](README.md) | [中文](README_zh.md) · [更新记录](CHANGELOG.md)
 
-基于 MuJoCo 的 UFACTORY 机器人（Lite 6、xArm 5/6/7、UF850）、夹爪、深度相机、力矩传感器与安装底板仿真套件：精细 MJCF 模型、运动学与动力学工具、轨迹规划、脚本化操作任务，以及带安全门的 xArm 真机接口。
+基于 MuJoCo 的 UFACTORY 机器人（Lite 6、xArm 5/6/7、UF850）、夹爪、深度相机、力矩传感器、安装底板与 AL0700 700 mm 直线滑轨仿真套件：精细 MJCF 模型、运动学与动力学工具、轨迹规划、脚本化操作任务，以及带安全门的 xArm 真机接口。
 
 ## 快速上手
 
@@ -20,7 +20,7 @@ python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose
 
 ## 功能
 
-- **模型**：全部 5 款机械臂、7 款末端工具（含通过 11 mm `robotiq_mounting` 法兰转接板适配的 Robotiq 2F-85 与 2F-140）、4 款深度相机、相机支架、AI1500 六维力矩传感器（`ft_sensor`，附确定性 `200 Hz` `AI1500Reader`）与安装底板（`*_base_plate`）。仓库只保存原子部件的 MJCF（`ufactory_mujoco/models/`）；所有机械臂+配件组合与任务场景都在运行时由 MuJoCo 原生 `MjSpec.attach` 装配（`compose.py`），也支持自定义多配件叠加，并可用 `ufactory-mujoco export-model` 导出静态 MJCF。视觉网格与多凸包碰撞体分离；Gripper G2、Bio Gripper G2 与 Robotiq 2F-85/2F-140 采用标定动力学与限速位置/力伺服（`g2.py`、`bio_g2.py`、`robotiq.py`）。
+- **模型**：全部 5 款机械臂、7 款末端工具（含通过 11 mm `robotiq_mounting` 法兰转接板适配的 Robotiq 2F-85 与 2F-140）、4 款深度相机、相机支架、AI1500 六维力矩传感器（`ft_sensor`，附确定性 `200 Hz` `AI1500Reader`）、安装底板（`*_base_plate`）与 AL0700 700 mm 直线滑轨（`al0700`，兼容 xArm 5/6/7，支持动态叠加末端配件与运行时拖链视觉形变 `linear_motor.py`）。仓库只保存原子部件的 MJCF（`ufactory_mujoco/models/`）；所有机械臂+配件组合与任务场景都在运行时由 MuJoCo 原生 `MjSpec.attach` 装配（`compose.py`），也支持自定义多配件叠加，并可用 `ufactory-mujoco export-model` 导出静态 MJCF。视觉网格与多凸包碰撞体分离；Gripper G2、Bio Gripper G2 与 Robotiq 2F-85/2F-140 采用标定动力学与限速位置/力伺服（`g2.py`、`bio_g2.py`、`robotiq.py`）。
 - **运动学与规划**：正运动学、雅可比、阻尼最小二乘逆解、五次/LSPB/样条轨迹、笛卡尔直线、碰撞检测与 RRT-Connect（`kinematics.py`、`trajectory.py`、`planning.py`）。
 - **动力学**：质量矩阵、重力/科氏力、正逆动力学、负载、五臂运动验收命令（`tasks/dynamics.py`），以及对齐 `ufactory_genesis` 的 Schema v4 真机静态力矩验证工具链（`dynamics/`，提供 `dynamics-sim-check`、`dynamics-sim-collision-check`、`dynamics-hardware-check`、`dynamics-report-compare`）。
 - **脚本化任务**：5 组机械臂/夹爪的方块抓放与装箱，含预检（关节限位、穿透、RRT-Connect 绕行）和 JSON 报告（`tasks/`、`preflight.py`）。
@@ -36,7 +36,7 @@ python examples/simulation/01_load_and_view.py --model xarm6_with_gripper --pose
 | `xarm7` | `gripper_g2`、`bio_gripper_g2`、`robotiq_2f_85`、`robotiq_2f_140`、`vacuum_gripper`、`ft_sensor`、`ft_sensor_and_gripper`、`ft_sensor_and_vacuum_gripper` | 配 `gripper_g2` | 支持 |
 | `uf850` | `gripper_g2`、`bio_gripper_g2`、`robotiq_2f_85`、`robotiq_2f_140`、`vacuum_gripper`、`ft_sensor`、`ft_sensor_and_gripper`、`ft_sensor_and_vacuum_gripper` | 配 `gripper_g2` | 支持 |
 
-命名模型覆盖 5 款裸臂、7 款末端工具（`gripper_g2`、`bio_gripper_g2`、`robotiq_2f_85`、`robotiq_2f_140`、`vacuum_gripper`、`lite6_gripper`、`lite6_vacuum_gripper`）、`robotiq_mounting` 法兰转接板、4 款深度相机（`d405`、`d435`、`gemini_305`、`zed_x_nano`）、相机支架、AI1500 六维力矩传感器、安装底板（`{xarm,uf850,lite6}_base_plate`）及各类机械臂+配件组合。`ufactory-mujoco export-model --list` 列出全部名称；用 `01_load_and_view.py --model <名称>` 加载，或用 `ufactory-mujoco export-model <名称> --out-dir <目录>` 导出独立 MJCF；模型命名规则见 [examples/simulation/README_zh.md](examples/simulation/README_zh.md#模型)。
+命名模型覆盖 5 款裸臂、7 款末端工具（`gripper_g2`、`bio_gripper_g2`、`robotiq_2f_85`、`robotiq_2f_140`、`vacuum_gripper`、`lite6_gripper`、`lite6_vacuum_gripper`）、`robotiq_mounting` 法兰转接板、4 款深度相机（`d405`、`d435`、`gemini_305`、`zed_x_nano`）、相机支架、AI1500 六维力矩传感器、安装底板（`{xarm,uf850,lite6}_base_plate`）、AL0700 直线滑轨（`al0700` 与 `xarm{5,6,7}_with_al0700`，并支持 `--linear-motor` 动态叠装末端配件）及各类机械臂+配件组合。`ufactory-mujoco export-model --list` 列出全部名称；用 `01_load_and_view.py --model <名称>` 加载，或用 `ufactory-mujoco export-model <名称> --out-dir <目录>` 导出独立 MJCF；模型命名规则见 [examples/simulation/README_zh.md](examples/simulation/README_zh.md#模型)。
 
 ## 安装
 
@@ -111,7 +111,7 @@ ufactory-mujoco kinematics-check --robot xarm6 --ip <ROBOT_IP> --calibration cal
 
 | 内容 | 文档 |
 | :--- | :--- |
-| 仿真示例 `01`–`11`、模型名、起始姿态、真机命令、视窗操作 | [examples/simulation/README_zh.md](examples/simulation/README_zh.md)（[English](examples/simulation/README.md)） |
+| 仿真示例 `01`–`12`、模型名、起始姿态、真机命令、视窗操作 | [examples/simulation/README_zh.md](examples/simulation/README_zh.md)（[English](examples/simulation/README.md)） |
 | 贡献指南、安全策略、行为准则（英文） | [CONTRIBUTING.md](CONTRIBUTING.md)、[SECURITY.md](SECURITY.md)、[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) |
 | 版本历史 | [CHANGELOG.md](CHANGELOG.md) |
 
@@ -128,7 +128,8 @@ ruff check .                      # 与 CI 相同的静态检查（pip install r
 ## 已知限制
 
 - 对齐 `ufactory_genesis` Schema v4 的裸臂 20 姿态真机静态力矩验证（`dynamics-hardware-check`，真机关节运动速度硬限制 `<= 40 °/s`）已在 Python 3.14.6、MuJoCo 4.0.1 下完成全部五款机型实测：xArm 5（固件 v2.8.2，`--nominal-model`，20/20 PASS，L2 力矩误差 0.520–0.780 Nm —— 因控制盒 502 端口 `0x08` 在平行轴构型下返回退化参数，`export-calibration` 返回退出码 `2` 跳过，验证改用名义 MJCF 模型，静态力矩与标定前一致，仅相对控制盒 POE 存在约 `2.6–4.2 mm` 笛卡尔正运动学差异）、xArm 6（固件 v2.8.0，20/20 PASS，L2 力矩误差 0.470–0.765 Nm；另基于更新后的 `UJ_BR_2403` 惯量在 `XI130505L56A01` / 固件 v2.8.2 上复测 20 姿态：20/20 PASS，L2 力矩误差 0.029–0.183 Nm，均值 0.097 Nm）、xArm 7（固件 v2.8.2，20/20 PASS，L2 力矩误差 0.816–3.303 Nm）、Lite 6（固件 v2.8.2，20/20 PASS，L2 力矩误差 0.028–0.156 Nm）与 UF850（固件 v2.8.100，20/20 PASS，L2 力矩误差 0.086–0.569 Nm）各一台；抓放/装箱真机模式已在 xArm 6（v2.8.0）上验证，3 kg 负载静态力矩比对（≤ 2.5 %）为单次历史实测。
-- 真空吸盘（`lite6_vacuum_gripper`、`vacuum_gripper` 及其机械臂组合）为静态模型，不含吸附模型。它们与独立相机、`camera_stand*`、`<机械臂>_with_d435`、`ft_sensor`、`<机械臂>_with_ft_sensor`、`robotiq_mounting`、`*_base_plate`、`<机械臂>_with_base_plate` 都没有夹爪执行器，`04_gripper_control.py` 会拒绝这些模型（退出码 `2`）。`robotiq_2f_85` 与 `robotiq_2f_140` 仅支持仿真控制（`SimRobot`），`XArmRobot` 对 Robotiq 夹爪接口直接抛出 `NotImplementedError`。
+- 真空吸盘（`lite6_vacuum_gripper`、`vacuum_gripper` 及其机械臂组合）为静态模型，不含吸附模型。它们与独立相机、`camera_stand*`、`<机械臂>_with_d435`、`ft_sensor`、`<机械臂>_with_ft_sensor`、`robotiq_mounting`、`*_base_plate`、`<机械臂>_with_base_plate`、`al0700` 与 `xarm*_with_al0700` 都没有夹爪执行器，`04_gripper_control.py` 会拒绝这些模型（退出码 `2`）。`robotiq_2f_85` 与 `robotiq_2f_140` 仅支持仿真控制（`SimRobot`），`XArmRobot` 对 Robotiq 夹爪接口直接抛出 `NotImplementedError`。`SimRobot` 显式拒绝滑轨模型（`ValueError`），请改用 `RailSimulation` / `RailController`（`12_linear_motor.py`）。
+- AL0700 直线滑轨（`al0700`）：仅支持 `xarm5`、`xarm6`、`xarm7`（与 `*_base_plate` 互斥，拒绝 `lite6` 与 `uf850`）。动力学按凸包体积分配官方 `20 kg` 总重（固定体 `17.3515 kg`、滑块 `2.6485 kg`）并按包围盒估算惯量，伺服（`kp=20000 N/m`、`dampratio=1`、峰值推力 `±160 N`、`1 ms` 步长、`2 ms` 限位时间常数）未经实物标定，未模拟热保护与 `62 N` 持续推力限制。CAD 安装高度保持 `107.02 mm`（未按规格 `114.6 mm` 缩放），拖链 `part_35` 仅做连续网格视觉形变（链长约 `920 mm` 未经实物核实，无链节动力学）；通用 XML 查看器不执行运行时拖链形变。
 - 深度相机与 `camera_stand` 模型提供外观几何、安装面/螺钉孔 `<site>`（`group=4`）、近似碰撞体（`group=3`）及真实质量与惯量参数（`camera_stand` `48 g`、`d405` `58 g`、`d435` `75 g`、`gemini_305` `68 g`、`zed_x_nano` `75 g`），不含 MuJoCo `<camera>` 光学成像传感器。
 - `ft_sensor` 系列模型以实测参数对 UFACTORY AI1500 建模（总质量 `0.6 kg` 拆分为 `0.45 kg` 底座与 `0.15 kg` 浮动端头，`ft_sensor_site` 位于法兰 `+32.0 mm`、浮动端质心超前 `+3.87 mm`、输出端面偏置 `+58.6 mm`，`1 ms` 物理步长 / `200 Hz` IEEE-754 `fp32` 采样保持，`±400 N / ±20 Nm` 超量程、`±600 N / ±30 Nm` 过载），输出与真机一致的符号极性（`+` = 施加于输出面的外力/力矩）及 `raw`（含浮动头与下游重力）/ `ext`（动态重力与零偏补偿）双通道、可选实测噪声（`noise_std="calibrated"`），并打通 `XArmRobot` 只读真机读取与防裸臂误运动预检门控（`--gripper ft_sensor*`，避免 `SERVO_R16B` 触发状态退化）；未模拟滞后、串扰、温漂与硬件低通滤波动态。`lite6`（物理/通信不兼容）、`bio_gripper_g2` 与 Robotiq（`robotiq_2f_85`、`robotiq_2f_140`）未构建 `ft_sensor` 组合。
 - 跨后端契约差异（`RobotInterface`）：`SimRobot.move_tcp` 执行笛卡尔直线与 SLERP 插值，而 `XArmRobot.move_tcp` 求解目标位姿 IK 后走关节空间运动（`XArmRobot.move_joints` 受 `max_joint_speed_rad_s` 限速约束，`SimRobot` 中 `wait=False` 仅跳过末尾 `settle`）；需跨仿真与真机严格走同一空间直线时请统一调用 `plan_cartesian_trajectory` + `execute_trajectory`。Gripper G2、Bio Gripper G2 与 Robotiq 2F-85/2F-140 传入 `speed_percent=0` 会暂停夹爪运动并维持接触预紧，后续省略 `speed_percent` 的指令会自动恢复上一次正速度。
@@ -152,6 +153,7 @@ ufactory_mujoco/
   safety.py                真机安全门与 sdk-sim 重放
   kinematics_validation.py 与控制器的只读 FK/IK 比对
   ft_sensor.py             AI1500 六维力矩传感器 200 Hz 读取器与局部力矩加载辅助
+  linear_motor.py          AL0700 700 mm 直线滑轨控制器、拖链形变与 RailSimulation/RailViewer
   g2.py                    Gripper G2 连杆模型、夹持力表与向量化位置/力伺服
   bio_g2.py                Bio Gripper G2 标定模型与限速位置/力伺服
   robotiq.py               Robotiq 2F-85 / 2F-140 连杆模型、规格力曲线与位置/力伺服
@@ -164,7 +166,7 @@ ufactory_mujoco/
   tasks/                   pick-place、box-pack、dynamics 命令（共用 _common.py）
   cli.py, __main__.py      `ufactory-mujoco` / `python -m ufactory_mujoco` 入口
   viewer.py                被动查看器，处理 Linux GLFW/X11
-examples/simulation/       示例 01–11
+examples/simulation/       示例 01–12
 scripts/                   发布包与隔离安装验收（`accept_installed.py`）
 tests/                     测试套件（pytest）
 ```

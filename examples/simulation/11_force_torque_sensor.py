@@ -58,7 +58,15 @@ def _run_simulation(args: argparse.Namespace) -> int:
 
     model_path = resolve_model_path(args.model)
 
-    with SimRobot(model_path, viewer=not args.headless) as robot:
+    try:
+        sim_ctx = SimRobot(model_path, viewer=not args.headless)
+    except ValueError as exc:
+        if "AL0700" in str(exc):
+            print(f"{exc} Use examples/simulation/12_linear_motor.py instead.", file=sys.stderr)
+            return 2
+        raise
+
+    with sim_ctx as robot:
         if not robot.has_ft_sensor:
             print(
                 f"Model '{args.model}' has no force/torque sensor "

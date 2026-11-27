@@ -1,0 +1,150 @@
+<mujoco model="al0700">
+  <!-- UFACTORY AL0700 Direct-Drive Linear Motor (700 mm stroke, estimated 20 kg volume-weighted mass/inertia; CAD height 107.02 mm). -->
+  <compiler angle="radian" autolimits="true" meshdir="assets" />
+  <option integrator="implicitfast" timestep="0.001" />
+  <asset>
+    <material name="al0700_black" rgba="0.128 0.138 0.147 1" specular="0.28" shininess="0.28" metallic="0.28" roughness="0.72" />
+    <material name="al0700_dark_gray" rgba="0.304 0.313 0.323 1" specular="0.38" shininess="0.38" metallic="0.38" roughness="0.62" />
+    <material name="al0700_silver" rgba="0.673 0.694 0.708 1" specular="0.5" shininess="0.58" reflectance="0.03" metallic="0.5" roughness="0.42" />
+    <mesh name="al0700_part_00" file="al0700/visual/part_00.obj" />
+    <mesh name="al0700_part_01" file="al0700/visual/part_01.obj" />
+    <mesh name="al0700_part_02" file="al0700/visual/part_02.obj" />
+    <mesh name="al0700_part_03" file="al0700/visual/part_03.obj" />
+    <mesh name="al0700_part_04" file="al0700/visual/part_04.obj" />
+    <mesh name="al0700_part_05" file="al0700/visual/part_05.obj" />
+    <mesh name="al0700_part_06" file="al0700/visual/part_06.obj" />
+    <mesh name="al0700_part_07" file="al0700/visual/part_07.obj" />
+    <mesh name="al0700_part_08" file="al0700/visual/part_08.obj" />
+    <mesh name="al0700_part_09" file="al0700/visual/part_09.obj" />
+    <mesh name="al0700_part_10" file="al0700/visual/part_10.obj" />
+    <mesh name="al0700_part_11" file="al0700/visual/part_11.obj" />
+    <mesh name="al0700_part_12" file="al0700/visual/part_12.obj" />
+    <mesh name="al0700_part_13" file="al0700/visual/part_13.obj" />
+    <mesh name="al0700_part_14" file="al0700/visual/part_14.obj" />
+    <mesh name="al0700_part_15" file="al0700/visual/part_15.obj" />
+    <mesh name="al0700_part_16" file="al0700/visual/part_16.obj" />
+    <mesh name="al0700_part_17" file="al0700/visual/part_17.obj" />
+    <mesh name="al0700_part_18" file="al0700/visual/part_18.obj" />
+    <mesh name="al0700_part_19" file="al0700/visual/part_19.obj" />
+    <mesh name="al0700_part_20" file="al0700/visual/part_20.obj" />
+    <mesh name="al0700_part_21" file="al0700/visual/part_21.obj" />
+    <mesh name="al0700_part_22" file="al0700/visual/part_22.obj" />
+    <mesh name="al0700_part_23" file="al0700/visual/part_23.obj" />
+    <mesh name="al0700_part_24" file="al0700/visual/part_24.obj" />
+    <mesh name="al0700_part_25" file="al0700/visual/part_25.obj" />
+    <mesh name="al0700_part_26" file="al0700/visual/part_26.obj" />
+    <mesh name="al0700_part_27" file="al0700/visual/part_27.obj" />
+    <mesh name="al0700_part_28" file="al0700/visual/part_28.obj" />
+    <mesh name="al0700_part_29" file="al0700/visual/part_29.obj" />
+    <mesh name="al0700_part_30" file="al0700/visual/part_30.obj" />
+    <mesh name="al0700_part_31" file="al0700/visual/part_31.obj" />
+    <mesh name="al0700_part_32" file="al0700/visual/part_32.obj" />
+    <mesh name="al0700_part_33" file="al0700/visual/part_33.obj" />
+    <mesh name="al0700_part_34" file="al0700/visual/part_34.obj" />
+    <mesh name="al0700_part_35" file="al0700/visual/part_35.obj" />
+    <mesh name="al0700_part_36" file="al0700/visual/part_36.obj" />
+    <mesh name="al0700_part_37" file="al0700/visual/part_37.obj" />
+    <mesh name="al0700_part_38" file="al0700/visual/part_38.obj" />
+    <mesh name="al0700_part_39" file="al0700/visual/part_39.obj" />
+    <mesh name="al0700_part_40" file="al0700/visual/part_40.obj" />
+    <mesh name="al0700_part_41" file="al0700/visual/part_41.obj" />
+    <mesh name="al0700_part_42" file="al0700/visual/part_42.obj" />
+    <mesh name="al0700_part_43" file="al0700/visual/part_43.obj" />
+    <mesh name="al0700_part_44" file="al0700/visual/part_44.obj" />
+    <mesh name="al0700_part_45" file="al0700/visual/part_45.obj" />
+    <mesh name="al0700_part_46" file="al0700/visual/part_46.obj" />
+    <mesh name="al0700_part_47" file="al0700/visual/part_47.obj" />
+    <mesh name="al0700_part_48" file="al0700/visual/part_48.obj" />
+    <mesh name="al0700_part_49" file="al0700/visual/part_49.obj" />
+    <mesh name="al0700_part_50" file="al0700/visual/part_50.obj" />
+    <mesh name="al0700_fixed_00_col" file="al0700/collision/fixed_00.stl" inertia="convex" />
+    <mesh name="al0700_fixed_01_col" file="al0700/collision/fixed_01.stl" inertia="convex" />
+    <mesh name="al0700_fixed_02_col" file="al0700/collision/fixed_02.stl" inertia="convex" />
+    <mesh name="al0700_fixed_03_col" file="al0700/collision/fixed_03.stl" inertia="convex" />
+    <mesh name="al0700_fixed_04_col" file="al0700/collision/fixed_04.stl" inertia="convex" />
+    <mesh name="al0700_fixed_05_col" file="al0700/collision/fixed_05.stl" inertia="convex" />
+    <mesh name="al0700_carriage_00_col" file="al0700/collision/carriage_00.stl" inertia="convex" />
+    <mesh name="al0700_carriage_01_col" file="al0700/collision/carriage_01.stl" inertia="convex" />
+    <mesh name="al0700_carriage_02_col" file="al0700/collision/carriage_02.stl" inertia="convex" />
+  </asset>
+  <worldbody>
+    <body name="al0700_fixed">
+      <inertial pos="0.31442396181 0.0120252421925 0.0330949624685" mass="17.3515433186" fullinertia="0.0495928181097 1.65882229446 1.69426415379 0.0159448342278 0.00690865609922 -0.0011071527805" />
+      <body name="al0700_carriage">
+        <inertial pos="-0.00157078106569 0.00252646318677 0.0721167622037" mass="2.64845668141" fullinertia="0.00683130773101 0.00757468683696 0.0122007781505 -0.00011770563089 -7.90594025912e-05 -0.000125460292196" />
+        <joint name="al0700_slide" type="slide" axis="1 0 0" limited="true" range="0 0.7" damping="0" frictionloss="0" armature="0" margin="0" solreflimit="0.002 1" solimplimit="0.99 0.999 0.0001" />
+        <site name="al0700_mount" pos="0 0 0.107" quat="0.707106781186548 0 0 -0.707106781186548" size="0.003" group="4" rgba="0 0.7 1 1" />
+        <geom name="al0700_part_25_vis" type="mesh" mesh="al0700_part_25" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+        <geom name="al0700_part_26_vis" type="mesh" mesh="al0700_part_26" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+        <geom name="al0700_part_27_vis" type="mesh" mesh="al0700_part_27" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+        <geom name="al0700_part_28_vis" type="mesh" mesh="al0700_part_28" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+        <geom name="al0700_part_29_vis" type="mesh" mesh="al0700_part_29" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+        <geom name="al0700_part_30_vis" type="mesh" mesh="al0700_part_30" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+        <geom name="al0700_part_31_vis" type="mesh" mesh="al0700_part_31" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+        <geom name="al0700_part_32_vis" type="mesh" mesh="al0700_part_32" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+        <geom name="al0700_part_33_vis" type="mesh" mesh="al0700_part_33" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+        <geom name="al0700_part_34_vis" type="mesh" mesh="al0700_part_34" material="al0700_dark_gray" contype="0" conaffinity="0" group="2" density="0" />
+        <geom name="al0700_part_36_vis" type="mesh" mesh="al0700_part_36" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+        <geom name="al0700_part_37_vis" type="mesh" mesh="al0700_part_37" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+        <geom name="al0700_part_38_vis" type="mesh" mesh="al0700_part_38" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+        <geom name="al0700_part_39_vis" type="mesh" mesh="al0700_part_39" material="al0700_dark_gray" contype="0" conaffinity="0" group="2" density="0" />
+        <geom name="al0700_part_40_vis" type="mesh" mesh="al0700_part_40" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+        <geom name="al0700_part_41_vis" type="mesh" mesh="al0700_part_41" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+        <geom name="al0700_part_42_vis" type="mesh" mesh="al0700_part_42" material="al0700_dark_gray" contype="0" conaffinity="0" group="2" density="0" />
+        <geom name="al0700_part_46_vis" type="mesh" mesh="al0700_part_46" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+        <geom name="al0700_part_47_vis" type="mesh" mesh="al0700_part_47" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+        <geom name="al0700_part_48_vis" type="mesh" mesh="al0700_part_48" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+        <geom name="al0700_part_49_vis" type="mesh" mesh="al0700_part_49" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+        <geom name="al0700_part_50_vis" type="mesh" mesh="al0700_part_50" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+        <geom name="al0700_carriage_00_col" type="mesh" mesh="al0700_carriage_00_col" group="3" density="0" rgba="0.3 0.7 0.5 0.3" />
+        <geom name="al0700_carriage_01_col" type="mesh" mesh="al0700_carriage_01_col" group="3" density="0" rgba="0.3 0.7 0.5 0.3" />
+        <geom name="al0700_carriage_02_col" type="mesh" mesh="al0700_carriage_02_col" group="3" density="0" rgba="0.3 0.7 0.5 0.3" />
+      </body>
+      <geom name="al0700_part_00_vis" type="mesh" mesh="al0700_part_00" material="al0700_black" contype="0" conaffinity="0" group="2" density="0" />
+      <geom name="al0700_part_01_vis" type="mesh" mesh="al0700_part_01" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+      <geom name="al0700_part_02_vis" type="mesh" mesh="al0700_part_02" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+      <geom name="al0700_part_03_vis" type="mesh" mesh="al0700_part_03" material="al0700_black" contype="0" conaffinity="0" group="2" density="0" />
+      <geom name="al0700_part_04_vis" type="mesh" mesh="al0700_part_04" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+      <geom name="al0700_part_05_vis" type="mesh" mesh="al0700_part_05" material="al0700_black" contype="0" conaffinity="0" group="2" density="0" />
+      <geom name="al0700_part_06_vis" type="mesh" mesh="al0700_part_06" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+      <geom name="al0700_part_07_vis" type="mesh" mesh="al0700_part_07" material="al0700_black" contype="0" conaffinity="0" group="2" density="0" />
+      <geom name="al0700_part_08_vis" type="mesh" mesh="al0700_part_08" material="al0700_black" contype="0" conaffinity="0" group="2" density="0" />
+      <geom name="al0700_part_09_vis" type="mesh" mesh="al0700_part_09" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+      <geom name="al0700_part_10_vis" type="mesh" mesh="al0700_part_10" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+      <geom name="al0700_part_11_vis" type="mesh" mesh="al0700_part_11" material="al0700_black" contype="0" conaffinity="0" group="2" density="0" />
+      <geom name="al0700_part_12_vis" type="mesh" mesh="al0700_part_12" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+      <geom name="al0700_part_13_vis" type="mesh" mesh="al0700_part_13" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+      <geom name="al0700_part_14_vis" type="mesh" mesh="al0700_part_14" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+      <geom name="al0700_part_15_vis" type="mesh" mesh="al0700_part_15" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+      <geom name="al0700_part_16_vis" type="mesh" mesh="al0700_part_16" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+      <geom name="al0700_part_17_vis" type="mesh" mesh="al0700_part_17" material="al0700_black" contype="0" conaffinity="0" group="2" density="0" />
+      <geom name="al0700_part_18_vis" type="mesh" mesh="al0700_part_18" material="al0700_black" contype="0" conaffinity="0" group="2" density="0" />
+      <geom name="al0700_part_19_vis" type="mesh" mesh="al0700_part_19" material="al0700_black" contype="0" conaffinity="0" group="2" density="0" />
+      <geom name="al0700_part_20_vis" type="mesh" mesh="al0700_part_20" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+      <geom name="al0700_part_21_vis" type="mesh" mesh="al0700_part_21" material="al0700_silver" contype="0" conaffinity="0" group="2" density="0" />
+      <geom name="al0700_part_22_vis" type="mesh" mesh="al0700_part_22" material="al0700_black" contype="0" conaffinity="0" group="2" density="0" />
+      <geom name="al0700_part_23_vis" type="mesh" mesh="al0700_part_23" material="al0700_dark_gray" contype="0" conaffinity="0" group="2" density="0" />
+      <geom name="al0700_part_24_vis" type="mesh" mesh="al0700_part_24" material="al0700_dark_gray" contype="0" conaffinity="0" group="2" density="0" />
+      <geom name="al0700_part_35_vis" type="mesh" mesh="al0700_part_35" material="al0700_black" contype="0" conaffinity="0" group="2" density="0" />
+      <geom name="al0700_part_43_vis" type="mesh" mesh="al0700_part_43" material="al0700_black" contype="0" conaffinity="0" group="2" density="0" />
+      <geom name="al0700_part_44_vis" type="mesh" mesh="al0700_part_44" material="al0700_black" contype="0" conaffinity="0" group="2" density="0" />
+      <geom name="al0700_part_45_vis" type="mesh" mesh="al0700_part_45" material="al0700_black" contype="0" conaffinity="0" group="2" density="0" />
+      <geom name="al0700_fixed_00_col" type="mesh" mesh="al0700_fixed_00_col" group="3" density="0" rgba="0.3 0.7 0.5 0.3" />
+      <geom name="al0700_fixed_01_col" type="mesh" mesh="al0700_fixed_01_col" group="3" density="0" rgba="0.3 0.7 0.5 0.3" />
+      <geom name="al0700_fixed_02_col" type="mesh" mesh="al0700_fixed_02_col" group="3" density="0" rgba="0.3 0.7 0.5 0.3" />
+      <geom name="al0700_fixed_03_col" type="mesh" mesh="al0700_fixed_03_col" group="3" density="0" rgba="0.3 0.7 0.5 0.3" />
+      <geom name="al0700_fixed_04_col" type="mesh" mesh="al0700_fixed_04_col" group="3" density="0" rgba="0.3 0.7 0.5 0.3" />
+      <geom name="al0700_fixed_05_col" type="mesh" mesh="al0700_fixed_05_col" group="3" density="0" rgba="0.3 0.7 0.5 0.3" />
+    </body>
+  </worldbody>
+  <actuator>
+    <position name="al0700_position" joint="al0700_slide" kp="20000" dampratio="1" ctrlrange="0 0.7" forcerange="-160 160" />
+  </actuator>
+  <keyframe>
+    <key name="home" qpos="0" ctrl="0" />
+    <key name="ready" qpos="0" ctrl="0" />
+  </keyframe>
+  <contact>
+    <exclude body1="al0700_fixed" body2="al0700_carriage" />
+  </contact>
+</mujoco>

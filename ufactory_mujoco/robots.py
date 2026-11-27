@@ -37,6 +37,7 @@ class ArmSpec:
 
 
 _XARM_SERIES = ("xarm5", "xarm6", "xarm7", "uf850")
+RAIL_ARMS = ("xarm5", "xarm6", "xarm7")
 # Gripper keys accepted by the xArm series and UF850, and the model-name suffix of each.
 _XARM_GRIPPER_SUFFIXES = {
     "gripper_g2": "with_gripper",
@@ -85,11 +86,13 @@ class Recipe:
     ft_sensor: bool = False
     camera: str | None = None
     base_plate: bool = False
+    linear_motor: bool = False
 
 
 def _recipes() -> dict[str, Recipe]:
     recipes = {f"camera_stand_with_{cam}": Recipe(None, camera=cam) for cam in CAMERAS}
     recipes.update({f"{arm}_with_base_plate": Recipe(arm, base_plate=True) for arm in ARMS})
+    recipes.update({f"{arm}_with_al0700": Recipe(arm, linear_motor=True) for arm in RAIL_ARMS})
     recipes["lite6_with_gripper"] = Recipe("lite6", "lite6_gripper")
     recipes["lite6_with_vacuum_gripper"] = Recipe("lite6", "lite6_vacuum_gripper")
     recipes["lite6_with_d435"] = Recipe("lite6", camera="d435")
@@ -190,6 +193,13 @@ BASE_PLATE_MOUNT: dict[str, tuple[str, tuple[float, float, float], float]] = {
     "uf850": ("uf850_base_plate", (-0.00001021, 0.00000350, 0.00000420), 0.0),
     "lite6": ("lite6_base_plate", (0.00298920, 0.00001614, 0.0), 0.000000298),
 }
+
+# AL0700 700 mm linear rail arm mount (pos, quat) on al0700_carriage (yaw -90 deg).
+AL0700_ARM_MOUNT: tuple[tuple[float, float, float], tuple[float, float, float, float]] = (
+    (0.0, 0.0, 0.107),
+    (0.707106781186548, 0.0, 0.0, -0.707106781186548),
+)
+AL0700_STATISTIC = ((0.35, 0.0, 0.40), 1.5)
 
 # Camera stand on a flange, and cameras on the stand (camera_stand coordinates).
 STAND_FLANGE_QUAT = (0.707106781, 0.707106781, 0, 0)

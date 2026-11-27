@@ -93,6 +93,10 @@ ALL_MODELS = [
     "xarm7_with_base_plate",
     "uf850_with_base_plate",
     "lite6_with_base_plate",
+    "al0700",
+    "xarm5_with_al0700",
+    "xarm6_with_al0700",
+    "xarm7_with_al0700",
 ]
 
 
@@ -221,7 +225,18 @@ class AllModelsLoadingTest(unittest.TestCase):
                 home = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_KEY, "home")
                 self.assertEqual(home, 0, "home must be keyframe 0")
                 np.testing.assert_array_equal(m.key(home).qpos[arm], np.zeros(len(arm)))
-                np.testing.assert_array_equal(m.key(home).ctrl[:len(arm)], np.zeros(len(arm)))
+                arm_acts = [
+                    a
+                    for a in range(m.nu)
+                    if int(m.actuator_trntype[a]) == int(mujoco.mjtTrn.mjTRN_JOINT)
+                    and re.fullmatch(r"joint\d+", m.joint(int(m.actuator_trnid[a, 0])).name or "")
+                ]
+                np.testing.assert_array_equal(m.key(home).ctrl[arm_acts], np.zeros(len(arm_acts)))
+                rail_jnt = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, "al0700_slide")
+                if rail_jnt >= 0:
+                    rail_act = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_ACTUATOR, "al0700_position")
+                    self.assertEqual(float(m.key(home).qpos[int(m.jnt_qposadr[rail_jnt])]), 0.0)
+                    self.assertEqual(float(m.key(home).ctrl[rail_act]), 0.0)
                 recipe = RECIPES.get(name)
                 init = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_KEY, "init")
                 self.assertEqual(init >= 0, needs_combo_init(recipe))

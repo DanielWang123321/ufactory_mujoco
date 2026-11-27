@@ -19,6 +19,7 @@ The examples need only the core install ([installation](../../README.md#installa
 | `09_obstacle_avoidance.py` | RRT-Connect around a pillar and an overhead board | `xarm6` |
 | `10_box_pack.py` | Cubes dropped into a box | `--robot`, five arms |
 | `11_force_torque_sensor.py` | AI1500 force/torque readings at 200 Hz | with `ft_sensor` |
+| `12_linear_motor.py` | AL0700 700 mm linear rail control, drag-chain deformation, and stacked arms | `al0700`, `xarm5`/`6`/`7` (`--arm`) |
 
 ## Running
 
@@ -34,6 +35,7 @@ python examples/simulation/08_dynamics.py --robot uf850
 python examples/simulation/09_obstacle_avoidance.py
 python examples/simulation/10_box_pack.py --robot xarm7 --cycles 3
 python examples/simulation/11_force_torque_sensor.py --model xarm6_with_ft_sensor_and_vacuum_gripper
+python examples/simulation/12_linear_motor.py --model xarm6_with_al0700 --round-trips 2
 ```
 
 - `05`, `08` and `10` run the same code as `ufactory-mujoco pick-place`, `dynamics` and `box-pack`. `--robot` selects the arm (`lite6`, `xarm5`, `xarm6`, `xarm7`, `uf850`); `05` and `10` mount the Lite 6 gripper on `lite6` and Gripper G2 on the others. `--dry-run` runs only the preflight, and `--report <file>` writes a JSON report.
@@ -45,11 +47,12 @@ python examples/simulation/11_force_torque_sensor.py --model xarm6_with_ft_senso
 
 | Arm | `<parts>` |
 | :--- | :--- |
-| `xarm5`, `xarm6`, `xarm7`, `uf850` | `gripper` (Gripper G2), `bio_gripper`, `robotiq_2f_85`, `robotiq_2f_140`, `vacuum_gripper`, `d435`, `gripper_and_d435`, `ft_sensor`, `ft_sensor_and_gripper`, `ft_sensor_and_vacuum_gripper`, `base_plate` |
+| `xarm5`, `xarm6`, `xarm7` | `gripper`, ..., `al0700` (and custom `--linear-motor` stacks with grippers/F/T/cameras) |
+| `uf850` | `gripper` (Gripper G2), `bio_gripper`, `robotiq_2f_85`, `robotiq_2f_140`, `vacuum_gripper`, `d435`, `gripper_and_d435`, `ft_sensor`, `ft_sensor_and_gripper`, `ft_sensor_and_vacuum_gripper`, `base_plate` |
 | `xarm6` only | `gripper_and_d405`, `gripper_and_gemini_305`, `gripper_and_zed_x_nano`, `robotiq_2f_85_and_d435`, `robotiq_2f_140_and_d435` |
 | `lite6` | `gripper` (Lite 6 gripper), `vacuum_gripper`, `d435`, `gripper_and_d435`, `base_plate` |
 
-Standalone parts open in `01`: the grippers `gripper_g2`, `bio_gripper_g2`, `robotiq_2f_85`, `robotiq_2f_140`, `lite6_gripper`, `vacuum_gripper` and `lite6_vacuum_gripper`; `robotiq_mounting` (11 mm xArm-to-Robotiq flange adapter); the cameras `d405`, `d435`, `gemini_305` and `zed_x_nano`; `camera_stand` and `camera_stand_with_<camera>`; `ft_sensor`; and the base plates `xarm_base_plate`, `uf850_base_plate` and `lite6_base_plate`. `04` also runs the five standalone jaw grippers, and `11` runs `ft_sensor`. A script exits with code `2` when it cannot run the given model.
+Standalone parts open in `01`: the grippers `gripper_g2`, `bio_gripper_g2`, `robotiq_2f_85`, `robotiq_2f_140`, `lite6_gripper`, `vacuum_gripper` and `lite6_vacuum_gripper`; `robotiq_mounting` (11 mm xArm-to-Robotiq flange adapter); the cameras `d405`, `d435`, `gemini_305` and `zed_x_nano`; `camera_stand` and `camera_stand_with_<camera>`; `ft_sensor`; the base plates `xarm_base_plate`, `uf850_base_plate` and `lite6_base_plate`; and the linear motor `al0700` (animated in `12_linear_motor.py`). `04` also runs the five standalone jaw grippers, and `11` runs `ft_sensor`. A script exits with code `2` when it cannot run the given model.
 
 ## Start Pose
 
@@ -57,6 +60,7 @@ Standalone parts open in `01`: the grippers `gripper_g2`, `bio_gripper_g2`, `rob
 - `ready` points the tool down. On xArm and UF850 models with a tool, camera or F/T sensor it puts the Gripper G2 TCP at `(300, 0, 300)` mm, and the other tools use the same joint angles. Lite 6 models use the factory pose `[0, 9.9, 31.8, 0, 21.9, 0]°`. Bare xArm and UF850 arms, also on a base plate, keep `ready` at zero.
 - Models whose mounted tool reaches below the floor at zero (xArm 5/6/7 combinations and `uf850` with `robotiq_2f_140`) also have `init`, equal to `ready`.
 - The examples start from `init` when the model has it, otherwise from `home`; `01 --pose` selects another keyframe. `05` and `10` start every arm with the TCP at `(300, 0, 300)` mm pointing down. In `05` this is straight above the cube, which every arm carries from `(300, 0)` to `(300, 300)` mm.
+- `al0700` and `xarm{5,6,7}_with_al0700` start at `home` (`0 mm` rail travel); `--linear-motor` stacks carrying floor-reaching tools start from `init`.
 - The standalone jaw grippers have `open` and `close` keyframes; the other standalone parts have none.
 
 ## Real Robot

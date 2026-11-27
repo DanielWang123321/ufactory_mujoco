@@ -194,6 +194,24 @@ class ComposeAndExportTests(unittest.TestCase):
         self.assertEqual(custom.nsensor, 2)
         self.assertEqual(custom.nu, 7)
 
+        rail_combo = compose_model(
+            arm="xarm6",
+            linear_motor=True,
+            ft_sensor=True,
+            gripper="gripper_g2",
+            camera="d435",
+            scene=True,
+        )
+        self.assertGreaterEqual(mujoco.mj_name2id(rail_combo, mujoco.mjtObj.mjOBJ_BODY, "al0700_carriage"), 0)
+        self.assertGreaterEqual(mujoco.mj_name2id(rail_combo, mujoco.mjtObj.mjOBJ_JOINT, "al0700_slide"), 0)
+        self.assertEqual(rail_combo.nsensor, 2)
+        self.assertEqual(rail_combo.nu, 8)
+
+        with self.assertRaises(ValueError):
+            compose_model(arm="lite6", linear_motor=True)
+        with self.assertRaises(ValueError):
+            compose_model(arm="xarm6", linear_motor=True, base_plate=True)
+
     def test_export_model_cli_and_portable_copy(self):
         from contextlib import redirect_stdout
         import io
@@ -225,6 +243,16 @@ class ComposeAndExportTests(unittest.TestCase):
             self.assertEqual(rc_list, 0)
             self.assertIn("[composed]", buf.getvalue())
             self.assertIn("[static]", buf.getvalue())
+
+            out_rail = Path(tmp) / "rail_export"
+            with redirect_stdout(io.StringIO()):
+                rc_rail = cli_main([
+                    "export-model", "--arm", "xarm6", "--linear-motor",
+                    "--out-dir", str(out_rail), "--copy-meshes",
+                ])
+            self.assertEqual(rc_rail, 0)
+            m3 = mujoco.MjModel.from_xml_path(str(out_rail / "scene.xml"))
+            self.assertGreaterEqual(mujoco.mj_name2id(m3, mujoco.mjtObj.mjOBJ_JOINT, "al0700_slide"), 0)
 
 if __name__ == "__main__":
     unittest.main()

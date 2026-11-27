@@ -36,6 +36,11 @@ def _export_model_cli(argv: list[str]) -> int:
     )
     parser.add_argument("--list", action="store_true", help="list all static and dynamically composed model names")
     parser.add_argument("--arm", choices=tuple(ARMS), default=None, help="custom composition arm")
+    parser.add_argument(
+        "--linear-motor",
+        action="store_true",
+        help="custom composition: mount arm on AL0700 linear motor",
+    )
     parser.add_argument("--base-plate", action="store_true", help="custom composition: mount arm on its base plate")
     parser.add_argument("--ft-sensor", action="store_true", help="custom composition: mount AI1500 F/T sensor")
     parser.add_argument(
@@ -53,10 +58,15 @@ def _export_model_cli(argv: list[str]) -> int:
             print(f"{name:42s} [{tag}]")
         return 0
 
-    if args.model is None and args.arm is None and not args.camera_stand:
-        parser.error("specify a MODEL name, --list, or custom composition flags (--arm / --camera-stand)")
+    if args.model is None and args.arm is None and not args.camera_stand and not args.linear_motor:
+        parser.error(
+            "specify a MODEL name, --list, or custom composition flags (--arm / --camera-stand / --linear-motor)"
+        )
 
-    out_dir = args.out_dir or Path(args.model or f"{args.arm or 'camera_stand'}_exported")
+    default_dir = args.model or (
+        f"{args.arm}_exported" if args.arm else ("al0700_exported" if args.linear_motor else "camera_stand_exported")
+    )
+    out_dir = args.out_dir or Path(default_dir)
     try:
         scene_path = export_model(
             args.model,
@@ -67,6 +77,7 @@ def _export_model_cli(argv: list[str]) -> int:
             gripper=args.gripper,
             camera=args.camera,
             camera_stand=args.camera_stand,
+            linear_motor=args.linear_motor,
             copy_meshes=args.copy_meshes,
         )
     except (ValueError, FileNotFoundError) as exc:

@@ -225,6 +225,19 @@ def accept(args, summary):
         assert not robot.has_ft_sensor and robot.n_arm == 6
     summary["accessories_0_1_7"] = "pass"
 
+    from ufactory_mujoco import RailSimulation, has_linear_motor
+    try:
+        SimRobot(resolve_model_path("xarm6_with_al0700"))
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("SimRobot must reject AL0700 linear motor models")
+    rail_sim = RailSimulation("xarm6_with_al0700")
+    assert has_linear_motor(rail_sim.model)
+    rail_report = rail_sim.move_to(100.0, speed_mm_s=500.0)
+    assert rail_report["settled"] and rail_report["error_mm"] <= 0.1
+    summary["linear_motor_al0700"] = "pass"
+
     saved_modes = [(package.parent, package.parent.stat().st_mode & 0o777)] + [
         (p, p.stat().st_mode & 0o777) for p in package.parent.rglob("*")
     ]
@@ -282,6 +295,9 @@ def _run_installed_command_checks(args, summary):
     run("export-model-ft", ["export-model", "xarm6_with_ft_sensor_and_gripper", "--out-dir", "exported-ft"])
     exported_m = mujoco.MjModel.from_xml_path(str(out / "exported-ft" / "scene.xml"))
     assert exported_m.nsensor == 2 and exported_m.nu == 7
+    run("export-model-al0700", ["export-model", "xarm6_with_al0700", "--out-dir", "exported-al0700"])
+    exported_rail = mujoco.MjModel.from_xml_path(str(out / "exported-al0700" / "scene.xml"))
+    assert exported_rail.nu == 7 and mujoco.mj_name2id(exported_rail, mujoco.mjtObj.mjOBJ_JOINT, "al0700_slide") >= 0
     for task in ("pick-place", "box-pack"):
         for arm in ("lite6", "xarm5", "xarm6", "xarm7", "uf850"):
             for dry in (True, False):

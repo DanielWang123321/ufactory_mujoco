@@ -51,6 +51,7 @@ from .robotiq import (
 )
 from .kinematics import manipulability, solve_ik_trajectory, solve_joint_velocity
 from .compose import initial_keyframe, load_model
+from .linear_motor import has_linear_motor
 from .robots import MODELS_ROOT
 from .robot_interface import RobotInterface
 from .trajectory import JointTrajectory
@@ -86,6 +87,11 @@ class SimRobot(RobotInterface):
         if not np.isfinite(viewer_hz) or viewer_hz <= 0:
             raise ValueError("viewer_hz must be finite and positive")
         self.model = load_model(model_path)
+        if has_linear_motor(self.model):
+            raise ValueError(
+                "Models with the AL0700 linear motor are not supported by SimRobot; "
+                "use ufactory_mujoco.RailSimulation / RailController instead."
+            )
         if low_power_rendering:
             configure_low_power_rendering(self.model)
         if timestep is not None:

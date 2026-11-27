@@ -149,7 +149,7 @@ class JointControlTests(unittest.TestCase):
     def test_demo_presets_keep_every_arm_and_combination_above_the_floor(self):
         """ready -> demo of example 02 must not push a link or a mounted tool into the floor."""
         from ufactory_mujoco import available_models
-        names = sorted(n for n in available_models() if n.split("_with_")[0] in ARMS)
+        names = sorted(n for n in available_models() if n.split("_with_")[0] in ARMS and "_with_al0700" not in n)
         self.assertGreaterEqual(len(names), 23)
         for name in names:
             with self.subTest(model=name):

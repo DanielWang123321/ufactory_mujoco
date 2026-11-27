@@ -152,8 +152,20 @@ def main() -> None:
 
     model_path = resolve_model_path(args.model)
 
-    with SimRobot(model_path=model_path, viewer=not args.headless, viewer_hz=args.sync_hz,
-                  low_power_rendering=args.render_quality == "fast") as robot:
+    try:
+        sim_ctx = SimRobot(
+            model_path=model_path,
+            viewer=not args.headless,
+            viewer_hz=args.sync_hz,
+            low_power_rendering=args.render_quality == "fast",
+        )
+    except ValueError as exc:
+        if "AL0700" in str(exc):
+            print(f"{exc} Use examples/simulation/12_linear_motor.py instead.", file=sys.stderr)
+            sys.exit(2)
+        raise
+
+    with sim_ctx as robot:
         print(f"Loaded: {args.model} ({robot.n_arm_actuators} arm actuators)")
         if motion == "dynamics":
             ready_q, targets = get_dynamics_targets()

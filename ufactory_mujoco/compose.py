@@ -175,7 +175,23 @@ def _build_robot(recipe: Recipe, name: str, root: Path) -> tuple[mujoco.MjSpec, 
         return spec, scene
 
     arm = recipe.arm
-    if recipe.base_plate:
+    if recipe.linear_motor and recipe.base_plate:
+        raise ValueError("linear_motor and base_plate cannot be combined")
+    if recipe.linear_motor:
+        if arm not in robots.RAIL_ARMS:
+            raise ValueError(f"{arm!r} does not support linear_motor; expected one of {robots.RAIL_ARMS}")
+        spec = _part("al0700", root)
+        arm_part = _part(arm, root)
+        arm_keys = [(k.name, list(k.qpos), list(k.ctrl)) for k in arm_part.keys]
+        pos, quat = robots.AL0700_ARM_MOUNT
+        link_base = arm_part.body("link_base")
+        link_base.pos = _round(pos)
+        link_base.quat = _round(quat)
+        _attach(spec, arm_part, frame=spec.body("al0700_carriage").add_frame())
+        spec.add_exclude(bodyname1="al0700_fixed", bodyname2="link_base")
+        scene["env"] = "al0700"
+        scene["statistic"] = robots.AL0700_STATISTIC
+    elif recipe.base_plate:
         plate, pos, yaw = robots.BASE_PLATE_MOUNT[arm]
         spec = _part(plate, root)
         arm_part = _part(arm, root)
@@ -188,10 +204,11 @@ def _build_robot(recipe: Recipe, name: str, root: Path) -> tuple[mujoco.MjSpec, 
         for key_name, qpos, ctrl in keys:
             spec.add_key(name=key_name, qpos=qpos, ctrl=ctrl)
         scene["floor_z"] = _env(plate, root).geom("floor").pos[2]
+        arm_keys = [(k.name, list(k.qpos), list(k.ctrl)) for k in spec.keys]
     else:
         spec = _part(arm, root)
+        arm_keys = [(k.name, list(k.qpos), list(k.ctrl)) for k in spec.keys]
     spec.modelname = name
-    arm_keys = [(k.name, list(k.qpos), list(k.ctrl)) for k in spec.keys]
 
     anchor = spec.site("attachment_site")
     flange = anchor.parent.name
@@ -239,7 +256,7 @@ def _build_robot(recipe: Recipe, name: str, root: Path) -> tuple[mujoco.MjSpec, 
         stand.body("camera_stand").quat = list(robots.STAND_FLANGE_QUAT)
         _mount_camera(stand, recipe.camera, root)
         _attach(spec, stand, frame=spec.body(flange).add_frame(), site_rgba=site_style[1])
-    if recipe.tool is not None or recipe.camera is not None:
+    if (recipe.tool is not None or recipe.camera is not None) and not recipe.linear_motor:
         scene["statistic"] = robots.COMBO_STATISTIC[arm]
 
     mounted = recipe.tool is not None or recipe.camera is not None or recipe.ft_sensor
@@ -249,13 +266,15 @@ def _build_robot(recipe: Recipe, name: str, root: Path) -> tuple[mujoco.MjSpec, 
         arm_keys = [("home", zero, zero), ("ready", ready, ready)]
         if robots.needs_combo_init(recipe):
             arm_keys.append(("init", ready, ready))
-    if mounted:
+    if mounted or recipe.linear_motor:
         for key in list(spec.keys):
             spec.delete(key)
+        qhead = [0.0] if recipe.linear_motor else []
+        chead = [0.0] if recipe.linear_motor else []
         qtail = [v for qpos, _ in tails for v in qpos]
         ctail = [v for _, ctrl in tails for v in ctrl]
         for key_name, qpos, ctrl in arm_keys:
-            spec.add_key(name=key_name, qpos=qpos + qtail, ctrl=ctrl + ctail)
+            spec.add_key(name=key_name, qpos=qhead + qpos + qtail, ctrl=chead + ctrl + ctail)
     return spec, scene
 
 
@@ -293,19 +312,26 @@ def _to_xml(spec: mujoco.MjSpec) -> str:
 
 
 def _recipe_for(name: str | None, arm=None, base_plate=False, ft_sensor=False, gripper=None, camera=None,
-                camera_stand=False) -> tuple[str, Recipe]:
+                camera_stand=False, linear_motor=False) -> tuple[str, Recipe]:
     if name is not None:
         recipe = RECIPES.get(name)
         if recipe is None:
             raise ValueError(f"Unknown model or recipe: {name!r}")
         return name, recipe
-    if not (arm or camera_stand or base_plate or ft_sensor or gripper or camera):
+    if not (arm or camera_stand or base_plate or ft_sensor or gripper or camera or linear_motor):
         raise ValueError("Specify either a model name or at least one component")
+    if linear_motor and base_plate:
+        raise ValueError("linear_motor and base_plate cannot be combined")
     if arm is None:
-        if not (camera_stand and camera in robots.CAMERAS) or base_plate or ft_sensor or gripper:
-            raise ValueError(f"Unsupported non-arm composition: camera_stand={camera_stand}, camera={camera}")
+        if not (camera_stand and camera in robots.CAMERAS) or base_plate or ft_sensor or gripper or linear_motor:
+            raise ValueError(
+                f"Unsupported non-arm composition: camera_stand={camera_stand}, "
+                f"camera={camera}, linear_motor={linear_motor}"
+            )
     elif arm not in ARMS:
         raise ValueError(f"Unknown arm {arm!r}; expected one of {tuple(ARMS)}")
+    if linear_motor and arm not in robots.RAIL_ARMS:
+        raise ValueError(f"{arm!r} does not support linear_motor; expected one of {robots.RAIL_ARMS}")
     if camera is not None and camera not in robots.CAMERAS:
         raise ValueError(f"Unknown camera {camera!r}; expected one of {robots.CAMERAS}")
     if gripper is not None and gripper not in TOOLS:
@@ -316,10 +342,10 @@ def _recipe_for(name: str | None, arm=None, base_plate=False, ft_sensor=False, g
         raise ValueError("camera_stand does not fit with 'bio_gripper_g2'")
     if ft_sensor and gripper not in (None, "gripper_g2", "vacuum_gripper"):
         raise ValueError(f"ft_sensor composition does not support gripper {gripper!r}")
-    parts = [p for p, on in (("base_plate", base_plate), ("ft_sensor", ft_sensor)) if on]
+    parts = [p for p, on in (("al0700", linear_motor), ("base_plate", base_plate), ("ft_sensor", ft_sensor)) if on]
     parts += [p for p in (gripper, camera) if p]
     model_name = f"{arm or 'camera_stand'}_with_{'_and_'.join(parts)}" if parts else arm
-    return model_name, Recipe(arm, gripper, ft_sensor, camera, base_plate)
+    return model_name, Recipe(arm, gripper, ft_sensor, camera, base_plate, linear_motor)
 
 
 @functools.lru_cache(maxsize=256)
@@ -339,9 +365,11 @@ def _static_xml(name: str, scene: bool, root: Path) -> str:
 def _xml(name: str | None, scene: bool, models_root: Path | None, **components) -> str:
     root = Path(models_root) if models_root is not None else MODELS_ROOT
     static = name if name is not None and name not in RECIPES else None
-    if static is None and name is None and components.get("arm") and not any(
-            v for k, v in components.items() if k != "arm"):
-        static = components["arm"]
+    if static is None and name is None:
+        if components.get("arm") and not any(v for k, v in components.items() if k != "arm"):
+            static = components["arm"]
+        elif components.get("linear_motor") and not any(v for k, v in components.items() if k != "linear_motor"):
+            static = "al0700"
     if static is not None and (root / static / f"{static}.xml").is_file() and (root / static / "scene.xml").is_file():
         return _static_xml(static, scene, root)
     model_name, recipe = _recipe_for(name, **components)
@@ -357,12 +385,13 @@ def compose_spec(
     gripper: str | None = None,
     camera: str | None = None,
     camera_stand: bool = False,
+    linear_motor: bool = False,
     scene: bool = True,
     models_root: Path | None = None,
 ) -> mujoco.MjSpec:
     """Return an ``MjSpec`` for a named model (static or composite) or explicit components."""
     xml = _xml(name, scene, models_root, arm=arm, base_plate=base_plate, ft_sensor=ft_sensor,
-               gripper=gripper, camera=camera, camera_stand=camera_stand)
+               gripper=gripper, camera=camera, camera_stand=camera_stand, linear_motor=linear_motor)
     return mujoco.MjSpec.from_string(xml)
 
 
@@ -581,6 +610,7 @@ def export_model(
     gripper: str | None = None,
     camera: str | None = None,
     camera_stand: bool = False,
+    linear_motor: bool = False,
     copy_meshes: bool = False,
     models_root: Path | None = None,
 ) -> Path:
@@ -589,7 +619,7 @@ def export_model(
     Mesh paths are absolute unless ``copy_meshes`` copies them to ``out_dir/assets``.
     """
     components = dict(arm=arm, base_plate=base_plate, ft_sensor=ft_sensor, gripper=gripper,
-                      camera=camera, camera_stand=camera_stand)
+                      camera=camera, camera_stand=camera_stand, linear_motor=linear_motor)
     out = Path(out_dir).resolve()
     out.mkdir(parents=True, exist_ok=True)
     root = (Path(models_root) if models_root is not None else MODELS_ROOT).resolve()

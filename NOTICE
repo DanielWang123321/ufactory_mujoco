@@ -66,6 +66,14 @@ licenses/ (and in the .dist-info/licenses/ directory of installed distributions)
      collision hulls, CAD sites, and measured inertial parameters (0.118 kg)
      are derived from ufactory_genesis for visual and mounting simulation.
 
+8. Direct-Drive Linear Motor (AL0700) Models (ufactory_mujoco/models/al0700 and composed *_with_al0700* assemblies)
+   - Derived from the published UFACTORY AL0700 3D STEP model
+     (AL0700(Zero position).STEP from 52I20XCHEZ1I.zip) and the visual meshes,
+     convex collision hull manifest, coordinate conventions, and drag-chain
+     deformation algorithm from ufactory_robot_viewer, licensed under the BSD
+     3-Clause License (Copyright (c) 2026, UFACTORY Robot Viewer contributors;
+     see licenses/ufactory_robot_viewer.LICENSE).
+
 Trademarks: xArm, UF850, Lite 6 and UFACTORY are trademarks of UFACTORY;
 RealSense is a trademark of Intel Corporation; Orbbec and Gemini are trademarks
 of Orbbec Inc.; Stereolabs and ZED are trademarks of Stereolabs Inc.; Robotiq

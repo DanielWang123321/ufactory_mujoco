@@ -66,8 +66,11 @@ jobs:
                    xarm7_with_bio_gripper xarm6_with_ft_sensor_and_gripper; do
             python examples/simulation/04_gripper_control.py --headless --model $m
           done
-          # models without a jaw actuator must exit with code 2
-          for m in lite6_vacuum_gripper vacuum_gripper xarm6_with_d435 ft_sensor xarm6_with_ft_sensor xarm_base_plate xarm6_with_base_plate; do
+          python examples/simulation/12_linear_motor.py --headless --model al0700 --position-mm 350
+          python examples/simulation/12_linear_motor.py --headless --model xarm6_with_al0700 --round-trips 1 --joint joint1=10
+          python examples/simulation/12_linear_motor.py --headless --arm xarm6 --gripper gripper_g2 --ft-sensor --camera d435 --position-mm 250
+          # models without a jaw actuator (or linear motor models) must exit with code 2
+          for m in lite6_vacuum_gripper vacuum_gripper xarm6_with_d435 ft_sensor xarm6_with_ft_sensor xarm_base_plate xarm6_with_base_plate al0700 xarm6_with_al0700; do
             rc=0; python examples/simulation/04_gripper_control.py --headless --model $m || rc=$?
             [ "$rc" -eq 2 ] || { echo "04_gripper_control --model $m: expected exit 2, got $rc"; exit 1; }
           done

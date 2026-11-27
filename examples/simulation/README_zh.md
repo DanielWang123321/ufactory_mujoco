@@ -19,6 +19,7 @@
 | `09_obstacle_avoidance.py` | RRT-Connect 绕过立柱和上方横板 | `xarm6` |
 | `10_box_pack.py` | 把方块投进盒子 | `--robot`，五款机械臂 |
 | `11_force_torque_sensor.py` | AI1500 六维力/力矩读数（200 Hz） | 含 `ft_sensor` 的模型 |
+| `12_linear_motor.py` | AL0700 700 mm 滑轨控制、拖链联动与机械臂叠加 | `al0700`、`xarm5`/`6`/`7`（`--arm`） |
 
 ## 运行
 
@@ -34,6 +35,7 @@ python examples/simulation/08_dynamics.py --robot uf850
 python examples/simulation/09_obstacle_avoidance.py
 python examples/simulation/10_box_pack.py --robot xarm7 --cycles 3
 python examples/simulation/11_force_torque_sensor.py --model xarm6_with_ft_sensor_and_vacuum_gripper
+python examples/simulation/12_linear_motor.py --model xarm6_with_al0700 --round-trips 2
 ```
 
 - `05`、`08`、`10` 与 `ufactory-mujoco pick-place`、`dynamics`、`box-pack` 运行同一套代码。`--robot` 选择机械臂（`lite6`、`xarm5`、`xarm6`、`xarm7`、`uf850`）；`05` 与 `10` 给 `lite6` 装 Lite 6 夹爪，给其余机械臂装 Gripper G2。`--dry-run` 只做预检，`--report <文件>` 输出 JSON 报告。
@@ -45,11 +47,12 @@ python examples/simulation/11_force_torque_sensor.py --model xarm6_with_ft_senso
 
 | 机械臂 | `<部件>` |
 | :--- | :--- |
-| `xarm5`、`xarm6`、`xarm7`、`uf850` | `gripper`（Gripper G2）、`bio_gripper`、`robotiq_2f_85`、`robotiq_2f_140`、`vacuum_gripper`、`d435`、`gripper_and_d435`、`ft_sensor`、`ft_sensor_and_gripper`、`ft_sensor_and_vacuum_gripper`、`base_plate` |
+| `xarm5`、`xarm6`、`xarm7` | `gripper`（Gripper G2）、`bio_gripper`、`robotiq_2f_85`、`robotiq_2f_140`、`vacuum_gripper`、`d435`、`gripper_and_d435`、`ft_sensor`、`ft_sensor_and_gripper`、`ft_sensor_and_vacuum_gripper`、`base_plate`、`al0700`（另支持 `--linear-motor` 在 `12`/`export-model` 中叠装末端与相机） |
+| `uf850` | `gripper`（Gripper G2）、`bio_gripper`、`robotiq_2f_85`、`robotiq_2f_140`、`vacuum_gripper`、`d435`、`gripper_and_d435`、`ft_sensor`、`ft_sensor_and_gripper`、`ft_sensor_and_vacuum_gripper`、`base_plate` |
 | 仅 `xarm6` | `gripper_and_d405`、`gripper_and_gemini_305`、`gripper_and_zed_x_nano`、`robotiq_2f_85_and_d435`、`robotiq_2f_140_and_d435` |
 | `lite6` | `gripper`（Lite 6 夹爪）、`vacuum_gripper`、`d435`、`gripper_and_d435`、`base_plate` |
 
-独立部件可以在 `01` 中查看：夹爪 `gripper_g2`、`bio_gripper_g2`、`robotiq_2f_85`、`robotiq_2f_140`、`lite6_gripper`、`vacuum_gripper`、`lite6_vacuum_gripper`；`robotiq_mounting`（11 mm xArm 转 Robotiq 法兰转接板）；相机 `d405`、`d435`、`gemini_305`、`zed_x_nano`；`camera_stand` 与 `camera_stand_with_<相机>`；`ft_sensor`；安装底板 `xarm_base_plate`、`uf850_base_plate`、`lite6_base_plate`。`04` 还支持五款独立的可动夹爪，`11` 还支持 `ft_sensor`。脚本遇到不支持的模型时以退出码 `2` 退出。
+独立部件可以在 `01` 中查看：夹爪 `gripper_g2`、`bio_gripper_g2`、`robotiq_2f_85`、`robotiq_2f_140`、`lite6_gripper`、`vacuum_gripper`、`lite6_vacuum_gripper`；`robotiq_mounting`（11 mm xArm 转 Robotiq 法兰转接板）；相机 `d405`、`d435`、`gemini_305`、`zed_x_nano`；`camera_stand` 与 `camera_stand_with_<相机>`；`ft_sensor`；安装底板 `xarm_base_plate`、`uf850_base_plate`、`lite6_base_plate`；以及直线滑轨 `al0700`（运动与拖链联动见 `12_linear_motor.py`）。`04` 还支持五款独立的可动夹爪，`11` 还支持 `ft_sensor`。脚本遇到不支持的模型时以退出码 `2` 退出。
 
 ## 起始姿态
 
@@ -57,6 +60,7 @@ python examples/simulation/11_force_torque_sensor.py --model xarm6_with_ft_senso
 - `ready`：工具竖直朝下。装有工具、相机或力矩传感器的 xArm 与 UF850 模型，`ready` 让 Gripper G2 的 TCP 位于 `(300, 0, 300)` mm，其他工具沿用同一组关节角。Lite 6 模型用出厂位姿 `[0, 9.9, 31.8, 0, 21.9, 0]°`。xArm 与 UF850 裸臂（包括装了底板的）的 `ready` 仍是全零。
 - 在全零姿态下会伸到地面以下的工具组合（装有工具、相机或力矩传感器的 xArm 5/6/7 模型，以及配 `robotiq_2f_140` 的 `uf850`）另有 `init`，与 `ready` 相同。
 - 示例在模型有 `init` 时从 `init` 起步，否则从 `home` 起步；`01 --pose` 可以选其他关键帧。`05` 与 `10` 让每款机械臂的 TCP 从 `(300, 0, 300)` mm 竖直朝下起步。在 `05` 中这个位置正好在方块上方，五款机械臂都把方块从 `(300, 0)` 搬到 `(300, 300)` mm。
+- `al0700` 与 `xarm{5,6,7}_with_al0700` 默认从 `home`（滑轨 `0 mm`）起步；叠装了全零触地工具的 `--linear-motor` 组合自动从 `init` 起步。
 - 独立的可动夹爪有 `open` 与 `close` 关键帧，其他独立部件没有关键帧。
 
 ## 真机

@@ -107,6 +107,7 @@ EXPECTED_TARGETS = {
     "robotiq_mounting": {"min_objs": 1, "min_stls": 2},
     "robotiq_2f_85": {"min_objs": 14, "min_stls": 11},
     "robotiq_2f_140": {"min_objs": 12, "min_stls": 11},
+    "al0700": {"min_objs": 51, "min_stls": 9},
 }
 
 
