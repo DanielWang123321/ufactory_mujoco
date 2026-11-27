@@ -69,7 +69,7 @@ from .trajectory import (
 )
 from .xarm_robot import XArmRobot
 
-__version__ = "0.1.9"
+__version__ = "0.2.0"
 
 __all__ = [
     "__version__",

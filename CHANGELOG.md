@@ -1,6 +1,8 @@
 # Changelog
 
-## [Unreleased]
+## [0.2.0] - 2026-11-27
+
+Added the UFACTORY AL0700 700 mm direct-drive linear motor (`al0700`) with runtime stacking, drag-chain deformation, and servo controller; integrated Robotiq 2F-85/2F-140 grippers and the 11 mm `robotiq_mounting` adapter with a pure-NumPy controller; enabled Lite 6 depth-camera compositions, 3-hull `link6` collision geometry, and `z = 0` base alignment; and synced explicit inertials and frosted anodized aluminum materials across xArm 5/6/7, UF850, depth cameras, stands, and base plates. All 11 task `config_sha256` hashes, all 10 `--dry-run` reports, and all 4 `lite6` simulation reports remain byte-identical to 0.1.9, while the 16 `xarm5`/`xarm6`/`xarm7`/`uf850` physics reports reflect sub-micrometer deltas from the updated `link_base` inertials.
 
 ### Added
 
